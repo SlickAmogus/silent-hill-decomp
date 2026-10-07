@@ -40,7 +40,7 @@ enum { TR_NONE = 0, TR_MOVE, TR_LOOK, TR_BUTTON, TR_ADVANCE,
 /* Actions the on-screen buttons drive. Indices into s_Buttons. */
 enum { TB_AIM = 0, TB_ITEM, TB_MAP, TB_START, TB_RUN, TB_BACK, TB_FIRE, TB_MENU,
        TB_SKIP,
-       TB_LIGHT, TB_VIEW, TB_CAM, TB_QSAVE, TB_QLOAD, TB_COUNT };
+       TB_LIGHT, TB_VIEW, TB_CAM, TB_QSAVE, TB_QLOAD, TB_BONUS, TB_COUNT };
 
 typedef struct
 {
@@ -102,6 +102,11 @@ static s_TouchButton s_Buttons[TB_COUNT] = {
     /* Corner escape slot only, like TB_BACK -- its own position is never
      * used; it carries the glyph and the Skip binding. */
     [TB_SKIP] = { 0.920f, 0.158f, 0.055f, 0 },
+    /* The options screen only. The bonus options page is entered with a
+     * shoulder button, which a touchscreen has no way to send, so the page was
+     * unreachable without a pad. Under the quick menu button on the left, well
+     * clear of the corner Back on the right. */
+    [TB_BONUS] = { 0.080f, 0.330f, 0.055f, 0 },
     /* Quick Save / Quick Load, only with touch_quicksave_buttons on. Up in the
      * empty band of the top edge, a quarter in from each side, about the size
      * of Menu, Pause and View -- a shade larger, so the letter clears the ring. */
@@ -788,6 +793,17 @@ static void Tc_PressAction(unsigned short* word, unsigned short mask)
  * and a binding and have no place of their own, so their table entry is a copy
  * of Start's -- which means any mode that draws them alongside Start stacks
  * them inside the same ring. */
+/* The bonus options page is entered from the main options list with a shoulder
+ * button (options.c reads L1/L2/R1/R2), which leaves it unreachable on a
+ * touchscreen. Only that list: on the PC Options page the same buttons page
+ * through it instead, and the brightness and controller sub-screens have their
+ * own modes. */
+static int Tc_BonusAllowed(void)
+{
+    return g_GameWork.gameState == GameState_OptionScreen &&
+           g_GameWork.gameStateSteps[0] == OptionsMenuState_MainOptions;
+}
+
 static int Tc_CornerOnly(int b)
 {
     return b == TB_BACK || b == TB_SKIP;
@@ -1178,6 +1194,19 @@ void Pc_Touch_Update(void)
 
                     t->role      = (onIt && solo >= 0) ? TR_BUTTON : TR_NONE;
                     t->buttonIdx = (onIt && solo >= 0) ? solo : -1;
+
+                    if (!onIt && Tc_BonusAllowed())
+                    {
+                        float bdx = (vx - s_Buttons[TB_BONUS].cx) * aspect;
+                        float bdy = (vy - s_Buttons[TB_BONUS].cy);
+                        float br  = s_Buttons[TB_BONUS].r * 1.25f;
+
+                        if (((bdx * bdx) + (bdy * bdy)) <= (br * br))
+                        {
+                            t->role      = TR_BUTTON;
+                            t->buttonIdx = TB_BONUS;
+                        }
+                    }
                 }
                 else if (b >= 0)
                 {
@@ -1546,6 +1575,10 @@ void Pc_Touch_Update(void)
          * by construction. */
         if (s_Buttons[TB_VIEW].holdFrames  > 0) Tc_PressAction(&s_PadWord, TG_L2);
         if (s_Buttons[TB_START].holdFrames > 0) Tc_PressAction(&s_PadWord, cfg->pause);
+        /* Raw L2, one of the four shoulder bits options.c accepts for the bonus
+         * page. Not a controllerConfig bind: this is a menu shortcut the game
+         * reads straight off the pad word. */
+        if (s_Buttons[TB_BONUS].holdFrames > 0) Tc_PressAction(&s_PadWord, TG_L2);
 
         /* Opens the overlay directly rather than through a pad bind: there is
          * no PSX button for it to press. Edge-triggered on the latch, or the
@@ -2165,12 +2198,17 @@ void Pc_Touch_Draw(void)
 
         if (mode != TC_MODE_GAMEPLAY)
         {
-            if (i != Tc_SoloButton(mode))
+            const int bonus = (i == TB_BONUS) && Tc_BonusAllowed();
+
+            if (i != Tc_SoloButton(mode) && !bonus)
                 continue;
 
-            bcx = s_Buttons[TB_START].cx;
-            bcy = s_Buttons[TB_START].cy;
-            br  = s_Buttons[TB_START].r;
+            if (!bonus)
+            {
+                bcx = s_Buttons[TB_START].cx;
+                bcy = s_Buttons[TB_START].cy;
+                br  = s_Buttons[TB_START].r;
+            }
         }
 
         cx = TC_UX(bcx);
@@ -2259,6 +2297,20 @@ void Pc_Touch_Draw(void)
                     Tc_Quad(&batch, ox - a / 2, cy - a, ox - a / 2, cy + a,
                                     ox + a / 2, cy,     ox + a / 2, cy, lum);
                 }
+                break;
+            }
+            case TB_BONUS:
+            {
+                /* An asterisk: the mark for something extra, and distinct from
+                 * every other glyph here at this size. */
+                int t = (r * 9) / 100, l = (r * 40) / 100, d = (l * 7) / 10;
+
+                Tc_Quad(&batch, cx - t, cy - l, cx + t, cy - l,
+                                cx - t, cy + l, cx + t, cy + l, lum);
+                Tc_Quad(&batch, cx - d - t, cy - d + t, cx - d + t, cy - d - t,
+                                cx + d - t, cy + d + t, cx + d + t, cy + d - t, lum);
+                Tc_Quad(&batch, cx + d - t, cy - d - t, cx + d + t, cy - d + t,
+                                cx - d - t, cy + d - t, cx - d + t, cy + d + t, lum);
                 break;
             }
             case TB_MENU:
