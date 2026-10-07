@@ -40,7 +40,8 @@ enum { TR_NONE = 0, TR_MOVE, TR_LOOK, TR_BUTTON, TR_ADVANCE,
 /* Actions the on-screen buttons drive. Indices into s_Buttons. */
 enum { TB_AIM = 0, TB_ITEM, TB_MAP, TB_START, TB_RUN, TB_BACK, TB_FIRE, TB_MENU,
        TB_SKIP,
-       TB_LIGHT, TB_VIEW, TB_CAM, TB_QSAVE, TB_QLOAD, TB_COUNT };
+       TB_LIGHT, TB_VIEW, TB_CAM, TB_QSAVE, TB_QLOAD, TB_BONUS, TB_CLICK,
+       TB_COUNT };
 
 typedef struct
 {
@@ -102,6 +103,13 @@ static s_TouchButton s_Buttons[TB_COUNT] = {
     /* Corner escape slot only, like TB_BACK -- its own position is never
      * used; it carries the glyph and the Skip binding. */
     [TB_SKIP] = { 0.920f, 0.158f, 0.055f, 0 },
+    /* The main options list only, as TC_MODE_BONUS's solo button: it takes the
+     * corner slot like Back and Skip, so its own position is never used. */
+    [TB_BONUS] = { 0.920f, 0.158f, 0.055f, 0 },
+    /* Free-cursor puzzles only, in the corner opposite Back: clicks wherever
+     * the cursor is. Touch drags the cursor and never clicks on its own, so
+     * this and a double tap at the cursor are the only ways to act. */
+    [TB_CLICK] = { 0.080f, 0.842f, 0.055f, 0 },
     /* Quick Save / Quick Load, only with touch_quicksave_buttons on. Up in the
      * empty band of the top edge, a quarter in from each side, about the size
      * of Menu, Pause and View -- a shade larger, so the letter clears the ring. */
@@ -236,7 +244,8 @@ enum { TC_LEVEL_NONE = 0, TC_LEVEL_ESCAPE, TC_LEVEL_FULL };
  * tapping IS how you work one, so the tap-anywhere dismissal would back out
  * the instant you touched a dial and the puzzle could never be solved. */
 enum { TC_MODE_OFF = 0, TC_MODE_GAMEPLAY, TC_MODE_PAUSE, TC_MODE_MAP, TC_MODE_ADVANCE, TC_MODE_BACK,
-       TC_MODE_BACK_CURSOR, TC_MODE_ESCAPE, TC_MODE_TITLE, TC_MODE_SKIP };
+       TC_MODE_BACK_CURSOR, TC_MODE_ESCAPE, TC_MODE_TITLE, TC_MODE_SKIP,
+       TC_MODE_BONUS };
 
 /* Gameplay gets the full scheme. Pause gets Start ALONE -- nothing else on that
  * screen responds to a pointer, so hiding the controls there left no way back
@@ -352,6 +361,26 @@ static int Tc_Mode(void)
     if (g_GameWork.gameState == GameState_OptionScreen &&
         g_GameWork.gameStateSteps[0] == OptionsMenuState_Brightness)
         return TC_MODE_BACK;
+
+    /* The bonus options page is entered from the main options list with a
+     * shoulder button (options.c takes any of L1/L2/R1/R2), which a
+     * touchscreen cannot send, so the page was unreachable without a pad.
+     *
+     * It needs a mode of its own because this screen is OFF otherwise: the
+     * list is driven by the pointer, so the bonus button was gated to the one
+     * screen where the overlay does not run, and it drew nothing and took no
+     * taps. Like BACK_CURSOR, this adds the single corner button and leaves
+     * every other tap to the menu underneath.
+     *
+     * The page itself too, where the same press is the way back out
+     * (options.c:2473 leaves on cancel or any shoulder): one button that
+     * goes in and comes back, exactly as a pad does it. The Enter/Leave
+     * states in between are deliberately left out, so the button is not up
+     * while a transition is already running. */
+    if (g_GameWork.gameState == GameState_OptionScreen &&
+        (g_GameWork.gameStateSteps[0] == OptionsMenuState_MainOptions ||
+         g_GameWork.gameStateSteps[0] == OptionsMenuState_ExtraOptions))
+        return TC_MODE_BONUS;
 
     /* The save/load screen needs the corner Back -- it is reachable straight
      * from the pause menu, and with no pad a player could get in and not back
@@ -674,6 +703,8 @@ static int Tc_SoloButton(int mode)
         return TB_MAP;     /* opens the achievement browser, and closes it */
     if (mode == TC_MODE_SKIP)
         return TB_SKIP;    /* results and credits move on with Skip */
+    if (mode == TC_MODE_BONUS)
+        return TB_BONUS;   /* the options list reaches the bonus page */
 
     return -1;
 }
@@ -788,6 +819,16 @@ static void Tc_PressAction(unsigned short* word, unsigned short mask)
  * and a binding and have no place of their own, so their table entry is a copy
  * of Start's -- which means any mode that draws them alongside Start stacks
  * them inside the same ring. */
+/* The Click button belongs to the free-cursor puzzles, not to every screen
+ * that uses the live-background mode: the save screen is TC_MODE_BACK_CURSOR
+ * too and its taps are meant to reach the list. */
+static int Tc_PuzzleClickAllowed(int mode)
+{
+    extern int Pc_MouseCursor_PuzzleActive(void);
+
+    return mode == TC_MODE_BACK_CURSOR && Pc_MouseCursor_PuzzleActive();
+}
+
 static int Tc_CornerOnly(int b)
 {
     return b == TB_BACK || b == TB_SKIP;
@@ -1178,6 +1219,20 @@ void Pc_Touch_Update(void)
 
                     t->role      = (onIt && solo >= 0) ? TR_BUTTON : TR_NONE;
                     t->buttonIdx = (onIt && solo >= 0) ? solo : -1;
+
+                    if (!onIt && Tc_PuzzleClickAllowed(mode))
+                    {
+                        float cdx = (vx - s_Buttons[TB_CLICK].cx) * aspect;
+                        float cdy = (vy - s_Buttons[TB_CLICK].cy);
+                        float cr  = s_Buttons[TB_CLICK].r * 1.25f;
+
+                        if (((cdx * cdx) + (cdy * cdy)) <= (cr * cr))
+                        {
+                            t->role      = TR_BUTTON;
+                            t->buttonIdx = TB_CLICK;
+                            onIt         = 1;
+                        }
+                    }
                 }
                 else if (b >= 0)
                 {
@@ -1546,6 +1601,21 @@ void Pc_Touch_Update(void)
          * by construction. */
         if (s_Buttons[TB_VIEW].holdFrames  > 0) Tc_PressAction(&s_PadWord, TG_L2);
         if (s_Buttons[TB_START].holdFrames > 0) Tc_PressAction(&s_PadWord, cfg->pause);
+        /* Raw L2, one of the four shoulder bits options.c accepts for the bonus
+         * page. Not a controllerConfig bind: this is a menu shortcut the game
+         * reads straight off the pad word. */
+        if (s_Buttons[TB_BONUS].holdFrames > 0) Tc_PressAction(&s_PadWord, TG_L2);
+
+        /* Not a pad bit: the puzzle's click is injected by pc_mouse_cursor at
+         * the cursor's own position, which is the whole point of the button. */
+        {
+            static int s_clickWas;
+            const int  clickNow = (s_Buttons[TB_CLICK].holdFrames > 0);
+
+            if (clickNow && !s_clickWas)
+                Pc_MouseCursor_PuzzleClickRequest();
+            s_clickWas = clickNow;
+        }
 
         /* Opens the overlay directly rather than through a pad bind: there is
          * no PSX button for it to press. Edge-triggered on the latch, or the
@@ -2165,12 +2235,17 @@ void Pc_Touch_Draw(void)
 
         if (mode != TC_MODE_GAMEPLAY)
         {
-            if (i != Tc_SoloButton(mode))
+            const int click = (i == TB_CLICK) && Tc_PuzzleClickAllowed(mode);
+
+            if (i != Tc_SoloButton(mode) && !click)
                 continue;
 
-            bcx = s_Buttons[TB_START].cx;
-            bcy = s_Buttons[TB_START].cy;
-            br  = s_Buttons[TB_START].r;
+            if (!click)
+            {
+                bcx = s_Buttons[TB_START].cx;
+                bcy = s_Buttons[TB_START].cy;
+                br  = s_Buttons[TB_START].r;
+            }
         }
 
         cx = TC_UX(bcx);
@@ -2259,6 +2334,27 @@ void Pc_Touch_Draw(void)
                     Tc_Quad(&batch, ox - a / 2, cy - a, ox - a / 2, cy + a,
                                     ox + a / 2, cy,     ox + a / 2, cy, lum);
                 }
+                break;
+            }
+            case TB_CLICK:
+            {
+                /* A filled dot: press here, and distinct from every other mark
+                 * on the overlay. */
+                Tc_Octagon(&batch, cx, cy, (r * 34) / 100, lum);
+                break;
+            }
+            case TB_BONUS:
+            {
+                /* An asterisk: the mark for something extra, and distinct from
+                 * every other glyph here at this size. */
+                int t = (r * 9) / 100, l = (r * 40) / 100, d = (l * 7) / 10;
+
+                Tc_Quad(&batch, cx - t, cy - l, cx + t, cy - l,
+                                cx - t, cy + l, cx + t, cy + l, lum);
+                Tc_Quad(&batch, cx - d - t, cy - d + t, cx - d + t, cy - d - t,
+                                cx + d - t, cy + d + t, cx + d + t, cy + d - t, lum);
+                Tc_Quad(&batch, cx + d - t, cy - d - t, cx + d + t, cy - d + t,
+                                cx - d - t, cy + d - t, cx - d + t, cy + d + t, lum);
                 break;
             }
             case TB_MENU:

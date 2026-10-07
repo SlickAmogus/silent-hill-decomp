@@ -296,6 +296,17 @@ bool func_801E342C(void) // 0x801E342C
         SD_Call(19);
     }
 
+#ifdef SH_PC_PORT
+    extern int g_PcCreditsFrame;   /* defined with the scroll, further down */
+
+    /* The results screen is this function too, not the scroll below, and it
+     * runs under a sysState that touch reads as plain "advance": the whole
+     * screen advanced it and nothing was ever drawn, which is why a button
+     * was reported invisible here. Stamping from the controller covers the
+     * scroll AND the results page, so both get the drawn corner Skip. */
+    g_PcCreditsFrame = g_TickCount;
+#endif
+
     ot   = (GsOT*)&g_OtTags1[g_ActiveBufferIdx + 1][0];
     tile = (TILE*)GsOUT_PACKET_P;
 
@@ -562,7 +573,7 @@ void func_801E386C(void) // 0x801E386C
 }
 
 #ifdef SH_PC_PORT
-/* Tick of the last credits-scroll frame, read by pc_touch.
+/* Tick of the last end-sequence frame, read by pc_touch.
  *
  * The scroll runs inside map6_s02's own update during InGame, so no gameState
  * or sysState test can tell it apart from ordinary gameplay -- touch offered
