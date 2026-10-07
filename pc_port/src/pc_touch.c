@@ -370,9 +370,16 @@ static int Tc_Mode(void)
      * list is driven by the pointer, so the bonus button was gated to the one
      * screen where the overlay does not run, and it drew nothing and took no
      * taps. Like BACK_CURSOR, this adds the single corner button and leaves
-     * every other tap to the menu underneath. */
+     * every other tap to the menu underneath.
+     *
+     * The page itself too, where the same press is the way back out
+     * (options.c:2473 leaves on cancel or any shoulder): one button that
+     * goes in and comes back, exactly as a pad does it. The Enter/Leave
+     * states in between are deliberately left out, so the button is not up
+     * while a transition is already running. */
     if (g_GameWork.gameState == GameState_OptionScreen &&
-        g_GameWork.gameStateSteps[0] == OptionsMenuState_MainOptions)
+        (g_GameWork.gameStateSteps[0] == OptionsMenuState_MainOptions ||
+         g_GameWork.gameStateSteps[0] == OptionsMenuState_ExtraOptions))
         return TC_MODE_BONUS;
 
     /* The save/load screen needs the corner Back -- it is reachable straight
