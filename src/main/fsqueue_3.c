@@ -1211,16 +1211,34 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
     }
 
 #ifdef SH_PC_PORT
-    /* A pack language ships no FONT16 of its own: build its letterforms into
-     * the atlas pixels right before upload. Covers every FONT16 reload site
-     * (boot, Konami, title, save-select) since they all pass through here, and
-     * dispatches on which pack is active -- Polish adds a few cells, Russian
-     * replaces the atlas. */
-    if ((Pc_LangPackActive() || Pc_RuActive()) &&
-        FSQ_INFO_VALID(entry->info) &&
+    if (FSQ_INFO_VALID(entry->info) &&
         (int)(entry->info - &g_FileTable[0]) == FILE_1ST_FONT16_TIM)
     {
-        Font_PatchPackGlyphs(tim.paddr, tim.prect->w, tim.prect->h);
+        /* A font pack built for the other region stores the same glyphs in a
+         * different shape, and the destination comes from the descriptor
+         * rather than the file, so it would smear across VRAM. Re-lay it to
+         * the active layout first; a pack already in the right shape, which is
+         * every pack in use today, is left untouched. */
+        void* pix = tim.paddr;
+        int   fw  = tim.prect->w;
+        int   fh  = tim.prect->h;
+
+        if (Font_FitAtlasToLayout(&pix, &fw, &fh))
+        {
+            tim.paddr   = (u_long*)pix;
+            tempRect.w  = (short)fw;
+            tempRect.h  = (short)fh;
+        }
+
+        /* A pack language ships no FONT16 of its own: build its letterforms
+         * into the atlas pixels right before upload. Covers every FONT16
+         * reload site (boot, Konami, title, save-select) since they all pass
+         * through here, and dispatches on which pack is active -- Polish adds
+         * a few cells, Russian replaces the atlas. */
+        if (Pc_LangPackActive() || Pc_RuActive())
+        {
+            Font_PatchPackGlyphs(tim.paddr, fw, fh);
+        }
     }
 
     /* A resumed post-load already uploaded this TIM to VRAM on its first pass. */

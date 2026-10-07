@@ -740,3 +740,79 @@ void Font_AtlasReloadNow(void)
     }
     free(raw);
 }
+
+/* Re-lay a FONT16 atlas into whatever shape the active layout expects.
+ *
+ * A font pack replaces 1ST/FONT16.TIM wholesale, but the two regions store the
+ * same glyphs in different shapes: the US atlas is one strip 256 VRAM units
+ * wide and 16 rows tall, holding four pages of 21 glyphs; the PAL one is a
+ * 64x96 grid of 21 glyphs per row. The upload DESTINATION comes from the image
+ * descriptor rather than from the file, so a pack built for the other region
+ * is written at the wrong shape and smears across VRAM. That is what "the font
+ * pack has to match your disc" has always meant.
+ *
+ * Nothing is lost in between. Cell N is cell N in both -- only its position
+ * differs -- so a pack can simply be re-laid-out. Only the 84 cells the US
+ * strip can hold are moved; converting TO the PAL grid therefore writes just
+ * its first four rows, leaving rows 4 and 5 (the accents, which a US pack has
+ * no opinion about) as they were in VRAM.
+ *
+ * A pack already in the right shape is left completely alone, so no existing
+ * pack changes behaviour. Returns non-zero when it converted. */
+#define FONT_CELL_UNITS 3                      /* 12px at 4bpp */
+#define FONT_CELL_BYTES (FONT_CELL_UNITS * 2)
+#define FONT_US_UNITS   256
+#define FONT_EUR_UNITS  64
+#define FONT_COLS       21
+
+static unsigned char s_AtlasFit[FONT_EUR_UNITS * 2 * 64];
+
+int Font_FitAtlasToLayout(void** pixels, int* w, int* h)
+{
+    const unsigned char* src = (const unsigned char*)*pixels;
+    int  wantEur = (g_FontLayout->rowsPerPage != 1);
+    int  isUs    = (*w == FONT_US_UNITS && *h == 16);
+    int  isEur   = (*w == FONT_EUR_UNITS && *h >= 64);
+    int  c;
+
+    if (src == NULL || (isUs == isEur))
+        return 0; /* not a shape this knows; leave it be */
+    if (isUs == !wantEur)
+        return 0; /* already what the layout wants -- the common case */
+
+    for (c = 0; c < FONT_COLS * 4; c++)
+    {
+        int  col = c % FONT_COLS;
+        int  row = c / FONT_COLS;
+        int  r;
+
+        for (r = 0; r < 16; r++)
+        {
+            const unsigned char* from;
+            unsigned char*       to;
+
+            if (isUs) /* strip -> grid */
+            {
+                from = src + (size_t)r * FONT_US_UNITS * 2
+                     + (size_t)(row * 64 + col * FONT_CELL_UNITS) * 2;
+                to   = s_AtlasFit + (size_t)(row * 16 + r) * FONT_EUR_UNITS * 2
+                     + (size_t)col * FONT_CELL_UNITS * 2;
+            }
+            else /* grid -> strip */
+            {
+                from = src + (size_t)(row * 16 + r) * FONT_EUR_UNITS * 2
+                     + (size_t)col * FONT_CELL_UNITS * 2;
+                to   = s_AtlasFit + (size_t)r * FONT_US_UNITS * 2
+                     + (size_t)(row * 64 + col * FONT_CELL_UNITS) * 2;
+            }
+            memcpy(to, from, FONT_CELL_BYTES);
+        }
+    }
+
+    *pixels = s_AtlasFit;
+    *w      = wantEur ? FONT_EUR_UNITS : FONT_US_UNITS;
+    *h      = wantEur ? 64 : 16;
+    SH_LOG("[FONT] font pack re-laid from the %s atlas shape to the %s one",
+           isUs ? "US" : "PAL", wantEur ? "PAL" : "US");
+    return 1;
+}

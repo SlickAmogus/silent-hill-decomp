@@ -88,6 +88,11 @@ void Font_AtlasReloadNow(void);
 /* Import the PAL 126-cell atlas onto a disc that does not carry it, so a pack
  * language gets real accents instead of base letters. No-op on a PAL disc. */
 void Font_UseEurAtlas(void);
+
+/* Re-lay a FONT16 atlas between the US strip and the PAL grid so a font pack
+ * built for either region works on both. A pack already in the right shape is
+ * untouched. Updates *pixels/*w/*h in place; non-zero if it converted. */
+int  Font_FitAtlasToLayout(void** pixels, int* w, int* h);
 int  Font_EurAtlasImported(void);
 
 /* Return g_FontLayout to the region base (drops any fan-patch override or the
