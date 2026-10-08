@@ -375,11 +375,20 @@ static void PackListScan(void)
     int            i;
     int            j;
 
-    s_PackListCount = 0;
-
     d = opendir(PACK_DIR);
     if (d == NULL)
+    {
+        /* NOT "no packs installed": the directory is not reachable yet. Config
+         * parsing resolves `language` to a pack id (pc_config.c) before the
+         * working directory is the game directory, so this is the first call
+         * every run -- and caching its miss as a count of zero hid every
+         * installed pack for the rest of the session, on every disc. Leave the
+         * registry unscanned so the next caller tries again. */
+        s_PackListCount = -1;
         return;
+    }
+
+    s_PackListCount = 0;
 
     while ((e = readdir(d)) != NULL && s_PackListCount < PACK_LIST_MAX)
     {
