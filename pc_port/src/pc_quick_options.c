@@ -98,7 +98,34 @@ extern void        PcOpt_QuickViewReset(int mode);
 #endif
 
 enum { ROW_OPT = 0, ROW_EXTRA, ROW_PAGE, ROW_CLOSE, ROW_CHEAT, ROW_ACTION };
-enum { QO_A_VIEWRESET = 0, QO_A_KEYBINDS };
+enum { QO_A_VIEWRESET = 0, QO_A_KEYBINDS, QO_A_TOTITLE };
+
+/* Return to the title, armed by one confirm and done by a second.
+ *
+ * A phone has no keyboard to quit from and no pad combo to hand (the PSX
+ * reset is Select+Start held, which a touchscreen cannot hold), so ending a
+ * run meant killing the app. It asks first because it is one row away from
+ * ordinary settings and losing a run to a mis-tap is worse than the extra tap.
+ *
+ * The row index is kept, not a bare flag, so moving off the row disarms it,
+ * and the arm lapses on its own: nothing stays primed while the menu sits
+ * open. */
+#define QO_TOTITLE_WINDOW_MS 4000u
+static int    s_toTitleRow = -1;
+static Uint32 s_toTitleMs;
+static int    s_toTitleShown;   /* what the baked row name currently says */
+
+static int qo_totitle_live(void)
+{
+    if (s_toTitleRow < 0)
+        return 0;
+    if ((SDL_GetTicks() - s_toTitleMs) > QO_TOTITLE_WINDOW_MS)
+    {
+        s_toTitleRow = -1;
+        return 0;
+    }
+    return 1;
+}
 
 typedef struct
 {
@@ -399,6 +426,8 @@ static const QoRowDef s_pageControls[] = {
      * so the Gamepad style still navigates menus with it. */
     { ROW_EXTRA, NULL, QO_X_DPADMOVE,         "Disable D-pad for Movement" },
     { ROW_OPT,   "touch_quicksave_buttons", 0, "Quick Save/Load Buttons" },
+    /* Asks before it acts; see QO_A_TOTITLE. */
+    { ROW_ACTION, NULL, QO_A_TOTITLE,         "Return to Main Menu" },
     { ROW_PAGE,  NULL, 0,                     "Next page  (Graphics)" },
     { ROW_CLOSE, NULL, 0,                     "Close" },
 };
@@ -1445,6 +1474,13 @@ static void qo_row_name(const QoRowDef* r, char* out, int n)
     }
     else if (r->kind == ROW_CHEAT)
         src = Pc_LangQuick(Pc_Cheats_Name(r->cpage, r->extra));
+    else if (r->kind == ROW_ACTION && r->extra == QO_A_TOTITLE && qo_totitle_live())
+    {
+        /* The confirm is the row name, because an action row draws no value
+         * column (QO_IS_VALUE_ROW): the row states what the next press does
+         * rather than a dialog being drawn over the panel. */
+        src = Pc_LangQuick("Return_to_Main_Menu?  Press_again");
+    }
     else
         src = Pc_LangQuick(r->label);
 
@@ -1990,6 +2026,27 @@ static void qo_confirm(const QoRowDef* r)
     {
         if (r->extra == QO_A_VIEWRESET)
             PcOpt_QuickViewReset(qo_view_cam_mode());
+        else if (r->extra == QO_A_TOTITLE)
+        {
+            if (!qo_totitle_live())
+            {
+                s_toTitleRow = s_sel;
+                s_toTitleMs  = SDL_GetTicks();
+                qo_beep(Sfx_MenuMove);
+            }
+            else
+            {
+                /* The flag the reset combo sets, not a reset of our own: the
+                 * main loop takes it at the top of a frame, between draws,
+                 * which is the only safe place to tear a map down
+                 * (MainLoop_ShouldWarmReset, warm_boot.c). It is ignored on
+                 * the title and during boot, so this cannot misfire there. */
+                s_toTitleRow = -1;
+                g_SysWork.sysFlags |= SysFlag_DoWarmReset;
+                qo_beep(Sfx_MenuConfirm);
+                Pc_QuickOptions_Close();
+            }
+        }
         else if (r->extra == QO_A_KEYBINDS)
         {
             /* On a phone this can refuse (no controller): it toasts and
@@ -2366,6 +2423,24 @@ void Pc_QuickOptions_Draw(void)
         if (i == s_sel)
             qo_quad(s_texWhite, NX(panelL + 4.0f), NY(rowTop), NX(panelR - 4.0f), NY(rowTop - rowH),
                     0.42f, 0.16f, 0.12f, 0.55f * dim);
+
+        if (r->kind == ROW_ACTION && r->extra == QO_A_TOTITLE)
+        {
+            int armed;
+
+            /* Moving off the row drops the arm: it only ever applies to the
+             * row the player is standing on. */
+            if (s_toTitleRow >= 0 && s_toTitleRow != s_sel)
+                s_toTitleRow = -1;
+
+            armed = qo_totitle_live();
+            if (armed != s_toTitleShown)
+            {
+                qo_retire(s_texLabel[i]);
+                s_texLabel[i]  = 0;
+                s_toTitleShown = armed;
+            }
+        }
 
         if (!s_texLabel[i])
         {
