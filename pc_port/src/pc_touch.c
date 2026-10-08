@@ -928,6 +928,16 @@ static int Tc_CornerOnly(int b)
     return b == TB_BACK || b == TB_SKIP;
 }
 
+/* Buttons that belong to one screen and never to play. Their own modes draw
+ * them explicitly, and nothing else should: the puzzle Click button was
+ * appearing on the gameplay overlay and taking taps there, because the draw
+ * loop and the hit test below only ever excluded the corner slot. Every
+ * screen-only button added since needs to be in here. */
+static int Tc_ScreenOnly(int b)
+{
+    return b == TB_CLICK || b == TB_BONUS || b == TB_NO;
+}
+
 /* A solo button that marks a word the screen already draws has to stay on that
  * word, so it is exempt from the corner slot every other solo button is moved
  * into. Both the hit test and the draw ask this, or the ring and the target end
@@ -945,7 +955,7 @@ static int Tc_HitButton(float x, float y, float aspect)
      * the index from Tc_SoloButton, so nothing here has to answer for them. */
     for (i = 0; i < TB_COUNT; i++)
     {
-        if (Tc_CornerOnly(i))
+        if (Tc_CornerOnly(i) || Tc_ScreenOnly(i))
             continue;
         if ((i == TB_QSAVE || i == TB_QLOAD) && !Tc_QuickButtonsOn())
             continue;
@@ -2421,7 +2431,7 @@ void Pc_Touch_Draw(void)
          * test, so it drew its fast-forward mark inside Start's ring all through
          * play: one control wearing two symbols, and on the stock binds the same
          * one, since Skip and Pause are both Start (settings_reset.c). */
-        if (mode == TC_MODE_GAMEPLAY && Tc_CornerOnly(i))
+        if (mode == TC_MODE_GAMEPLAY && (Tc_CornerOnly(i) || Tc_ScreenOnly(i)))
             continue;
 
         if ((i == TB_MENU || i == TB_CAM) && !Tc_MenuAllowed())
