@@ -388,17 +388,32 @@ static int Tc_Mode(void)
         if (g_GameWork.gameStateSteps[1] == 23)
             return TC_MODE_SAVEASK;
 
-        /* Examining an item -- the receipt, a map, any document -- fills the
-         * screen with it and leaves on cancel alone (step 13, set when the
-         * selection becomes Examine: item_screens_2.c). With no pad there was
-         * nothing to press and the inventory became a trap you had to kill the
-         * app to leave (reported).
-         *
-         * BACK_CURSOR, not BACK: the rest of the inventory is driven by the
-         * pointer, so only the corner slot is taken and every other tap still
-         * reaches the screen, exactly as on the save screen. */
-        if (g_GameWork.gameStateSteps[1] == 13)
-            return TC_MODE_BACK_CURSOR;
+    }
+
+    /* Examining an item -- the receipt, a map, any document -- fills the screen
+     * with it and leaves on cancel alone, so with no pad the inventory was a
+     * trap that needed the app killed to escape (reported).
+     *
+     * Keyed on the selection rather than a state step, which is what the first
+     * attempt got wrong: the in-game inventory does NOT run under
+     * GameState_InventoryScreen. SysState_StatusMenu_Update hands over to
+     * GameState_LoadStatusScreen and bounces sysState straight back to
+     * Gameplay, so the step numbering it was testing belonged to the standalone
+     * item screen. The selection means the same thing in both.
+     *
+     * TC_MODE_BACK, so a tap ANYWHERE leaves, which is all this screen needs:
+     * there is nothing else on it to touch. The corner button comes with that
+     * mode and does no harm. */
+    {
+        /* Declared here rather than including item_screens.h, which needs types
+         * this file does not carry (VbRVIEW, s_TmdFile). 8 is
+         * InventorySelectionId_Examine. */
+        extern u32 g_Inventory_SelectionId;
+
+        if ((g_GameWork.gameState == GameState_LoadStatusScreen ||
+             g_GameWork.gameState == GameState_InventoryScreen) &&
+            g_Inventory_SelectionId == 8u)
+            return TC_MODE_BACK;
     }
 
     /* The brightness screen is a slider with no pointer support, so touch could
