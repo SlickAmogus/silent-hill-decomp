@@ -95,7 +95,11 @@ s_PcConfig g_PcConfig = {
      * never produced a log at all -- which is exactly when one is needed, since
      * a fresh install on unfamiliar hardware is the case you cannot debug from
      * here. Worth revisiting before a wider release. */
-    .enableDebugLog = 1, /* 0=no SilentHill.log, 1=write SilentHill.log */
+    /* Off by default: a log is a diagnostic, and every player was writing one
+     * (and on Android, into the folder their file manager opens) without ever
+     * asking for it. Set enable_debug_log=1 in config.cfg to get it back; the
+     * gate and the post-config open in main_pc.c were already built for this. */
+    .enableDebugLog = 0, /* 0=no SilentHill.log, 1=write SilentHill.log */
     .glVerbose      = 0, /* 1 = log GL/GLSL details + shader info logs on success; failures always log */
     .allowDebugControls = 0, /* 0=off (default), 1=enable dev/cheat keys */
     .controllerMovement = 2, /* 0=analog, 1=dpad, 2=both */

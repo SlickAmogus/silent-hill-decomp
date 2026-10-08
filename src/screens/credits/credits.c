@@ -583,8 +583,17 @@ void func_801E386C(void) // 0x801E386C
  * because there is no single exit point to clear one at. */
 int g_PcCreditsFrame = -1000;
 
-/* Tick of the last frame of a post-boss ending script (map7_s03_3.c stamps it
- * from the top of all three, so it covers every ending from its first frame).
+/* Tick of the last frame of a scene script that cannot be skipped.
+ *
+ * map7_s03_3.c stamps it from the top of every event script in that map with no
+ * controllerConfig.skip site of its own -- the post-boss endings and the
+ * handovers around them. func_800E3390 is deliberately not stamped: it has a
+ * skip site, and it is the pre-boss cutscenes, which do skip.
+ *
+ * Measured, not guessed: a [SKIPPROBE] line showed the ending running as event
+ * param=3, func_800E3B6C, with every sysStateSteps counter at 0 -- none of the
+ * scripts that arm the credits or write the clear flags, which is what four
+ * earlier attempts had assumed and why the button kept appearing.
  *
  * None of those scenes honour Skip, as on the original, so touch must not offer
  * the button there: it did nothing and players went looking for it. Nothing in

@@ -177,7 +177,32 @@ int Pc_ExitToMenuRowActive(void)
 }
 
 
-enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_PAD, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_RESET, PCK_STORAGE, PCK_RALOGIN };
+enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_PAD, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_RESET, PCK_STORAGE, PCK_RALOGIN, PCK_TOTITLE };
+
+#if defined(SH_IOS) || defined(__ANDROID__)
+/* Return to the title, armed by one confirm and done by a second.
+ *
+ * A phone has no keyboard to quit from and cannot hold the console reset
+ * (Select+Start held), so ending a run meant killing the app. It asks first
+ * because it sits among ordinary settings and losing a run to a mis-tap is
+ * worse than one more tap. The armed entry is remembered, not a bare flag, so
+ * moving to another row disarms it, and it lapses on its own. */
+#define PCOPT_TOTITLE_WINDOW 240   /* frame ticks, about four seconds */
+static int s_pcOptToTitleRow = -1;
+static int s_pcOptToTitleTick;
+
+static int PcOpt_ToTitleArmed(int row)
+{
+    if (s_pcOptToTitleRow != row)
+        return 0;
+    if ((g_TickCount - s_pcOptToTitleTick) > PCOPT_TOTITLE_WINDOW)
+    {
+        s_pcOptToTitleRow = -1;
+        return 0;
+    }
+    return 1;
+}
+#endif
 
 /* PC-options row origin. The heading sits at y=20 and the rows used to start at 56,
  * leaving a full empty row beneath it while the pages ran off the BOTTOM of the
@@ -423,8 +448,11 @@ static const s_PcOpt PCOPT_H[] = {
      * draw the minimap once the area's paper map is found (the default); Off =
      * always draw it. Was config-only (minimap_require_map). */
     { "Minimap_Reqs_Map",  &g_PcConfig.minimapRequireMap,  "minimap_require_map",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
-    /* Pulsing red edge glow below 20 hp (pc_combat.c Pc_LowHealthGlowUpdate). */
+#if !defined(SH_IOS) && !defined(__ANDROID__)
+    /* Pulsing red edge glow below 20 hp (pc_combat.c Pc_LowHealthGlowUpdate).
+     * On a phone it sits on the last page instead, with PCOPT_M. */
     { "Low_HP_Glow",       &g_PcConfig.lowHealthGlow,      "low_health_glow",       VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+#endif
     /* From the System page; a crosshair is HUD, and that page needed the room. */
     { "Crosshair",         &g_PcConfig.crosshair,          "crosshair",             VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Crosshair_Size",    NULL, "crosshair_size",         NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.crosshairSize, NULL, 25.0f, 125.0f, 5.0f },
@@ -453,6 +481,11 @@ static const s_PcOpt PCOPT_M[] = {
     /* Mobile only, because a phone has no launcher: everywhere else the
      * launcher owns the account and the game just consumes its token. */
     { "Achievements",      NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_RALOGIN },
+    /* Pulsing red edge glow below 20 hp (pc_combat.c Pc_LowHealthGlowUpdate),
+     * moved off the HUD page to the last one. */
+    { "Low_HP_Glow",       &g_PcConfig.lowHealthGlow,     "low_health_glow",     VAL_ONOFF,  2, LBL_ONOFF,  NULL, 1, PCK_INT },
+    /* Asks before it acts; see PCOPT_TOTITLE_WINDOW_MS. */
+    { "Return_to_Title",   NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_TOTITLE },
     { "Prev_Page",         NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_PREV },
     { "Back",              NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_BACK },
 };
@@ -637,6 +670,8 @@ static const char* PcOpt_ValueLabel(const s_PcOpt* e, char* buf, int bufsz)
     /* Same 12-glyph budget as the account name below. */
     if (e->kind == PCK_PAD)
         return PcOpt_PadLabel(buf, bufsz, 12);
+    if (e->kind == PCK_TOTITLE)
+        return PcOpt_ToTitleArmed(g_PcOptionsMenu_SelectedEntry) ? "Press_again" : "";
     if (e->kind == PCK_RALOGIN) {
         if (Pc_Ra_LoginPending())
             return "Signing_in";
@@ -1761,6 +1796,22 @@ void Options_PcOptionsMenu_Control(void)
                 g_Options_SelectionHighlightTimer = 0;
 #endif
 #if defined(SH_IOS) || defined(__ANDROID__)
+            } else if (sel->kind == PCK_TOTITLE) {
+                if (!PcOpt_ToTitleArmed(g_PcOptionsMenu_SelectedEntry)) {
+                    s_pcOptToTitleRow  = g_PcOptionsMenu_SelectedEntry;
+                    s_pcOptToTitleTick = g_TickCount;
+                    Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+                } else {
+                    /* The flag the console reset combo sets, not a reset of our
+                     * own: the main loop takes it at the top of a frame,
+                     * between draws, which is the only safe place to tear a map
+                     * down (MainLoop_ShouldWarmReset, warm_boot.c). It is
+                     * ignored on the title and during boot. */
+                    s_pcOptToTitleRow = -1;
+                    g_SysWork.sysFlags |= SysFlag_DoWarmReset;
+                    Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+                }
+                g_Options_SelectionHighlightTimer = 0;
             } else if (sel->kind == PCK_RALOGIN) {
                 /* Signed in already? Then this is the sign-out. Otherwise open
                  * the native sheet -- a password field is not something the
