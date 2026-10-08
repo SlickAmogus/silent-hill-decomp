@@ -146,6 +146,14 @@ typedef struct
 #define QO_ROW_TAKES_DIR(r) (QO_IS_VALUE_ROW((r)->kind) || \
                              ((r)->kind == ROW_PAGE && (r)->extra == 0))
 
+/* The row ceiling is a hard one: every baked label, value and measurement is
+ * a QO_MAX_ROWS-length array indexed by row, and only the runtime-built cheat
+ * pages clamp themselves to it, so a page past the ceiling is a build error
+ * here rather than a row that silently never draws.
+ *
+ * s_page0, s_page1 and s_pageControls are AT capacity on a phone. Anything
+ * further on those three needs the ceiling raised, or the rows split onto
+ * another page. */
 static const QoRowDef s_page0[] = {
     { ROW_OPT,   "psx_dither",           0, NULL },  /* Texture_Filter */
     { ROW_OPT,   "msaa",                 0, NULL },  /* Antialiasing (restart) */
@@ -170,6 +178,9 @@ static const QoRowDef s_page0[] = {
     { ROW_PAGE,  NULL, 0,                   "Next page  (HUD & Audio)" },
     { ROW_CLOSE, NULL, 0,                   "Close" },
 };
+
+_Static_assert(sizeof(s_page0) / sizeof(s_page0[0]) <= QO_MAX_ROWS,
+               "s_page0 exceeds QO_MAX_ROWS; raise the ceiling or split the page");
 
 static const QoRowDef s_page1[] = {
     { ROW_OPT,   "minimap",              0, NULL },
@@ -203,6 +214,9 @@ static const QoRowDef s_page1[] = {
     { ROW_CLOSE, NULL, 0,                   "Close" },
 };
 
+_Static_assert(sizeof(s_page1) / sizeof(s_page1[0]) <= QO_MAX_ROWS,
+               "s_page1 exceeds QO_MAX_ROWS; raise the ceiling or split the page");
+
 #if !defined(QO_MOBILE)
 /* Controls: the keybind panel (the same one as Options > Controller Config),
  * then the control settings that apply live. Phones use s_pageControls. */
@@ -218,6 +232,9 @@ static const QoRowDef s_page5[] = {
     { ROW_PAGE,  NULL, 0,                   "Next page  (Graphics)" },
     { ROW_CLOSE, NULL, 0,                   "Close" },
 };
+
+_Static_assert(sizeof(s_page5) / sizeof(s_page5[0]) <= QO_MAX_ROWS,
+               "s_page5 exceeds QO_MAX_ROWS; raise the ceiling or split the page");
 #endif
 
 /* View & Aspect, in two shapes.
@@ -243,6 +260,9 @@ static const QoRowDef s_page2Simple[] = {
     { ROW_CLOSE,  NULL, 0,                 "Close" },
 };
 
+_Static_assert(sizeof(s_page2Simple) / sizeof(s_page2Simple[0]) <= QO_MAX_ROWS,
+               "s_page2Simple exceeds QO_MAX_ROWS; raise the ceiling or split the page");
+
 static const QoRowDef s_page2Advanced[] = {
     { ROW_EXTRA,  NULL, QO_X_ASPECT,       "Control Type" },
     { ROW_EXTRA,  NULL, QO_X_CRTTRIM,      "Aspect Trim" },
@@ -255,6 +275,9 @@ static const QoRowDef s_page2Advanced[] = {
     { ROW_PAGE,   NULL, 0,                 "Next page  (Cheats)" },
     { ROW_CLOSE,  NULL, 0,                 "Close" },
 };
+
+_Static_assert(sizeof(s_page2Advanced) / sizeof(s_page2Advanced[0]) <= QO_MAX_ROWS,
+               "s_page2Advanced exceeds QO_MAX_ROWS; raise the ceiling or split the page");
 
 /* Thirdperson, OTS and Firstperson shapes. The classic aspect/pixel knobs are
  * meaningless for the dynamic cameras -- they follow Harry in 3D -- so each shows
@@ -276,6 +299,9 @@ static const QoRowDef s_page2Tps[] = {
     { ROW_CLOSE,  NULL, 0,                 "Close" },
 };
 
+_Static_assert(sizeof(s_page2Tps) / sizeof(s_page2Tps[0]) <= QO_MAX_ROWS,
+               "s_page2Tps exceeds QO_MAX_ROWS; raise the ceiling or split the page");
+
 static const QoRowDef s_page2Ots[] = {
     { ROW_EXTRA,  NULL, QO_X_OTSFOV,       "FOV" },
     { ROW_EXTRA,  NULL, QO_X_OTSAIMZOOM,   "Aim Zoom" },
@@ -289,6 +315,9 @@ static const QoRowDef s_page2Ots[] = {
     { ROW_CLOSE,  NULL, 0,                 "Close" },
 };
 
+_Static_assert(sizeof(s_page2Ots) / sizeof(s_page2Ots[0]) <= QO_MAX_ROWS,
+               "s_page2Ots exceeds QO_MAX_ROWS; raise the ceiling or split the page");
+
 static const QoRowDef s_page2Fps[] = {
     { ROW_EXTRA,  NULL, QO_X_FPSFOV,       "FOV" },
     { ROW_EXTRA,  NULL, QO_X_FPSHEADX,     "Head X (left/right)" },
@@ -300,6 +329,9 @@ static const QoRowDef s_page2Fps[] = {
     { ROW_PAGE,   NULL, 0,                 "Next page  (Cheats)" },
     { ROW_CLOSE,  NULL, 0,                 "Close" },
 };
+
+_Static_assert(sizeof(s_page2Fps) / sizeof(s_page2Fps[0]) <= QO_MAX_ROWS,
+               "s_page2Fps exceeds QO_MAX_ROWS; raise the ceiling or split the page");
 
 /* Set when the row SET changes under the cached text (a Control Type switch, a
  * reset that flips it back, or the active camera changing while the page is up).
@@ -431,6 +463,9 @@ static const QoRowDef s_pageControls[] = {
     { ROW_PAGE,  NULL, 0,                     "Next page  (Graphics)" },
     { ROW_CLOSE, NULL, 0,                     "Close" },
 };
+
+_Static_assert(sizeof(s_pageControls) / sizeof(s_pageControls[0]) <= QO_MAX_ROWS,
+               "s_pageControls exceeds QO_MAX_ROWS; raise the ceiling or split the page");
 #endif
 
 static const QoRowDef* qo_section_rows(int page, int* count)
