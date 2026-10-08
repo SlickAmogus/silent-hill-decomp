@@ -3093,10 +3093,22 @@ void func_800E7380(void) // 0x800E7380
 
 INCLUDE_RODATA("maps/map7_s03/nonmatchings/map7_s03_3", D_800CC63C);
 
+#ifdef SH_PC_PORT
+/* Stamped from the top of each post-boss ending script below, and read by
+ * pc_touch to keep Skip away from scenes that do not honour it. The variable
+ * lives in credits.c because a map is its own module: it can reference the
+ * exe, but the exe cannot link a symbol a map owns. */
+extern int g_PcEndingFrame;
+#endif
+
 void func_800E787C(void) // 0x800E787C
 {
     s_800ED7E0_ptr* ptr;
     s32             flags;
+
+#ifdef SH_PC_PORT
+    g_PcEndingFrame = g_TickCount;
+#endif
 
     if (g_SysWork.sysStateSteps[0] == 31)
     {
@@ -3490,6 +3502,10 @@ void func_800E86BC(void) // 0x800E86BC
 {
     s_800ED7E0_ptr* ptr;
     s32             flags;
+
+#ifdef SH_PC_PORT
+    g_PcEndingFrame = g_TickCount;
+#endif
 
     if (g_SysWork.sysStateSteps[0] == 8)
     {
@@ -4120,6 +4136,10 @@ void func_800E98EC(void) // 0x800E98EC
 
 void func_800E9AC8(void) // 0x800E9AC8
 {
+#ifdef SH_PC_PORT
+    g_PcEndingFrame = g_TickCount;
+#endif
+
     switch (g_SysWork.sysStateSteps[0])
     {
         case 0:

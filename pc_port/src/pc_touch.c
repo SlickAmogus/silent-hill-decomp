@@ -156,6 +156,7 @@ static int            s_Running;
 static int            s_ActionFrames;  /* tap pulse, in pad updates */
 static int            s_CancelFrames;  /* the same, for the tap-anywhere Cancel */
 static int            s_AdvanceHeld;   /* a finger is down during an advance state */
+static int            s_SkipTapFrames; /* tap-anywhere Skip, for the credits */
 static int            s_SaveYesFrames; /* end-of-game save prompt, Yes */
 static int            s_SaveNoFrames;  /* the same, No */
 static int            s_PadAttached;   /* an SDL game controller is plugged in */
@@ -732,20 +733,24 @@ static int Tc_GamepadStyle(void)
  * gesture.
  *
  * Whether a scene honours skip is decided by the map that owns it, and the
- * scenes that follow the final boss do not, as on the original. They are named
- * by Pc_Credits_EndingArmed (credits.c): every ending arms the credits one step
- * before its cutscene begins, so the marker covers all of them, and nothing
- * before them, without this file knowing a single map.
+ * post-boss endings do not, as on the original, so the button stays away from
+ * them: g_PcEndingFrame is stamped from the top of each ending script
+ * (map7_s03_3.c), which covers every ending from its first frame. Two ticks of
+ * slack, like the credits stamp, so a frame that skips the script does not
+ * blink the button back.
  *
- * Not inferred from a press that did nothing, which was the first attempt: a
- * map takes skip only inside its own step window (map6_s02_2.c, steps 2..19),
- * so a press during the steps before one opens would have retired a button
- * that was about to start working. */
+ * Two earlier tries failed here. Retiring the button after a press that did
+ * nothing was wrong because a map takes skip only inside its own step window
+ * (map6_s02_2.c, steps 2..19), so an early press would retire a button that
+ * was about to start working. Reading "the credits are armed" was wrong
+ * because each script arms them PARTWAY through, leaving the button up for
+ * everything before that. */
 static int Tc_CutsceneSkip(void)
 {
-    extern int Pc_Credits_EndingArmed(void);
+    extern int g_PcEndingFrame;
 
-    return g_SysWork.sysState == SysState_EventCallback && !Pc_Credits_EndingArmed();
+    return g_SysWork.sysState == SysState_EventCallback &&
+           (g_TickCount - g_PcEndingFrame) > 2;
 }
 
 static int Tc_SoloButton(int mode)
@@ -758,8 +763,11 @@ static int Tc_SoloButton(int mode)
         return TB_BACK;    /* brightness and friends leave on cancel */
     if (mode == TC_MODE_TITLE)
         return TB_MAP;     /* opens the achievement browser, and closes it */
-    if (mode == TC_MODE_SKIP)
-        return TB_SKIP;    /* results and credits move on with Skip */
+    /* TC_MODE_SKIP draws nothing: the credits are a wall of scrolling text
+     * with nothing else to touch, so the whole screen skips them, the same
+     * bargain TC_MODE_ADVANCE makes for a scene. The results screen keeps its
+     * button (TC_MODE_RESULTS), because there a tap would be the save
+     * prompt's Yes one frame later. */
     if (mode == TC_MODE_BONUS)
         return TB_BONUS;   /* the options list reaches the bonus page */
     if (mode == TC_MODE_RESULTS)
@@ -1601,6 +1609,14 @@ void Pc_Touch_Update(void)
          * impossible to pick up. A screen asking a question is not a screen you
          * dismiss by tapping it; maxIdx is NO_VALUE the rest of the time, so
          * this costs the cancel-only screens nothing. */
+        /* The credits, skipped by a tap anywhere. */
+        if (mode == TC_MODE_SKIP && !t->movedFar &&
+            (now - t->startMs) >= TC_TAP_MIN_MS &&
+            (now - t->startMs) <= TC_TAP_MS)
+        {
+            s_SkipTapFrames = TC_ACTION_FRAMES;
+        }
+
         /* Yes on the save prompt, from a tap anywhere that did not land on the
      * No button. Spelled out rather than reusing the tap-anywhere Cancel,
      * because that screen reads neither cancel nor a bare enter: the selection
@@ -1660,6 +1676,12 @@ void Pc_Touch_Update(void)
         if (s_Buttons[TB_ITEM].holdFrames  > 0) Tc_PressAction(&s_PadWord, cfg->item);
         if (s_Buttons[TB_MAP].holdFrames   > 0) Tc_PressAction(&s_PadWord, cfg->map);
         if (s_Buttons[TB_SKIP].holdFrames  > 0) Tc_PressAction(&s_PadWord, cfg->skip);
+
+        if (s_SkipTapFrames > 0)
+        {
+            Tc_PressAction(&s_PadWord, cfg->skip);
+            s_SkipTapFrames--;
+        }
 
         if (Tc_GamepadStyle())
         {
@@ -2399,7 +2421,12 @@ void Pc_Touch_Draw(void)
             continue;
         }
 
-        Tc_Ring(&batch, cx, cy, r, (r * 82) / 100, lum);
+        /* No ring on the save prompt's No: the prompt already draws the word
+         * and its own selection box, so a circle round it was just an odd
+         * extra mark on screen (reported). The target stays, invisible, on the
+         * word a player would tap anyway. */
+        if (i != TB_NO)
+            Tc_Ring(&batch, cx, cy, r, (r * 82) / 100, lum);
 
         /* A distinct mark per button, so they read as different controls
          * without a font: crosshair, square, folded sheet, two bars. */

@@ -435,29 +435,6 @@ s32 D_801E5E88 = 0;
 
 s32 D_801E5E8C = 0;
 
-#ifdef SH_PC_PORT
-/* "This run has reached its ending."
- *
- * Every ending arms the credits through func_801E2E28, which sets D_801E5E88,
- * and it does so one step BEFORE the ending cutscene starts playing
- * (map7_s03_3.c), so this is true for exactly the scenes that follow the final
- * boss and for none before them. Touch reads it to know not to offer Skip:
- * those scenes do not honour it, as on the original, and a control that does
- * nothing is worse than no control.
- *
- * Nothing in the game clears it -- on PSX this was overlay BSS that came back
- * fresh with each map load, on PC it persists -- so Game_WarmBoot does, which
- * is what keeps it meaning "this run" and not "some run this session". */
-int Pc_Credits_EndingArmed(void)
-{
-    return D_801E5E88 != 0;
-}
-
-void Pc_Credits_EndingReset(void)
-{
-    D_801E5E88 = 0;
-}
-#endif
 
 u8 D_801E5E90[320] = { 0 };
 
@@ -605,6 +582,18 @@ void func_801E386C(void) // 0x801E386C
  * which is the only bind that moves it along. A stamp rather than a flag
  * because there is no single exit point to clear one at. */
 int g_PcCreditsFrame = -1000;
+
+/* Tick of the last frame of a post-boss ending script (map7_s03_3.c stamps it
+ * from the top of all three, so it covers every ending from its first frame).
+ *
+ * None of those scenes honour Skip, as on the original, so touch must not offer
+ * the button there: it did nothing and players went looking for it. Nothing in
+ * the game tells them apart -- they are ordinary scripted scenes in the final
+ * map -- and "the credits are armed" does not either, because each script arms
+ * them partway through, which left the button up for everything before that.
+ * A stamp expires on its own when the script stops running, so nothing carries
+ * into the next run. */
+int g_PcEndingFrame = -1000;
 #endif
 
 bool func_801E3970(void) // 0x801E3970
