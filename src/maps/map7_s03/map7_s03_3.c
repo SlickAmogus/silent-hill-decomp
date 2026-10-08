@@ -79,6 +79,15 @@ void func_800E0A34(void) // 0x800E0A34
 
 #include "maps/shared/Map_RoomIdxGet.h" // 0x800E0A90
 
+#ifdef SH_PC_PORT
+/* Stamped from the top of every event script in this map that has no
+ * controllerConfig.skip site, and read by pc_touch so Skip is not offered where
+ * nothing would answer it. Defined in credits.c because a map is its own
+ * module: it can reference the exe, but the exe cannot link a symbol a map
+ * owns. */
+extern int g_PcEndingFrame;
+#endif
+
 void func_800E0B28(s32 arg0) // 0x800E0B28
 {
     (arg0 != 0) ? func_800E0B90() : sharedFunc_800D0110_7_s00();
@@ -1296,6 +1305,10 @@ void func_800E3390(void) // 0x800E3390
 
 void func_800E3B6C(void) // 0x800E3B6C
 {
+#ifdef SH_PC_PORT
+    g_PcEndingFrame = g_TickCount;
+#endif
+
     switch (D_800F4805)
     {
         case 0:
@@ -1327,6 +1340,10 @@ void func_800E3B6C(void) // 0x800E3B6C
 
 void func_800E3C48(void) // 0x800E3C48
 {
+#ifdef SH_PC_PORT
+    g_PcEndingFrame = g_TickCount;
+#endif
+
     /* PC: the store guard that used to sit here was lifted for the same reason
      * as in func_800E3390 -- it protected the y<32 CLUT strip from the old
      * (0,0)-(320,240) store, and the current store never writes there. */
@@ -1360,6 +1377,10 @@ void func_800E3C48(void) // 0x800E3C48
 
 void func_800E3D18(void) // 0x800E3D18
 {
+#ifdef SH_PC_PORT
+    g_PcEndingFrame = g_TickCount;
+#endif
+
     switch (D_800F4805)
     {
         case 0:
@@ -1409,6 +1430,10 @@ void func_800E3D18(void) // 0x800E3D18
 
 void func_800E3E84(void) // 0x800E3E84
 {
+#ifdef SH_PC_PORT
+    g_PcEndingFrame = g_TickCount;
+#endif
+
     switch (D_800F4805)
     {
         case 0:
@@ -3092,14 +3117,6 @@ void func_800E7380(void) // 0x800E7380
 }
 
 INCLUDE_RODATA("maps/map7_s03/nonmatchings/map7_s03_3", D_800CC63C);
-
-#ifdef SH_PC_PORT
-/* Stamped from the top of each post-boss ending script below, and read by
- * pc_touch to keep Skip away from scenes that do not honour it. The variable
- * lives in credits.c because a map is its own module: it can reference the
- * exe, but the exe cannot link a symbol a map owns. */
-extern int g_PcEndingFrame;
-#endif
 
 void func_800E787C(void) // 0x800E787C
 {

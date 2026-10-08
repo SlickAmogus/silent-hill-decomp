@@ -759,19 +759,15 @@ static int Tc_GamepadStyle(void)
  * screen is already the control for advancing and the two must not be the same
  * gesture.
  *
- * Whether a scene honours skip is decided by the map that owns it, and the
- * post-boss endings do not, as on the original, so the button stays away from
- * them: g_PcEndingFrame is stamped from the top of each ending script
- * (map7_s03_3.c), which covers every ending from its first frame. Two ticks of
- * slack, like the credits stamp, so a frame that skips the script does not
- * blink the button back.
+ * Whether a scene honours skip is decided by the map that owns it, so a script
+ * with no skip handling of its own can never answer the button.
+ * g_PcEndingFrame marks one running (credits.c; map7_s03_3.c stamps every such
+ * script in that map), with two ticks of slack like the credits stamp so a
+ * frame that misses the script does not blink the button back.
  *
- * Two earlier tries failed here. Retiring the button after a press that did
- * nothing was wrong because a map takes skip only inside its own step window
- * (map6_s02_2.c, steps 2..19), so an early press would retire a button that
- * was about to start working. Reading "the credits are armed" was wrong
- * because each script arms them PARTWAY through, leaving the button up for
- * everything before that. */
+ * Found by measuring after four failed guesses: the ending is event param=3,
+ * func_800E3B6C, and none of the scripts that arm the credits or write the
+ * clear flags is running while it plays. */
 static int Tc_CutsceneSkip(void)
 {
     extern int g_PcEndingFrame;
@@ -1149,6 +1145,29 @@ void Pc_Touch_Update(void)
     {
         extern void Pc_TouchMouseGate_Update(void);
         Pc_TouchMouseGate_Update();
+    }
+
+    /* [SKIPPROBE] One line each time the Skip button appears, naming the state
+     * that produced it and whether an ending script is stamping. Four attempts
+     * to keep this button off the post-boss endings have failed on a wrong
+     * guess about which code runs there, so it is measured now instead.
+     * Edge-triggered, never per frame. REMOVE once the ending is identified. */
+    {
+        extern int g_PcEndingFrame;
+        static int s_skipProbeWas;
+        const int  m       = Tc_Mode();
+        const int  showing = (Tc_SoloButton(m) == TB_SKIP);
+
+        if (showing && !s_skipProbeWas)
+        {
+            SH_DBG("[SKIPPROBE] mode=%d gs=%d ss=%d steps=%d,%d,%d map=%d room=%d endingAge=%d",
+                   m, (int)g_GameWork.gameState, (int)g_SysWork.sysState,
+                   (int)g_SysWork.sysStateSteps[0], (int)g_SysWork.sysStateSteps[1],
+                   (int)g_SysWork.sysStateSteps[2],
+                   (int)g_SavegamePtr->mapIdx, (int)g_SavegamePtr->mapRoomIdx,
+                   (int)(g_TickCount - g_PcEndingFrame));
+        }
+        s_skipProbeWas = showing;
     }
 
     mode = Tc_Mode();
