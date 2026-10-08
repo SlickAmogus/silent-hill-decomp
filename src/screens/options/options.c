@@ -130,6 +130,9 @@ extern float g_PsyX_FlashlightSize;
 /* FMV movie (SDL PCM) live volume, 0..1; mirrored by the FMV Movie slider.
  * The Sound menu's Voice slider drives g_PcXaVolume separately. */
 extern float g_PcFmvVolume;
+/* Internal render resolution, read by the renderer every frame. Writing it is
+ * not enough -- the target is rebuilt by PsyX_RenderScaleApply below. */
+extern float g_cfg_renderScale;
 
 /* The volume-bar labels are far longer once translated ("Głośność Efektów",
  * "Musiklautstärke") than the English "BGM Volume" the retail x=184 bar origin
@@ -227,6 +230,7 @@ typedef struct {
     float              fmin;     /* PCK_SLIDER value range + step */
     float              fmax;
     float              fstep;
+    int                fpct;     /* PCK_SLIDER: show the value as a percentage */
 } s_PcOpt;
 
 static const int VAL_WIN[]   = { 0, 1, 2 };
@@ -484,6 +488,14 @@ static const s_PcOpt PCOPT_M[] = {
     /* Pulsing red edge glow below 20 hp (pc_combat.c Pc_LowHealthGlowUpdate),
      * moved off the HUD page to the last one. */
     { "Low_HP_Glow",       &g_PcConfig.lowHealthGlow,     "low_health_glow",     VAL_ONOFF,  2, LBL_ONOFF,  NULL, 1, PCK_INT },
+    /* The biggest lever a weak GPU has: draw into a smaller target and stretch
+     * it on present, the only setting that cuts PIXEL COUNT rather than
+     * per-pixel work. 100% is the original path exactly. Applies live. */
+    { "Render_Scale",      NULL,                          "render_scale",        NULL,       0, NULL,       NULL, 1, PCK_SLIDER, &g_PcConfig.renderScale, &g_cfg_renderScale, 0.25f, 1.0f, 0.05f, 1 },
+    /* Off = the ten vanilla VRAM pages only, which is what a device short of
+     * memory and fill rate wants, and the first thing to try without a texture
+     * pack. Needs a restart: the pool is sized at startup. */
+    { "Resident_Textures", &g_PcConfig.residentTextures,  "resident_textures",   VAL_ONOFF,  2, LBL_ONOFF,  NULL, 0, PCK_INT },
     /* Asks before it acts; see PCOPT_TOTITLE_WINDOW_MS. */
     { "Return_to_Title",   NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_TOTITLE },
     { "Prev_Page",         NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_PREV },
@@ -652,7 +664,10 @@ static const char* PcOpt_ValueLabel(const s_PcOpt* e, char* buf, int bufsz)
         return buf;
     }
     if (e->kind == PCK_SLIDER) {
-        snprintf(buf, bufsz, "%.2f", e->ffield ? *e->ffield : 0.0f);
+        if (e->fpct)
+            snprintf(buf, bufsz, "%d%%", (int)(((e->ffield ? *e->ffield : 0.0f) * 100.0f) + 0.5f));
+        else
+            snprintf(buf, bufsz, "%.2f", e->ffield ? *e->ffield : 0.0f);
         return buf;
     }
     if (e->kind == PCK_MAP) {
@@ -720,6 +735,14 @@ static void PcOpt_SliderDragApply(const s_PcOpt* e, int steps)
 
     *e->ffield = v;
     if (e->flive) *e->flive = v;
+
+    /* A new render scale needs the offscreen target rebuilt, which mirroring
+     * the float alone does not do. */
+    if (e->ffield == &g_PcConfig.renderScale)
+    {
+        extern void PsyX_RenderScaleApply(void);
+        PsyX_RenderScaleApply();
+    }
 }
 
 static void PcOpt_SliderDragCommit(const s_PcOpt* e)
