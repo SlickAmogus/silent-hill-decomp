@@ -435,6 +435,7 @@ s32 D_801E5E88 = 0;
 
 s32 D_801E5E8C = 0;
 
+
 u8 D_801E5E90[320] = { 0 };
 
 u8 D_801E5FD0[40] = { 0 };
@@ -581,6 +582,18 @@ void func_801E386C(void) // 0x801E386C
  * which is the only bind that moves it along. A stamp rather than a flag
  * because there is no single exit point to clear one at. */
 int g_PcCreditsFrame = -1000;
+
+/* Tick of the last frame of a post-boss ending script (map7_s03_3.c stamps it
+ * from the top of all three, so it covers every ending from its first frame).
+ *
+ * None of those scenes honour Skip, as on the original, so touch must not offer
+ * the button there: it did nothing and players went looking for it. Nothing in
+ * the game tells them apart -- they are ordinary scripted scenes in the final
+ * map -- and "the credits are armed" does not either, because each script arms
+ * them partway through, which left the button up for everything before that.
+ * A stamp expires on its own when the script stops running, so nothing carries
+ * into the next run. */
+int g_PcEndingFrame = -1000;
 #endif
 
 bool func_801E3970(void) // 0x801E3970

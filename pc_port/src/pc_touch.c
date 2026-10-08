@@ -41,6 +41,7 @@ enum { TR_NONE = 0, TR_MOVE, TR_LOOK, TR_BUTTON, TR_ADVANCE,
 enum { TB_AIM = 0, TB_ITEM, TB_MAP, TB_START, TB_RUN, TB_BACK, TB_FIRE, TB_MENU,
        TB_SKIP,
        TB_LIGHT, TB_VIEW, TB_CAM, TB_QSAVE, TB_QLOAD, TB_BONUS, TB_CLICK,
+       TB_NO,
        TB_COUNT };
 
 typedef struct
@@ -110,6 +111,16 @@ static s_TouchButton s_Buttons[TB_COUNT] = {
      * the cursor is. Touch drags the cursor and never clicks on its own, so
      * this and a double tap at the cursor are the only ways to act. */
     [TB_CLICK] = { 0.080f, 0.842f, 0.055f, 0 },
+    /* "No" on the end-of-game save prompt, where a tap anywhere answers Yes,
+     * so the refusal needs a target of its own.
+     *
+     * On the word itself, not in the corner: the prompt draws
+     * "Yes_____________No" from absolute (94, 122) of a 320x240 screen
+     * (item_screens_2.c, via Gfx_StringSetPosition), with the second option
+     * 102px along, so No sits at about (203, 127) -- the fractions below.
+     * A corner button left the drawn "No" answering Yes, which is exactly
+     * the trap it was supposed to prevent (reported). */
+    [TB_NO] = { 0.634f, 0.529f, 0.065f, 0 },
     /* Quick Save / Quick Load, only with touch_quicksave_buttons on. Up in the
      * empty band of the top edge, a quarter in from each side, about the size
      * of Menu, Pause and View -- a shade larger, so the letter clears the ring. */
@@ -145,6 +156,9 @@ static int            s_Running;
 static int            s_ActionFrames;  /* tap pulse, in pad updates */
 static int            s_CancelFrames;  /* the same, for the tap-anywhere Cancel */
 static int            s_AdvanceHeld;   /* a finger is down during an advance state */
+static int            s_SkipTapFrames; /* tap-anywhere Skip, for the credits */
+static int            s_SaveYesFrames; /* end-of-game save prompt, Yes */
+static int            s_SaveNoFrames;  /* the same, No */
 static int            s_PadAttached;   /* an SDL game controller is plugged in */
 static Uint32         s_LastTouchMs;
 static Uint32         s_ContactMs;     /* last update a finger was on the glass, any mode */
@@ -245,7 +259,7 @@ enum { TC_LEVEL_NONE = 0, TC_LEVEL_ESCAPE, TC_LEVEL_FULL };
  * the instant you touched a dial and the puzzle could never be solved. */
 enum { TC_MODE_OFF = 0, TC_MODE_GAMEPLAY, TC_MODE_PAUSE, TC_MODE_MAP, TC_MODE_ADVANCE, TC_MODE_BACK,
        TC_MODE_BACK_CURSOR, TC_MODE_ESCAPE, TC_MODE_TITLE, TC_MODE_SKIP,
-       TC_MODE_BONUS };
+       TC_MODE_BONUS, TC_MODE_RESULTS, TC_MODE_SAVEASK };
 
 /* Gameplay gets the full scheme. Pause gets Start ALONE -- nothing else on that
  * screen responds to a pointer, so hiding the controls there left no way back
@@ -353,6 +367,26 @@ static int Tc_Mode(void)
 
         if ((g_TickCount - g_PcCreditsFrame) <= 2)
             return TC_MODE_SKIP;
+    }
+
+    /* The end of the game, and the one place a touchscreen could be left with
+     * no way forward at all.
+     *
+     * The results screen and its save prompt are steps 21-25 of the ITEM
+     * screen state (item_screens_2.c), so gameState is InventoryScreen and the
+     * bail below turned the overlay off: nothing drawn, nothing injected, and
+     * the game waiting on a press that could not arrive. Beating the game was
+     * a softlock, and Next Fear went with it.
+     *
+     * Step 22 waits for enter or skip. Step 23 is "Is it OK to save?", a
+     * left/right pick confirmed with enter, where selection 0 saves and 1
+     * warm-boots to the title. */
+    if (g_GameWork.gameState == GameState_InventoryScreen)
+    {
+        if (g_GameWork.gameStateSteps[1] == 22)
+            return TC_MODE_RESULTS;
+        if (g_GameWork.gameStateSteps[1] == 23)
+            return TC_MODE_SAVEASK;
     }
 
     /* The brightness screen is a slider with no pointer support, so touch could
@@ -691,6 +725,34 @@ static int Tc_GamepadStyle(void)
     return g_PcConfig.touchStyle == TouchStyle_Gamepad;
 }
 
+/* A scripted scene, as opposed to message or examine text. A tap in an advance
+ * state injects enter and ONLY enter (s_AdvanceHeld below), which advances text
+ * but never skips a scene, so scenes could not be skipped at all on a
+ * touchscreen. Skip is a drawn button rather than the whole screen, because the
+ * screen is already the control for advancing and the two must not be the same
+ * gesture.
+ *
+ * Whether a scene honours skip is decided by the map that owns it, and the
+ * post-boss endings do not, as on the original, so the button stays away from
+ * them: g_PcEndingFrame is stamped from the top of each ending script
+ * (map7_s03_3.c), which covers every ending from its first frame. Two ticks of
+ * slack, like the credits stamp, so a frame that skips the script does not
+ * blink the button back.
+ *
+ * Two earlier tries failed here. Retiring the button after a press that did
+ * nothing was wrong because a map takes skip only inside its own step window
+ * (map6_s02_2.c, steps 2..19), so an early press would retire a button that
+ * was about to start working. Reading "the credits are armed" was wrong
+ * because each script arms them PARTWAY through, leaving the button up for
+ * everything before that. */
+static int Tc_CutsceneSkip(void)
+{
+    extern int g_PcEndingFrame;
+
+    return g_SysWork.sysState == SysState_EventCallback &&
+           (g_TickCount - g_PcEndingFrame) > 2;
+}
+
 static int Tc_SoloButton(int mode)
 {
     if (mode == TC_MODE_PAUSE || mode == TC_MODE_ESCAPE)
@@ -701,10 +763,19 @@ static int Tc_SoloButton(int mode)
         return TB_BACK;    /* brightness and friends leave on cancel */
     if (mode == TC_MODE_TITLE)
         return TB_MAP;     /* opens the achievement browser, and closes it */
-    if (mode == TC_MODE_SKIP)
-        return TB_SKIP;    /* results and credits move on with Skip */
+    /* TC_MODE_SKIP draws nothing: the credits are a wall of scrolling text
+     * with nothing else to touch, so the whole screen skips them, the same
+     * bargain TC_MODE_ADVANCE makes for a scene. The results screen keeps its
+     * button (TC_MODE_RESULTS), because there a tap would be the save
+     * prompt's Yes one frame later. */
     if (mode == TC_MODE_BONUS)
         return TB_BONUS;   /* the options list reaches the bonus page */
+    if (mode == TC_MODE_RESULTS)
+        return TB_SKIP;    /* the results screen moves on with Skip */
+    if (mode == TC_MODE_SAVEASK)
+        return TB_NO;      /* Yes is a tap anywhere; No needs the button */
+    if (mode == TC_MODE_ADVANCE && Tc_CutsceneSkip())
+        return TB_SKIP;    /* a scene can be skipped; text only advances */
 
     return -1;
 }
@@ -832,6 +903,15 @@ static int Tc_PuzzleClickAllowed(int mode)
 static int Tc_CornerOnly(int b)
 {
     return b == TB_BACK || b == TB_SKIP;
+}
+
+/* A solo button that marks a word the screen already draws has to stay on that
+ * word, so it is exempt from the corner slot every other solo button is moved
+ * into. Both the hit test and the draw ask this, or the ring and the target end
+ * up in different places. */
+static int Tc_SoloOwnPos(int b)
+{
+    return b == TB_NO;
 }
 
 static int Tc_HitButton(float x, float y, float aspect)
@@ -1202,19 +1282,40 @@ void Pc_Touch_Update(void)
                 else if (mode == TC_MODE_ADVANCE)
                 {
                     /* Anywhere on the screen, with no target to find: there is
-                     * nothing else to touch during a scene or a wall of text. */
+                     * nothing else to touch during a scene or a wall of text.
+                     * Except the corner Skip while a scene runs: that one
+                     * target is tested first, so skipping is never also an
+                     * advance. */
+                    const int solo = Tc_SoloButton(mode);
+
                     t->role      = TR_ADVANCE;
                     t->buttonIdx = -1;
-                    Tc_PickChoiceLine(vy);
+
+                    if (solo >= 0)
+                    {
+                        const float sdx = (vx - s_Buttons[TB_START].cx) * aspect;
+                        const float sdy = (vy - s_Buttons[TB_START].cy);
+                        const float sr  = s_Buttons[TB_START].r * 1.25f;
+
+                        if (((sdx * sdx) + (sdy * sdy)) <= (sr * sr))
+                        {
+                            t->role      = TR_BUTTON;
+                            t->buttonIdx = solo;
+                        }
+                    }
+
+                    if (t->role == TR_ADVANCE)
+                        Tc_PickChoiceLine(vy);
                 }
                 else if (mode != TC_MODE_GAMEPLAY)
                 {
                     /* One live control, in the corner slot; a stray thumb
                      * anywhere else must not steer a frozen world. */
                     int   solo = Tc_SoloButton(mode);
-                    float sdx  = (vx - s_Buttons[TB_START].cx) * aspect;
-                    float sdy  = (vy - s_Buttons[TB_START].cy);
-                    float sr   = s_Buttons[TB_START].r * 1.25f;
+                    int   slot = (solo >= 0 && Tc_SoloOwnPos(solo)) ? solo : TB_START;
+                    float sdx  = (vx - s_Buttons[slot].cx) * aspect;
+                    float sdy  = (vy - s_Buttons[slot].cy);
+                    float sr   = s_Buttons[slot].r * 1.25f;
                     int   onIt = (((sdx * sdx) + (sdy * sdy)) <= (sr * sr));
 
                     t->role      = (onIt && solo >= 0) ? TR_BUTTON : TR_NONE;
@@ -1508,6 +1609,25 @@ void Pc_Touch_Update(void)
          * impossible to pick up. A screen asking a question is not a screen you
          * dismiss by tapping it; maxIdx is NO_VALUE the rest of the time, so
          * this costs the cancel-only screens nothing. */
+        /* The credits, skipped by a tap anywhere. */
+        if (mode == TC_MODE_SKIP && !t->movedFar &&
+            (now - t->startMs) >= TC_TAP_MIN_MS &&
+            (now - t->startMs) <= TC_TAP_MS)
+        {
+            s_SkipTapFrames = TC_ACTION_FRAMES;
+        }
+
+        /* Yes on the save prompt, from a tap anywhere that did not land on the
+     * No button. Spelled out rather than reusing the tap-anywhere Cancel,
+     * because that screen reads neither cancel nor a bare enter: the selection
+     * has to be set before the press. */
+        if (mode == TC_MODE_SAVEASK && t->role != TR_BUTTON && !t->movedFar &&
+            (now - t->startMs) >= TC_TAP_MIN_MS &&
+            (now - t->startMs) <= TC_TAP_MS)
+        {
+            s_SaveYesFrames = TC_ACTION_FRAMES;
+        }
+
         if (mode == TC_MODE_BACK && t->role != TR_BUTTON && !t->movedFar &&
             g_MapMsg_Select.maxIdx == NO_VALUE &&
             (now - t->startMs) >= TC_TAP_MIN_MS &&
@@ -1557,6 +1677,12 @@ void Pc_Touch_Update(void)
         if (s_Buttons[TB_MAP].holdFrames   > 0) Tc_PressAction(&s_PadWord, cfg->map);
         if (s_Buttons[TB_SKIP].holdFrames  > 0) Tc_PressAction(&s_PadWord, cfg->skip);
 
+        if (s_SkipTapFrames > 0)
+        {
+            Tc_PressAction(&s_PadWord, cfg->skip);
+            s_SkipTapFrames--;
+        }
+
         if (Tc_GamepadStyle())
         {
             int c;
@@ -1605,6 +1731,12 @@ void Pc_Touch_Update(void)
          * page. Not a controllerConfig bind: this is a menu shortcut the game
          * reads straight off the pad word. */
         if (s_Buttons[TB_BONUS].holdFrames > 0) Tc_PressAction(&s_PadWord, TG_L2);
+
+        if (s_Buttons[TB_NO].holdFrames > 0 && s_SaveNoFrames <= 0)
+        {
+            s_SaveNoFrames  = TC_ACTION_FRAMES;
+            s_SaveYesFrames = 0;   /* a refusal outranks a stray tap */
+        }
 
         /* Not a pad bit: the puzzle's click is injected by pc_mouse_cursor at
          * the cursor's own position, which is the whole point of the button. */
@@ -1667,6 +1799,31 @@ void Pc_Touch_Update(void)
 
         if (s_AdvanceHeld)
             Tc_PressAction(&s_PadWord, cfg->enter);
+
+        /* The prompt is a left/right pick, so the answer is whichever
+         * selection the press lands on: 0 saves, 1 warm-boots to the title
+         * (item_screens_2.c case 23). Set here rather than injected as stick
+         * directions, so the choice is exact within one frame and the game
+         * highlight follows it: what is confirmed is what is lit. */
+        if (mode != TC_MODE_SAVEASK)
+        {
+            s_SaveNoFrames  = 0;
+            s_SaveYesFrames = 0;
+        }
+
+        if (mode == TC_MODE_SAVEASK && (s_SaveNoFrames > 0 || s_SaveYesFrames > 0))
+        {
+            extern u32 g_Inventory_SelectionId;   /* item_screens.h */
+
+            /* 0 is Yes (save), 1 is No. */
+            g_Inventory_SelectionId = (s_SaveNoFrames > 0) ? 1u : 0u;
+            Tc_PressAction(&s_PadWord, cfg->enter);
+
+            if (s_SaveNoFrames > 0)
+                s_SaveNoFrames--;
+            else
+                s_SaveYesFrames--;
+        }
 
         if (s_CancelFrames > 0)
         {
@@ -2188,10 +2345,12 @@ void Pc_Touch_Draw(void)
         Tc_Octagon(&batch, kx, ky, (rr * 38) / 100, s_Running ? 255 : 190);
     }
 
-    if (mode == TC_MODE_ADVANCE)
+    if (mode == TC_MODE_ADVANCE && Tc_SoloButton(mode) < 0)
     {
         /* Deliberately draws nothing. The whole screen is the control, and a
-         * button here would cover the very text it exists to advance. */
+         * button here would cover the very text it exists to advance. A scene
+         * is the exception: it gets the corner Skip, because the screen gesture
+         * only advances. */
         if (batch.used <= 0)
             return;
     }
@@ -2209,7 +2368,7 @@ void Pc_Touch_Draw(void)
             break;
         int   cx;
 
-        if (mode == TC_MODE_ADVANCE)
+        if (mode == TC_MODE_ADVANCE && i != Tc_SoloButton(mode))
             continue;
 
         /* Both corner-slot buttons, not just Back. Skip was missing from this
@@ -2240,7 +2399,7 @@ void Pc_Touch_Draw(void)
             if (i != Tc_SoloButton(mode) && !click)
                 continue;
 
-            if (!click)
+            if (!click && !Tc_SoloOwnPos(i))
             {
                 bcx = s_Buttons[TB_START].cx;
                 bcy = s_Buttons[TB_START].cy;
@@ -2262,7 +2421,12 @@ void Pc_Touch_Draw(void)
             continue;
         }
 
-        Tc_Ring(&batch, cx, cy, r, (r * 82) / 100, lum);
+        /* No ring on the save prompt's No: the prompt already draws the word
+         * and its own selection box, so a circle round it was just an odd
+         * extra mark on screen (reported). The target stays, invisible, on the
+         * word a player would tap anyway. */
+        if (i != TB_NO)
+            Tc_Ring(&batch, cx, cy, r, (r * 82) / 100, lum);
 
         /* A distinct mark per button, so they read as different controls
          * without a font: crosshair, square, folded sheet, two bars. */
@@ -2341,6 +2505,13 @@ void Pc_Touch_Draw(void)
                 /* A filled dot: press here, and distinct from every other mark
                  * on the overlay. */
                 Tc_Octagon(&batch, cx, cy, (r * 34) / 100, lum);
+                break;
+            }
+            case TB_NO:
+            {
+                /* No glyph: this one rings the word "No" the prompt already
+                 * draws, so the ring is the whole control and a mark inside it
+                 * would cover the word it is pointing at. */
                 break;
             }
             case TB_BONUS:
