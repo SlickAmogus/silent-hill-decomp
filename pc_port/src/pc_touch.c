@@ -112,9 +112,15 @@ static s_TouchButton s_Buttons[TB_COUNT] = {
      * this and a double tap at the cursor are the only ways to act. */
     [TB_CLICK] = { 0.080f, 0.842f, 0.055f, 0 },
     /* "No" on the end-of-game save prompt, where a tap anywhere answers Yes,
-     * so the refusal needs a target of its own. Corner slot like Back and
-     * Skip, so this position is never used. */
-    [TB_NO] = { 0.920f, 0.158f, 0.055f, 0 },
+     * so the refusal needs a target of its own.
+     *
+     * On the word itself, not in the corner: the prompt draws
+     * "Yes_____________No" from absolute (94, 122) of a 320x240 screen
+     * (item_screens_2.c, via Gfx_StringSetPosition), with the second option
+     * 102px along, so No sits at about (203, 127) -- the fractions below.
+     * A corner button left the drawn "No" answering Yes, which is exactly
+     * the trap it was supposed to prevent (reported). */
+    [TB_NO] = { 0.634f, 0.529f, 0.065f, 0 },
     /* Quick Save / Quick Load, only with touch_quicksave_buttons on. Up in the
      * empty band of the top edge, a quarter in from each side, about the size
      * of Menu, Pause and View -- a shade larger, so the letter clears the ring. */
@@ -720,13 +726,43 @@ static int Tc_GamepadStyle(void)
 
 /* A scripted scene, as opposed to message or examine text. A tap in an advance
  * state injects enter and ONLY enter (s_AdvanceHeld below), which advances text
- * but never skips a scene, so the ending cutscene could not be skipped at all:
- * beating the boss meant sitting through it. Skip is a drawn button rather than
- * the whole screen, because the screen is already the control for advancing and
- * the two must not be the same gesture. */
+ * but never skips a scene, so scenes could not be skipped at all on a
+ * touchscreen. Skip is a drawn button rather than the whole screen, because the
+ * screen is already the control for advancing and the two must not be the same
+ * gesture.
+ *
+ * Whether a scene honours skip is decided by the map that owns it: dozens of
+ * sites across src/maps, each with its own step range (map6_s02_2.c takes it
+ * only on steps 2..19), and nothing anywhere says in advance which scene will
+ * listen. The ending after the final boss does not, as on the original, and a
+ * control that does nothing is worse than no control.
+ *
+ * So the button proves itself: one press that fails to end the scene takes it
+ * away for the rest of that scene. That is correct for every unskippable scene
+ * rather than just the reported one, and it costs a press that was doing
+ * nothing anyway. */
+#define TC_SKIP_PROVE_TICKS 45   /* about 0.75s; a real skip cuts in at once */
+static int s_SkipPressTick;
+static int s_SkipDead;
+
 static int Tc_CutsceneSkip(void)
 {
-    return g_SysWork.sysState == SysState_EventCallback;
+    return g_SysWork.sysState == SysState_EventCallback && !s_SkipDead;
+}
+
+/* Once per frame, from Pc_Touch_Update: Tc_CutsceneSkip is asked several times
+ * a frame by the draw and the hit test, so it stays side-effect free. */
+static void Tc_SkipProveUpdate(void)
+{
+    if (g_SysWork.sysState != SysState_EventCallback)
+    {
+        s_SkipDead      = 0;
+        s_SkipPressTick = 0;
+        return;
+    }
+
+    if (s_SkipPressTick != 0 && (g_TickCount - s_SkipPressTick) >= TC_SKIP_PROVE_TICKS)
+        s_SkipDead = 1;
 }
 
 static int Tc_SoloButton(int mode)
@@ -876,6 +912,15 @@ static int Tc_PuzzleClickAllowed(int mode)
 static int Tc_CornerOnly(int b)
 {
     return b == TB_BACK || b == TB_SKIP;
+}
+
+/* A solo button that marks a word the screen already draws has to stay on that
+ * word, so it is exempt from the corner slot every other solo button is moved
+ * into. Both the hit test and the draw ask this, or the ring and the target end
+ * up in different places. */
+static int Tc_SoloOwnPos(int b)
+{
+    return b == TB_NO;
 }
 
 static int Tc_HitButton(float x, float y, float aspect)
@@ -1088,6 +1133,8 @@ void Pc_Touch_Update(void)
         Pc_TouchMouseGate_Update();
     }
 
+    Tc_SkipProveUpdate();
+
     mode = Tc_Mode();
     if (mode == TC_MODE_OFF)
     {
@@ -1276,9 +1323,10 @@ void Pc_Touch_Update(void)
                     /* One live control, in the corner slot; a stray thumb
                      * anywhere else must not steer a frozen world. */
                     int   solo = Tc_SoloButton(mode);
-                    float sdx  = (vx - s_Buttons[TB_START].cx) * aspect;
-                    float sdy  = (vy - s_Buttons[TB_START].cy);
-                    float sr   = s_Buttons[TB_START].r * 1.25f;
+                    int   slot = (solo >= 0 && Tc_SoloOwnPos(solo)) ? solo : TB_START;
+                    float sdx  = (vx - s_Buttons[slot].cx) * aspect;
+                    float sdy  = (vy - s_Buttons[slot].cy);
+                    float sr   = s_Buttons[slot].r * 1.25f;
                     int   onIt = (((sdx * sdx) + (sdy * sdy)) <= (sr * sr));
 
                     t->role      = (onIt && solo >= 0) ? TR_BUTTON : TR_NONE;
@@ -1630,7 +1678,12 @@ void Pc_Touch_Update(void)
             Tc_PressAction(&s_PadWord, cfg->action);
         if (s_Buttons[TB_ITEM].holdFrames  > 0) Tc_PressAction(&s_PadWord, cfg->item);
         if (s_Buttons[TB_MAP].holdFrames   > 0) Tc_PressAction(&s_PadWord, cfg->map);
-        if (s_Buttons[TB_SKIP].holdFrames  > 0) Tc_PressAction(&s_PadWord, cfg->skip);
+        if (s_Buttons[TB_SKIP].holdFrames  > 0)
+        {
+            Tc_PressAction(&s_PadWord, cfg->skip);
+            if (s_SkipPressTick == 0 && g_SysWork.sysState == SysState_EventCallback)
+                s_SkipPressTick = g_TickCount;
+        }
 
         if (Tc_GamepadStyle())
         {
@@ -1681,8 +1734,11 @@ void Pc_Touch_Update(void)
          * reads straight off the pad word. */
         if (s_Buttons[TB_BONUS].holdFrames > 0) Tc_PressAction(&s_PadWord, TG_L2);
 
-        if (s_Buttons[TB_NO].holdFrames > 0 && s_SaveNoFrames <= 0 && s_SaveYesFrames <= 0)
-            s_SaveNoFrames = TC_ACTION_FRAMES;
+        if (s_Buttons[TB_NO].holdFrames > 0 && s_SaveNoFrames <= 0)
+        {
+            s_SaveNoFrames  = TC_ACTION_FRAMES;
+            s_SaveYesFrames = 0;   /* a refusal outranks a stray tap */
+        }
 
         /* Not a pad bit: the puzzle's click is injected by pc_mouse_cursor at
          * the cursor's own position, which is the whole point of the button. */
@@ -2345,7 +2401,7 @@ void Pc_Touch_Draw(void)
             if (i != Tc_SoloButton(mode) && !click)
                 continue;
 
-            if (!click)
+            if (!click && !Tc_SoloOwnPos(i))
             {
                 bcx = s_Buttons[TB_START].cx;
                 bcy = s_Buttons[TB_START].cy;
@@ -2450,14 +2506,9 @@ void Pc_Touch_Draw(void)
             }
             case TB_NO:
             {
-                /* A cross: the refusal, and the only glyph here that reads as
-                 * "no" without a word. */
-                int t = (r * 9) / 100, d = (r * 36) / 100;
-
-                Tc_Quad(&batch, cx - d - t, cy - d + t, cx - d + t, cy - d - t,
-                                cx + d - t, cy + d + t, cx + d + t, cy + d - t, lum);
-                Tc_Quad(&batch, cx + d - t, cy - d - t, cx + d + t, cy - d + t,
-                                cx - d - t, cy + d - t, cx - d + t, cy + d + t, lum);
+                /* No glyph: this one rings the word "No" the prompt already
+                 * draws, so the ring is the whole control and a mark inside it
+                 * would cover the word it is pointing at. */
                 break;
             }
             case TB_BONUS:
