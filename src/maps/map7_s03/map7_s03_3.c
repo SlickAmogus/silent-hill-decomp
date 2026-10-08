@@ -4182,6 +4182,10 @@ void func_800E9AC8(void) // 0x800E9AC8
 
 void func_800E9C28(void) // 0x800E9C28
 {
+#ifdef SH_PC_PORT
+    g_PcEndingFrame = g_TickCount;
+#endif
+
     g_Screen_FadeStatus = ScreenFadeState_FadeOutComplete;
 
     switch (g_SysWork.sysStateSteps[0])
