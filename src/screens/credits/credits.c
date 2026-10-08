@@ -435,6 +435,30 @@ s32 D_801E5E88 = 0;
 
 s32 D_801E5E8C = 0;
 
+#ifdef SH_PC_PORT
+/* "This run has reached its ending."
+ *
+ * Every ending arms the credits through func_801E2E28, which sets D_801E5E88,
+ * and it does so one step BEFORE the ending cutscene starts playing
+ * (map7_s03_3.c), so this is true for exactly the scenes that follow the final
+ * boss and for none before them. Touch reads it to know not to offer Skip:
+ * those scenes do not honour it, as on the original, and a control that does
+ * nothing is worse than no control.
+ *
+ * Nothing in the game clears it -- on PSX this was overlay BSS that came back
+ * fresh with each map load, on PC it persists -- so Game_WarmBoot does, which
+ * is what keeps it meaning "this run" and not "some run this session". */
+int Pc_Credits_EndingArmed(void)
+{
+    return D_801E5E88 != 0;
+}
+
+void Pc_Credits_EndingReset(void)
+{
+    D_801E5E88 = 0;
+}
+#endif
+
 u8 D_801E5E90[320] = { 0 };
 
 u8 D_801E5FD0[40] = { 0 };

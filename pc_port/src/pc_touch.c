@@ -731,38 +731,21 @@ static int Tc_GamepadStyle(void)
  * screen is already the control for advancing and the two must not be the same
  * gesture.
  *
- * Whether a scene honours skip is decided by the map that owns it: dozens of
- * sites across src/maps, each with its own step range (map6_s02_2.c takes it
- * only on steps 2..19), and nothing anywhere says in advance which scene will
- * listen. The ending after the final boss does not, as on the original, and a
- * control that does nothing is worse than no control.
+ * Whether a scene honours skip is decided by the map that owns it, and the
+ * scenes that follow the final boss do not, as on the original. They are named
+ * by Pc_Credits_EndingArmed (credits.c): every ending arms the credits one step
+ * before its cutscene begins, so the marker covers all of them, and nothing
+ * before them, without this file knowing a single map.
  *
- * So the button proves itself: one press that fails to end the scene takes it
- * away for the rest of that scene. That is correct for every unskippable scene
- * rather than just the reported one, and it costs a press that was doing
- * nothing anyway. */
-#define TC_SKIP_PROVE_TICKS 45   /* about 0.75s; a real skip cuts in at once */
-static int s_SkipPressTick;
-static int s_SkipDead;
-
+ * Not inferred from a press that did nothing, which was the first attempt: a
+ * map takes skip only inside its own step window (map6_s02_2.c, steps 2..19),
+ * so a press during the steps before one opens would have retired a button
+ * that was about to start working. */
 static int Tc_CutsceneSkip(void)
 {
-    return g_SysWork.sysState == SysState_EventCallback && !s_SkipDead;
-}
+    extern int Pc_Credits_EndingArmed(void);
 
-/* Once per frame, from Pc_Touch_Update: Tc_CutsceneSkip is asked several times
- * a frame by the draw and the hit test, so it stays side-effect free. */
-static void Tc_SkipProveUpdate(void)
-{
-    if (g_SysWork.sysState != SysState_EventCallback)
-    {
-        s_SkipDead      = 0;
-        s_SkipPressTick = 0;
-        return;
-    }
-
-    if (s_SkipPressTick != 0 && (g_TickCount - s_SkipPressTick) >= TC_SKIP_PROVE_TICKS)
-        s_SkipDead = 1;
+    return g_SysWork.sysState == SysState_EventCallback && !Pc_Credits_EndingArmed();
 }
 
 static int Tc_SoloButton(int mode)
@@ -1132,8 +1115,6 @@ void Pc_Touch_Update(void)
         extern void Pc_TouchMouseGate_Update(void);
         Pc_TouchMouseGate_Update();
     }
-
-    Tc_SkipProveUpdate();
 
     mode = Tc_Mode();
     if (mode == TC_MODE_OFF)
@@ -1678,12 +1659,7 @@ void Pc_Touch_Update(void)
             Tc_PressAction(&s_PadWord, cfg->action);
         if (s_Buttons[TB_ITEM].holdFrames  > 0) Tc_PressAction(&s_PadWord, cfg->item);
         if (s_Buttons[TB_MAP].holdFrames   > 0) Tc_PressAction(&s_PadWord, cfg->map);
-        if (s_Buttons[TB_SKIP].holdFrames  > 0)
-        {
-            Tc_PressAction(&s_PadWord, cfg->skip);
-            if (s_SkipPressTick == 0 && g_SysWork.sysState == SysState_EventCallback)
-                s_SkipPressTick = g_TickCount;
-        }
+        if (s_Buttons[TB_SKIP].holdFrames  > 0) Tc_PressAction(&s_PadWord, cfg->skip);
 
         if (Tc_GamepadStyle())
         {

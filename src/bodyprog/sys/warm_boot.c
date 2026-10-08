@@ -124,10 +124,14 @@ void Game_WarmBoot(void) // 0x80034264
      * re-presenting the captured gameplay frame over the clear, so the title
      * screen came up drawn on top of the last frame of play. */
     {
-        extern int g_PsxPresentLastFrame;
-        extern int g_PcFreezeReleasePending;
+        extern int  g_PsxPresentLastFrame;
+        extern int  g_PcFreezeReleasePending;
+        extern void Pc_Credits_EndingReset(void);
         g_PsxPresentLastFrame    = 0;
         g_PcFreezeReleasePending = 0;
+
+        /* The ending marker is per run; see Pc_Credits_EndingArmed. */
+        Pc_Credits_EndingReset();
     }
 #endif
 
