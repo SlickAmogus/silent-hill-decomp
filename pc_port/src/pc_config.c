@@ -31,6 +31,7 @@ s_PcConfig g_PcConfig = {
     .fpsCap         = 30,
     .weatherSimHz      = 60,   /* per-frame weather sim; 30 = the console's cadence */
     .cutsceneLineGapMs = 300,
+    .msgVoiceTailMs    = 1000, /* added text-box voices hold 1s past the clip */
     .skipIntros     = 0,
     .showConsole    = 0,
     .psxDither      = -1, /* -1 = absent; see the dithering/texture_filter migration */
@@ -577,6 +578,13 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "fps_cap") == 0)
         {
             g_PcConfig.fpsCap = atoi(value);
+        }
+        else if (strcmp(key, "msg_voice_tail_ms") == 0)
+        {
+            int v = atoi(value);
+            if (v < 0)     v = 0;
+            if (v > 10000) v = 10000;
+            g_PcConfig.msgVoiceTailMs = v;
         }
         else if (strcmp(key, "cutscene_line_gap_ms") == 0)
         {

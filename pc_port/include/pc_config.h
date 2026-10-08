@@ -64,6 +64,11 @@ typedef struct {
     int cutsceneLineGapMs; /* min silence (ms) between cutscene voice lines — simulates PSX CD
                             * seek latency so tightly-timed lines don't run together. Applied as a
                             * MINIMUM (never shortens an authored gap). 0 = off. Default 300. */
+    int msgVoiceTailMs;  /* how long an added text-box voice (load/XA/msg_<KEY>.wav) keeps its
+                          * page on screen after the clip ends, in ms. The authored ~J timer was
+                          * written for a silent line and is often shorter than a recording of it.
+                          * 0 = hold for the clip only. Default 1000.
+                          * (config key: msg_voice_tail_ms) */
     int skipIntros;      /* 0 = normal boot; 1 = skip the warning screen, Konami/KCET logos and
                           * intro movie, landing on the main menu; 2 = additionally auto-start a
                           * New Game on NORMAL at the configured `map` and skip the opening movie,

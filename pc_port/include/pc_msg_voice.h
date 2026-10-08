@@ -17,4 +17,12 @@ void Pc_MsgVoice_OnPage(int msgIdx); /* message start and each genuine page turn
 void Pc_MsgVoice_OnEnd(void);
 void Pc_MsgVoice_Update(void);       /* once per game frame */
 
+/* 1 while the page that STARTED a loose voice file is still owed screen time:
+ * the clip is still producing audio, or it finished less than msg_voice_tail_ms
+ * ago. The message display holds its auto-advance on this, so an added voice is
+ * never cut off by the authored ~J timer, which was written for a silent line.
+ * A later page riding the same take does NOT hold -- one recording is allowed
+ * to span several pages, and those keep their authored pacing. */
+int Pc_MsgVoice_Holding(void);
+
 #endif

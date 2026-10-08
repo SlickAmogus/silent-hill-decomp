@@ -391,10 +391,18 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
                     }
                 }
             }
+            /* A loose msg_<KEY>.wav added to an UNVOICED box holds too. The
+             * clause above cannot cover it: the game never set
+             * BgmStatusFlag_VoiceDialog for a line it does not voice, so these
+             * pages advanced the instant their authored ~J0 timer ran out and
+             * cut the recording off. Pc_MsgVoice_Holding() is true only for the
+             * page that started the clip, so a take spanning several pages
+             * still lets the later ones keep their authored pacing. */
             const int pcVoiceHold =
                 !pcSingleFileAudio &&
-                (g_SysWork.bgmStatusFlags & BgmStatusFlag_VoiceDialog) &&
-                (Xa_IsVoiceAudioDraining() || Xa_VoiceGapHold());
+                (((g_SysWork.bgmStatusFlags & BgmStatusFlag_VoiceDialog) &&
+                  (Xa_IsVoiceAudioDraining() || Xa_VoiceGapHold())) ||
+                 Pc_MsgVoice_Holding());
 #endif
             temp_s1 = stateMachineIdx0;
             if (temp_s1 == NO_VALUE)

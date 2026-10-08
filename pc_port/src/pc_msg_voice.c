@@ -3,6 +3,8 @@
 
 #include <stdio.h>
 
+#include <SDL_timer.h>
+
 #include "game.h"
 #include "lang_pack.h"
 #include "pc_config.h"
@@ -13,9 +15,16 @@ extern const char* PcPort_GetGameDataPath(void);
 
 int g_PcMapMsgGameVoiced;
 
-static int s_fileStarted;
-static int s_drawnThisFrame;
-static int s_framesUndrawn;
+static int    s_fileStarted;
+static int    s_drawnThisFrame;
+static int    s_framesUndrawn;
+
+/* Set only for a page that started its OWN file, so a page riding the previous
+ * take is not pinned by it. */
+static int    s_holdThisPage;
+/* Deadline for the post-clip tail, re-armed every frame the clip is audible so
+ * it ends up measured from the LAST audible frame. 0 = not armed. */
+static Uint32 s_tailUntilMs;
 
 void Pc_MsgVoice_Touch(void)
 {
@@ -46,6 +55,12 @@ void Pc_MsgVoice_OnPage(int msgIdx)
         s_fileStarted = 1;
         played = 1;
     }
+
+    /* A page with no file of its own rides whatever is still playing, so it must
+     * not inherit the hold -- otherwise one take covering a multi-page message
+     * would pin every page of it until the take ended. */
+    s_holdThisPage = played;
+    s_tailUntilMs  = 0;
     /* Once per box page; the launcher's "Last played in game" reads the key. */
     SH_DBG("[MSGBOX] %s%s", key, played ? " (voice file)" : "");
 }
@@ -57,6 +72,35 @@ void Pc_MsgVoice_OnEnd(void)
         XaPlayer_StopFile();
         s_fileStarted = 0;
     }
+    s_holdThisPage = 0;
+    s_tailUntilMs  = 0;
+}
+
+/* The authored ~J timer on these pages was written for a line nobody speaks, so
+ * it is routinely shorter than a recording of it -- the text moved on and the
+ * clip was cut off mid-word. Hold the page while its own clip is audible, then
+ * for a short tail so the words are not still hanging when the next line
+ * appears. Only the AUTO advance consults this; a manual skip is never gated. */
+int Pc_MsgVoice_Holding(void)
+{
+    extern int Xa_IsVoiceAudioDraining(void);
+
+    if (!s_fileStarted || !s_holdThisPage)
+        return 0;
+
+    if (Xa_IsVoiceAudioDraining())
+    {
+        s_tailUntilMs = SDL_GetTicks() + (Uint32)g_PcConfig.msgVoiceTailMs;
+        return 1;
+    }
+
+    /* Signed compare so the wrap at ~49 days releases the hold instead of
+     * pinning the page for the rest of the session. */
+    if (s_tailUntilMs != 0 && (Sint32)(s_tailUntilMs - SDL_GetTicks()) > 0)
+        return 1;
+
+    s_tailUntilMs = 0;
+    return 0;
 }
 
 /* Some boxes close without reaching the draw's end path (auto-close codes,
