@@ -387,6 +387,18 @@ static int Tc_Mode(void)
             return TC_MODE_RESULTS;
         if (g_GameWork.gameStateSteps[1] == 23)
             return TC_MODE_SAVEASK;
+
+        /* Examining an item -- the receipt, a map, any document -- fills the
+         * screen with it and leaves on cancel alone (step 13, set when the
+         * selection becomes Examine: item_screens_2.c). With no pad there was
+         * nothing to press and the inventory became a trap you had to kill the
+         * app to leave (reported).
+         *
+         * BACK_CURSOR, not BACK: the rest of the inventory is driven by the
+         * pointer, so only the corner slot is taken and every other tap still
+         * reaches the screen, exactly as on the save screen. */
+        if (g_GameWork.gameStateSteps[1] == 13)
+            return TC_MODE_BACK_CURSOR;
     }
 
     /* The brightness screen is a slider with no pointer support, so touch could
