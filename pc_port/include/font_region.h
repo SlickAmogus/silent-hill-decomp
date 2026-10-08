@@ -93,6 +93,12 @@ void Font_UseEurAtlas(void);
  * built for either region works on both. A pack already in the right shape is
  * untouched. Updates *pixels/*w/*h in place; non-zero if it converted. */
 int  Font_FitAtlasToLayout(void** pixels, int* w, int* h);
+
+/* Same for a hi-res (RGBA) font pack, whose shape identifies its region by
+ * which atlas size divides it evenly. Returns the scale and a malloc'd image
+ * the caller frees, or 0 to use the pack as it is. */
+int  Font_FitHiresAtlasToLayout(const unsigned char* rgba, int w, int h,
+                                unsigned char** out, int* outW, int* outH);
 int  Font_EurAtlasImported(void);
 
 /* Return g_FontLayout to the region base (drops any fan-patch override or the

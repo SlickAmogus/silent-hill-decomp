@@ -1605,11 +1605,51 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                             (int)pixelRect.x, (int)pixelRect.y,
                             (int)pixelRect.w, (int)pixelRect.h,
                             cx, cy, discBitDepth);
-                        looseHires = HiresOverride_RegisterLoosePngAllRows(
-                            whole, buf, (unsigned int)sz,
-                            (int)pixelRect.x, (int)pixelRect.y,
-                            (int)pixelRect.w, (int)pixelRect.h,
-                            cx, cy, rows, discBitDepth) == 0;
+                        /* A hi-res font pack is built for one region's atlas
+                         * shape, and this maps it onto the rect the descriptor
+                         * names, so the other region's pack came out garbled.
+                         * Re-lay its cells first; its pixel size says which
+                         * shape it is, because only one atlas divides it
+                         * evenly. A pack already matching is untouched. */
+                        int relaid = 0;
+
+                        if (FSQ_INFO_VALID(entry->info) &&
+                            (int)(entry->info - &g_FileTable[0]) == FILE_1ST_FONT16_TIM)
+                        {
+                            unsigned char* rgba = NULL;
+                            int            rw = 0, rh = 0;
+
+                            if (HiresOverride_DecodeToRGBA(buf, (unsigned int)sz,
+                                                           &rgba, &rw, &rh) == 0)
+                            {
+                                unsigned char* fit = NULL;
+                                int            fw = 0, fh = 0;
+
+                                if (Font_FitHiresAtlasToLayout(rgba, rw, rh,
+                                                               &fit, &fw, &fh))
+                                {
+                                    int units = fw / 4; /* 4bpp: 4 px per unit */
+                                    int uh    = fh;
+
+                                    looseHires = HiresOverride_RegisterRGBAKeyed(
+                                        whole, fit, fw, fh,
+                                        (int)pixelRect.x, (int)pixelRect.y,
+                                        units, uh, cx, cy, discBitDepth, 0) == 0;
+                                    free(fit);
+                                    relaid = 1;
+                                }
+                                free(rgba);
+                            }
+                        }
+
+                        if (!relaid)
+                        {
+                            looseHires = HiresOverride_RegisterLoosePngAllRows(
+                                whole, buf, (unsigned int)sz,
+                                (int)pixelRect.x, (int)pixelRect.y,
+                                (int)pixelRect.w, (int)pixelRect.h,
+                                cx, cy, rows, discBitDepth) == 0;
+                        }
                         free(buf);
                     }
                 }

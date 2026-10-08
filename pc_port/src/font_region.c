@@ -816,3 +816,94 @@ int Font_FitAtlasToLayout(void** pixels, int* w, int* h)
            isUs ? "US" : "PAL", wantEur ? "PAL" : "US");
     return 1;
 }
+
+/* The same re-layout for a hi-res font pack, which is an RGBA image rather
+ * than a 4bpp atlas.
+ *
+ * A pack ships load/1ST/FONT16.png at some whole multiple of its region's
+ * atlas: the EU one is 2560x960, exactly 10x the PAL atlas's 256x96. The
+ * override maps that image onto the VRAM rect the descriptor names, so on a US
+ * disc it was being stretched across the 1024x16 strip -- garbled, as reported.
+ *
+ * The shape is unambiguous because only one of the two divides evenly: 2560/256
+ * and 960/96 are both 10, while 2560/1024 is 2.5. So the scale identifies the
+ * pack's region, and the cells can be moved at that scale.
+ *
+ * Returns the scale on success and fills outW/outH plus a malloc'd image the
+ * caller frees; 0 when the pack already matches the layout, or its shape is not
+ * a whole multiple of either atlas. */
+#define FONT_CELL_PX_W 12
+#define FONT_CELL_PX_H 16
+#define FONT_US_PX_W   1024
+#define FONT_US_PX_H   16
+#define FONT_EUR_PX_W  256
+#define FONT_EUR_PX_H  96
+
+static int AtlasScale(int w, int h, int baseW, int baseH)
+{
+    int s = w / baseW;
+
+    if (s < 1 || w % baseW != 0 || h % baseH != 0 || h / baseH != s)
+        return 0;
+    return s;
+}
+
+int Font_FitHiresAtlasToLayout(const unsigned char* rgba, int w, int h,
+                               unsigned char** out, int* outW, int* outH)
+{
+    int wantEur = (g_FontLayout->rowsPerPage != 1);
+    int usScale = AtlasScale(w, h, FONT_US_PX_W, FONT_US_PX_H);
+    int eurScale = AtlasScale(w, h, FONT_EUR_PX_W, FONT_EUR_PX_H);
+    int scale, dstW, dstH, c;
+    unsigned char* dst;
+
+    if (rgba == NULL || (usScale != 0) == (eurScale != 0))
+        return 0; /* neither shape, or ambiguous: leave it alone */
+    if ((usScale != 0) == !wantEur)
+        return 0; /* already the shape the layout wants */
+
+    scale = usScale ? usScale : eurScale;
+    dstW  = wantEur ? FONT_EUR_PX_W * scale : FONT_US_PX_W * scale;
+    /* Only the 84 cells a US strip holds are carried, so converting TO the PAL
+     * grid covers its first four rows and leaves the accent rows to VRAM. */
+    dstH  = wantEur ? (FONT_CELL_PX_H * 4 * scale) : FONT_US_PX_H * scale;
+
+    dst = (unsigned char*)calloc((size_t)dstW * dstH, 4);
+    if (dst == NULL)
+        return 0;
+
+    for (c = 0; c < FONT_COLS * 4; c++)
+    {
+        int col = c % FONT_COLS;
+        int row = c / FONT_COLS;
+        int y;
+
+        for (y = 0; y < FONT_CELL_PX_H * scale; y++)
+        {
+            size_t from, to;
+
+            if (usScale) /* strip -> grid */
+            {
+                from = ((size_t)y * w
+                        + (size_t)(row * FONT_EUR_PX_W + col * FONT_CELL_PX_W) * scale) * 4;
+                to   = ((size_t)(row * FONT_CELL_PX_H * scale + y) * dstW
+                        + (size_t)col * FONT_CELL_PX_W * scale) * 4;
+            }
+            else /* grid -> strip */
+            {
+                from = ((size_t)(row * FONT_CELL_PX_H * scale + y) * w
+                        + (size_t)col * FONT_CELL_PX_W * scale) * 4;
+                to   = ((size_t)y * dstW
+                        + (size_t)(row * FONT_EUR_PX_W + col * FONT_CELL_PX_W) * scale) * 4;
+            }
+            memcpy(dst + to, rgba + from, (size_t)FONT_CELL_PX_W * scale * 4);
+        }
+    }
+
+    *out  = dst;
+    *outW = dstW;
+    *outH = dstH;
+    SH_LOG("[FONT] hi-res font pack re-laid from the %s shape to the %s one (%dx) ",
+           usScale ? "US" : "PAL", wantEur ? "PAL" : "US", scale);
+    return scale;
+}
