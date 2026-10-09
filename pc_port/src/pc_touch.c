@@ -1190,29 +1190,6 @@ void Pc_Touch_Update(void)
         Pc_TouchMouseGate_Update();
     }
 
-    /* [SKIPPROBE] One line each time the Skip button appears, naming the state
-     * that produced it and whether an ending script is stamping. Four attempts
-     * to keep this button off the post-boss endings have failed on a wrong
-     * guess about which code runs there, so it is measured now instead.
-     * Edge-triggered, never per frame. REMOVE once the ending is identified. */
-    {
-        extern int g_PcEndingFrame;
-        static int s_skipProbeWas;
-        const int  m       = Tc_Mode();
-        const int  showing = (Tc_SoloButton(m) == TB_SKIP);
-
-        if (showing && !s_skipProbeWas)
-        {
-            SH_DBG("[SKIPPROBE] mode=%d gs=%d ss=%d steps=%d,%d,%d map=%d room=%d endingAge=%d",
-                   m, (int)g_GameWork.gameState, (int)g_SysWork.sysState,
-                   (int)g_SysWork.sysStateSteps[0], (int)g_SysWork.sysStateSteps[1],
-                   (int)g_SysWork.sysStateSteps[2],
-                   (int)g_SavegamePtr->mapIdx, (int)g_SavegamePtr->mapRoomIdx,
-                   (int)(g_TickCount - g_PcEndingFrame));
-        }
-        s_skipProbeWas = showing;
-    }
-
     mode = Tc_Mode();
     if (mode == TC_MODE_OFF)
     {
