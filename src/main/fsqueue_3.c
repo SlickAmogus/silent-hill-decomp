@@ -1623,20 +1623,36 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                                                            &rgba, &rw, &rh) == 0)
                             {
                                 unsigned char* fit = NULL;
-                                int            fw = 0, fh = 0;
-                                int            units = 0, uh = 0;
+                                unsigned char* use = rgba;
+                                int            fw = rw, fh = rh;
+                                int            units = (int)pixelRect.w;
+                                int            uh    = (int)pixelRect.h;
+                                int            built = 0;
 
                                 if (Font_FitHiresAtlasToLayout(rgba, rw, rh,
                                                                &fit, &fw, &fh,
                                                                &units, &uh))
                                 {
+                                    use = fit;
+                                }
+
+                                /* A pack language's built letters -- the
+                                 * Portuguese tildes, the Polish forms -- exist
+                                 * only in the 4bpp patch, which a hi-res pack
+                                 * never goes through. Same cell work, on the
+                                 * image. */
+                                built = Font_PatchPackGlyphsHires(
+                                    use, fw, fh, Font_HiresAtlasScale(fw, fh));
+
+                                if (use != rgba || built)
+                                {
                                     looseHires = HiresOverride_RegisterRGBAKeyed(
-                                        whole, fit, fw, fh,
+                                        whole, use, fw, fh,
                                         (int)pixelRect.x, (int)pixelRect.y,
                                         units, uh, cx, cy, discBitDepth, 0) == 0;
-                                    free(fit);
                                     relaid = 1;
                                 }
+                                free(fit);
                                 free(rgba);
                             }
                         }

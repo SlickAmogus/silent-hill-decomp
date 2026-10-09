@@ -79,6 +79,12 @@ void Font_UsePolishLayout(void);
 void Font_UsePortugueseLayout(void);
 void Font_PatchPortugueseGlyphs(void* pixels, int widthWords, int height);
 
+/* The same built letters on a hi-res font pack, which replaces the atlas
+ * through the override path and so never sees the 4bpp patch. Whole-cell
+ * copies, so `scale` (pixels per atlas pixel) is all it needs. */
+int  Font_PatchPackGlyphsHires(unsigned char* rgba, int w, int h, int scale);
+int  Font_HiresAtlasScale(int w, int h);
+
 /* Russian replaces the whole atlas with the Cyrillic one (font_ru.inc). */
 void Font_UseRussianLayout(void);
 

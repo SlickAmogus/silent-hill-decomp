@@ -155,16 +155,26 @@ static size_t TranscodeValueFont(char* s, int font)
             }
         }
 
-        for (i = 0; i < (int)(sizeof(s_PolishCodepoints) / sizeof(s_PolishCodepoints[0])); i++)
+        /* POLISH PACKS ONLY. Two of these codepoints, o-acute and O-acute, are
+         * ordinary Latin-1 that Spanish, French, Italian and Portuguese all
+         * use -- and the bytes this produces are decoded by the Polish branch
+         * of Font_MapChar, which only runs for a Polish pack. Remapping them
+         * for every pack therefore sent those four languages' o-acute to a
+         * byte nothing would draw. Unmapped, it falls through to the Latin-1
+         * passthrough below, where the EUR atlas has the real glyph. */
+        if (font == LANG_PACK_FONT_POLISH)
         {
-            if (s_PolishCodepoints[i] == cp)
+            for (i = 0; i < (int)(sizeof(s_PolishCodepoints) / sizeof(s_PolishCodepoints[0])); i++)
             {
-                *out++ = (char)(POLISH_BYTE_BASE + i);
-                break;
+                if (s_PolishCodepoints[i] == cp)
+                {
+                    *out++ = (char)(POLISH_BYTE_BASE + i);
+                    break;
+                }
             }
+            if (i < (int)(sizeof(s_PolishCodepoints) / sizeof(s_PolishCodepoints[0])))
+                continue;
         }
-        if (i < (int)(sizeof(s_PolishCodepoints) / sizeof(s_PolishCodepoints[0])))
-            continue;
 
         /* Latin-1 passes straight through -- the EUR atlas draws those. */
         if (cp >= 0xA0 && cp <= 0xFF)

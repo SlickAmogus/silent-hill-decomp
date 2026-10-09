@@ -421,6 +421,7 @@ static const s_GlyphBuild s_PolishGlyphs[] = {
 #define ATLAS_COLS 21
 #define CELL_W     12
 #define CELL_H     16
+#define FONT_PAGE_PX 256 /* one 4bpp texture page; 21 cells of 12 use 252 of it */
 
 static unsigned int PixGet(const unsigned char* p, int stride, int x, int y)
 {
@@ -793,6 +794,223 @@ static void FontPatchRussianGlyphs(void* pixels, int widthWords, int height)
 
 /* The FONT16 upload site calls this for whichever pack is active: the hook
  * fires for any pack at all, so it cannot assume Polish. */
+
+/* ---- The same built letters, on a hi-res font pack ----------------------
+ *
+ * Font_PatchPackGlyphs edits the native 4bpp atlas, but a hi-res pack replaces
+ * that atlas through the override path instead, so its cells are whatever the
+ * artist drew -- and nobody draws a-tilde or the Polish letters, because no
+ * disc has them. Checked against the EU HD pack: the cells these cut FROM
+ * (n-tilde, a-circumflex, a-grave, the acute mark) all have ink, and every
+ * cell they write INTO is blank. So the same operations work; they just have
+ * to run on the RGBA image.
+ *
+ * Everything here is a whole-cell copy, so it is scale-independent: the pack's
+ * own scale is read off its size and the same cell arithmetic applies. No
+ * second asset, nothing for an artist to redraw, and a pack painted tomorrow
+ * picks the letters up for free.
+ *
+ * `scale` is pixels per atlas pixel (10 for a 2560x960 pack). */
+
+#define HD_PIX(img, w, x, y) ((img) + (((size_t)(y) * (w) + (x)) * 4))
+
+static void HdCellCopy(unsigned char* img, int w, int scale,
+                       int dstCell, int srcCell)
+{
+    int sx = (srcCell % ATLAS_COLS) * CELL_W * scale;
+    int sy = (srcCell / ATLAS_COLS) * CELL_H * scale;
+    int dx = (dstCell % ATLAS_COLS) * CELL_W * scale;
+    int dy = (dstCell / ATLAS_COLS) * CELL_H * scale;
+    int y;
+
+    for (y = 0; y < CELL_H * scale; y++)
+        memcpy(HD_PIX(img, w, dx, dy + y), HD_PIX(img, w, sx, sy + y),
+               (size_t)CELL_W * scale * 4);
+}
+
+/* Overlay the non-transparent pixels of rows [0, limit) of one cell onto
+ * another, shifted by dx/dy atlas pixels. */
+static void HdCellOverlay(unsigned char* img, int w, int scale,
+                          int dstCell, int srcCell, int limit, int dx, int dy)
+{
+    int sx = (srcCell % ATLAS_COLS) * CELL_W * scale;
+    int sy = (srcCell / ATLAS_COLS) * CELL_H * scale;
+    int ox = (dstCell % ATLAS_COLS) * CELL_W * scale;
+    int oy = (dstCell / ATLAS_COLS) * CELL_H * scale;
+    int x, y;
+
+    for (y = 0; y < limit * scale; y++)
+        for (x = 0; x < CELL_W * scale; x++)
+        {
+            const unsigned char* s = HD_PIX(img, w, sx + x, sy + y);
+            int                  tx = x + dx * scale;
+            int                  ty = y + dy * scale;
+
+            if (s[3] == 0 || tx < 0 || ty < 0 ||
+                tx >= CELL_W * scale || ty >= CELL_H * scale)
+                continue;
+            memcpy(HD_PIX(img, w, ox + tx, oy + ty), s, 4);
+        }
+}
+
+static int HdCellBlank(const unsigned char* img, int w, int scale, int cell)
+{
+    int ox = (cell % ATLAS_COLS) * CELL_W * scale;
+    int oy = (cell / ATLAS_COLS) * CELL_H * scale;
+    int x, y;
+
+    for (y = 0; y < CELL_H * scale; y++)
+        for (x = 0; x < CELL_W * scale; x++)
+            if (HD_PIX(img, w, ox + x, oy + y)[3] != 0)
+                return 0;
+    return 1;
+}
+
+/* Ink box of a cell in ATLAS pixels, over atlas rows [y0, y1). */
+static int HdCellInkBox(const unsigned char* img, int w, int scale, int cell,
+                        int y0, int y1, int* x0, int* x1, int* yb)
+{
+    int ox = (cell % ATLAS_COLS) * CELL_W * scale;
+    int oy = (cell / ATLAS_COLS) * CELL_H * scale;
+    int x, y, any = 0;
+
+    *x0 = CELL_W; *x1 = -1; *yb = -1;
+    for (y = y0 * scale; y < y1 * scale; y++)
+        for (x = 0; x < CELL_W * scale; x++)
+            if (HD_PIX(img, w, ox + x, oy + y)[3] != 0)
+            {
+                int ax = x / scale, ay = y / scale;
+
+                any = 1;
+                if (ax < *x0) *x0 = ax;
+                if (ax > *x1) *x1 = ax;
+                if (ay > *yb) *yb = ay;
+            }
+    return any;
+}
+
+/* Build whatever the active language needs into a hi-res atlas. Mirrors
+ * Font_PatchPackGlyphs, cell for cell. Returns non-zero if it changed it. */
+/* Pixels per atlas pixel for an image already in the ACTIVE layout's shape,
+ * or 0 if it is not a whole multiple of it. */
+int Font_HiresAtlasScale(int w, int h)
+{
+    /* A texture page is 256 pixels at 4bpp (64 VRAM units), and 21 cells of 12
+     * occupy 252 of them -- so the atlas is page-sized, NOT cell-sized. The US
+     * strip is four pages across and one cell tall; the PAL grid is one page
+     * across, and a converted pack carries only its first four rows, which is
+     * every cell the strip can hold. */
+    int us    = (g_FontLayout->rowsPerPage == 1);
+    int baseW = us ? (FONT_PAGE_PX * 4) : FONT_PAGE_PX;
+    int baseH = us ? CELL_H : (CELL_H * 4);
+    int s     = (baseW > 0) ? (w / baseW) : 0;
+
+    if (s < 1 || w % baseW != 0 || h < baseH * s)
+        return 0;
+    return s;
+}
+
+int Font_PatchPackGlyphsHires(unsigned char* rgba, int w, int h, int scale)
+{
+    int top, i, dummy;
+    int nx0, nx1, nyb, tx0, tx1, tyb, ax0, ax1, ayb;
+
+    if (rgba == NULL || scale < 1 || !(s_PtLayoutActive || s_PolishLayoutActive))
+        return 0;
+    if (w < ATLAS_COLS * CELL_W * scale || h < 4 * CELL_H * scale)
+        return 0;
+
+    /* a-tilde / o-tilde: the tilde is the ink above the 'n' x-height. */
+    if (HdCellInkBox(rgba, w, scale, 'n' - GLYPH_TABLE_ASCII_OFFSET, 0, CELL_H,
+                     &nx0, &nx1, &nyb))
+    {
+        int nTop = CELL_H;
+
+        for (top = 0; top < CELL_H; top++)
+        {
+            if (HdCellInkBox(rgba, w, scale, 'n' - GLYPH_TABLE_ASCII_OFFSET,
+                             top, top + 1, &dummy, &dummy, &dummy))
+            {
+                nTop = top;
+                break;
+            }
+        }
+        if (nTop >= 2 && nTop < CELL_H &&
+            HdCellInkBox(rgba, w, scale, CELL_NTILDE, nTop, CELL_H, &tx0, &tx1, &tyb))
+        {
+            static const struct { unsigned char cell; char base; } s_T[] = {
+                { 88, 'a' }, { 106, 'o' }
+            };
+
+            for (i = 0; i < (int)(sizeof(s_T) / sizeof(s_T[0])); i++)
+            {
+                int bc = s_T[i].base - GLYPH_TABLE_ASCII_OFFSET;
+                int bx0, bx1, byb;
+
+                if (!HdCellBlank(rgba, w, scale, s_T[i].cell))
+                    continue;
+                if (!HdCellInkBox(rgba, w, scale, bc, nTop, CELL_H, &bx0, &bx1, &byb))
+                    continue;
+                HdCellCopy(rgba, w, scale, s_T[i].cell, bc);
+                HdCellOverlay(rgba, w, scale, s_T[i].cell, CELL_NTILDE, nTop,
+                              ((bx0 + bx1) - (tx0 + tx1)) >> 1, 0);
+            }
+        }
+    }
+
+    if (!s_PtLayoutActive)
+        return 1; /* Polish builds its own letters; only the tildes are shared */
+
+    /* The accented capitals, each mark dropped to the retail acute's baseline. */
+    if (HdCellInkBox(rgba, w, scale, PL_CELL_ACUTE, 0, CELL_H, &ax0, &ax1, &ayb))
+    {
+        static const struct { unsigned char dst, src; char lowerBase, capital; } s_M[] = {
+            { PT_CELL_A_TILDE, CELL_NTILDE,   'n', 'A' },
+            { PT_CELL_O_TILDE, CELL_NTILDE,   'n', 'O' },
+            { PT_CELL_A_CIRC,  87,            'a', 'A' },
+            { PT_CELL_E_CIRC,  87,            'a', 'E' },
+            { PT_CELL_O_CIRC,  87,            'a', 'O' },
+            { PT_CELL_A_GRAVE, 85,            'a', 'A' },
+            { PT_CELL_I_ACUTE, PL_CELL_ACUTE, 0,   'I' },
+            { PT_CELL_U_ACUTE, PL_CELL_ACUTE, 0,   'U' }
+        };
+
+        for (i = 0; i < (int)(sizeof(s_M) / sizeof(s_M[0])); i++)
+        {
+            int cap = s_M[i].capital - GLYPH_TABLE_ASCII_OFFSET;
+            int lim = CELL_H;
+            int mx0, mx1, myb, cx0, cx1, cyb, bx0, bx1, byb;
+            int ox = (s_M[i].dst % ATLAS_COLS) * CELL_W * scale;
+            int oy = (s_M[i].dst / ATLAS_COLS) * CELL_H * scale;
+            int y;
+
+            if (s_M[i].lowerBase)
+            {
+                int lb = s_M[i].lowerBase - GLYPH_TABLE_ASCII_OFFSET;
+                int t;
+
+                lim = CELL_H;
+                for (t = 0; t < CELL_H; t++)
+                    if (HdCellInkBox(rgba, w, scale, lb, t, t + 1, &bx0, &bx1, &byb))
+                    {
+                        lim = t;
+                        break;
+                    }
+            }
+            if (!HdCellInkBox(rgba, w, scale, s_M[i].src, 0, lim, &mx0, &mx1, &myb) ||
+                !HdCellInkBox(rgba, w, scale, cap, 0, CELL_H, &cx0, &cx1, &cyb))
+                continue;
+
+            for (y = 0; y < CELL_H * scale; y++)
+                memset(HD_PIX(rgba, w, ox, oy + y), 0, (size_t)CELL_W * scale * 4);
+
+            HdCellOverlay(rgba, w, scale, s_M[i].dst, s_M[i].src, lim,
+                          ((cx0 + cx1) - (mx0 + mx1)) >> 1, ayb - myb);
+        }
+    }
+    return 1;
+}
+
 void Font_PatchPackGlyphs(void* pixels, int widthWords, int height)
 {
     if (s_RussianLayoutActive)
