@@ -65,6 +65,7 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_TPSFOV, QO_X_FPSFOV,
        QO_X_FPSHEADX, QO_X_FPSHEADY, QO_X_FPSHEADZ, QO_X_FPSSWING,
        QO_X_OTSFOV, QO_X_TPSAIMZOOM, QO_X_OTSAIMZOOM, QO_X_TPSOTSAIM,
+       QO_X_TPSRESTZOOM, QO_X_OTSRESTZOOM,
        QO_X_TPSRESTX, QO_X_TPSRESTY, QO_X_TPSAIMX, QO_X_TPSAIMY,
        QO_X_OTSRESTX, QO_X_OTSRESTY, QO_X_OTSAIMX, QO_X_OTSAIMY,
        QO_X_DREAMSTR, QO_X_DREAMBLUR, QO_X_DPADMOVE };
@@ -218,6 +219,7 @@ static const QoRowDef s_page2Tps[] = {
     { ROW_EXTRA,  NULL, QO_X_TPSFOV,       "FOV" },
     { ROW_EXTRA,  NULL, QO_X_TPSOTSAIM,    "OTS Aim (while in TPS)" },
     { ROW_EXTRA,  NULL, QO_X_TPSAIMZOOM,   "Aim Zoom" },
+    { ROW_EXTRA,  NULL, QO_X_TPSRESTZOOM,  "Rest Zoom" },
     { ROW_EXTRA,  NULL, QO_X_TPSRESTX,     "Rest X (left/right)" },
     { ROW_EXTRA,  NULL, QO_X_TPSRESTY,     "Rest Y (up/down)" },
     { ROW_EXTRA,  NULL, QO_X_TPSAIMX,      "Aim X (left/right)" },
@@ -231,6 +233,7 @@ static const QoRowDef s_page2Tps[] = {
 static const QoRowDef s_page2Ots[] = {
     { ROW_EXTRA,  NULL, QO_X_OTSFOV,       "FOV" },
     { ROW_EXTRA,  NULL, QO_X_OTSAIMZOOM,   "Aim Zoom" },
+    { ROW_EXTRA,  NULL, QO_X_OTSRESTZOOM,  "Rest Zoom" },
     { ROW_EXTRA,  NULL, QO_X_OTSRESTX,     "Rest X (left/right)" },
     { ROW_EXTRA,  NULL, QO_X_OTSRESTY,     "Rest Y (up/down)" },
     { ROW_EXTRA,  NULL, QO_X_OTSAIMX,      "Aim X (left/right)" },

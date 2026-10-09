@@ -581,6 +581,11 @@ static void Pc_TpsCamera_Apply(void)
 
     /* Aim zoom: ease the orbit distance in while aiming a gun, so the shot lines
      * up better. tps_aim_zoom config gates it (on by default). */
+    /* Closest the orbit may sit to the pivot. TP_DIST_AIM_MAX is as near as the
+     * game's own dolly ever goes, so it is the right floor: with both sliders at
+     * +200 the two offsets would otherwise compound to a NEGATIVE radius and put
+     * the camera through Harry and out the other side. */
+#define TP_DIST_MIN TP_DIST_AIM_MAX
     static s32 s_tpDist = TP_DIST;
     static s32 s_otsOff  = 0;   /* camera lateral (X) offset ease; reset on mode entry */
     static s32 s_otsOffY = 0;   /* camera vertical (Y) offset ease */
@@ -602,20 +607,40 @@ static void Pc_TpsCamera_Apply(void)
          * camera at TP_DIST (no zoom), 100% (the default) lands on TP_DIST_AIM (the
          * original zoom), 200% goes all the way to TP_DIST_AIM_MAX (twice as far
          * in). Linear across the whole range. */
-        float zoomPctF = (g_ControlStyle == ControlStyle_Ots) ? g_PcConfig.otsAimZoom
-                                                              : g_PcConfig.tpsAimZoom;
-        s32 pct = (s32)(zoomPctF + (zoomPctF < 0.0f ? -0.5f : 0.5f));
+        int   ots      = (g_ControlStyle == ControlStyle_Ots);
+        float zoomPctF = ots ? g_PcConfig.otsAimZoom  : g_PcConfig.tpsAimZoom;
+        float restPctF = ots ? g_PcConfig.otsRestZoom : g_PcConfig.tpsRestZoom;
+        s32 pct     = (s32)(zoomPctF + (zoomPctF < 0.0f ? -0.5f : 0.5f));
+        s32 restPct = (s32)(restPctF + (restPctF < 0.0f ? -0.5f : 0.5f));
+        s32 step    = TP_DIST - TP_DIST_AIM_MAX; /* the full dolly travel */
+        s32 restDist;
         s32 aimDist;
         s32 target;
 
         if (pct < -200) pct = -200;
         if (pct >  200) pct =  200;
+        if (restPct < -200) restPct = -200;
+        if (restPct >  200) restPct =  200;
+
+        /* The RESTING distance, on the same axis and the same scale as the aim
+         * dolly: 0% (the default) is the original TP_DIST, so this is a no-op
+         * until someone moves it. Widening the FOV to get closer flattens the
+         * depth cues; moving the camera does not, which is the point of it. */
+        restDist = TP_DIST - ((step * restPct) / 200);
 
         /* Negative = pull the aim camera BACK past the rest distance (wider view);
-         * +200 = as close as the dolly goes. Stays positive across the range
-         * (at -200, TP_DIST + (TP_DIST - TP_DIST_AIM_MAX)). */
-        aimDist = TP_DIST - (((TP_DIST - TP_DIST_AIM_MAX) * pct) / 200);
-        target  = isAiming ? aimDist : TP_DIST;
+         * +200 = as close as the dolly goes. Measured FROM the resting distance,
+         * which is what "0 = no zoom (rest distance)" has always meant -- with
+         * rest at its default this is the original expression unchanged. */
+        aimDist = restDist - ((step * pct) / 200);
+
+        /* Never let either end reach the pivot: at the extremes of both sliders
+         * the two offsets compound, and a non-positive orbit radius puts the
+         * camera inside Harry. */
+        if (restDist < TP_DIST_MIN) restDist = TP_DIST_MIN;
+        if (aimDist  < TP_DIST_MIN) aimDist  = TP_DIST_MIN;
+
+        target  = isAiming ? aimDist : restDist;
         s_tpDist += (target - s_tpDist) >> 3;
     }
 

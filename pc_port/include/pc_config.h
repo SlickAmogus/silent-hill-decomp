@@ -281,6 +281,14 @@ typedef struct {
     float tpsAimZoom;       /* Thirdperson aim dolly, -200..200%. 0 = no zoom (rest distance), 100 (default) = the original zoom, 200 = as close as the camera goes; negative pulls the aim camera back (wider view while aiming) (config key: tps_aim_zoom_amount) */
     float otsFov;           /* Over-the-Shoulder horizontal FOV in degrees, 40..140; default 71.1 (a no-op). Separate from tpsFov (config key: ots_fov) */
     float otsAimZoom;       /* OTS aim dolly, -200..200%; same meaning as tpsAimZoom (config key: ots_aim_zoom_amount) */
+    /* Resting dolly, -200..200%, 0 = the original distance. Same scale as the
+     * aim dolly and along the same axis, so the camera can sit closer to Harry
+     * without touching the FOV -- widening the FOV to get nearer flattens the
+     * depth cues, which is the thing this avoids. The aim dolly then measures
+     * from wherever rest ends up, which is what "0 = rest distance" already
+     * says it does. (config keys: tps_rest_zoom_amount, ots_rest_zoom_amount) */
+    float tpsRestZoom;
+    float otsRestZoom;
     /* Per-camera position offsets in the view frame (Q12): X = lateral along the
      * right vector (shoulder side; g_OtsSide flips it), Y = vertical (shown +up in
      * the menu; stored PSX-down). "Rest" = not aiming, "Aim" = aiming; the camera

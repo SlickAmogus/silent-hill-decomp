@@ -558,6 +558,7 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_TPSFOV, QO_X_FPSFOV,
        QO_X_FPSHEADX, QO_X_FPSHEADY, QO_X_FPSHEADZ, QO_X_FPSSWING,
        QO_X_OTSFOV, QO_X_TPSAIMZOOM, QO_X_OTSAIMZOOM, QO_X_TPSOTSAIM,
+       QO_X_TPSRESTZOOM, QO_X_OTSRESTZOOM,
        QO_X_TPSRESTX, QO_X_TPSRESTY, QO_X_TPSAIMX, QO_X_TPSAIMY,
        QO_X_OTSRESTX, QO_X_OTSRESTY, QO_X_OTSAIMX, QO_X_OTSAIMY,
        QO_X_DREAMSTR, QO_X_DREAMBLUR, QO_X_DPADMOVE };
@@ -659,6 +660,12 @@ const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz)
         return buf;
     case QO_X_OTSAIMZOOM:
         snprintf(buf, bufsz, "%+d%%", (int)(g_PcConfig.otsAimZoom + (g_PcConfig.otsAimZoom < 0.0f ? -0.5f : 0.5f)));
+        return buf;
+    case QO_X_TPSRESTZOOM:
+        snprintf(buf, bufsz, "%+d%%", (int)(g_PcConfig.tpsRestZoom + (g_PcConfig.tpsRestZoom < 0.0f ? -0.5f : 0.5f)));
+        return buf;
+    case QO_X_OTSRESTZOOM:
+        snprintf(buf, bufsz, "%+d%%", (int)(g_PcConfig.otsRestZoom + (g_PcConfig.otsRestZoom < 0.0f ? -0.5f : 0.5f)));
         return buf;
     case QO_X_TPSOTSAIM:
         return Pc_LangQuickMenu(g_PcConfig.tpsOtsAim ? "On" : "Off");
@@ -762,11 +769,13 @@ void PcOpt_QuickViewReset(int mode)
     {
         g_PcConfig.tpsFov     = d->tpsFov;
         g_PcConfig.tpsAimZoom = d->tpsAimZoom;
+        g_PcConfig.tpsRestZoom = d->tpsRestZoom;
         g_PcConfig.tpsOtsAim  = d->tpsOtsAim;
         g_PcConfig.tpsRestX   = d->tpsRestX; g_PcConfig.tpsRestY = d->tpsRestY;
         g_PcConfig.tpsAimX    = d->tpsAimX;  g_PcConfig.tpsAimY  = d->tpsAimY;
         snprintf(buf, sizeof(buf), "%.1f", g_PcConfig.tpsFov);     PcConfig_SaveKeyValue("tps_fov", buf);
         snprintf(buf, sizeof(buf), "%.1f", g_PcConfig.tpsAimZoom); PcConfig_SaveKeyValue("tps_aim_zoom_amount", buf);
+        snprintf(buf, sizeof(buf), "%.1f", g_PcConfig.tpsRestZoom); PcConfig_SaveKeyValue("tps_rest_zoom_amount", buf);
         PcConfig_SaveKeyValue("tps_ots_aim", g_PcConfig.tpsOtsAim ? "1" : "0");
         snprintf(buf, sizeof(buf), "%d", g_PcConfig.tpsRestX); PcConfig_SaveKeyValue("tps_rest_x", buf);
         snprintf(buf, sizeof(buf), "%d", g_PcConfig.tpsRestY); PcConfig_SaveKeyValue("tps_rest_y", buf);
@@ -777,10 +786,12 @@ void PcOpt_QuickViewReset(int mode)
     {
         g_PcConfig.otsFov     = d->otsFov;
         g_PcConfig.otsAimZoom = d->otsAimZoom;
+        g_PcConfig.otsRestZoom = d->otsRestZoom;
         g_PcConfig.otsRestX   = d->otsRestX; g_PcConfig.otsRestY = d->otsRestY;
         g_PcConfig.otsAimX    = d->otsAimX;  g_PcConfig.otsAimY  = d->otsAimY;
         snprintf(buf, sizeof(buf), "%.1f", g_PcConfig.otsFov);     PcConfig_SaveKeyValue("ots_fov", buf);
         snprintf(buf, sizeof(buf), "%.1f", g_PcConfig.otsAimZoom); PcConfig_SaveKeyValue("ots_aim_zoom_amount", buf);
+        snprintf(buf, sizeof(buf), "%.1f", g_PcConfig.otsRestZoom); PcConfig_SaveKeyValue("ots_rest_zoom_amount", buf);
         snprintf(buf, sizeof(buf), "%d", g_PcConfig.otsRestX); PcConfig_SaveKeyValue("ots_rest_x", buf);
         snprintf(buf, sizeof(buf), "%d", g_PcConfig.otsRestY); PcConfig_SaveKeyValue("ots_rest_y", buf);
         snprintf(buf, sizeof(buf), "%d", g_PcConfig.otsAimX);  PcConfig_SaveKeyValue("ots_aim_x", buf);
@@ -987,6 +998,12 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
         break;
     case QO_X_OTSAIMZOOM:
         PcOpt_ViewStep(&g_PcConfig.otsAimZoom, NULL, "ots_aim_zoom_amount", -200.0f, 200.0f, 5.0f, dir, 2);
+        break;
+    case QO_X_TPSRESTZOOM:
+        PcOpt_ViewStep(&g_PcConfig.tpsRestZoom, NULL, "tps_rest_zoom_amount", -200.0f, 200.0f, 5.0f, dir, 2);
+        break;
+    case QO_X_OTSRESTZOOM:
+        PcOpt_ViewStep(&g_PcConfig.otsRestZoom, NULL, "ots_rest_zoom_amount", -200.0f, 200.0f, 5.0f, dir, 2);
         break;
     case QO_X_TPSOTSAIM:
         g_PcConfig.tpsOtsAim = !g_PcConfig.tpsOtsAim;
