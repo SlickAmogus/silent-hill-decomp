@@ -98,7 +98,8 @@ int  Font_FitAtlasToLayout(void** pixels, int* w, int* h);
  * which atlas size divides it evenly. Returns the scale and a malloc'd image
  * the caller frees, or 0 to use the pack as it is. */
 int  Font_FitHiresAtlasToLayout(const unsigned char* rgba, int w, int h,
-                                unsigned char** out, int* outW, int* outH);
+                                unsigned char** out, int* outW, int* outH,
+                                int* outUnits, int* outRows);
 int  Font_EurAtlasImported(void);
 
 /* Return g_FontLayout to the region base (drops any fan-patch override or the

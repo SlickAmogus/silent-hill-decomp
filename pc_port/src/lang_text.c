@@ -161,6 +161,13 @@ static int PackOfferedHere(int packIdx)
         (strcmp(code, "ja") == 0 || strcmp(code, "zh") == 0))
         return 0;
 
+    if (!g_PcConfig.crossRegionLanguages)
+    {
+        /* Without the imported atlas only a Shift-JIS pack, which rasterizes
+         * its own glyphs, can draw correctly off a PAL disc. */
+        return font == LANG_PACK_FONT_SJIS || font == LANG_PACK_FONT_CHINESE;
+    }
+
     (void)font; /* the PAL atlas is imported where it is missing, so all fit */
     return 1;
 }
@@ -171,6 +178,39 @@ static void SlotsBuild(void)
     int i;
 
     s_SlotCount = 0;
+
+    /* Off by default: the row, the packs and the imported atlas are what this
+     * disc could offer before any of the cross-region work, so a release
+     * cannot regress someone who never asked for it. */
+    if (!g_PcConfig.crossRegionLanguages)
+    {
+        int k;
+
+        if (g_GameRegion == Region_JPN)
+        {
+            for (k = 0; k < JP_LANG_COUNT; k++)
+                s_SlotLang[s_SlotCount++] = (short)(SLOT_JP_FIRST - k);
+            return;
+        }
+
+        s_SlotLang[s_SlotCount++] = 0;
+        if (g_GameRegion == Region_EUR)
+        {
+            /* The disc's own four, and the packs that have always worked here
+             * -- but not NTSC-U English, which is new. */
+            for (k = 1; k < LANG_PACK_FIRST && s_SlotCount < LANG_SLOT_MAX; k++)
+            {
+                if (k != LANG_EN_US)
+                    s_SlotLang[s_SlotCount++] = (short)k;
+            }
+            for (k = 0; k < n && s_SlotCount < LANG_SLOT_MAX; k++)
+            {
+                if (PackOfferedHere(k))
+                    s_SlotLang[s_SlotCount++] = (short)(LANG_PACK_FIRST + k);
+            }
+        }
+        return;
+    }
 
     if (g_GameRegion == Region_JPN)
     {
@@ -1282,7 +1322,10 @@ const char* Pc_LangSlotName(int slot)
         if (lang >= LANG_PACK_FIRST)
             return Pc_LangPackListName(lang - LANG_PACK_FIRST);
 
-        /* Slot 0 is whichever English the mounted disc itself carries. */
+        /* Slot 0 is whichever English the mounted disc itself carries -- but
+         * only worth distinguishing when the other one is also on the row. */
+        if (lang == 0 && !g_PcConfig.crossRegionLanguages)
+            return "English";
         if (lang == 0 && g_GameRegion != Region_EUR)
             return s_PalNames[LANG_EN_US];
 
@@ -1358,6 +1401,9 @@ int Pc_LangMenuRowActive(void)
      * row is the only way to reach them. Still title-screen only: a switch
      * rebinds the file table and reloads item text, which would strand what
      * the loaded map already extracted. */
+    if (!g_PcConfig.crossRegionLanguages && g_GameRegion != Region_EUR)
+        return 0; /* retail behaviour: this row is Auto Load off a PAL disc */
+
     return SlotsCount() > 1 && g_GameWork.gameStatePrev == GameState_MainMenu;
 }
 

@@ -1624,13 +1624,12 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                             {
                                 unsigned char* fit = NULL;
                                 int            fw = 0, fh = 0;
+                                int            units = 0, uh = 0;
 
                                 if (Font_FitHiresAtlasToLayout(rgba, rw, rh,
-                                                               &fit, &fw, &fh))
+                                                               &fit, &fw, &fh,
+                                                               &units, &uh))
                                 {
-                                    int units = fw / 4; /* 4bpp: 4 px per unit */
-                                    int uh    = fh;
-
                                     looseHires = HiresOverride_RegisterRGBAKeyed(
                                         whole, fit, fw, fh,
                                         (int)pixelRect.x, (int)pixelRect.y,

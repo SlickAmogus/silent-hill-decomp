@@ -12,6 +12,7 @@
 #include "bodyprog/bodyprog.h"           /* g_Font16AtlasImg */
 #include "bodyprog/text/text_draw.h"     /* GLYPH_TABLE_ASCII_OFFSET, FONT_12X16_* */
 #include "main/fileinfo.h"               /* g_GameRegion */
+#include "pc_config.h"
 #include "sh_log.h"
 
 /* US kerning table — must stay byte-identical to FONT_12X16_GLYPH_WIDTHS in
@@ -454,6 +455,12 @@ void Font_UseEurAtlas(void)
     if (g_GameRegion == Region_EUR)
         return;
 
+    /* Moving FONT16 to the PAL home leaves a hi-res font pack's override
+     * registered against the old rect, so the pack silently stops applying.
+     * Opt-in only, for that reason as much as any. */
+    if (!g_PcConfig.crossRegionLanguages)
+        return;
+
     /* Only move the descriptor if the atlas is actually there to put in it.
      * An install missing this file would otherwise point FONT16 at a VRAM home
      * nothing ever fills, and every glyph would draw from blank memory -- the
@@ -849,7 +856,8 @@ static int AtlasScale(int w, int h, int baseW, int baseH)
 }
 
 int Font_FitHiresAtlasToLayout(const unsigned char* rgba, int w, int h,
-                               unsigned char** out, int* outW, int* outH)
+                               unsigned char** out, int* outW, int* outH,
+                               int* outUnits, int* outRows)
 {
     int wantEur = (g_FontLayout->rowsPerPage != 1);
     int usScale = AtlasScale(w, h, FONT_US_PX_W, FONT_US_PX_H);
@@ -903,6 +911,12 @@ int Font_FitHiresAtlasToLayout(const unsigned char* rgba, int w, int h,
     *out  = dst;
     *outW = dstW;
     *outH = dstH;
+    /* The NATIVE VRAM rect the image maps onto, which is the atlas's own size
+     * and has nothing to do with the hi-res pixel count: 256 units x 16 rows
+     * for the US strip, or the PAL grid's first four rows, 64 x 64. Passing
+     * the hi-res size here instead is what made a converted pack invisible. */
+    *outUnits = wantEur ? 64 : 256;
+    *outRows  = wantEur ? 64 : 16;
     SH_LOG("[FONT] hi-res font pack re-laid from the %s shape to the %s one (%dx) ",
            usScale ? "US" : "PAL", wantEur ? "PAL" : "US", scale);
     return scale;

@@ -244,6 +244,7 @@ s_PcConfig g_PcConfig = {
 
     .language       = 0, /* 0=en 1=de 2=fr 3=es 4=it — PAL-disc text language; USA: menu translations on fan-patched discs */
     .jpLanguage     = 0, /* 0=ja 1=zh 2=en — NTSC-J text language */
+    .crossRegionLanguages = 0, /* opt-in; see pc_config.h */
     .menuStyle      = TITLE_STYLE_AUTO, /* the disc's own title screen */
     .region         = 0, /* 0=auto (USA wins) 1=usa 2=pal 3=jap — preferred disc when several are present */
     .discImage      = "", /* exact .bin in gamedata/ (launcher Disc dropdown); empty = auto */
@@ -888,6 +889,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "movement_original") == 0)
         {
             g_PcConfig.movementOriginal = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "cross_region_languages") == 0)
+        {
+            g_PcConfig.crossRegionLanguages = (atoi(value) != 0);
         }
         else if (strcmp(key, "language") == 0)
         {

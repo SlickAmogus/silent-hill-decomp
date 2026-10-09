@@ -375,6 +375,12 @@ typedef struct {
     int jpLanguage;
     /* Which of the three main menus to show, independent of the disc:
      * auto / us / pal / japanese. See pc_title_style.h. */
+    /* Cross-region languages: offer every installed pack on every disc, import
+     * the PAL glyph atlas where it is missing, and show the Language row off a
+     * PAL disc. OFF ships each disc exactly the behaviour it had before that
+     * work, which is what a release can promise. (config: cross_region_languages) */
+    int crossRegionLanguages;
+
     int menuStyle; /* TITLE_STYLE_* in pc_title_style.h; < 0 = follow the disc */
 
     /* Preferred disc region when several discs are in gamedata/: 0=auto
