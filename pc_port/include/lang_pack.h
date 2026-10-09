@@ -51,6 +51,9 @@ int Pc_LangPackActive(void);
  * glyph table, which redefines those codes. So values pass through exactly as
  * for sjis, and only the font switched on differs. */
 #define LANG_PACK_FONT_CHINESE  4
+/* `!font=portuguese`: the 126-cell PAL layout, with a-tilde, o-tilde and the
+ * eight accented capitals built from the atlas's own accents at upload. */
+#define LANG_PACK_FONT_PORTUGUESE 5
 
 /* The two that index the embedded kanji font rather than the glyph atlas. */
 #define LangPackFontIsKanji(f) ((f) == LANG_PACK_FONT_SJIS || (f) == LANG_PACK_FONT_CHINESE)

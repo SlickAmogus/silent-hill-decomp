@@ -74,6 +74,11 @@ void Font_ApplyRegionPatches(void);
 void Font_PatchPolishGlyphs(void* pixels, int widthWords, int height);
 void Font_UsePolishLayout(void);
 
+/* Portuguese: the 126-cell layout plus its accented capitals, whose combining
+ * marks are built into the cells Polish would otherwise use. */
+void Font_UsePortugueseLayout(void);
+void Font_PatchPortugueseGlyphs(void* pixels, int widthWords, int height);
+
 /* Russian replaces the whole atlas with the Cyrillic one (font_ru.inc). */
 void Font_UseRussianLayout(void);
 

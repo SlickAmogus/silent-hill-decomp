@@ -1009,6 +1009,8 @@ void Pc_LangInit(void)
                 Font_UseRussianLayout();
             else if (Pc_LangPackFont() == LANG_PACK_FONT_POLISH)
                 Font_UsePolishLayout();
+            else if (Pc_LangPackFont() == LANG_PACK_FONT_PORTUGUESE)
+                Font_UsePortugueseLayout();
             else if (Pc_LangPackFont() == LANG_PACK_FONT_CHINESE)
             {
                 /* This pack carries its own item text, so there is nothing to

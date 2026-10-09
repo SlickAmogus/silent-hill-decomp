@@ -24,7 +24,7 @@ REPO = os.path.normpath(os.path.join(HERE, '..', '..'))
 LANG_DIR = os.path.join(HERE, '..', 'assets', 'gamedata', 'lang')
 
 BS = bytes([92])
-FONTS = ('latin', 'polish', 'cyrillic', 'sjis', 'chinese')
+FONTS = ('latin', 'polish', 'cyrillic', 'sjis', 'chinese', 'portuguese')
 
 # The row right-aligns a label that does not fit, but only to here (lang_text.c
 # Pc_LangSlotNameX): past this it would collide with the row's own caption.

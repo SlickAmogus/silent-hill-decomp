@@ -260,7 +260,7 @@ def main():
 
     print('%-7s %s %11s %11s' % ('', '  '.join('%-11s' % g for g in kinds),
                                   'translated', 'English'))
-    for code in ('de', 'fr', 'es', 'it', 'pl', 'ru', 'ja', 'zh', 'en_pal'):
+    for code in ('de', 'fr', 'es', 'it', 'pl', 'pt', 'ru', 'ja', 'zh', 'en_pal'):
         got = covered(code, allk)
         if code == 'ja':
             got |= jpn_pcopt_keys() | jpn_item_keys()

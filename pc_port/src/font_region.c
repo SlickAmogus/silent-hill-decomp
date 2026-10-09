@@ -78,6 +78,10 @@ const s_FontLayout* g_FontLayout = &s_FontLayout_USA;
  * pack actually being active rather than on a wide glyph count — a fan disc
  * that extends the atlas to 126 cells reaches the same count. */
 static int s_PolishLayoutActive;
+
+/* Portuguese pack active: its accented CAPITALS draw as a combining mark plus
+ * the base capital, the way retail builds A-acute and E-acute. */
+static int s_PtLayoutActive;
 static int s_RussianLayoutActive;
 
 /* The PAL atlas, in use on a disc that does not carry it. Its 126 cells are
@@ -106,6 +110,19 @@ int g_PcMapMsgLineMax = FONT_12X16_LINE_COUNT_MAX;
 #define PL_CELL_L_STROKE 122
 #define PL_CELL_DOT_MARK 123
 #define PL_CELL_ACUTE    119 /* retail combining acute, reused for c/n/s/z */
+
+/* Portuguese capital marks. They reuse the POLISH cells: Portuguese text never
+ * contains a Polish letter, and Pc_LangInit re-reads FONT16 from the disc on
+ * every language switch, so each language gets a clean atlas to build into. */
+#define PT_CELL_A_TILDE  90
+#define PT_CELL_O_TILDE  91
+#define PT_CELL_A_CIRC   101
+#define PT_CELL_E_CIRC   109
+#define PT_CELL_O_CIRC   120
+#define PT_CELL_A_GRAVE  121
+#define PT_CELL_I_ACUTE  122
+#define PT_CELL_U_ACUTE  123
+#define CELL_NTILDE      102
 
 /* Polish text bytes. The pack loader emits these; 0xA2..0xB3 are bytes the
  * retail EUR drawer sends to atlas cells 130..147 — past the grid, so it
@@ -229,6 +246,40 @@ int Font_MapChar(unsigned int charCode, s_GlyphEmit emits[2])
     }
     else
     {
+        /* Portuguese accented capitals: a combining mark plus the base
+         * capital, exactly how retail draws A-acute and E-acute. Ahead of the
+         * retail scheme, which would otherwise fold these into its 0x80-0xBF
+         * arithmetic and lose them. */
+        if (s_PtLayoutActive)
+        {
+            int mark = -1;
+            int base = 0;
+
+            switch (charCode)
+            {
+                case 0xC3: mark = PT_CELL_A_TILDE; base = 'A'; break;
+                case 0xD5: mark = PT_CELL_O_TILDE; base = 'O'; break;
+                case 0xC2: mark = PT_CELL_A_CIRC;  base = 'A'; break;
+                case 0xCA: mark = PT_CELL_E_CIRC;  base = 'E'; break;
+                case 0xD4: mark = PT_CELL_O_CIRC;  base = 'O'; break;
+                case 0xC0: mark = PT_CELL_A_GRAVE; base = 'A'; break;
+                case 0xCD: mark = PT_CELL_I_ACUTE; base = 'I'; break;
+                case 0xDA: mark = PT_CELL_U_ACUTE; base = 'U'; break;
+                default: break;
+            }
+            if (mark >= 0)
+            {
+                base             -= GLYPH_TABLE_ASCII_OFFSET;
+                emits[0].cell    = mark;
+                emits[0].dy      = -3; /* the lift retail gives its own A-acute */
+                emits[0].advance = 0;
+                emits[1].cell    = base;
+                emits[1].dy      = 0;
+                emits[1].advance = layout->glyphWidths[base];
+                return 2;
+            }
+        }
+
         /* Polish, when its pack is active. Ahead of the retail scheme because
          * these bytes would otherwise fall into the 0x80-0xBF arithmetic and
          * be dropped. */
@@ -383,6 +434,205 @@ static void PixSet(unsigned char* p, int stride, int x, int y, unsigned int v)
 
     *b = (x & 1) ? (unsigned char)((*b & 0x0F) | (v << 4))
                  : (unsigned char)((*b & 0xF0) | (v & 0xF));
+}
+
+/* ---- Portuguese letterforms, built from the atlas's own accents ----------
+ *
+ * Contributed with the pt translation. Portuguese needs 24 accented letters;
+ * retail PAL draws all but ten. a-tilde and o-tilde have cells reserved
+ * (88, 106) with real advances but ship BLANK, because no PAL language uses
+ * them -- so pack text came out "N o" and "Op es". The eight accented capitals
+ * degrade to a mark and a '*'.
+ *
+ * Every stroke is cut from the loaded atlas rather than drawn, so the ink,
+ * the shadow and the palette match the font exactly and a repainted FONT16 is
+ * followed for free. Cells that already hold ink are left alone, so a fan
+ * repaint that fills them wins. */
+
+static int CellBlank(const unsigned char* p, int stride, int cell)
+{
+    int ox = (cell % ATLAS_COLS) * CELL_W, oy = (cell / ATLAS_COLS) * CELL_H, x, y;
+
+    for (y = 0; y < CELL_H; y++)
+        for (x = 0; x < CELL_W; x++)
+            if (PixGet(p, stride, ox + x, oy + y))
+                return 0;
+    return 1;
+}
+
+/* Twice the horizontal ink centre of a cell over rows y0.., or -1 if empty.
+ * Doubled so the midpoint stays exact without a divide. */
+static int CellInkCentre2(const unsigned char* p, int stride, int cell, int y0)
+{
+    int ox = (cell % ATLAS_COLS) * CELL_W, oy = (cell / ATLAS_COLS) * CELL_H;
+    int mn = CELL_W, mx = -1, x, y;
+
+    for (y = y0; y < CELL_H; y++)
+        for (x = 0; x < CELL_W; x++)
+            if (PixGet(p, stride, ox + x, oy + y))
+            {
+                if (x < mn) mn = x;
+                if (x > mx) mx = x;
+            }
+    return (mx < 0) ? -1 : (mn + mx);
+}
+
+/* Ink bounding box of a cell over rows [y0, y1). Zero if those rows are empty. */
+static int CellInkBox(const unsigned char* p, int stride, int cell, int y0, int y1,
+                      int* x0, int* x1, int* yt, int* yb)
+{
+    int ox = (cell % ATLAS_COLS) * CELL_W, oy = (cell / ATLAS_COLS) * CELL_H, x, y, any = 0;
+
+    *x0 = CELL_W; *x1 = -1; *yt = CELL_H; *yb = -1;
+    for (y = y0; y < y1; y++)
+        for (x = 0; x < CELL_W; x++)
+            if (PixGet(p, stride, ox + x, oy + y))
+            {
+                any = 1;
+                if (x < *x0) *x0 = x;
+                if (x > *x1) *x1 = x;
+                if (y < *yt) *yt = y;
+                if (y > *yb) *yb = y;
+            }
+    return any;
+}
+
+/* a-tilde and o-tilde, built the way retail builds n-tilde: copy the base
+ * letter, then lay n-tilde's own tilde over it, re-centred. The tilde is the
+ * ink above the 'n' x-height, which is where the top of 'n' tells us to cut. */
+static void Font_BuildTildeGlyphs(unsigned char* p, int stride)
+{
+    static const struct { unsigned char cell; char base; } s_Tilde[] = {
+        { 88, 'a' }, { 106, 'o' }
+    };
+    int nCell = 'n' - GLYPH_TABLE_ASCII_OFFSET;
+    int nOx   = (nCell % ATLAS_COLS) * CELL_W, nOy = (nCell / ATLAS_COLS) * CELL_H;
+    int tOx   = (CELL_NTILDE % ATLAS_COLS) * CELL_W;
+    int tOy   = (CELL_NTILDE / ATLAS_COLS) * CELL_H;
+    int top   = CELL_H, ntC, i, x, y;
+
+    for (y = 0; y < CELL_H && top == CELL_H; y++)
+        for (x = 0; x < CELL_W; x++)
+            if (PixGet(p, stride, nOx + x, nOy + y)) { top = y; break; }
+
+    if (top < 2 || top == CELL_H || CellBlank(p, stride, CELL_NTILDE))
+        return;
+    ntC = CellInkCentre2(p, stride, CELL_NTILDE, top);
+
+    for (i = 0; i < (int)(sizeof(s_Tilde) / sizeof(s_Tilde[0])); i++)
+    {
+        int bCell = s_Tilde[i].base - GLYPH_TABLE_ASCII_OFFSET;
+        int bOx   = (bCell % ATLAS_COLS) * CELL_W, bOy = (bCell / ATLAS_COLS) * CELL_H;
+        int dOx   = (s_Tilde[i].cell % ATLAS_COLS) * CELL_W;
+        int dOy   = (s_Tilde[i].cell / ATLAS_COLS) * CELL_H;
+        int bC, dx;
+
+        if (!CellBlank(p, stride, s_Tilde[i].cell))
+            continue;
+        bC = CellInkCentre2(p, stride, bCell, top);
+        if (bC < 0 || ntC < 0)
+            continue;
+        dx = (bC - ntC) >> 1;
+
+        for (y = 0; y < CELL_H; y++)
+            for (x = 0; x < CELL_W; x++)
+                PixSet(p, stride, dOx + x, dOy + y, PixGet(p, stride, bOx + x, bOy + y));
+
+        for (y = 0; y < top; y++)
+            for (x = 0; x < CELL_W; x++)
+            {
+                unsigned int v = PixGet(p, stride, tOx + x, tOy + y);
+
+                if (v && x + dx >= 0 && x + dx < CELL_W)
+                    PixSet(p, stride, dOx + x + dx, dOy + y, v);
+            }
+    }
+}
+
+/* One combining-mark cell per accented capital, so each accent is centred on
+ * its own letter rather than sharing one mark. Each is dropped so its bottom
+ * row matches the retail acute's: Font_MapChar then emits it with the same
+ * dy of -3 retail uses for A-acute, and it lands at exactly that height. */
+static void Font_BuildPtCapitalMarks(unsigned char* p, int stride)
+{
+    static const struct { unsigned char dst, src; char lowerBase, capital; } s_Marks[] = {
+        { PT_CELL_A_TILDE, CELL_NTILDE,   'n', 'A' },
+        { PT_CELL_O_TILDE, CELL_NTILDE,   'n', 'O' },
+        { PT_CELL_A_CIRC,  87,            'a', 'A' },
+        { PT_CELL_E_CIRC,  87,            'a', 'E' },
+        { PT_CELL_O_CIRC,  87,            'a', 'O' },
+        { PT_CELL_A_GRAVE, 85,            'a', 'A' },
+        { PT_CELL_I_ACUTE, PL_CELL_ACUTE, 0,   'I' },
+        { PT_CELL_U_ACUTE, PL_CELL_ACUTE, 0,   'U' }
+    };
+    int ax0, ax1, ayt, ayb, i, x, y;
+
+    if (!CellInkBox(p, stride, PL_CELL_ACUTE, 0, CELL_H, &ax0, &ax1, &ayt, &ayb))
+        return;
+
+    for (i = 0; i < (int)(sizeof(s_Marks) / sizeof(s_Marks[0])); i++)
+    {
+        int src = s_Marks[i].src, dst = s_Marks[i].dst;
+        int cap = s_Marks[i].capital - GLYPH_TABLE_ASCII_OFFSET;
+        int lim = CELL_H;
+        int mx0, mx1, myt, myb, cx0, cx1, cyt, cyb, dx, dy;
+        int sOx = (src % ATLAS_COLS) * CELL_W, sOy = (src / ATLAS_COLS) * CELL_H;
+        int dOx = (dst % ATLAS_COLS) * CELL_W, dOy = (dst / ATLAS_COLS) * CELL_H;
+
+        if (s_Marks[i].lowerBase)
+        {
+            int lb = s_Marks[i].lowerBase - GLYPH_TABLE_ASCII_OFFSET;
+            int bx0, bx1, byt, byb;
+
+            if (!CellInkBox(p, stride, lb, 0, CELL_H, &bx0, &bx1, &byt, &byb))
+                continue;
+            lim = byt; /* the accent is whatever sits above the base's x-height */
+        }
+        if (!CellInkBox(p, stride, src, 0, lim, &mx0, &mx1, &myt, &myb) ||
+            !CellInkBox(p, stride, cap, 0, CELL_H, &cx0, &cx1, &cyt, &cyb))
+            continue;
+
+        dy = ayb - myb;
+        dx = ((cx0 + cx1) - (mx0 + mx1)) >> 1;
+
+        for (y = 0; y < CELL_H; y++)
+            for (x = 0; x < CELL_W; x++)
+                PixSet(p, stride, dOx + x, dOy + y, 0);
+
+        for (y = 0; y < lim; y++)
+            for (x = 0; x < CELL_W; x++)
+            {
+                unsigned int v = PixGet(p, stride, sOx + x, sOy + y);
+
+                if (v && x + dx >= 0 && x + dx < CELL_W && y + dy >= 0 && y + dy < CELL_H)
+                    PixSet(p, stride, dOx + x + dx, dOy + y + dy, v);
+            }
+    }
+}
+
+/* Portuguese: the two tildes every sentence needs, then the capital marks. */
+void Font_PatchPortugueseGlyphs(void* pixels, int widthWords, int height)
+{
+    unsigned char* p      = (unsigned char*)pixels;
+    int            stride = widthWords * 2;
+
+    if (pixels == NULL || (widthWords * 4) < (ATLAS_COLS * CELL_W) || height < (6 * CELL_H))
+        return;
+
+    Font_BuildTildeGlyphs(p, stride);
+    Font_BuildPtCapitalMarks(p, stride);
+    SH_LOG("[FONT] Portuguese glyphs built into FONT16");
+}
+
+void Font_UsePortugueseLayout(void)
+{
+    if (g_FontLayout == &s_FontLayout_EUR || g_FontLayout == &s_FontLayout_USA)
+    {
+        /* The 126-cell layout, same as Polish: the capital marks live in cells
+         * 120..123, past the 120 the plain PAL layout counts. */
+        g_FontLayout     = &s_FontLayout_EUR_PL;
+        s_PtLayoutActive = 1;
+    }
 }
 
 /* Build the Polish letterforms into the freshly-read FONT16 pixel block,
@@ -550,6 +800,11 @@ void Font_PatchPackGlyphs(void* pixels, int widthWords, int height)
         FontPatchRussianGlyphs(pixels, widthWords, height);
         return;
     }
+    if (s_PtLayoutActive)
+    {
+        Font_PatchPortugueseGlyphs(pixels, widthWords, height);
+        return;
+    }
     if (s_PolishLayoutActive)
     {
         Font_PatchPolishGlyphs(pixels, widthWords, height);
@@ -590,6 +845,7 @@ void Font_ResetLayout(void)
 {
     s_PolishLayoutActive = 0;
     s_RussianLayoutActive = 0;
+    s_PtLayoutActive = 0;
     s_EurAtlasImported = 0;
     g_FontLayout = (g_GameRegion == Region_EUR) ? &s_FontLayout_EUR : &s_FontLayout_USA;
 }
