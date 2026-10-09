@@ -38,7 +38,9 @@ extern "C" {
  * MAX_VERTEX_BUFFER_SIZE lives in PsyX_render.h, which this header does not
  * include (it is consumed by plain C game code); the value is mirrored with a
  * compile-time check in pc_modern_mesh.c that it still matches. */
-#define PC_MODERN_MESH_VERTEX_BUFFER_SIZE (1u << 18)
+/* Kept equal to MAX_VERTEX_BUFFER_SIZE; the static_assert in pc_modern_mesh.c
+ * enforces it, and it is what caught this when PsyCross shrank. */
+#define PC_MODERN_MESH_VERTEX_BUFFER_SIZE (1u << 16)
 #define PC_MODERN_MESH_MAX_TRIANGLES  ((PC_MODERN_MESH_VERTEX_BUFFER_SIZE - 1u) / 3u)
 #define PC_MODERN_MESH_MAX_VERTICES   (PC_MODERN_MESH_VERTEX_BUFFER_SIZE - 1u)
 
