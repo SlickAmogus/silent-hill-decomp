@@ -231,10 +231,40 @@ static void SlotsBuild(void)
     }
 }
 
+static void SlotsLog(void);
+
 static void SlotsEnsure(void)
 {
     if (s_SlotCount < 0 || s_SlotBuiltAtTitle != SlotsOfferPacks())
+    {
         SlotsBuild();
+        SlotsLog();
+    }
+}
+
+/* What the Language row ended up offering, and why.
+ *
+ * The scan's own count logs during config parsing, before the log file is
+ * open, so it has never been visible in a report -- which is exactly the
+ * question that kept coming up ("why are only some languages listed?"). This
+ * runs when the list is built, at the title screen, where it is. Once per
+ * rebuild, not per frame. */
+static void SlotsLog(void)
+{
+    char line[256];
+    int  n = 0;
+    int  i;
+
+    for (i = 0; i < s_SlotCount && n < (int)sizeof(line) - 24; i++)
+    {
+        int lang = s_SlotLang[i];
+
+        n += snprintf(line + n, sizeof(line) - n, "%s%s", i ? ", " : "",
+                      SlotIsJp(lang) ? "<disc>" : Pc_LangIdForSlot(lang));
+    }
+    SH_LOG("[LANG] row: %d slot(s) from %d installed pack(s)%s [%s]",
+           s_SlotCount, Pc_LangPackListCount(),
+           g_PcConfig.crossRegionLanguages ? ", cross-region ON" : "", line);
 }
 
 static int SlotsCount(void)
