@@ -41,7 +41,7 @@ enum { TR_NONE = 0, TR_MOVE, TR_LOOK, TR_BUTTON, TR_ADVANCE,
 enum { TB_AIM = 0, TB_ITEM, TB_MAP, TB_START, TB_RUN, TB_BACK, TB_FIRE, TB_MENU,
        TB_SKIP,
        TB_LIGHT, TB_VIEW, TB_CAM, TB_QSAVE, TB_QLOAD, TB_BONUS, TB_CLICK,
-       TB_NO,
+       TB_NO, TB_MAPUP, TB_MAPDN,
        TB_COUNT };
 
 typedef struct
@@ -121,6 +121,16 @@ static s_TouchButton s_Buttons[TB_COUNT] = {
      * A corner button left the drawn "No" answering Yes, which is exactly
      * the trap it was supposed to prevent (reported). */
     [TB_NO] = { 0.634f, 0.529f, 0.065f, 0 },
+    /* Paper map, floor up/down: hit targets sitting on the arrows the screen
+     * already draws at top and bottom centre when a map has more than one
+     * floor. Invisible for that reason -- a ring around them would be a second
+     * mark on top of the game's own.
+     *
+     * They have to exist because the paper map leaves on a tap ANYWHERE
+     * (TC_MODE_PAPERMAP), so touching the drawn arrow backed out of the map
+     * instead of changing floor (reported). A button takes the tap first. */
+    [TB_MAPUP] = { 0.500f, 0.080f, 0.130f, 0 },
+    [TB_MAPDN] = { 0.500f, 0.920f, 0.130f, 0 },
     /* Quick Save / Quick Load, only with touch_quicksave_buttons on. Up in the
      * empty band of the top edge, a quarter in from each side, about the size
      * of Menu, Pause and View -- a shade larger, so the letter clears the ring. */
@@ -142,6 +152,7 @@ typedef struct
     Uint32 startMs;
     int   movedFar;         /* travelled beyond the tap slop */
     int   fireHold;         /* alt camera: second tap of a double tap, held = fire held */
+    int   advanceFired;     /* this finger has already advanced one line */
     int   noTap;            /* already spent as a double tap; its release is not a first tap */
 } s_TouchFinger;
 
@@ -155,7 +166,7 @@ static float          s_StickOx, s_StickOy, s_StickKx, s_StickKy;
 static int            s_Running;
 static int            s_ActionFrames;  /* tap pulse, in pad updates */
 static int            s_CancelFrames;  /* the same, for the tap-anywhere Cancel */
-static int            s_AdvanceHeld;   /* a finger is down during an advance state */
+static int            s_AdvanceFrames; /* one advance pulse per finger, see TR_ADVANCE */
 static int            s_SkipTapFrames; /* tap-anywhere Skip, for the credits */
 static int            s_SaveYesFrames; /* end-of-game save prompt, Yes */
 static int            s_SaveNoFrames;  /* the same, No */
@@ -265,7 +276,7 @@ enum { TC_LEVEL_NONE = 0, TC_LEVEL_ESCAPE, TC_LEVEL_FULL };
  * the instant you touched a dial and the puzzle could never be solved. */
 enum { TC_MODE_OFF = 0, TC_MODE_GAMEPLAY, TC_MODE_PAUSE, TC_MODE_MAP, TC_MODE_ADVANCE, TC_MODE_BACK,
        TC_MODE_BACK_CURSOR, TC_MODE_ESCAPE, TC_MODE_TITLE, TC_MODE_SKIP,
-       TC_MODE_BONUS, TC_MODE_RESULTS, TC_MODE_SAVEASK };
+       TC_MODE_BONUS, TC_MODE_RESULTS, TC_MODE_SAVEASK, TC_MODE_PAPERMAP };
 
 /* Gameplay gets the full scheme. Pause gets Start ALONE -- nothing else on that
  * screen responds to a pointer, so hiding the controls there left no way back
@@ -341,7 +352,7 @@ static int Tc_Mode(void)
                        (int)g_GameWork.gameState, g_PcMapScreenActive);
             }
 
-            return TC_MODE_BACK;
+            return TC_MODE_PAPERMAP;
         }
     }
 
@@ -788,7 +799,8 @@ static int Tc_SoloButton(int mode)
         return TB_START;   /* pause opens and exits on the same bind */
     if (mode == TC_MODE_MAP)
         return TB_MAP;     /* the map screen exits on the map bind */
-    if (mode == TC_MODE_BACK || mode == TC_MODE_BACK_CURSOR)
+    if (mode == TC_MODE_BACK || mode == TC_MODE_BACK_CURSOR ||
+        mode == TC_MODE_PAPERMAP)
         return TB_BACK;    /* brightness and friends leave on cancel */
     if (mode == TC_MODE_TITLE)
         return TB_MAP;     /* opens the achievement browser, and closes it */
@@ -941,7 +953,22 @@ static int Tc_CornerOnly(int b)
  * screen-only button added since needs to be in here. */
 static int Tc_ScreenOnly(int b)
 {
-    return b == TB_CLICK || b == TB_BONUS || b == TB_NO;
+    return b == TB_CLICK || b == TB_BONUS || b == TB_NO ||
+           b == TB_MAPUP || b == TB_MAPDN;
+}
+
+/* Buttons a mode shows ALONGSIDE its solo escape button. The map screen could
+ * only be left, never used: changing floor is the one thing it does and a
+ * touchscreen had no way to ask for it (reported). */
+static int Tc_ExtraButton(int b, int mode)
+{
+    extern int Pc_MouseCursor_PuzzleActive(void);
+
+    if (b == TB_CLICK)
+        return mode == TC_MODE_BACK_CURSOR && Pc_MouseCursor_PuzzleActive();
+    if (b == TB_MAPUP || b == TB_MAPDN)
+        return mode == TC_MODE_MAP || mode == TC_MODE_PAPERMAP;
+    return 0;
 }
 
 /* A solo button that marks a word the screen already draws has to stay on that
@@ -1050,7 +1077,7 @@ static void Tc_Reset(void)
     s_LeftX = s_LeftY = s_RightX = s_RightY = 128;
     s_StickActive = 0;
     s_Running     = 0;
-    s_AdvanceHeld = 0;
+    s_AdvanceFrames = 0;
     /* Or a pending cancel would fire into whatever screen comes next. */
     s_CancelFrames = 0;
     s_AimLatched   = 0;
@@ -1216,7 +1243,7 @@ void Pc_Touch_Update(void)
         seen[i] = 0;
 
     s_PadWord     = 0xFFFF;
-    s_AdvanceHeld = 0;
+    s_AdvanceFrames = 0;
     s_FireHeld    = 0;
     Tc_PlaceCamButton(aspect);
 
@@ -1289,6 +1316,7 @@ void Pc_Touch_Update(void)
             t->lastY     = vy;
             t->startMs   = now;
             t->movedFar  = 0;
+            t->advanceFired = 0;   /* a fresh finger may advance one line */
             t->fireHold  = 0;
             t->noTap     = 0;
             t->buttonIdx = -1;
@@ -1383,17 +1411,28 @@ void Pc_Touch_Update(void)
                     t->role      = (onIt && solo >= 0) ? TR_BUTTON : TR_NONE;
                     t->buttonIdx = (onIt && solo >= 0) ? solo : -1;
 
-                    if (!onIt && Tc_PuzzleClickAllowed(mode))
+                    if (!onIt)
                     {
-                        float cdx = (vx - s_Buttons[TB_CLICK].cx) * aspect;
-                        float cdy = (vy - s_Buttons[TB_CLICK].cy);
-                        float cr  = s_Buttons[TB_CLICK].r * 1.25f;
+                        int e;
 
-                        if (((cdx * cdx) + (cdy * cdy)) <= (cr * cr))
+                        for (e = 0; e < TB_COUNT; e++)
                         {
-                            t->role      = TR_BUTTON;
-                            t->buttonIdx = TB_CLICK;
-                            onIt         = 1;
+                            float edx, edy, er;
+
+                            if (!Tc_ExtraButton(e, mode))
+                                continue;
+
+                            edx = (vx - s_Buttons[e].cx) * aspect;
+                            edy = (vy - s_Buttons[e].cy);
+                            er  = s_Buttons[e].r * 1.25f;
+
+                            if (((edx * edx) + (edy * edy)) <= (er * er))
+                            {
+                                t->role      = TR_BUTTON;
+                                t->buttonIdx = e;
+                                onIt         = 1;
+                                break;
+                            }
                         }
                     }
                 }
@@ -1444,7 +1483,16 @@ void Pc_Touch_Update(void)
                 break;
 
             case TR_ADVANCE:
-                s_AdvanceHeld = 1;
+                /* ONE press per finger, not one per frame. Held, this injected
+                 * enter every pad update, so a single tap tore through about
+                 * ten lines of dialogue; the original advances one line a press
+                 * (reported). The latch is per finger, so a second finger is
+                 * still a second line. */
+                if (!t->advanceFired)
+                {
+                    s_AdvanceFrames = TC_ACTION_FRAMES;
+                    t->advanceFired = 1;
+                }
                 break;
 
             case TR_TG_BTN:
@@ -1690,7 +1738,8 @@ void Pc_Touch_Update(void)
             s_SaveYesFrames = TC_ACTION_FRAMES;
         }
 
-        if (mode == TC_MODE_BACK && t->role != TR_BUTTON && !t->movedFar &&
+        if ((mode == TC_MODE_BACK || mode == TC_MODE_PAPERMAP) &&
+            t->role != TR_BUTTON && !t->movedFar &&
             g_MapMsg_Select.maxIdx == NO_VALUE &&
             (now - t->startMs) >= TC_TAP_MIN_MS &&
             (now - t->startMs) <= TC_TAP_MS)
@@ -1815,6 +1864,16 @@ void Pc_Touch_Update(void)
          * reads straight off the pad word. */
         if (s_Buttons[TB_BONUS].holdFrames > 0) Tc_PressAction(&s_PadWord, TG_L2);
 
+        /* The map reads ControllerFlag_LStickUp/Down, and joy.c promotes the
+         * D-PAD into exactly those bits (heldBtnFlags << 20 maps DpadUp to
+         * LStickUp), so sending the d-pad is what a pad does and does not
+         * depend on the stick being in analog mode. Edge-detected by the game,
+         * so a held finger still changes one floor. */
+        if (s_Buttons[TB_MAPUP].holdFrames > 0)
+            Tc_PressAction(&s_PadWord, TG_UP);
+        else if (s_Buttons[TB_MAPDN].holdFrames > 0)
+            Tc_PressAction(&s_PadWord, TG_DOWN);
+
         if (s_Buttons[TB_NO].holdFrames > 0 && s_SaveNoFrames <= 0)
         {
             s_SaveNoFrames  = TC_ACTION_FRAMES;
@@ -1880,8 +1939,11 @@ void Pc_Touch_Update(void)
             s_camWas = camNow;
         }
 
-        if (s_AdvanceHeld)
+        if (s_AdvanceFrames > 0)
+        {
             Tc_PressAction(&s_PadWord, cfg->enter);
+            s_AdvanceFrames--;
+        }
 
         /* The prompt is a left/right pick, so the answer is whichever
          * selection the press lands on: 0 saves, 1 warm-boots to the title
@@ -2477,7 +2539,7 @@ void Pc_Touch_Draw(void)
 
         if (mode != TC_MODE_GAMEPLAY)
         {
-            const int click = (i == TB_CLICK) && Tc_PuzzleClickAllowed(mode);
+            const int click = Tc_ExtraButton(i, mode);
 
             if (i != Tc_SoloButton(mode) && !click)
                 continue;
@@ -2508,7 +2570,7 @@ void Pc_Touch_Draw(void)
          * and its own selection box, so a circle round it was just an odd
          * extra mark on screen (reported). The target stays, invisible, on the
          * word a player would tap anyway. */
-        if (i != TB_NO)
+        if (i != TB_NO && i != TB_MAPUP && i != TB_MAPDN)
             Tc_Ring(&batch, cx, cy, r, (r * 82) / 100, lum);
 
         /* A distinct mark per button, so they read as different controls
@@ -2590,6 +2652,11 @@ void Pc_Touch_Draw(void)
                 Tc_Octagon(&batch, cx, cy, (r * 34) / 100, lum);
                 break;
             }
+            case TB_MAPUP:
+            case TB_MAPDN:
+                /* Nothing drawn: these sit on the arrows the map itself puts at
+                 * top and bottom centre. */
+                break;
             case TB_NO:
             {
                 /* No glyph: this one rings the word "No" the prompt already
