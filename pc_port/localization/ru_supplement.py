@@ -20,6 +20,25 @@ Two different renderers, two different rules:
 
 # --- PC Options and the other game-font rows (Cyrillic only) ---------------
 MENU = {
+    # Save/load screen, brightness and controller presets: raw literals
+    # at their draw site, so no translator could reach them until the
+    # extractor learned about them. The trailing padding on the
+    # brightness labels aligns the value after them.
+    '\x07________New_save': '\x07____Новая_запись',
+    '\x07____Create_new_file': '\x07___Создать_файл',
+    '\x07____File_is_damaged': '\x07___Файл_повреждён',
+    '\x07Out_of_blocks': '\x07Нет_места',
+    '\x07No_data_file': '\x07Нет_данных',
+    '\x07Yes__________No': '\x07Да__________Нет',
+    'Bus': 'Автобус',
+    'BRIGHTNESS': 'ЯРКОСТЬ_______',
+    'CONTRAST': 'КОНТРАСТ_____',
+    'SATURATION': 'НАСЫЩЕНИЕ___',
+    'USER': 'СВОЙ',
+    'TYPE_1': 'ТИП_1',
+    'TYPE_2': 'ТИП_2',
+    'TYPE_3': 'ТИП_3',
+
     # '=' is a long dash on this atlas (consolgames moved it), and the disc's
     # own On/Off brackets are single hyphens, so match those.
     '==Use_OK==':  '-Можно-',

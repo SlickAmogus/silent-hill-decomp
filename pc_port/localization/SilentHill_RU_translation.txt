@@ -168,6 +168,100 @@ NOTE: inventory label, max ~10 characters
 EN: Fuel:
 RU: Топливо:
 
+[MENU.________New_save]
+NOTE: save/load screen, the empty-slot row
+EN:  New save
+RU: ____Новая_запись
+
+[MENU.____Create_new_file]
+NOTE: save/load screen, prompt
+EN:  Create new file
+RU: ___Создать_файл
+
+[MENU.____File_is_damaged]
+NOTE: save/load screen, a corrupt slot
+EN:  File is damaged
+RU: ___Файл_повреждён
+
+[MENU.MEMORY_CARD
+is_not_inserted]
+NOTE: save/load screen, two lines -- keep the line break
+EN: MEMORY CARD is not inserted
+RU: 
+
+[MENU.MEMORY_CARD
+is_not_formatted]
+NOTE: save/load screen, two lines -- keep the line break
+EN: MEMORY CARD is not formatted
+RU: 
+
+[MENU.MEMORY_CARD
+may_be_broken]
+NOTE: save/load screen, two lines -- keep the line break
+EN: MEMORY CARD may be broken
+RU: 
+
+[MENU.Now_checking
+MEMORY_CARD]
+NOTE: save/load screen, two lines -- keep the line break
+EN: Now checking MEMORY CARD
+RU: 
+
+[MENU.Out_of_blocks]
+NOTE: save/load screen
+EN: Out of blocks
+RU: Нет_места
+
+[MENU.No_data_file]
+NOTE: save/load screen
+EN: No data file
+RU: Нет_данных
+
+[MENU.Yes__________No]
+NOTE: save/load confirm; the gap between the two words is the layout
+EN: Yes No
+RU: Да__________Нет
+
+[MENU.Bus]
+NOTE: save-point name
+EN: Bus
+RU: Автобус
+
+[MENU.BRIGHTNESS]
+NOTE: brightness screen; the trailing space is the layout
+EN: BRIGHTNESS
+RU: ЯРКОСТЬ_______
+
+[MENU.CONTRAST]
+NOTE: brightness screen; the trailing spaces are the layout
+EN: CONTRAST
+RU: КОНТРАСТ_____
+
+[MENU.SATURATION]
+NOTE: brightness screen; the trailing space is the layout
+EN: SATURATION
+RU: НАСЫЩЕНИЕ___
+
+[MENU.USER]
+NOTE: controller preset name
+EN: USER
+RU: СВОЙ
+
+[MENU.TYPE_1]
+NOTE: controller preset name
+EN: TYPE 1
+RU: ТИП_1
+
+[MENU.TYPE_2]
+NOTE: controller preset name
+EN: TYPE 2
+RU: ТИП_2
+
+[MENU.TYPE_3]
+NOTE: controller preset name
+EN: TYPE 3
+RU: ТИП_3
+
 [MENU.LOAD]
 EN: LOAD
 RU: ЗАГРУЗИТЬ
@@ -1271,6 +1365,11 @@ RU: Прицел из-за плеча (в режиме 3-го лица)
 NOTE: row name
 EN: Aim Zoom
 RU: Приближение при прицеливании
+
+[QUICK.Rest_Zoom]
+NOTE: row name
+EN: Rest Zoom
+RU: 
 
 [QUICK.Rest_X_(left/right)]
 NOTE: row name

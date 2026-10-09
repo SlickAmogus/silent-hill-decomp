@@ -50,6 +50,25 @@ STORY = {
 # --- Menus (game font; the Polish atlas carries ą ć ę ł ń ó ś ź ż) --------
 # Budgets are the label column, so these stay inside the English width.
 MENU = {
+    # Save/load screen, brightness and controller presets: raw literals
+    # at their draw site, so no translator could reach them until the
+    # extractor learned about them. The trailing padding on the
+    # brightness labels aligns the value after them.
+    '\x07________New_save': '\x07______Nowy_zapis',
+    '\x07____Create_new_file': '\x07___Utwórz_nowy_plik',
+    '\x07____File_is_damaged': '\x07_____Plik_uszkodzony',
+    '\x07Out_of_blocks': '\x07Brak_bloków',
+    '\x07No_data_file': '\x07Brak_pliku',
+    '\x07Yes__________No': '\x07Tak_________Nie',
+    'Bus': 'Autobus',
+    'BRIGHTNESS': 'JASNOŚĆ_______',
+    'CONTRAST': 'KONTRAST_____',
+    'SATURATION': 'NASYCENIE___',
+    'USER': 'WŁASNY',
+    'TYPE_1': 'TYP_1',
+    'TYPE_2': 'TYP_2',
+    'TYPE_3': 'TYP_3',
+
     'English':      'Angielski',
     'German':       'Niemiecki',
     'French':       'Francuski',
