@@ -121,11 +121,16 @@ static s_TouchButton s_Buttons[TB_COUNT] = {
      * A corner button left the drawn "No" answering Yes, which is exactly
      * the trap it was supposed to prevent (reported). */
     [TB_NO] = { 0.634f, 0.529f, 0.065f, 0 },
-    /* Paper map, floor up/down. The map screen changes floor on the left
-     * STICK (ControllerFlag_LStickUp/Down, not the d-pad), so these drive the
-     * stick axis exactly as a pad does. Left side, clear of the corner exit. */
-    [TB_MAPUP] = { 0.085f, 0.620f, 0.060f, 0 },
-    [TB_MAPDN] = { 0.085f, 0.790f, 0.060f, 0 },
+    /* Paper map, floor up/down: hit targets sitting on the arrows the screen
+     * already draws at top and bottom centre when a map has more than one
+     * floor. Invisible for that reason -- a ring around them would be a second
+     * mark on top of the game's own.
+     *
+     * They have to exist because the paper map leaves on a tap ANYWHERE
+     * (TC_MODE_PAPERMAP), so touching the drawn arrow backed out of the map
+     * instead of changing floor (reported). A button takes the tap first. */
+    [TB_MAPUP] = { 0.500f, 0.080f, 0.130f, 0 },
+    [TB_MAPDN] = { 0.500f, 0.920f, 0.130f, 0 },
     /* Quick Save / Quick Load, only with touch_quicksave_buttons on. Up in the
      * empty band of the top edge, a quarter in from each side, about the size
      * of Menu, Pause and View -- a shade larger, so the letter clears the ring. */
@@ -271,7 +276,7 @@ enum { TC_LEVEL_NONE = 0, TC_LEVEL_ESCAPE, TC_LEVEL_FULL };
  * the instant you touched a dial and the puzzle could never be solved. */
 enum { TC_MODE_OFF = 0, TC_MODE_GAMEPLAY, TC_MODE_PAUSE, TC_MODE_MAP, TC_MODE_ADVANCE, TC_MODE_BACK,
        TC_MODE_BACK_CURSOR, TC_MODE_ESCAPE, TC_MODE_TITLE, TC_MODE_SKIP,
-       TC_MODE_BONUS, TC_MODE_RESULTS, TC_MODE_SAVEASK };
+       TC_MODE_BONUS, TC_MODE_RESULTS, TC_MODE_SAVEASK, TC_MODE_PAPERMAP };
 
 /* Gameplay gets the full scheme. Pause gets Start ALONE -- nothing else on that
  * screen responds to a pointer, so hiding the controls there left no way back
@@ -347,7 +352,7 @@ static int Tc_Mode(void)
                        (int)g_GameWork.gameState, g_PcMapScreenActive);
             }
 
-            return TC_MODE_BACK;
+            return TC_MODE_PAPERMAP;
         }
     }
 
@@ -794,7 +799,8 @@ static int Tc_SoloButton(int mode)
         return TB_START;   /* pause opens and exits on the same bind */
     if (mode == TC_MODE_MAP)
         return TB_MAP;     /* the map screen exits on the map bind */
-    if (mode == TC_MODE_BACK || mode == TC_MODE_BACK_CURSOR)
+    if (mode == TC_MODE_BACK || mode == TC_MODE_BACK_CURSOR ||
+        mode == TC_MODE_PAPERMAP)
         return TB_BACK;    /* brightness and friends leave on cancel */
     if (mode == TC_MODE_TITLE)
         return TB_MAP;     /* opens the achievement browser, and closes it */
@@ -961,7 +967,7 @@ static int Tc_ExtraButton(int b, int mode)
     if (b == TB_CLICK)
         return mode == TC_MODE_BACK_CURSOR && Pc_MouseCursor_PuzzleActive();
     if (b == TB_MAPUP || b == TB_MAPDN)
-        return mode == TC_MODE_MAP;
+        return mode == TC_MODE_MAP || mode == TC_MODE_PAPERMAP;
     return 0;
 }
 
@@ -1732,7 +1738,8 @@ void Pc_Touch_Update(void)
             s_SaveYesFrames = TC_ACTION_FRAMES;
         }
 
-        if (mode == TC_MODE_BACK && t->role != TR_BUTTON && !t->movedFar &&
+        if ((mode == TC_MODE_BACK || mode == TC_MODE_PAPERMAP) &&
+            t->role != TR_BUTTON && !t->movedFar &&
             g_MapMsg_Select.maxIdx == NO_VALUE &&
             (now - t->startMs) >= TC_TAP_MIN_MS &&
             (now - t->startMs) <= TC_TAP_MS)
@@ -1857,13 +1864,15 @@ void Pc_Touch_Update(void)
          * reads straight off the pad word. */
         if (s_Buttons[TB_BONUS].holdFrames > 0) Tc_PressAction(&s_PadWord, TG_L2);
 
-        /* Floor change is ControllerFlag_LStickUp/Down, so push the axis rather
-         * than a d-pad bit: the screen reads the stick and the game edge-detects
-         * it, which gives one floor per press exactly as a pad does. */
+        /* The map reads ControllerFlag_LStickUp/Down, and joy.c promotes the
+         * D-PAD into exactly those bits (heldBtnFlags << 20 maps DpadUp to
+         * LStickUp), so sending the d-pad is what a pad does and does not
+         * depend on the stick being in analog mode. Edge-detected by the game,
+         * so a held finger still changes one floor. */
         if (s_Buttons[TB_MAPUP].holdFrames > 0)
-            s_LeftY = 0;
+            Tc_PressAction(&s_PadWord, TG_UP);
         else if (s_Buttons[TB_MAPDN].holdFrames > 0)
-            s_LeftY = 255;
+            Tc_PressAction(&s_PadWord, TG_DOWN);
 
         if (s_Buttons[TB_NO].holdFrames > 0 && s_SaveNoFrames <= 0)
         {
@@ -2561,7 +2570,7 @@ void Pc_Touch_Draw(void)
          * and its own selection box, so a circle round it was just an odd
          * extra mark on screen (reported). The target stays, invisible, on the
          * word a player would tap anyway. */
-        if (i != TB_NO)
+        if (i != TB_NO && i != TB_MAPUP && i != TB_MAPDN)
             Tc_Ring(&batch, cx, cy, r, (r * 82) / 100, lum);
 
         /* A distinct mark per button, so they read as different controls
@@ -2645,19 +2654,9 @@ void Pc_Touch_Draw(void)
             }
             case TB_MAPUP:
             case TB_MAPDN:
-            {
-                /* A chevron, pointing the way the floor goes. */
-                const int up = (i == TB_MAPUP);
-                int t = (r * 10) / 100, w = (r * 38) / 100, h = (r * 22) / 100;
-                int tipY = up ? (cy - h) : (cy + h);
-                int basY = up ? (cy + h) : (cy - h);
-
-                Tc_Quad(&batch, cx - w, basY - t, cx - w, basY + t,
-                                cx, tipY - t, cx, tipY + t, lum);
-                Tc_Quad(&batch, cx, tipY - t, cx, tipY + t,
-                                cx + w, basY - t, cx + w, basY + t, lum);
+                /* Nothing drawn: these sit on the arrows the map itself puts at
+                 * top and bottom centre. */
                 break;
-            }
             case TB_NO:
             {
                 /* No glyph: this one rings the word "No" the prompt already
