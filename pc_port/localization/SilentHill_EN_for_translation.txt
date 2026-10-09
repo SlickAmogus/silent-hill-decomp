@@ -4,7 +4,7 @@
  Every visible in-game English string that is NOT baked into an image:
  story/cutscene dialogue, examine/pickup prompts, the original menus, the PC
  port's own menus (PC Options, the F10 Quick Options menu, the Controls
- panel), item names and item descriptions.  Total entries: 1878.
+ panel), item names and item descriptions.  Total entries: 1896.
 
  HOW TO USE
  ----------
@@ -208,6 +208,100 @@ TR:
 [MENU.Fuel:]
 NOTE: inventory label, max ~10 characters
 EN: Fuel:
+TR: 
+
+[MENU.________New_save]
+NOTE: save/load screen, the empty-slot row
+EN:  New save
+TR: 
+
+[MENU.____Create_new_file]
+NOTE: save/load screen, prompt
+EN:  Create new file
+TR: 
+
+[MENU.____File_is_damaged]
+NOTE: save/load screen, a corrupt slot
+EN:  File is damaged
+TR: 
+
+[MENU.MEMORY_CARD
+is_not_inserted]
+NOTE: save/load screen, two lines -- keep the line break
+EN: MEMORY CARD is not inserted
+TR: 
+
+[MENU.MEMORY_CARD
+is_not_formatted]
+NOTE: save/load screen, two lines -- keep the line break
+EN: MEMORY CARD is not formatted
+TR: 
+
+[MENU.MEMORY_CARD
+may_be_broken]
+NOTE: save/load screen, two lines -- keep the line break
+EN: MEMORY CARD may be broken
+TR: 
+
+[MENU.Now_checking
+MEMORY_CARD]
+NOTE: save/load screen, two lines -- keep the line break
+EN: Now checking MEMORY CARD
+TR: 
+
+[MENU.Out_of_blocks]
+NOTE: save/load screen
+EN: Out of blocks
+TR: 
+
+[MENU.No_data_file]
+NOTE: save/load screen
+EN: No data file
+TR: 
+
+[MENU.Yes__________No]
+NOTE: save/load confirm; the gap between the two words is the layout
+EN: Yes No
+TR: 
+
+[MENU.Bus]
+NOTE: save-point name
+EN: Bus
+TR: 
+
+[MENU.BRIGHTNESS]
+NOTE: brightness screen; the trailing space is the layout
+EN: BRIGHTNESS
+TR: 
+
+[MENU.CONTRAST]
+NOTE: brightness screen; the trailing spaces are the layout
+EN: CONTRAST
+TR: 
+
+[MENU.SATURATION]
+NOTE: brightness screen; the trailing space is the layout
+EN: SATURATION
+TR: 
+
+[MENU.USER]
+NOTE: controller preset name
+EN: USER
+TR: 
+
+[MENU.TYPE_1]
+NOTE: controller preset name
+EN: TYPE 1
+TR: 
+
+[MENU.TYPE_2]
+NOTE: controller preset name
+EN: TYPE 2
+TR: 
+
+[MENU.TYPE_3]
+NOTE: controller preset name
+EN: TYPE 3
 TR: 
 
 [MENU.LOAD]
@@ -744,7 +838,7 @@ EN: Window Mode
 TR: 
 
 [MENU.VSync]
-NOTE: row name, Graphics page, max ~14 characters
+NOTE: row name, Graphics page, max ~14 characters (also used in the original menus)
 EN: VSync
 TR: 
 
@@ -754,7 +848,7 @@ EN: Texture Filter
 TR: 
 
 [MENU.PGXP]
-NOTE: row name, Graphics page, max ~14 characters
+NOTE: row name, Graphics page, max ~14 characters (also used in the original menus)
 EN: PGXP
 TR: 
 
@@ -989,27 +1083,27 @@ EN: Trilinear
 TR: 
 
 [MENU.Aniso_2x]
-NOTE: setting value, max ~11 characters
+NOTE: setting value, max ~11 characters (also used in the original menus)
 EN: Aniso 2x
 TR: 
 
 [MENU.Aniso_4x]
-NOTE: setting value, max ~11 characters
+NOTE: setting value, max ~11 characters (also used in the original menus)
 EN: Aniso 4x
 TR: 
 
 [MENU.Aniso_8x]
-NOTE: setting value, max ~11 characters
+NOTE: setting value, max ~11 characters (also used in the original menus)
 EN: Aniso 8x
 TR: 
 
 [MENU.Aniso_16x]
-NOTE: setting value, max ~11 characters
+NOTE: setting value, max ~11 characters (also used in the original menus)
 EN: Aniso 16x
 TR: 
 
 [MENU.CRT]
-NOTE: setting value, max ~11 characters
+NOTE: setting value, max ~11 characters (also used in the original menus)
 EN: CRT
 TR: 
 
@@ -1039,7 +1133,7 @@ EN: Sharpen
 TR: 
 
 [MENU.PSX_Retro]
-NOTE: setting value, max ~11 characters
+NOTE: setting value, max ~11 characters (also used in the original menus)
 EN: PSX Retro
 TR: 
 
@@ -1049,12 +1143,12 @@ EN: Cinematic
 TR: 
 
 [MENU.Reinhard]
-NOTE: setting value, max ~11 characters
+NOTE: setting value, max ~11 characters (also used in the original menus)
 EN: Reinhard
 TR: 
 
 [MENU.ACES]
-NOTE: setting value, max ~11 characters
+NOTE: setting value, max ~11 characters (also used in the original menus)
 EN: ACES
 TR: 
 
@@ -1114,12 +1208,12 @@ EN: Circle
 TR: 
 
 [MENU.30_Hz]
-NOTE: setting value, max ~11 characters
+NOTE: setting value, max ~11 characters (also used in the original menus)
 EN: 30 Hz
 TR: 
 
 [MENU.60_Hz]
-NOTE: setting value, max ~11 characters
+NOTE: setting value, max ~11 characters (also used in the original menus)
 EN: 60 Hz
 TR: 
 

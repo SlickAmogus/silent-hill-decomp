@@ -433,6 +433,61 @@ for arr in ('D_80027F14', 'D_80027F94'):
             note = 'inventory prompt' if arr == 'D_80027F14' else 'inventory label, max ~10 characters'
             records.append(('MENU', menu_key(lit), lit, readable(lit), note))
 
+
+# --- Menu strings the s_MenuTr sweep cannot see, because they are raw literals
+#     at their draw site rather than table rows: most of the save/load screen,
+#     the brightness screen and the controller presets. They go through
+#     Gfx_StringDraw -> Pc_LangMenuText like everything else here, so a pack
+#     CAN translate them -- they were simply unreachable through this template,
+#     which is why the save/load screen stayed English in every language.
+#
+#     Identified by the Portuguese contributor; the escapes are the literals
+#     exactly as the draw sites spell them. \x07 is the colour byte the message
+#     box carries and \x01 is a kerning nudge that MenuKey() drops. ---
+MENU_EXTRA = [
+    ('\x07________\x01New_save',
+     'save/load screen, the empty-slot row'),
+    ('\x07____Crea\x01t\x01e_\x01n\x01e\x01w_\x01fi\x01le',
+     'save/load screen, prompt'),
+    ('\x07____Fil\x01e_\x01\x01is_\x01\x01da\x01ma\x01g\x01ed',
+     'save/load screen, a corrupt slot'),
+    ('\x07MEMORY_CARD\nis_not_inserted',
+     'save/load screen, two lines -- keep the line break'),
+    ('\x07MEMORY_CARD\nis_\x01not_\x01formatted',
+     'save/load screen, two lines -- keep the line break'),
+    ('\x07MEMORY_CARD\nmay_be_broken',
+     'save/load screen, two lines -- keep the line break'),
+    ('\x07Now_checking\nMEMORY_CARD',
+     'save/load screen, two lines -- keep the line break'),
+    ('\x07Out_of_blocks',
+     'save/load screen'),
+    ('\x07No_data_file',
+     'save/load screen'),
+    ('\x07Yes__________No',
+     'save/load confirm; the gap between the two words is the layout'),
+    ('Bus',
+     'save-point name'),
+    ('BRIGHTNESS_',
+     'brightness screen; the trailing space is the layout'),
+    ('CONTRAST_____',
+     'brightness screen; the trailing spaces are the layout'),
+    ('SATURATION_',
+     'brightness screen; the trailing space is the layout'),
+    ('USER',
+     'controller preset name'),
+    ('TYPE_1',
+     'controller preset name'),
+    ('TYPE_2',
+     'controller preset name'),
+    ('TYPE_3',
+     'controller preset name'),
+]
+
+for _lit, _note in MENU_EXTRA:
+    _k = menu_key(_lit)
+    if _k not in {r[1] for r in records}:
+        records.append(('MENU', _k, _lit, readable(_lit), _note))
+
 emit_plain_menu()
 
 # ---- write outputs -----------------------------------------------------------

@@ -128,7 +128,15 @@ def pack_keys(code):
 
 
 def menu_key(us):
-    return 'MENU.' + us.replace(' ', '_').replace('=', '-')
+    """Mirror of MenuKey() in lang_pack.c, which is what the game looks up by.
+
+    It strips leading and trailing separators, drops the \x01 kerning nudges,
+    and maps '=' to '-'. Doing less than that made every literal carrying a
+    nudge or padding -- the save/load rows, the brightness labels -- look
+    untranslated when it was only the key that differed."""
+    sep = '_ ' + chr(9) + chr(10) + chr(13)
+    t = us.lstrip(sep).rstrip(sep).replace(chr(1), '').replace('=', '-')
+    return 'MENU.' + t.replace(' ', '_')
 
 
 def quick_key(en):

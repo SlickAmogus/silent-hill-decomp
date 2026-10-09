@@ -365,6 +365,40 @@ static const s_MenuTranslation s_MenuTr[] = {
     { "ACES",                            { NULL, NULL, NULL, NULL } },
     { "30_Hz",                           { NULL, NULL, NULL, NULL } },
     { "60_Hz",                           { NULL, NULL, NULL, NULL } },
+
+    /* --- Save/load screen (raw literals, not table rows) --- */
+    { "\x07________\x01New_save",
+        { "\x07______Neu_speichern", "\x07_____Nouvelle_partie", "\x07_____Nueva_partida", "\x07____Nuovo_salvataggio" } },
+    { "\x07____Crea\x01t\x01" "e_\x01n\x01" "e\x01w_\x01" "fi\x01le",
+        { "\x07____Datei_erstellen", "\x07____Cr\xE9" "er_un_fichier", "\x07____Crear_archivo", "\x07____Crea_file" } },
+    { "\x07____Fil\x01" "e_\x01\x01is_\x01\x01" "da\x01ma\x01g\x01" "ed",
+        { "\x07____Datei_besch\xE4" "digt", "\x07____Fichier_endommag\xE9", "\x07____Archivo_da\xF1" "ado", "\x07____File_danneggiato" } },
+    { "\x07Out_of_blocks",
+        { "\x07Keine_Bl\xF6" "cke_frei", "\x07Plus_de_blocs", "\x07Sin_bloques_libres", "\x07" "Blocchi_esauriti" } },
+    { "\x07No_data_file",
+        { "\x07Keine_Datei", "\x07" "Aucun_fichier", "\x07Sin_archivo", "\x07Nessun_file" } },
+
+    /* --- Save-point name --- */
+    { "Bus",
+        { "Bus", "Bus", "Autob\xFAs", "Autobus" } },
+
+    /* --- Brightness screen. The trailing spaces are the layout. --- */
+    { "BRIGHTNESS_",
+        { "HELLIGKEIT_", "LUMINOSITE_", "BRILLO_", "LUMINOSITA_" } },
+    { "CONTRAST_____",
+        { "KONTRAST_____", "CONTRASTE____", "CONTRASTE____", "CONTRASTO____" } },
+    { "SATURATION_",
+        { "SATTIGUNG_", "SATURATION_", "SATURACION_", "SATURAZIONE_" } },
+
+    /* --- Controller presets --- */
+    { "USER",
+        { "BENUTZER", "PERSO", "USUARIO", "UTENTE" } },
+    { "TYPE_1",
+        { "TYP_1", "TYPE_1", "TIPO_1", "TIPO_1" } },
+    { "TYPE_2",
+        { "TYP_2", "TYPE_2", "TIPO_2", "TIPO_2" } },
+    { "TYPE_3",
+        { "TYP_3", "TYPE_3", "TIPO_3", "TIPO_3" } },
 };
 
 const char* Pc_LangMenuText(const char* str)
