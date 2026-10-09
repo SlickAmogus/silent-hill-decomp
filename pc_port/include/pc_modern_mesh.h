@@ -40,7 +40,7 @@ extern "C" {
  * compile-time check in pc_modern_mesh.c that it still matches. */
 /* Kept equal to MAX_VERTEX_BUFFER_SIZE; the static_assert in pc_modern_mesh.c
  * enforces it, and it is what caught this when PsyCross shrank. */
-#define PC_MODERN_MESH_VERTEX_BUFFER_SIZE (1u << 16)
+#define PC_MODERN_MESH_VERTEX_BUFFER_SIZE (1u << 18)
 #define PC_MODERN_MESH_MAX_TRIANGLES  ((PC_MODERN_MESH_VERTEX_BUFFER_SIZE - 1u) / 3u)
 #define PC_MODERN_MESH_MAX_VERTICES   (PC_MODERN_MESH_VERTEX_BUFFER_SIZE - 1u)
 
