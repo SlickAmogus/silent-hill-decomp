@@ -179,10 +179,13 @@ static void SlotsBuild(void)
 
     s_SlotCount = 0;
 
-    /* Off by default: the row, the packs and the imported atlas are what this
-     * disc could offer before any of the cross-region work, so a release
-     * cannot regress someone who never asked for it. */
-    if (!g_PcConfig.crossRegionLanguages)
+    /* What the gate is actually about is discs that need the PAL glyph atlas
+     * IMPORTED: that moves FONT16 to another VRAM home, which costs a hi-res
+     * font pack its override. A PAL disc already HAS that atlas, so every
+     * Latin, Polish and Cyrillic pack draws correctly there with nothing moved
+     * -- including an installed custom one. It gets the full list either way,
+     * and only a US or Japanese disc is held back. */
+    if (!g_PcConfig.crossRegionLanguages && g_GameRegion != Region_EUR)
     {
         int k;
 
@@ -190,24 +193,10 @@ static void SlotsBuild(void)
         {
             for (k = 0; k < JP_LANG_COUNT; k++)
                 s_SlotLang[s_SlotCount++] = (short)(SLOT_JP_FIRST - k);
-            return;
         }
-
-        s_SlotLang[s_SlotCount++] = 0;
-        if (g_GameRegion == Region_EUR)
+        else
         {
-            /* The disc's own four, and the packs that have always worked here
-             * -- but not NTSC-U English, which is new. */
-            for (k = 1; k < LANG_PACK_FIRST && s_SlotCount < LANG_SLOT_MAX; k++)
-            {
-                if (k != LANG_EN_US)
-                    s_SlotLang[s_SlotCount++] = (short)k;
-            }
-            for (k = 0; k < n && s_SlotCount < LANG_SLOT_MAX; k++)
-            {
-                if (PackOfferedHere(k))
-                    s_SlotLang[s_SlotCount++] = (short)(LANG_PACK_FIRST + k);
-            }
+            s_SlotLang[s_SlotCount++] = 0;
         }
         return;
     }
@@ -1322,10 +1311,8 @@ const char* Pc_LangSlotName(int slot)
         if (lang >= LANG_PACK_FIRST)
             return Pc_LangPackListName(lang - LANG_PACK_FIRST);
 
-        /* Slot 0 is whichever English the mounted disc itself carries -- but
-         * only worth distinguishing when the other one is also on the row. */
-        if (lang == 0 && !g_PcConfig.crossRegionLanguages)
-            return "English";
+        /* Slot 0 is whichever English the mounted disc itself carries, and the
+         * other one shares the row with it, so it has to say which. */
         if (lang == 0 && g_GameRegion != Region_EUR)
             return s_PalNames[LANG_EN_US];
 
