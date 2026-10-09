@@ -3130,6 +3130,29 @@ void MainLoop(void) // 0x80032EE0
                                (double)g_PsyX_MsSubmit / (double)s_perfFrames,
                                (double)g_PsyX_OtPrims  / (double)s_perfFrames);
                         g_PsyX_MsParse = g_PsyX_MsSubmit = g_PsyX_OtPrims = 0;
+                        {
+                            /* [PERF4] Splits submit into the three things it can
+                             * be, so the fix is not guessed: CPU state setup,
+                             * the draw calls themselves, and the one vertex
+                             * upload. Plus how much GL state really changed. */
+                            extern unsigned g_PsyX_UsVbo, g_PsyX_UsState, g_PsyX_UsDraw;
+                            extern unsigned g_PsyX_ShaderSw, g_PsyX_TexBinds,
+                                            g_PsyX_OrthoUp, g_PsyX_ScissorSet;
+                            const double f = (double)s_perfFrames;
+
+                            SH_DBG("[PERF4] vbo=%.2f state=%.2f draw=%.2f ms/frame | "
+                                   "shaderSw=%.0f texBind=%.0f ortho=%.0f scissor=%.0f per frame",
+                                   (double)g_PsyX_UsVbo   / (f * 1000.0),
+                                   (double)g_PsyX_UsState / (f * 1000.0),
+                                   (double)g_PsyX_UsDraw  / (f * 1000.0),
+                                   (double)g_PsyX_ShaderSw / f,
+                                   (double)g_PsyX_TexBinds / f,
+                                   (double)g_PsyX_OrthoUp / f,
+                                   (double)g_PsyX_ScissorSet / f);
+                            g_PsyX_UsVbo = g_PsyX_UsState = g_PsyX_UsDraw = 0;
+                            g_PsyX_ShaderSw = g_PsyX_TexBinds = 0;
+                            g_PsyX_OrthoUp = g_PsyX_ScissorSet = 0;
+                        }
                         Ml_TraceReport((unsigned)s_perfFrames);
                     }
                     SH_DBG("[PERF] avg=%.1fms (%.1f fps) worst=%lums vblanks/frame=%.2f over %lu frames",

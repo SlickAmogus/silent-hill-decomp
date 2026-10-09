@@ -171,6 +171,12 @@ static Uint32         s_ContactMs;     /* last update a finger was on the glass,
 #define TC_DOUBLE_TAP_MS 320
 static int    s_AimLatched;   /* aim toggled on by a left double tap */
 static int    s_FireHeld;     /* a double-tap-held finger on the right */
+
+/* Hold-to-fire pulse, in pad updates. Action is edge-triggered by the game, so
+ * a held finger has to be turned back into repeated presses. Comfortably slower
+ * than any weapon's cadence, which is what actually limits the rate. */
+#define TC_AUTOFIRE_PERIOD 8
+#define TC_AUTOFIRE_HOLD   4
 static Uint32 s_LeftTapMs;    /* release time of the last left-side tap */
 static Uint32 s_RightTapMs;   /* release time of the last right-side tap */
 static float  s_CamDx, s_CamDy; /* look drag since the camera last read it, height units */
@@ -1724,11 +1730,32 @@ void Pc_Touch_Update(void)
         const s_ControllerConfig* cfg = &g_GameWorkPtr->config.controllerConfig;
 
         if (s_Buttons[TB_AIM].holdFrames   > 0) Tc_PressAction(&s_PadWord, cfg->aim);
+
         /* Fire only counts while the gun is up. One-button combat folds it into
-         * Aim itself, for players who would rather not hold two things at once. */
-        if (s_Buttons[TB_AIM].holdFrames > 0 &&
-            (g_PcConfig.oneButtonCombat || s_Buttons[TB_FIRE].holdFrames > 0))
-            Tc_PressAction(&s_PadWord, cfg->action);
+         * Aim itself, for players who would rather not hold two things at once.
+         *
+         * Pulsed, not held: the game fires on the EDGE of action, so a bit held
+         * down is one shot and then nothing until the finger lifts. That is what
+         * one-touch fire did in first person -- fire once, then dead (reported).
+         * Every cycle is a fresh press, and the weapon's own cadence sets the
+         * real rate, so this cannot fire faster than a pad can. */
+        {
+            static int s_fireTick;
+            const int  firing = (s_Buttons[TB_AIM].holdFrames > 0 &&
+                                 (g_PcConfig.oneButtonCombat ||
+                                  s_Buttons[TB_FIRE].holdFrames > 0)) || s_FireHeld;
+
+            if (!firing)
+            {
+                s_fireTick = 0;
+            }
+            else
+            {
+                if ((s_fireTick % TC_AUTOFIRE_PERIOD) < TC_AUTOFIRE_HOLD)
+                    Tc_PressAction(&s_PadWord, cfg->action);
+                s_fireTick++;
+            }
+        }
         if (s_Buttons[TB_ITEM].holdFrames  > 0) Tc_PressAction(&s_PadWord, cfg->item);
         if (s_Buttons[TB_MAP].holdFrames   > 0) Tc_PressAction(&s_PadWord, cfg->map);
         if (s_Buttons[TB_SKIP].holdFrames  > 0) Tc_PressAction(&s_PadWord, cfg->skip);
@@ -1837,8 +1864,8 @@ void Pc_Touch_Update(void)
 
         if (s_AimLatched)
             Tc_PressAction(&s_PadWord, cfg->aim);
-        if (s_FireHeld)
-            Tc_PressAction(&s_PadWord, cfg->action);
+        /* s_FireHeld is in the pulse above, with the aim buttons: held down on
+         * its own it fired once and stopped, the same fault. */
 
         /* Camera style: the same cycle the controller's Change Camera button
          * runs. Edge-triggered on the latch, like Menu. */
