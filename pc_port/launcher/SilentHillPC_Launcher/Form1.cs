@@ -134,7 +134,7 @@ public partial class Form1 : Form
              * appears during a download). Created in code rather than the designer (the flag
              * is custom-painted), so it cannot be nudged from the design surface;
              * re-check this against Form1.Designer.cs after any layout change. */
-            Location = new System.Drawing.Point(416, 532),
+            Location = new System.Drawing.Point(416, 558),
             Size = new System.Drawing.Size(30, 22),
             Text = "",
             FlatStyle = FlatStyle.Standard,
@@ -724,6 +724,12 @@ public partial class Form1 : Form
             "PAL discs only. Checked (default): the censored \"Mumblers\", as on the\n" +
             "retail PAL disc. Unchecked: the original Grey Children, as in the US version.\n" +
             "No effect on USA / NTSC-J discs.";
+        Set(lblMenuType,   Loc.T("Which main menu the game shows: the US picture, "
+                                + "PAL's fog-only title, or the Japanese logo. "
+                                + "Auto follows the disc."));
+        Set(comboMenuType, Loc.T("Which main menu the game shows: the US picture, "
+                                + "PAL's fog-only title, or the Japanese logo. "
+                                + "Auto follows the disc."));
         Set(lblUncensored,  uncensoredTip);
         Set(chkUncensored,  uncensoredTip);
 
@@ -1039,6 +1045,18 @@ public partial class Form1 : Form
         // (censored) → checked, so the box defaults on.
         chkUncensored.Checked = config.Get("uncensored", "0") == "0";
 
+        // Main-menu style. "auto" is the disc's own, which is what every
+        // existing config says and what the game defaults to, so it stays the
+        // first item rather than silently pinning a style on the next save.
+        {
+            string ms = config.Get("menu_style", "auto").Trim().ToLowerInvariant();
+            comboMenuType.SelectedIndex =
+                  ms == "us" || ms == "western" || ms == "ntsc" ? 1
+                : ms == "pal" || ms == "eur"                    ? 2
+                : ms == "japanese" || ms == "jp" || ms == "ntscj" ? 3
+                : 0;
+        }
+
         // fullscreen
         // fullscreen: 0 = windowed, 1 = exclusive fullscreen, 2 = borderless.
         // Dropdown order: Fullscreen(0), Windowed(1), Borderless(2).
@@ -1352,6 +1370,16 @@ public partial class Form1 : Form
 
         config.Set("randomizer", chkRandomizer.Checked ? "1" : "0");
         config.Set("uncensored", chkUncensored.Checked ? "0" : "1"); // checked = censored
+
+        // Read by INDEX, never by item text: the items are region codes the
+        // game parses, and Loc must never be able to change what lands here.
+        switch (comboMenuType.SelectedIndex)
+        {
+            case 1:  config.Set("menu_style", "us");       break;
+            case 2:  config.Set("menu_style", "pal");      break;
+            case 3:  config.Set("menu_style", "japanese"); break;
+            default: config.Set("menu_style", "auto");     break;
+        }
 
         // Level: persist only the map id, not the " - description" suffix. Skipped
         // while the randomizer owns the row — the selection is the synthetic

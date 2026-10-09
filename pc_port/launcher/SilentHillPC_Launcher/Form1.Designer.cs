@@ -162,6 +162,8 @@ partial class Form1
             this.checkBox1 = new System.Windows.Forms.CheckBox();
             this.chkUncensored = new System.Windows.Forms.CheckBox();
             this.lblUncensored = new System.Windows.Forms.Label();
+            this.lblMenuType = new System.Windows.Forms.Label();
+            this.comboMenuType = new System.Windows.Forms.ComboBox();
             this.lblMenu = new System.Windows.Forms.Label();
             this.btnRA = new System.Windows.Forms.Button();
             this.comboRender = new System.Windows.Forms.ComboBox();
@@ -372,14 +374,14 @@ partial class Form1
             // 
             // lblUpdateStatus
             // 
-            this.lblUpdateStatus.Location = new System.Drawing.Point(209, 563);
+            this.lblUpdateStatus.Location = new System.Drawing.Point(209, 589);
             this.lblUpdateStatus.Name = "lblUpdateStatus";
             this.lblUpdateStatus.Size = new System.Drawing.Size(237, 15);
             this.lblUpdateStatus.TabIndex = 14;
             // 
             // progUpdate
             // 
-            this.progUpdate.Location = new System.Drawing.Point(238, 531);
+            this.progUpdate.Location = new System.Drawing.Point(238, 557);
             this.progUpdate.Name = "progUpdate";
             this.progUpdate.Size = new System.Drawing.Size(178, 23);
             this.progUpdate.TabIndex = 15;
@@ -625,7 +627,7 @@ partial class Form1
             // consoleLabel
             // 
             this.consoleLabel.AutoSize = true;
-            this.consoleLabel.Location = new System.Drawing.Point(210, 587);
+            this.consoleLabel.Location = new System.Drawing.Point(210, 613);
             this.consoleLabel.Name = "consoleLabel";
             this.consoleLabel.Size = new System.Drawing.Size(89, 13);
             this.consoleLabel.TabIndex = 36;
@@ -636,7 +638,7 @@ partial class Form1
             // 
             this.consolePanel.Controls.Add(this.consoleYes);
             this.consolePanel.Controls.Add(this.consoleNo);
-            this.consolePanel.Location = new System.Drawing.Point(296, 583);
+            this.consolePanel.Location = new System.Drawing.Point(296, 609);
             this.consolePanel.Name = "consolePanel";
             this.consolePanel.Size = new System.Drawing.Size(120, 33);
             this.consolePanel.TabIndex = 56;
@@ -782,7 +784,7 @@ partial class Form1
             // lblDisc
             // 
             this.lblDisc.AutoEllipsis = true;
-            this.lblDisc.Location = new System.Drawing.Point(11, 537);
+            this.lblDisc.Location = new System.Drawing.Point(11, 550);
             this.lblDisc.Name = "lblDisc";
             this.lblDisc.Size = new System.Drawing.Size(193, 18);
             this.lblDisc.TabIndex = 65;
@@ -844,7 +846,7 @@ partial class Form1
             // 
             // btnHelp
             // 
-            this.btnHelp.Location = new System.Drawing.Point(4, 561);
+            this.btnHelp.Location = new System.Drawing.Point(4, 587);
             this.btnHelp.Name = "btnHelp";
             this.btnHelp.Size = new System.Drawing.Size(39, 23);
             this.btnHelp.TabIndex = 53;
@@ -854,7 +856,7 @@ partial class Form1
             // 
             // btnBug
             // 
-            this.btnBug.Location = new System.Drawing.Point(98, 561);
+            this.btnBug.Location = new System.Drawing.Point(98, 587);
             this.btnBug.Name = "btnBug";
             this.btnBug.Size = new System.Drawing.Size(70, 23);
             this.btnBug.TabIndex = 54;
@@ -864,7 +866,7 @@ partial class Form1
             // 
             // btnReset
             // 
-            this.btnReset.Location = new System.Drawing.Point(44, 561);
+            this.btnReset.Location = new System.Drawing.Point(44, 587);
             this.btnReset.Name = "btnReset";
             this.btnReset.Size = new System.Drawing.Size(53, 23);
             this.btnReset.TabIndex = 55;
@@ -911,7 +913,7 @@ partial class Form1
             // 
             // chkUncensored
             // 
-            this.chkUncensored.Location = new System.Drawing.Point(26, 517);
+            this.chkUncensored.Location = new System.Drawing.Point(26, 524);
             this.chkUncensored.Name = "chkUncensored";
             this.chkUncensored.Size = new System.Drawing.Size(16, 17);
             this.chkUncensored.TabIndex = 91;
@@ -921,12 +923,34 @@ partial class Form1
             // lblUncensored
             // 
             this.lblUncensored.AutoSize = true;
-            this.lblUncensored.Location = new System.Drawing.Point(7, 517);
+            this.lblUncensored.Location = new System.Drawing.Point(7, 525);
             this.lblUncensored.Name = "lblUncensored";
             this.lblUncensored.Size = new System.Drawing.Size(19, 13);
             this.lblUncensored.TabIndex = 90;
             this.lblUncensored.Text = "🚫";
             this.lblUncensored.Click += new System.EventHandler(this.lblUncensored_Click);
+            // 
+            // lblMenuType
+            // 
+            this.lblMenuType.AutoSize = true;
+            this.lblMenuType.Location = new System.Drawing.Point(62, 525);
+            this.lblMenuType.Name = "lblMenuType";
+            this.lblMenuType.Size = new System.Drawing.Size(63, 13);
+            this.lblMenuType.TabIndex = 93;
+            this.lblMenuType.Text = "Menu Type:";
+            // 
+            // comboMenuType
+            // 
+            this.comboMenuType.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboMenuType.Items.AddRange(new object[] {
+            "Auto",
+            "US",
+            "EU",
+            "JP"});
+            this.comboMenuType.Location = new System.Drawing.Point(152, 521);
+            this.comboMenuType.Name = "comboMenuType";
+            this.comboMenuType.Size = new System.Drawing.Size(72, 21);
+            this.comboMenuType.TabIndex = 94;
             // 
             // lblMenu
             // 
@@ -939,7 +963,7 @@ partial class Form1
             // 
             // btnRA
             // 
-            this.btnRA.Location = new System.Drawing.Point(170, 561);
+            this.btnRA.Location = new System.Drawing.Point(170, 587);
             this.btnRA.Name = "btnRA";
             this.btnRA.Size = new System.Drawing.Size(30, 23);
             this.btnRA.TabIndex = 92;
@@ -1010,7 +1034,7 @@ partial class Form1
             // 
             // Form1
             // 
-            this.ClientSize = new System.Drawing.Size(454, 586);
+            this.ClientSize = new System.Drawing.Size(454, 612);
             this.Controls.Add(this.lblMinimap);
             this.Controls.Add(this.comboMinimap);
             this.Controls.Add(this.lblShadow);
@@ -1020,6 +1044,8 @@ partial class Form1
             this.Controls.Add(this.btnRA);
             this.Controls.Add(this.lblMenu);
             this.Controls.Add(this.lblUncensored);
+            this.Controls.Add(this.lblMenuType);
+            this.Controls.Add(this.comboMenuType);
             this.Controls.Add(this.chkUncensored);
             this.Controls.Add(this.checkBox1);
             this.Controls.Add(this.label1);
@@ -1113,6 +1139,8 @@ partial class Form1
     private CheckBox checkBox1;
     private CheckBox chkUncensored;
     private Label lblUncensored;
+    private Label lblMenuType;
+    private ComboBox comboMenuType;
     private Label lblMenu;
     private Button btnRA;
     private ComboBox comboRender;
