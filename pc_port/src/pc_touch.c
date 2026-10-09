@@ -41,7 +41,7 @@ enum { TR_NONE = 0, TR_MOVE, TR_LOOK, TR_BUTTON, TR_ADVANCE,
 enum { TB_AIM = 0, TB_ITEM, TB_MAP, TB_START, TB_RUN, TB_BACK, TB_FIRE, TB_MENU,
        TB_SKIP,
        TB_LIGHT, TB_VIEW, TB_CAM, TB_QSAVE, TB_QLOAD, TB_BONUS, TB_CLICK,
-       TB_NO,
+       TB_NO, TB_MAPUP, TB_MAPDN,
        TB_COUNT };
 
 typedef struct
@@ -121,6 +121,11 @@ static s_TouchButton s_Buttons[TB_COUNT] = {
      * A corner button left the drawn "No" answering Yes, which is exactly
      * the trap it was supposed to prevent (reported). */
     [TB_NO] = { 0.634f, 0.529f, 0.065f, 0 },
+    /* Paper map, floor up/down. The map screen changes floor on the left
+     * STICK (ControllerFlag_LStickUp/Down, not the d-pad), so these drive the
+     * stick axis exactly as a pad does. Left side, clear of the corner exit. */
+    [TB_MAPUP] = { 0.085f, 0.620f, 0.060f, 0 },
+    [TB_MAPDN] = { 0.085f, 0.790f, 0.060f, 0 },
     /* Quick Save / Quick Load, only with touch_quicksave_buttons on. Up in the
      * empty band of the top edge, a quarter in from each side, about the size
      * of Menu, Pause and View -- a shade larger, so the letter clears the ring. */
@@ -142,6 +147,7 @@ typedef struct
     Uint32 startMs;
     int   movedFar;         /* travelled beyond the tap slop */
     int   fireHold;         /* alt camera: second tap of a double tap, held = fire held */
+    int   advanceFired;     /* this finger has already advanced one line */
     int   noTap;            /* already spent as a double tap; its release is not a first tap */
 } s_TouchFinger;
 
@@ -155,7 +161,7 @@ static float          s_StickOx, s_StickOy, s_StickKx, s_StickKy;
 static int            s_Running;
 static int            s_ActionFrames;  /* tap pulse, in pad updates */
 static int            s_CancelFrames;  /* the same, for the tap-anywhere Cancel */
-static int            s_AdvanceHeld;   /* a finger is down during an advance state */
+static int            s_AdvanceFrames; /* one advance pulse per finger, see TR_ADVANCE */
 static int            s_SkipTapFrames; /* tap-anywhere Skip, for the credits */
 static int            s_SaveYesFrames; /* end-of-game save prompt, Yes */
 static int            s_SaveNoFrames;  /* the same, No */
@@ -941,7 +947,22 @@ static int Tc_CornerOnly(int b)
  * screen-only button added since needs to be in here. */
 static int Tc_ScreenOnly(int b)
 {
-    return b == TB_CLICK || b == TB_BONUS || b == TB_NO;
+    return b == TB_CLICK || b == TB_BONUS || b == TB_NO ||
+           b == TB_MAPUP || b == TB_MAPDN;
+}
+
+/* Buttons a mode shows ALONGSIDE its solo escape button. The map screen could
+ * only be left, never used: changing floor is the one thing it does and a
+ * touchscreen had no way to ask for it (reported). */
+static int Tc_ExtraButton(int b, int mode)
+{
+    extern int Pc_MouseCursor_PuzzleActive(void);
+
+    if (b == TB_CLICK)
+        return mode == TC_MODE_BACK_CURSOR && Pc_MouseCursor_PuzzleActive();
+    if (b == TB_MAPUP || b == TB_MAPDN)
+        return mode == TC_MODE_MAP;
+    return 0;
 }
 
 /* A solo button that marks a word the screen already draws has to stay on that
@@ -1050,7 +1071,7 @@ static void Tc_Reset(void)
     s_LeftX = s_LeftY = s_RightX = s_RightY = 128;
     s_StickActive = 0;
     s_Running     = 0;
-    s_AdvanceHeld = 0;
+    s_AdvanceFrames = 0;
     /* Or a pending cancel would fire into whatever screen comes next. */
     s_CancelFrames = 0;
     s_AimLatched   = 0;
@@ -1216,7 +1237,7 @@ void Pc_Touch_Update(void)
         seen[i] = 0;
 
     s_PadWord     = 0xFFFF;
-    s_AdvanceHeld = 0;
+    s_AdvanceFrames = 0;
     s_FireHeld    = 0;
     Tc_PlaceCamButton(aspect);
 
@@ -1289,6 +1310,7 @@ void Pc_Touch_Update(void)
             t->lastY     = vy;
             t->startMs   = now;
             t->movedFar  = 0;
+            t->advanceFired = 0;   /* a fresh finger may advance one line */
             t->fireHold  = 0;
             t->noTap     = 0;
             t->buttonIdx = -1;
@@ -1383,17 +1405,28 @@ void Pc_Touch_Update(void)
                     t->role      = (onIt && solo >= 0) ? TR_BUTTON : TR_NONE;
                     t->buttonIdx = (onIt && solo >= 0) ? solo : -1;
 
-                    if (!onIt && Tc_PuzzleClickAllowed(mode))
+                    if (!onIt)
                     {
-                        float cdx = (vx - s_Buttons[TB_CLICK].cx) * aspect;
-                        float cdy = (vy - s_Buttons[TB_CLICK].cy);
-                        float cr  = s_Buttons[TB_CLICK].r * 1.25f;
+                        int e;
 
-                        if (((cdx * cdx) + (cdy * cdy)) <= (cr * cr))
+                        for (e = 0; e < TB_COUNT; e++)
                         {
-                            t->role      = TR_BUTTON;
-                            t->buttonIdx = TB_CLICK;
-                            onIt         = 1;
+                            float edx, edy, er;
+
+                            if (!Tc_ExtraButton(e, mode))
+                                continue;
+
+                            edx = (vx - s_Buttons[e].cx) * aspect;
+                            edy = (vy - s_Buttons[e].cy);
+                            er  = s_Buttons[e].r * 1.25f;
+
+                            if (((edx * edx) + (edy * edy)) <= (er * er))
+                            {
+                                t->role      = TR_BUTTON;
+                                t->buttonIdx = e;
+                                onIt         = 1;
+                                break;
+                            }
                         }
                     }
                 }
@@ -1444,7 +1477,16 @@ void Pc_Touch_Update(void)
                 break;
 
             case TR_ADVANCE:
-                s_AdvanceHeld = 1;
+                /* ONE press per finger, not one per frame. Held, this injected
+                 * enter every pad update, so a single tap tore through about
+                 * ten lines of dialogue; the original advances one line a press
+                 * (reported). The latch is per finger, so a second finger is
+                 * still a second line. */
+                if (!t->advanceFired)
+                {
+                    s_AdvanceFrames = TC_ACTION_FRAMES;
+                    t->advanceFired = 1;
+                }
                 break;
 
             case TR_TG_BTN:
@@ -1815,6 +1857,14 @@ void Pc_Touch_Update(void)
          * reads straight off the pad word. */
         if (s_Buttons[TB_BONUS].holdFrames > 0) Tc_PressAction(&s_PadWord, TG_L2);
 
+        /* Floor change is ControllerFlag_LStickUp/Down, so push the axis rather
+         * than a d-pad bit: the screen reads the stick and the game edge-detects
+         * it, which gives one floor per press exactly as a pad does. */
+        if (s_Buttons[TB_MAPUP].holdFrames > 0)
+            s_LeftY = 0;
+        else if (s_Buttons[TB_MAPDN].holdFrames > 0)
+            s_LeftY = 255;
+
         if (s_Buttons[TB_NO].holdFrames > 0 && s_SaveNoFrames <= 0)
         {
             s_SaveNoFrames  = TC_ACTION_FRAMES;
@@ -1880,8 +1930,11 @@ void Pc_Touch_Update(void)
             s_camWas = camNow;
         }
 
-        if (s_AdvanceHeld)
+        if (s_AdvanceFrames > 0)
+        {
             Tc_PressAction(&s_PadWord, cfg->enter);
+            s_AdvanceFrames--;
+        }
 
         /* The prompt is a left/right pick, so the answer is whichever
          * selection the press lands on: 0 saves, 1 warm-boots to the title
@@ -2477,7 +2530,7 @@ void Pc_Touch_Draw(void)
 
         if (mode != TC_MODE_GAMEPLAY)
         {
-            const int click = (i == TB_CLICK) && Tc_PuzzleClickAllowed(mode);
+            const int click = Tc_ExtraButton(i, mode);
 
             if (i != Tc_SoloButton(mode) && !click)
                 continue;
@@ -2588,6 +2641,21 @@ void Pc_Touch_Draw(void)
                 /* A filled dot: press here, and distinct from every other mark
                  * on the overlay. */
                 Tc_Octagon(&batch, cx, cy, (r * 34) / 100, lum);
+                break;
+            }
+            case TB_MAPUP:
+            case TB_MAPDN:
+            {
+                /* A chevron, pointing the way the floor goes. */
+                const int up = (i == TB_MAPUP);
+                int t = (r * 10) / 100, w = (r * 38) / 100, h = (r * 22) / 100;
+                int tipY = up ? (cy - h) : (cy + h);
+                int basY = up ? (cy + h) : (cy - h);
+
+                Tc_Quad(&batch, cx - w, basY - t, cx - w, basY + t,
+                                cx, tipY - t, cx, tipY + t, lum);
+                Tc_Quad(&batch, cx, tipY - t, cx, tipY + t,
+                                cx + w, basY - t, cx + w, basY + t, lum);
                 break;
             }
             case TB_NO:

@@ -1266,8 +1266,16 @@ int main(int argc, char* argv[])
         int ramMb = SDL_GetSystemRAM(); /* physical RAM in MB (0 if unknown) */
         if (ramMb > 0)
         {
-            int cacheCap = ramMb / 8;
-            if (cacheCap < 128) cacheCap = 128;
+            /* A floor bigger than the fraction it is flooring defeats the
+             * clamp. On the 962 MB Mali cabinet the budget "cap" RAISED the
+             * ceiling to 256 MB and the cache floor to 128 MB: 384 MB of GL
+             * textures on a machine whose GPU shares that same 962 MB with the
+             * OS and the game, which died with GL_OUT_OF_MEMORY after a few
+             * minutes of play. Machines that small get proportional floors. */
+            const int tinyRam = (ramMb <= 1536);
+            int cacheCap   = tinyRam ? (ramMb / 16) : (ramMb / 8);
+            int cacheFloor = tinyRam ? 32 : 128;
+            if (cacheCap < cacheFloor) cacheCap = cacheFloor;
             if (g_PcConfig.texpackCacheMb > cacheCap)
             {
                 SH_DBG("[TEXPACK] compose cache capped %d -> %d MB (1/8 of %d MB RAM)",
@@ -1276,8 +1284,9 @@ int main(int argc, char* argv[])
             }
             if (ramMb <= 8192)
             {
-                int budgetCap = ramMb / 4;
-                if (budgetCap < 256) budgetCap = 256;
+                int budgetCap   = tinyRam ? (ramMb / 8) : (ramMb / 4);
+                int budgetFloor = tinyRam ? 64 : 256;
+                if (budgetCap < budgetFloor) budgetCap = budgetFloor;
                 /* Published, not just applied: HiresOverride_ClampBudgetToVram runs
                  * later with a live GL context and may RAISE an unset budget to the
                  * GPU's reported VRAM. On a shared-memory APU that figure is the same
