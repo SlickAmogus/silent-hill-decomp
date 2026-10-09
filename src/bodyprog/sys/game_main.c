@@ -3149,6 +3149,29 @@ void MainLoop(void) // 0x80032EE0
                                    (double)g_PsyX_TexBinds / f,
                                    (double)g_PsyX_OrthoUp / f,
                                    (double)g_PsyX_ScissorSet / f);
+                            {
+                                /* [MEM] Resident set size, once a second.
+                                 *
+                                 * The cabinet exhausts GL memory after a few
+                                 * minutes with nothing being uploaded and a
+                                 * vertex ring that no longer allocates at all,
+                                 * so the question is just whether the process
+                                 * is growing and how fast. Mali shares system
+                                 * RAM, so GL allocations land here too; flat
+                                 * while GL fails would say the growth is inside
+                                 * the driver rather than the game. */
+                                FILE* sm = fopen("/proc/self/statm", "r");
+
+                                if (sm != NULL)
+                                {
+                                    unsigned long total = 0, rss = 0;
+
+                                    if (fscanf(sm, "%lu %lu", &total, &rss) == 2)
+                                        SH_DBG("[MEM] rss=%lu MB vm=%lu MB",
+                                               (rss * 4UL) / 1024UL, (total * 4UL) / 1024UL);
+                                    fclose(sm);
+                                }
+                            }
                             g_PsyX_UsVbo = g_PsyX_UsState = g_PsyX_UsDraw = 0;
                             g_PsyX_ShaderSw = g_PsyX_TexBinds = 0;
                             g_PsyX_OrthoUp = g_PsyX_ScissorSet = 0;
