@@ -3,6 +3,7 @@
 
 #include <dirent.h>
 #include <stdio.h>
+#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -383,7 +384,19 @@ static void PackListScan(void)
          * working directory is the game directory, so this is the first call
          * every run -- and caching its miss as a count of zero hid every
          * installed pack for the rest of the session, on every disc. Leave the
-         * registry unscanned so the next caller tries again. */
+         * registry unscanned so the next caller tries again.
+         *
+         * Say where it looked. This failing silently is why "only some
+         * languages are listed" took several rounds to pin down: the registry
+         * came back empty and nothing anywhere said why. */
+        {
+            char cwd[512];
+
+            if (getcwd(cwd, sizeof(cwd)) == NULL)
+                cwd[0] = '\0';
+            SH_WARN("[LANGPACK] cannot open %s (working directory: %s) - "
+                    "no language packs will be listed", PACK_DIR, cwd);
+        }
         s_PackListCount = -1;
         return;
     }
