@@ -1095,6 +1095,10 @@ void PcConfig_Load(const char* path)
             if (v > 1.0f)  v = 1.0f;
             g_PcConfig.renderScale = v;
         }
+        else if (strcmp(key, "touch_analog_style") == 0)
+        {
+            g_PcConfig.touchAnalogStyle = (atoi(value) != 0);
+        }
         else if (strcmp(key, "touch_style") == 0)
         {
             int v = atoi(value);

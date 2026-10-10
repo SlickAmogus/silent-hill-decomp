@@ -287,6 +287,10 @@ typedef struct {
      * fixed PSX pad -- stick, four face buttons, shoulders, Start/Select --
      * drawn in the same place always). e_TouchStyle. Config key: touch_style. */
     int   touchStyle;
+    /* Context style only: 0 = the stick appears under the thumb, 1 = it
+     * stays where it is drawn. Ignored by the Gamepad style, whose pad is
+     * fixed by definition (config key: touch_analog_style). */
+    int   touchAnalogStyle;
     /* 1 = Quick Save and Quick Load buttons on the touch overlay, in both
      * styles. Off by default: they open the save and load screens, which
      * nobody wants under a stray thumb. Config key: touch_quicksave_buttons. */

@@ -74,7 +74,10 @@ extern void        PcOpt_QuickExtraAdjust(int which, int dir);
 extern void        PcOpt_QuickViewReset(int mode);
 
 #define QO_GARBAGE  48
-#define QO_MAX_ROWS 16
+/* 18, not 16: s_pageControls needed a seventeenth row for Analog Style.
+ * Only the per-row bake arrays scale with this, and a phone draws at most
+ * eight rows a page, so the cost is a few unused slots. */
+#define QO_MAX_ROWS 18
 /* CONTROLS is appended last, so every existing section index -- and the "Next
  * page (X)" label baked into each table -- stays where it was. Its rows differ
  * by platform (s_page5 / s_pageControls). */
@@ -443,8 +446,10 @@ static const QoRowDef s_pageControls[] = {
     { ROW_EXTRA, NULL, QO_X_OTSSIDE,          "OTS Shoulder" },
     /* Which pad drives the game when a TV remote or a second pad is also
      * connected. Saved, so it is the default next launch too. */
-    { ROW_OPT,   "preferred_controller",   0, "Controller" },
     { ROW_OPT,   "touch_style",            0, NULL },  /* Context or Gamepad */
+    /* Directly under the style it belongs to: Context only, and ignored by
+     * the Gamepad pad, which is fixed by definition. */
+    { ROW_OPT,   "touch_analog_style",     0, "Analog Style" },
     { ROW_OPT,   "control_2d",             0, NULL },  /* screen-relative movement */
     { ROW_OPT,   "touch_controls",         0, NULL },  /* Automatic / On / Off */
     { ROW_OPT,   "touch_look_sensitivity", 0, NULL },
@@ -457,6 +462,9 @@ static const QoRowDef s_pageControls[] = {
      * the touch overlay's own D-pad bits are merged after the controller read,
      * so the Gamepad style still navigates menus with it. */
     { ROW_EXTRA, NULL, QO_X_DPADMOVE,         "Disable D-pad for Movement" },
+    /* Last chunk of the section: it is the one with room, and this is the
+     * row a player looks for once rather than adjusts in play. */
+    { ROW_OPT,   "preferred_controller",   0, "Controller" },
     { ROW_OPT,   "touch_quicksave_buttons", 0, "Quick Save/Load Buttons" },
     /* Asks before it acts; see QO_A_TOTITLE. */
     { ROW_ACTION, NULL, QO_A_TOTITLE,         "Return to Main Menu" },
