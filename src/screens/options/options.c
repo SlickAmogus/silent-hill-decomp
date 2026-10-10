@@ -258,7 +258,6 @@ static const char* const LBL_VSYNC[] = { "Off", "On" };
 static const char* const LBL_FILT[]  = { "Off", "Dither", "Bilinear", "Trilinear",
                                          "Aniso_2x", "Aniso_4x", "Aniso_8x", "Aniso_16x" };
 static const char* const LBL_ONOFF[] = { "Off", "On" };
-static const char* const LBL_ANALOG[] = { "Floating", "Fixed" };
 static const char* const LBL_AA[]    = { "Off", "2x", "4x", "8x" };
 static const char* const LBL_POST[]  = { "Off", "CRT", "Scanlines", "Vignette", "Color_Grade", "Film_Grain", "Sharpen", "PSX_Retro", "Cinematic" };
 static const char* const LBL_TONE[]  = { "Off", "Reinhard", "ACES", "Filmic" };
@@ -271,8 +270,12 @@ static const char* const LBL_FLMODE[] = { "Classic", "C_+_Shadows", "Modern", "M
 static const char* const LBL_MMCNR[]  = { "Top_L", "Top_R", "Bottom_L", "Bottom_R" };
 static const char* const LBL_MMMODE[] = { "Off", "Square", "Circle" };
 static const char* const LBL_TOUCH[]  = { "Automatic", "Always_On", "Always_Off" };
-static const int VAL_TSTYLE[] = { 0, 1 };
-static const char* const LBL_TSTYLE[] = { "Context", "Gamepad" };
+/* Cycle order, not numeric order: the pinned variant sits next to the
+ * Context it is a variant of, while the stored values stay as they were,
+ * the same trick VAL_TOUCH uses. */
+static const int VAL_TSTYLE[] = { TouchStyle_Context, TouchStyle_ContextFixed,
+                                  TouchStyle_Gamepad };
+static const char* const LBL_TSTYLE[] = { "Context", "Context_Fixed", "Gamepad" };
 static const char* const LBL_WHZ[]    = { "30_Hz", "60_Hz" };
 
 static const int RES_W[] = { 640, 1280, 1366, 1600, 1920, 2560, 3840 };
@@ -400,7 +403,7 @@ static const s_PcOpt PCOPT_C[] = {
     /* Context is this port's own scheme -- a floating stick, drag to look, tap
      * to act, buttons that change with the screen. Gamepad is a fixed PSX pad
      * in one place always, after WhoisMiau0x1's Android fork. Applies live. */
-    { "Touch_Style",       &g_PcConfig.touchStyle,       "touch_style",            VAL_TSTYLE, 2, LBL_TSTYLE, NULL, 1, PCK_INT },
+    { "Touch_Style",       &g_PcConfig.touchStyle,       "touch_style",            VAL_TSTYLE, 3, LBL_TSTYLE, NULL, 1, PCK_INT },
 #endif
 #if defined(__ANDROID__) || defined(SH_IOS)
     /* Quick Save / Quick Load buttons on the touch overlay. Named for the
@@ -496,8 +499,6 @@ static const s_PcOpt PCOPT_M[] = {
     /* Off = the ten vanilla VRAM pages only, which is what a device short of
      * memory and fill rate wants, and the first thing to try without a texture
      * pack. Needs a restart: the pool is sized at startup. */
-    /* Context style only; the Gamepad pad is fixed by definition. */
-    { "Analog_Style",      &g_PcConfig.touchAnalogStyle, "touch_analog_style",  VAL_ONOFF,  2, LBL_ANALOG, NULL, 1, PCK_INT },
     { "Resident_Textures", &g_PcConfig.residentTextures,  "resident_textures",   VAL_ONOFF,  2, LBL_ONOFF,  NULL, 0, PCK_INT },
     /* Asks before it acts; see PCOPT_TOTITLE_WINDOW_MS. */
     { "Return_to_Title",   NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_TOTITLE },

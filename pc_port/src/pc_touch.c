@@ -775,8 +775,7 @@ static int Tc_GamepadStyle(void)
  * follows a thumb that runs past the rim. */
 static int Tc_FixedStick(void)
 {
-    return g_PcConfig.touchAnalogStyle != 0 &&
-           g_PcConfig.touchStyle == TouchStyle_Context;
+    return g_PcConfig.touchStyle == TouchStyle_ContextFixed;
 }
 
 /* Where the pinned stick lives, in the same space as the button table. Lower

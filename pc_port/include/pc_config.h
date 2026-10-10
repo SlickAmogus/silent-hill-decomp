@@ -61,7 +61,12 @@ typedef struct {
 typedef enum
 {
     TouchStyle_Context = 0, /* floating stick + drag-look + context buttons */
-    TouchStyle_Gamepad = 1  /* a fixed virtual PSX pad */
+    TouchStyle_Gamepad = 1, /* a fixed virtual PSX pad */
+    /* Context, but with the movement stick pinned where it is drawn
+     * instead of appearing under the thumb. Appended rather than
+     * inserted so a config.cfg written by an older build still means
+     * exactly what it said. */
+    TouchStyle_ContextFixed = 2
 } e_TouchStyle;
 
 typedef enum
@@ -287,10 +292,6 @@ typedef struct {
      * fixed PSX pad -- stick, four face buttons, shoulders, Start/Select --
      * drawn in the same place always). e_TouchStyle. Config key: touch_style. */
     int   touchStyle;
-    /* Context style only: 0 = the stick appears under the thumb, 1 = it
-     * stays where it is drawn. Ignored by the Gamepad style, whose pad is
-     * fixed by definition (config key: touch_analog_style). */
-    int   touchAnalogStyle;
     /* 1 = Quick Save and Quick Load buttons on the touch overlay, in both
      * styles. Off by default: they open the save and load screens, which
      * nobody wants under a stray thumb. Config key: touch_quicksave_buttons. */
