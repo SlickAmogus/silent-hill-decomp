@@ -188,9 +188,12 @@ function(add_map_overlay MAP_NAME MAP_DEFINE)
             # allow them to stay undefined in the dylib. (macOS two-level
             # namespaces already bind each dylib's OWN defined symbols locally,
             # so the ELF interposition problem handled below does not arise.)
-            # PsyCross is linked statically here (built PIC) because macOS is
-            # untested for the shared-instance arrangement used on Linux below.
-            target_link_libraries(${MAP_NAME} PRIVATE psycross_static)
+            # PsyCross is NOT linked here either, for the same reason as on
+            # Linux below: a private copy in each dylib has its own NULL glad
+            # table, and MapEvent_MapItemTake -> DrawSync -> GR_UpdateVRAM jumps
+            # to address 0 picking up the cafe map. The exe force-loads the
+            # whole archive (see ../CMakeLists.txt), so dynamic_lookup resolves
+            # every PsyCross symbol to its single, initialized instance.
             target_link_options(${MAP_NAME} PRIVATE "-Wl,-undefined,dynamic_lookup")
         else()
             # Linux/ELF: do NOT statically link psycross_static into the map .so.

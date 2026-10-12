@@ -450,6 +450,11 @@ if(UNIX AND NOT APPLE)
         "$<TARGET_FILE:psycross_static>"
         "LINKER:--no-whole-archive"
     )
+elseif(APPLE AND SH_BUILD_MAP_DLLS)
+    # Same for macOS: the map dylibs resolve PsyCross from the exe through
+    # -undefined dynamic_lookup (maps/CMakeLists.txt), so all of it must be here.
+    target_link_options(SilentHillPC PRIVATE
+        "LINKER:-force_load,$<TARGET_FILE:psycross_static>")
 endif()
 
 if(SDL2_FOUND)
