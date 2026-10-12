@@ -1,0 +1,147 @@
+[BOOT] Silent Hill 360, timebase=1275355142
+[BOOT] root='uda:/silenthill/' bin='Silent Hill (USA).bin' found=1
+[CRASH] console tee armed (libXenon exception reports will be logged)
+[CFG] config file: uda:/silenthill/silenthill.cfg
+[CFG] key='control_style'(13) value='tps'
+[GTE] RotTransPers v(64,32,512) -> sx=352 sy=256 sz=128 flag=0x1000 (expect sx=352 sy=256)
+[CD] bin open: 'uda:/silenthill/Silent Hill (USA).bin'
+[CD] BIN: uda:/silenthill/Silent Hill (USA).bin
+[CD] PVD id='CD001' (expect CD001)
+[GPU] Xe up: framebuffer 1280x720
+[GPU] using embedded shaders (vs=392 ps=420 bytes)
+[GPU] shaders loaded and instantiated
+[GPU] textures ready, renderer ARMED
+[GPU] xenos backend: 32768-vertex pool, 64 B/vertex
+[PAD] libxenon usb up
+[MCRD] card path = uda:/silenthill/save/0.MCD
+[BOOT] PSX RAM @ 0x812c2180
+[BOOT] game data initialised
+[AUD] xenon_sound up: 48000 Hz stereo, 256-frame chunks
+[BOOT] subsystems up; entering MainLoop
+[SELFTEST] start: 640x480 content, 64x64 checker
+[GPU] frame=0 prims=0 verts=0 draws=0 texbind=0 blend=0 scissor=0 ready=1
+[FBPROBE] green-clear: scan=0x1e000000 fb.ptr=0x1e000000 base=0x9e000000 1280x720 pitch=5120 centre=fff80050 f0d0ff0f fff80050 f050ff0f
+[GPU] frame=60 prims=0 verts=0 draws=0 texbind=0 blend=0 scissor=0 ready=1
+[GPU] frame=120 prims=6 verts=36 draws=3 texbind=1 blend=0 scissor=0 ready=1
+[SELFTEST] frame 0 drawn
+[FBPROBE] bars: scan=0x1e000000 fb.ptr=0x1e000000 base=0x9e000000 1280x720 pitch=5120 centre=fff80010 f0b0ff0f fff80010 f0d1ff0f
+[GPU] frame=180 prims=6 verts=36 draws=3 texbind=1 blend=0 scissor=0 ready=1
+[SELFTEST] frame 60 drawn
+[GPU] frame=240 prims=6 verts=36 draws=3 texbind=1 blend=0 scissor=0 ready=1
+[SELFTEST] frame 120 drawn
+[GPU] frame=300 prims=6 verts=36 draws=3 texbind=1 blend=0 scissor=0 ready=1
+[SELFTEST] frame 180 drawn
+[SELFTEST] done - green screen = resolve works; bars = draws work
+[SH-XBOX] layout check ok: sizeof(s_SysWork)=38584 sizeof(s_GameWork)=1496
+[PAD] PadInitDirect buf=0x815db864
+[ARENA] buf0=0x82153188 buf1=0x823531d0
+[SH-XBOX] GameState -> 0 (step 0)
+[MCFSM] state=0 step=0 (was -1/-1 after 0 f)
+[VIB] vibrationEnabled = 0 (0 = off; Options 'Vibration' row)
+[PAD] buttons=F1FF
+[GPU] frame=360 prims=0 verts=0 draws=0 texbind=0 blend=0 scissor=0 ready=1
+[OT] DrawOTag head=0x815d10af (walking; per-node trace off)
+[OT] walk done after 2048 nodes (cap hit=0)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=0 -> IOE (n=1)
+[PAD] buttons=FFFF
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=0 step=0 (was 1/2 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=0 -> IOE (n=2)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=2 step=0 (was 1/2 after 0 f)
+[MCRD] card_clear chan=0 -> IOE (n=1)
+[PAD] buttons=FF3F
+[MCFSM] state=2 step=2 (was 2/0 after 0 f)
+[MCFSM] state=3 step=0 (was 2/2 after 0 f)
+[MCRD] card_load chan=0 -> IOE (n=1)
+[PAD] buttons=FFFF
+[MCFSM] state=3 step=2 (was 3/0 after 0 f)
+[LOOSE/INIT] allow_loose_files=0  base=gamedata/load/  verbose=no
+[MCFSM] state=4 step=0 (was 3/2 after 0 f)
+[MCRD] dir scan chan=0 (n=1)
+[MCFSM] state=0 step=0 (was 4/0 after 0 f)
+[BOOT0/TIM] PostLoadTim file=6 'FONT16.TIM' ss=0x287 img.u=0 img.v=240 tPage=0,16 clutX=304 clutY=511
+[BOOT0/TIM] post ReadTIM: prect=0x814a47b8 caddr=0x814a4794 paddr=0x814a47c0 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(0,496 256x16)
+[FONTCLOB] Load x=0 y=496 w=256 h=16
+[BOOT0/TIM] pre CLUT LoadImage rect=(304,511 16x1)
+[BOOT0/TIM] PostLoadTim done
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=1 -> IOE (n=3)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=0 step=0 (was 1/2 after 0 f)
+[BOOT0/TIM] PostLoadTim file=8 'KONAMI.TIM' ss=0x28e img.u=0 img.v=0 tPage=0,12 clutX=0 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0x814a47b8 caddr=0x814a4794 paddr=0x814a47c0 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(768,0 96x384)
+[BOOT0/TIM] pre CLUT LoadImage rect=(0,0 16x1)
+[BOOT0/TIM] PostLoadTim done
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=1 -> IOE (n=4)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=2 step=0 (was 1/2 after 0 f)
+[MCRD] card_clear chan=1 -> IOE (n=2)
+[MCFSM] state=2 step=2 (was 2/0 after 0 f)
+[MCFSM] state=3 step=0 (was 2/2 after 0 f)
+[MCRD] card_load chan=1 -> IOE (n=2)
+[MCFSM] state=3 step=2 (was 3/0 after 0 f)
+[MCFSM] state=4 step=0 (was 3/2 after 0 f)
+[MCRD] dir scan chan=1 (n=2)
+[MCFSM] state=0 step=0 (was 4/0 after 0 f)
+[SH-XBOX] GameState -> 1 (step 0)
+[VRAM] paletted cache: 64/64 pages (64KB) + 128/128 palettes, free=13589KB
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=2 -> IOE (n=5)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=0 step=0 (was 1/2 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=2 -> IOE (n=6)
+[BOOT0/TIM] PostLoadTim file=9 'KONAMI2.TIM' ss=0x2b3 img.u=0 img.v=0 tPage=0,14 clutX=0 clutY=1
+[BOOT0/TIM] post ReadTIM: prect=0x814a47b8 caddr=0x814a4794 paddr=0x814a47c0 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(896,0 104x160)
+[BOOT0/TIM] pre CLUT LoadImage rect=(0,1 16x1)
+[BOOT0/TIM] PostLoadTim done
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=2 step=0 (was 1/2 after 0 f)
+[MCRD] card_clear chan=2 -> IOE (n=3)
+[MCFSM] state=2 step=2 (was 2/0 after 0 f)
+[MCFSM] state=3 step=0 (was 2/2 after 0 f)
+[MCRD] card_load chan=2 -> IOE (n=3)
+[MCFSM] state=3 step=2 (was 3/0 after 0 f)
+[MCFSM] state=4 step=0 (was 3/2 after 0 f)
+[MCRD] dir scan chan=2 (n=3)
+[MCFSM] state=0 step=0 (was 4/0 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=3 -> IOE (n=7)
+[BOOT0/TIM] PostLoadTim file=1423 'HERO.TIM' ss=0x5a6a img.u=0 img.v=0 tPage=0,27 clutX=736 clutY=480
+[BOOT0/TIM] post ReadTIM: prect=0x814a4978 caddr=0x814a4794 paddr=0x814a4980 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(704,256 64x192)
+[BOOT0/TIM] pre CLUT LoadImage rect=(736,480 16x15)
+[BOOT0/TIM] PostLoadTim done
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=0 step=0 (was 1/2 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=3 -> IOE (n=8)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=2 step=0 (was 1/2 after 0 f)
+[MCRD] card_clear chan=3 -> IOE (n=4)
+[MCFSM] state=2 step=2 (was 2/0 after 0 f)
+[MCFSM] state=3 step=0 (was 2/2 after 0 f)
+[MCRD] card_load chan=3 -> IOE (n=4)
+[MCFSM] state=3 step=2 (was 3/0 after 0 f)
+[MCFSM] state=4 step=0 (was 3/2 after 0 f)
+[MCRD] dir scan chan=3 (n=4)
+[MCFSM] state=0 step=0 (was 4/0 after 0 f)
+[BOOT0/TIM] PostLoadTim file=1802 'BLD.TIM' ss=0x795b img.u=0 img.v=0 tPage=0,11 clutX=304 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0x814af198 caddr=0x814aef94 paddr=0x814af1a0 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(704,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(304,0 16x16)
+[BOOT0/TIM] PostLoadTim done
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=16 -> IOE (n=9)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=0 step=0 (was 1/2 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=16 -> IOE (n=10)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)

@@ -26,6 +26,7 @@
 
 #include <xenos/xe.h>
 #include <xenos/xenos.h>
+#include <xenos/edram.h>
 #include <console/console.h>
 #include <ppc/cache.h>
 #include <time/time.h>
@@ -65,6 +66,10 @@ int main(void)
         printf("gpu_min: Xe up %dx%d ptr=%08x pitch=%d\n",
                fb->width, fb->height, (unsigned)fb->ptr, fb->wpitch);
     }
+    /* The step the first version of this probe was missing: untrained EDRAM is
+     * exactly the garbage screen it photographed. */
+    edram_init(xe);
+    printf("gpu_min: edram_init done\n");
 
     /* Phase 1: the exact loop every libXenon demo runs, minus the draw.
      * Expect: solid GREEN, this text flickering or vanishing under it. */

@@ -25,6 +25,7 @@
 
 #include <xenos/xe.h>
 #include <xenos/xenos.h>
+#include <xenos/edram.h>
 #include <console/console.h>
 #include <ppc/cache.h>     /* memdcbf: the fb probe must invalidate before reading */
 
@@ -313,6 +314,14 @@ void GpuNv2a_Init(void)
     Xe_SetZEnable(s_xe, 0);
     Xe_SetZWrite(s_xe, 0);
     Xe_SetCullMode(s_xe, XE_CULL_NONE);
+
+    /* Xe_Init does not train the EDRAM. Untrained, every resolve copies out
+     * structured garbage (hardware log 037, gpu_min photo), so nothing drawn
+     * can ever reach the screen. libXenon's cube sample runs this as the last
+     * step before the first frame; it Xe_Fatals after 4 failed attempts. */
+    SH_DBG("[GPU] edram_init...");
+    edram_init(s_xe);
+    SH_DBG("[GPU] edram_init done");
     SH_DBG("[GPU] textures ready, renderer ARMED");
     SH_DBG("[GPU] xenos backend: %d-vertex pool, %d B/vertex",
            GPU_POOL_VERTS, (int)sizeof(ShVertex));
