@@ -19,6 +19,7 @@
 #    ./build.sh rebuild    clean rebuild (cmake --build --clean-first)
 #    ./build.sh configure  force a fresh cmake configure, then build
 #    ./build.sh run        build, then launch the game
+#    ./build.sh app        macOS: build, then package "Silent Hill PC.app" + .dmg
 # ===========================================================================
 set -euo pipefail
 
@@ -118,6 +119,10 @@ fi
 
 [ -f "$EXE" ] || { echo "ERROR: $(basename "$EXE") was not produced." >&2; exit 1; }
 echo "Build OK: $EXE"
+
+if [ "$MODE" = "app" ]; then
+    bash "$SCRIPT_DIR/launcher/macos/make_app.sh" --dmg
+fi
 
 if [ "$MODE" = "run" ]; then
     echo "Launching..."

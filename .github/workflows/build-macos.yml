@@ -13,9 +13,13 @@ on:
   push:
     branches:
       - pc-port
-    paths-ignore:
-      - '**.md'
-      - 'pc_port/launcher/**'
+    # Later patterns win: skip docs and the Windows launcher, but the macOS
+    # launcher is part of this build.
+    paths:
+      - '**'
+      - '!**.md'
+      - '!pc_port/launcher/**'
+      - 'pc_port/launcher/macos/**'
   workflow_dispatch:
 
 jobs:
@@ -106,5 +110,18 @@ jobs:
         with:
           name: SHPC-macos-arm64
           path: ${{ runner.temp }}/SHPC-macos-arm64.zip
+          if-no-files-found: error
+          retention-days: 90
+
+      # Self-contained "Silent Hill PC.app" (SwiftUI launcher + game + bundled
+      # Homebrew libs) on a drag-to-Applications disk image.
+      - name: Build app bundle (.dmg)
+        run: bash pc_port/launcher/macos/make_app.sh --dmg
+
+      - name: Upload app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SHPC-macos-arm64-app
+          path: pc_port/build/macos/Silent Hill PC.dmg
           if-no-files-found: error
           retention-days: 90
