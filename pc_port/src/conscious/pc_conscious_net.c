@@ -364,6 +364,29 @@ static int Net_Judge(const char* judgeText)
     return d;
 }
 
+/* They already let him go: only a blatant insult undoes that, never a slow
+ * or awkward answer. */
+static int Net_JudgeSpared(const char* judgeText)
+{
+    static const char sys[] =
+        "You read a scene from a horror game. Monsters already decided to let a man named Harry go, and he is "
+        "still chatting with them. They only turn on him again if HARRY'S OWN latest words BLATANTLY insult, "
+        "mock or threaten them AND their latest line says they are attacking him now. "
+        "Rudeness that is mild, jokes, questions, silence, nonsense or him staying around do NOT count. "
+        "Answer with exactly one word: ATTACK or TALK.";
+    static const char* const words[] = { "ATTACK", "TALK" };
+    static const int         dec[]   = { PCCON_DECIDE_ATTACK, PCCON_DECIDE_TALK };
+    char* ans = Net_OneShot(sys, judgeText, 400);
+    int   d;
+
+    if (!ans)
+        return PCCON_DECIDE_TALK;
+    d = Net_LastWord(ans, words, dec, 2, PCCON_DECIDE_TALK);
+    SH_DBG("[CONSCIOUS] spared judge said '%.60s' -> %d", ans, d);
+    free(ans);
+    return d;
+}
+
 static short* Net_Tts(const char* text, const char* voiceId, unsigned int* outSamples)
 {
     char   url[256], hdr[320];
@@ -712,7 +735,9 @@ static void Net_Run(NetJob* j, PcConResult* r)
         if (t)
         {
             snprintf(t, n, "%s\nTHEIR LATEST LINE: \"%s\"", j->judgeText, r->text);
-            r->decision = j->judgeKind == PCCON_JUDGE_ARGUE ? Net_JudgeArgue(t) : Net_Judge(t);
+            r->decision = j->judgeKind == PCCON_JUDGE_ARGUE    ? Net_JudgeArgue(t)
+                          : j->judgeKind == PCCON_JUDGE_SPARED ? Net_JudgeSpared(t)
+                                                               : Net_Judge(t);
             free(t);
         }
     }

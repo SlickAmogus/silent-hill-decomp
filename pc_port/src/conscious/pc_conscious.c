@@ -16,14 +16,19 @@
  *   they announce themselves -> Harry answers (mic on V, or typed chat on Y)
  *   -> one LLM call writes their reply, a second decides what it MEANS:
  *        ATTACK  - the answer flips to no for every child, so the unmodified
- *                  retail AI takes over and they kill him;
- *        RELEASE - they back off and leave him be for grace_seconds, then
- *                  come back at him. If he walks back to the fence that
- *                  blocks the way out, the game moves on to the cafe exactly
- *                  as if he had died;
+ *                  retail AI takes over and they kill him; he can still talk
+ *                  and they shout back while they do;
+ *        RELEASE - they back off and leave him be for good: he can keep
+ *                  talking, and only a blatant insult turns them on him again.
+ *                  If he walks back to the fence that blocks the way out, the
+ *                  game moves on to the cafe exactly as if he had died;
  *        TALK    - they wait for his next answer.
  *
  * Patience runs out after patience_seconds or max_turns whatever is said.
+ *
+ * Every monster remembers what it heard while it lives (the grey children as
+ * one gang): a line goes into the memory of each one close enough to hear it,
+ * so a newcomer knows nothing and the others know when one of them dies.
  *
  * FIELD - Groaners, Rompers and Air Screamers anywhere. When Harry speaks
  * within monster_hear_range they stop and listen (their AI files ask
@@ -33,7 +38,7 @@
  * that come in range join and listen. ATTACK sets every listener loose while
  * the line is still being said, RELEASE spares them for good, and walking
  * past monster_flee_range or hitting one ends it at once: they say something
- * about it and attack.
+ * about it and attack. Spared or attacking, they still answer when he talks.
  *
  * Only this file reads game state. V is Circle and Y does nothing anywhere
  * else; both only become the mic and chat keys while the mic icon is up.
@@ -106,6 +111,7 @@ typedef struct
     s8     voice;
     q19_12 health;
     q19_12 health0;   /* when it joined: a bite takes a share of this */
+    q19_12 seenHp;    /* lowest health seen: more than that is a new spawn in the slot */
     float  strikeT;   /* > 0: mid-bite */
     float  coolT;
 } FldMon;
@@ -140,7 +146,9 @@ static float        s_holdX[SLOT_N], s_holdZ[SLOT_N];
 
 static FldMon       s_fld[SLOT_N];
 static int          s_leader = -1;
-static int          s_fldAngry;       /* the conversation already turned into an attack */
+static int          s_angry;          /* the conversation already turned into an attack */
+static int          s_gangSpared;     /* alley: they let him go, for good */
+static u8           s_gangAlive[SLOT_N];
 static int          s_fldMap = -1;
 static int          s_candN;
 static char         s_note[512];      /* what happened since his last line, for the next turn */
@@ -154,8 +162,15 @@ static char         s_voices[VOICE_MAX][40];
 static int          s_voiceN;
 static int          s_lastVoice = -1;
 
-static struct { int assistant; char* text; } s_hist[HIST_MAX];
-static int s_histN;
+/* What each one heard and said, while it lives: one per field slot, and
+ * MEM_GANG for the grey children, who speak as one. */
+#define MEM_GANG SLOT_N
+typedef struct
+{
+    struct { int own; char* text; } l[HIST_MAX];
+    int n;
+} Mem;
+static Mem s_mem[SLOT_N + 1];
 
 static SDL_Scancode s_scMic  = SDL_SCANCODE_UNKNOWN;
 static SDL_Scancode s_scChat = SDL_SCANCODE_UNKNOWN;
@@ -335,25 +350,26 @@ static int Voices_Pick(void)
 /* History                                                             */
 /* ------------------------------------------------------------------ */
 
-static void Hist_Clear(void)
+static void Mem_Clear(int who)
 {
     int i;
-    for (i = 0; i < s_histN; i++)
-        free(s_hist[i].text);
-    s_histN = 0;
+    for (i = 0; i < s_mem[who].n; i++)
+        free(s_mem[who].l[i].text);
+    s_mem[who].n = 0;
 }
 
-static void Hist_Add(int assistant, const char* text)
+static void Mem_Push(int who, int own, const char* text)
 {
-    if (s_histN == HIST_MAX)
+    Mem* m = &s_mem[who];
+    if (m->n == HIST_MAX)
     {
-        free(s_hist[0].text);
-        memmove(&s_hist[0], &s_hist[1], sizeof(s_hist[0]) * (HIST_MAX - 1));
-        s_histN--;
+        free(m->l[0].text);
+        memmove(&m->l[0], &m->l[1], sizeof(m->l[0]) * (HIST_MAX - 1));
+        m->n--;
     }
-    s_hist[s_histN].assistant = assistant;
-    s_hist[s_histN].text      = SDL_strdup(text);
-    s_histN++;
+    m->l[m->n].own  = own;
+    m->l[m->n].text = SDL_strdup(text);
+    m->n++;
 }
 
 static int Fld_LeaderChara(void)
@@ -390,13 +406,21 @@ static const char s_argueRules[] =
     "Stay in character; you know nothing about video games, AI or the real world. "
     "Lines in [brackets] describe what is happening; never repeat the brackets.";
 
+static const char s_attacking[] =
+    " You are attacking him right now and you will not stop; you still shout and taunt him while you go for him.";
+
+static const char s_letGo[] =
+    " You already decided to let him go, and he is still here talking to you. You keep your word: you do NOT "
+    "attack him unless he blatantly insults or threatens you. Otherwise answer him, grumble, mock him a little, "
+    "tell him to get going -- but leave him be.";
+
 static void Fld_System(char* out, int cap)
 {
     int  counts[4] = { 0, 0, 0, 0 };
     int  kinds[4]  = { Chara_Groaner, Chara_Romper, Chara_AirScreamer, Chara_NightFlutter };
     int  i, k, others = 0;
     char rules[sizeof(s_fieldRules) + 64];
-    char group[640];
+    char group[1024];
 
     for (i = 0; i < NPC_N && i < SLOT_N; i++)
     {
@@ -428,14 +452,26 @@ static void Fld_System(char* out, int cap)
                  " Because of what he said you are in the middle of a fight with the %s right now; "
                  "you shout at him between bites.", other);
     }
-    else if (s_fldAngry)
+    else if (s_angry)
     {
-        snprintf(group + strlen(group), sizeof(group) - strlen(group),
-                 " You are attacking him right now and you will not stop; you still shout and taunt him "
-                 "while you go for him.");
+        SDL_strlcat(group, s_attacking, sizeof(group));
+    }
+    else if (s_leader >= 0 && s_fld[s_leader].spared)
+    {
+        SDL_strlcat(group, s_letGo, sizeof(group));
     }
     snprintf(rules, sizeof(rules), s_fieldRules, g_PcCon.playerName);
     snprintf(out, cap, "%s%s %s", Mon_Self(Fld_LeaderChara()), group, rules);
+}
+
+/* Whose memory the line being written comes from. */
+static int Con_MemOf(void)
+{
+    int spk;
+    if (s_mode == MODE_ALLEY)
+        return MEM_GANG;
+    spk = s_turnSpk >= 0 ? s_turnSpk : s_leader;
+    return spk >= 0 && spk < SLOT_N ? spk : MEM_GANG;
 }
 
 /* What the speaker of an argument line sees: who it is, who it is arguing
@@ -443,15 +479,16 @@ static void Fld_System(char* out, int cap)
  * half of those lines were the other monster's). */
 static char* Con_BuildArgueMsgs(int spk, int other, const char* instruction)
 {
-    char   sys[2048];
-    char   label[48];
-    char*  user;
-    char*  out;
-    size_t cap = 1024 + strlen(instruction) + strlen(s_note);
-    int    i, from = s_histN > 10 ? s_histN - 10 : 0;
+    char       sys[2048];
+    char       label[48];
+    char*      user;
+    char*      out;
+    const Mem* m   = &s_mem[spk];
+    size_t     cap = 1024 + strlen(instruction) + strlen(s_note);
+    int        i, from = m->n > 10 ? m->n - 10 : 0;
 
-    for (i = from; i < s_histN; i++)
-        cap += strlen(s_hist[i].text) + 48;
+    for (i = from; i < m->n; i++)
+        cap += strlen(m->l[i].text) + 48;
     user = (char*)malloc(cap);
     if (!user)
         return NULL;
@@ -461,12 +498,12 @@ static char* Con_BuildArgueMsgs(int spk, int other, const char* instruction)
              g_PcCon.playerName, label);
 
     snprintf(user, cap, "WHAT HAS HAPPENED SO FAR:\n");
-    for (i = from; i < s_histN; i++)
+    for (i = from; i < m->n; i++)
     {
-        if (s_hist[i].assistant)
-            snprintf(user + strlen(user), cap - strlen(user), "The %s: %s\n", Con_SlotName(s_argA), s_hist[i].text);
+        if (m->l[i].own)
+            snprintf(user + strlen(user), cap - strlen(user), "The %s (you): %s\n", Con_SlotName(spk), m->l[i].text);
         else
-            snprintf(user + strlen(user), cap - strlen(user), "%s\n", s_hist[i].text);
+            snprintf(user + strlen(user), cap - strlen(user), "%s\n", m->l[i].text);
     }
     if (s_note[0])
         snprintf(user + strlen(user), cap - strlen(user), "%s\n", s_note);
@@ -489,20 +526,29 @@ static char* Con_BuildArgueMsgs(int spk, int other, const char* instruction)
 
 static char* Con_BuildMsgs(void)
 {
-    char   sys[sizeof(s_persona) + sizeof(s_fieldRules) + sizeof(s_vision) + 1024];
-    size_t cap = sizeof(sys) * 2 + 256;
-    char*  out;
-    int    i, from;
+    char       sys[sizeof(s_persona) + sizeof(s_fieldRules) + sizeof(s_vision) + 1536];
+    size_t     cap = sizeof(sys) * 2 + 256;
+    char*      out;
+    const Mem* m = &s_mem[Con_MemOf()];
+    int        i, from, role = -1;
 
-    for (i = 0; i < s_histN; i++)
-        cap += strlen(s_hist[i].text) * 2 + 48;
+    for (i = 0; i < m->n; i++)
+        cap += strlen(m->l[i].text) * 2 + 48;
     out = (char*)malloc(cap);
     if (!out)
         return NULL;
     if (s_mode == MODE_FIELD)
+    {
         Fld_System(sys, (int)sizeof(sys));
+    }
     else
+    {
         snprintf(sys, sizeof(sys), s_persona, g_PcCon.playerName);
+        if (s_angry)
+            SDL_strlcat(sys, s_attacking, sizeof(sys));
+        else if (s_gangSpared)
+            SDL_strlcat(sys, s_letGo, sizeof(sys));
+    }
     if (g_PcCon.vision)
     {
         int field = s_mode == MODE_FIELD;
@@ -514,16 +560,29 @@ static char* Con_BuildMsgs(void)
     strcpy(out, "[{\"role\":\"system\",\"content\":\"");
     PcCon_JsonEscapeCat(out, (int)cap, sys);
     strcat(out, "\"}");
-    from = s_histN > HIST_SENT ? s_histN - HIST_SENT : 0;
+    from = m->n > HIST_SENT ? m->n - HIST_SENT : 0;
     /* The chat APIs want the first non-system message to be the user's. */
-    if (from < s_histN && s_hist[from].assistant)
+    if (from < m->n && m->l[from].own)
         from++;
-    for (i = from; i < s_histN; i++)
+    for (i = from; i < m->n; i++)
     {
-        strcat(out, s_hist[i].assistant ? ",{\"role\":\"assistant\",\"content\":\"" : ",{\"role\":\"user\",\"content\":\"");
-        PcCon_JsonEscapeCat(out, (int)cap - 8, s_hist[i].text);
-        strcat(out, "\"}");
+        /* What the others said and what happened arrive in a row; the APIs
+         * want the two roles to take turns. */
+        if (m->l[i].own == role)
+        {
+            strcat(out, "\\n");
+        }
+        else
+        {
+            if (role >= 0)
+                strcat(out, "\"}");
+            strcat(out, m->l[i].own ? ",{\"role\":\"assistant\",\"content\":\"" : ",{\"role\":\"user\",\"content\":\"");
+            role = m->l[i].own;
+        }
+        PcCon_JsonEscapeCat(out, (int)cap - 8, m->l[i].text);
     }
+    if (role >= 0)
+        strcat(out, "\"}");
     strcat(out, "]");
     return out;
 }
@@ -532,11 +591,12 @@ static char* Con_BuildJudge(void)
 {
     size_t      cap = 640;
     char*       out;
-    int         i, from = s_histN > 12 ? s_histN - 12 : 0;
+    const Mem*  m = &s_mem[Con_MemOf()];
+    int         i, from = m->n > 12 ? m->n - 12 : 0;
     const char* who = s_mode == MODE_FIELD ? Mon_Name(Fld_LeaderChara()) : "GREY CHILDREN";
 
-    for (i = from; i < s_histN; i++)
-        cap += strlen(s_hist[i].text) + 32;
+    for (i = from; i < m->n; i++)
+        cap += strlen(m->l[i].text) + 32;
     out = (char*)malloc(cap);
     if (!out)
         return NULL;
@@ -544,14 +604,14 @@ static char* Con_BuildJudge(void)
              "The monster: %s. Exchanges so far: %d (they lose patience around %d). "
              "Times they already let him go: %d.\nCONVERSATION:\n",
              who, s_turns, s_mode == MODE_FIELD ? g_PcCon.monsterMaxTurns : g_PcCon.maxTurns, s_releases);
-    for (i = from; i < s_histN; i++)
+    for (i = from; i < m->n; i++)
     {
-        if (s_hist[i].assistant)
+        if (m->l[i].own)
         {
             strcat(out, who);
             strcat(out, ": ");
         }
-        strcat(out, s_hist[i].text);
+        strcat(out, m->l[i].text);
         strcat(out, "\n");
     }
     return out;
@@ -672,8 +732,19 @@ static int Fld_Alive(int i)
     return Mon_Supported(g_SysWork.npcs[i].model.charaId) && g_SysWork.npcs[i].health > 0;
 }
 
-/* Marks belong to whatever stood in the slot when they were set: a slot
- * reused by a new spawn, a death or a new map clears them. */
+static void Fld_Died(int i, int byHarry);
+static void Fld_PickLeader(void);
+
+static void Fld_Forget(int i)
+{
+    Mem_Clear(i);
+    memset(&s_fld[i], 0, sizeof(s_fld[i]));
+    if (i == s_leader)
+        s_leader = -1;
+}
+
+/* Marks and memory belong to whatever stood in the slot when they were set:
+ * a slot reused by a new spawn, a death or a new map clears them. */
 static void Fld_Sync(void)
 {
     int i;
@@ -681,18 +752,28 @@ static void Fld_Sync(void)
 
     if (map != s_fldMap)
     {
-        memset(s_fld, 0, sizeof(s_fld));
+        for (i = 0; i < SLOT_N; i++)
+            Fld_Forget(i);
         s_fldMap = map;
     }
     for (i = 0; i < NPC_N && i < SLOT_N; i++)
     {
-        if (s_fld[i].chara && (s_fld[i].chara != g_SysWork.npcs[i].model.charaId || g_SysWork.npcs[i].health <= 0))
-        {
-            memset(&s_fld[i], 0, sizeof(s_fld[i]));
-            if (i == s_leader)
-                s_leader = -1;
-        }
+        const s_SubCharacter* c = &g_SysWork.npcs[i];
+        if (!s_fld[i].chara)
+            continue;
+        if (s_fld[i].chara != c->model.charaId || c->health > s_fld[i].seenHp)
+            Fld_Forget(i);
+        else if (c->health <= 0)
+            Fld_Died(i, c->attackReceived != FIGHT_ATTACK);
+        else
+            s_fld[i].seenHp = c->health;
     }
+    Fld_PickLeader();
+}
+
+static void Fld_PickLeader(void)
+{
+    int i;
     if (s_leader < 0)
     {
         float bd = 1e9f;
@@ -707,9 +788,16 @@ static void Fld_Sync(void)
     }
 }
 
+/* Spared ones listen again: they let him go, they did not stop hearing him. */
 static int Fld_Candidate(int i)
 {
-    return Fld_Alive(i) && !s_fld[i].part && !s_fld[i].spared && !s_fld[i].angered &&
+    return Fld_Alive(i) && !s_fld[i].part && !s_fld[i].angered && Con_DistToPlayer(i) <= g_PcCon.monsterHearRange;
+}
+
+/* Attacking him, or did once and is still around: answers, never stops. */
+static int Fld_Grudge(int i)
+{
+    return Fld_Alive(i) && s_fld[i].angered && s_fld[i].chara == g_SysWork.npcs[i].model.charaId &&
            Con_DistToPlayer(i) <= g_PcCon.monsterHearRange;
 }
 
@@ -719,9 +807,50 @@ static int Fld_Candidates(void)
     if (!g_PcCon.monsters || g_SavegamePtr == NULL || Con_InScene())
         return 0;
     for (i = 0; i < NPC_N && i < SLOT_N; i++)
-        if (Fld_Candidate(i))
+        if (Fld_Candidate(i) || Fld_Grudge(i))
             n++;
     return n;
+}
+
+static int Fld_Hears(int i)
+{
+    return Fld_Alive(i) && s_fld[i].chara == g_SysWork.npcs[i].model.charaId &&
+           (s_fld[i].part || s_fld[i].combat || Con_DistToPlayer(i) <= g_PcCon.monsterHearRange);
+}
+
+/* Something everyone close enough takes in: his lines, what happens. */
+static void Con_Heard(const char* text)
+{
+    int i;
+    if (s_mode == MODE_ALLEY)
+    {
+        Mem_Push(MEM_GANG, 0, text);
+        return;
+    }
+    for (i = 0; i < NPC_N && i < SLOT_N; i++)
+        if (Fld_Hears(i))
+            Mem_Push(i, 0, text);
+}
+
+/* Its own line to the speaker, what one of the others said to the rest. */
+static void Con_Said(int spk, const char* text)
+{
+    char buf[640], label[48];
+    int  i;
+    if (s_mode == MODE_ALLEY || spk < 0 || spk >= SLOT_N)
+    {
+        Mem_Push(MEM_GANG, 1, text);
+        return;
+    }
+    Mem_Push(spk, 1, text);
+    for (i = 0; i < NPC_N && i < SLOT_N; i++)
+    {
+        if (i == spk || !Fld_Hears(i))
+            continue;
+        Con_OtherLabel(i, spk, label, sizeof(label));
+        snprintf(buf, sizeof(buf), "[The %s says: \"%s\"]", label, text);
+        Mem_Push(i, 0, buf);
+    }
 }
 
 static int Fld_Parts(float* nearest)
@@ -746,6 +875,7 @@ static void Fld_Join(int i, int announce)
     m->chara  = (s8)g_SysWork.npcs[i].model.charaId;
     m->part   = 1;
     m->health = g_SysWork.npcs[i].health;
+    m->seenHp = m->health;
     if (m->health0 <= 0)
         m->health0 = m->health;
     if (m->voice == 0)
@@ -805,8 +935,8 @@ static void Fld_Unleash(void)
             Fld_Calm(&s_fld[i]);
         }
     }
-    s_fight    = 0;
-    s_fldAngry = 1;
+    s_fight = 0;
+    s_angry = 1;
 }
 
 static void Fld_Spare(void)
@@ -816,12 +946,18 @@ static void Fld_Spare(void)
     {
         if (s_fld[i].part)
         {
-            s_fld[i].part   = 0;
             s_fld[i].spared = 1;
             Fld_Calm(&s_fld[i]);
         }
     }
     s_fight = 0;
+}
+
+static int Con_Spared(void)
+{
+    if (s_mode == MODE_ALLEY)
+        return s_gangSpared;
+    return s_leader >= 0 && s_fld[s_leader].spared;
 }
 
 /* Nearest one still attacking him: who shouts back when he talks. */
@@ -873,7 +1009,6 @@ static void Con_Reset(void)
     Pc_VoiceClip_Stop(s_clip);
     s_clip = 0;
     s_gen++;
-    Hist_Clear();
     PcConNet_Free(&s_opener);
     s_openerReady    = 0;
     s_talking        = 0;
@@ -887,7 +1022,7 @@ static void Con_Reset(void)
     s_speaker        = -1;
     s_line[0]        = '\0';
     s_note[0]        = '\0';
-    s_fldAngry       = 0;
+    s_angry          = 0;
     s_leader         = -1;
     s_turnSpk        = -1;
     s_argue          = 0;
@@ -942,14 +1077,15 @@ static void Con_SubmitTurnEx(const char* userContent, int forced, const char* in
         char buf[1600];
         snprintf(buf, sizeof(buf), "%s\n%s", s_note, userContent);
         s_note[0] = '\0';
-        Hist_Add(0, buf);
+        Con_Heard(buf);
     }
     else
     {
-        Hist_Add(0, userContent);
+        Con_Heard(userContent);
     }
     s_turnSpk = -1;
-    Con_Submit(Con_BuildMsgs(), Con_BuildJudge(), forced, PCCON_JUDGE_TURN, incite);
+    Con_Submit(Con_BuildMsgs(), Con_BuildJudge(), forced, Con_Spared() ? PCCON_JUDGE_SPARED : PCCON_JUDGE_TURN,
+               incite);
 }
 
 static void Con_SubmitTurn(const char* userContent, int forced)
@@ -1002,7 +1138,7 @@ static void Arg_Submit(int spk, int other, const char* instruction, int forced, 
     /* What happened since (him butting in) goes into the transcript once. */
     if (s_note[0])
     {
-        Hist_Add(0, s_note);
+        Con_Heard(s_note);
         s_note[0] = '\0';
     }
     msgs = Con_BuildArgueMsgs(spk, other, instruction);
@@ -1216,13 +1352,18 @@ static int Con_OutOfPatience(void)
 static void Con_PlayerTurn(const char* content)
 {
     char buf[1024];
-    if (s_mode == MODE_FIELD && s_fldAngry)
+    if (s_angry)
     {
         /* They are already on him: whoever is closest shouts back, no judge. */
-        int c = Fld_Combatant(NULL);
+        int c = s_mode == MODE_FIELD ? Fld_Combatant(NULL) : -1;
         if (c >= 0)
             s_leader = c;
         Con_SubmitTurn(content, PCCON_DECIDE_ATTACK);
+    }
+    else if (Con_Spared())
+    {
+        /* They gave their word: no patience clock, only the judge's insult rule. */
+        Con_SubmitTurn(content, -1);
     }
     else if (Con_OutOfPatience())
     {
@@ -1272,15 +1413,12 @@ static void Fld_Break(const char* why, const char* event)
 static void Con_Hostile(const char* why)
 {
     SH_DBG("[CONSCIOUS] hostile (%s)", why);
-    if (s_mode == MODE_FIELD)
-    {
-        Fld_Unleash();
-        Con_FieldDone();
-        return;
-    }
-    PcConChat_Add(PCCHAT_SYSTEM, NULL, "[The grey children attack!]");
-    PcConChat_Close();
-    Con_Enter(CS_HOSTILE);
+    /* The retail AI has them from here; he can still talk while it does. */
+    if (!s_angry)
+        PcConChat_Add(PCCHAT_SYSTEM, NULL, "[The grey children attack! You can still talk.]");
+    s_angry      = 1;
+    s_gangSpared = 0;
+    Con_Enter(CS_LISTEN);
 }
 
 static void Con_Speak(const char* text, const short* pcm, unsigned int samples, int rate, int decision)
@@ -1302,7 +1440,7 @@ static void Con_Speak(const char* text, const short* pcm, unsigned int samples, 
     SH_DBG("[CONSCIOUS] say (turn %d, decision %d, tts %u samples, playing %s, gain %.2f): %s", s_turns, decision,
            pcm ? samples : 0u, s_clip ? "yes" : "no", Con_Gain(s_speaker), text);
     /* In the field the attack starts with the line, not after it. */
-    if (s_mode == MODE_FIELD && decision == PCCON_DECIDE_ATTACK && !s_fldAngry)
+    if (s_mode == MODE_FIELD && decision == PCCON_DECIDE_ATTACK && !s_angry)
     {
         SH_DBG("[CONSCIOUS] field: attack (their line meant attack)");
         Fld_Unleash();
@@ -1311,7 +1449,7 @@ static void Con_Speak(const char* text, const short* pcm, unsigned int samples, 
     {
         Fld_StartFight(s_argA, s_argB);
     }
-    else if (s_mode == MODE_FIELD && s_argue == 3 && !s_fldAngry)
+    else if (s_mode == MODE_FIELD && s_argue == 3 && !s_angry)
     {
         SH_DBG("[CONSCIOUS] field: they team up against him");
         PcConChat_Add(PCCHAT_SYSTEM, NULL, "[They turn on you together!]");
@@ -1330,7 +1468,7 @@ static void Con_SpeakResult(PcConResult* r, int fallbackIdx, int forced)
     }
     fb = s_mode == MODE_FIELD ? s_fieldFallback[forced == PCCON_DECIDE_ATTACK ? 2 : fallbackIdx % 2]
                               : s_fallback[fallbackIdx];
-    Hist_Add(1, fb);
+    Con_Said(s_turnSpk >= 0 ? s_turnSpk : s_leader, fb);
     Con_Speak(fb, NULL, 0, 0, forced >= 0 ? forced : PCCON_DECIDE_TALK);
 }
 
@@ -1353,7 +1491,7 @@ static void Con_PlayerSaid(const char* text, int typed)
 
     if (!text || !text[0])
         return;
-    if (s_state != CS_LISTEN && s_state != CS_HEARING)
+    if (s_state != CS_LISTEN && s_state != CS_HEARING && s_state != CS_RELEASED)
     {
         /* Mid-argument he can still butt in: the next line hears it. */
         if (s_mode == MODE_FIELD && s_argue && Con_Words(text) >= (typed ? 1 : g_PcCon.minWordsFirst))
@@ -1408,20 +1546,7 @@ static void Con_HandleResult(PcConResult* r)
     }
 
     if (r->ok && r->text)
-    {
-        /* The other monster's answer is part of the scene, not the leader's own line. */
-        if (s_argue == 2)
-        {
-            char buf[600];
-            snprintf(buf, sizeof(buf), "[The %s snaps back at the %s: \"%s\"]", Con_SlotName(s_argB),
-                     Con_SlotName(s_argA), r->text);
-            Hist_Add(0, buf);
-        }
-        else
-        {
-            Hist_Add(1, r->text);
-        }
-    }
+        Con_Said(s_turnSpk >= 0 ? s_turnSpk : s_leader, r->text);
 
     if (s_state == CS_THINKING && r->ok && r->decision == PCCON_DECIDE_INCITE)
     {
@@ -1439,19 +1564,71 @@ static void Con_HandleResult(PcConResult* r)
     }
     if (s_state == CS_THINKING)
     {
-        int forced = (Con_OutOfPatience() || s_fldAngry) ? PCCON_DECIDE_ATTACK : -1;
+        int forced = (Con_OutOfPatience() || s_angry) ? PCCON_DECIDE_ATTACK : -1;
         Con_SpeakResult(r, 1 + (s_turns & 1), forced);
     }
     PcConNet_Free(r);
 }
 
+/* The one talking just died: the line stops mid-word, and whatever was on
+ * its way for it is dropped. */
+static void Con_CutOff(void)
+{
+    SH_DBG("[CONSCIOUS] the speaker is dead: line cut off");
+    Pc_VoiceClip_Stop(s_clip);
+    s_clip         = 0;
+    s_textHold     = 0.0f;
+    s_line[0]      = '\0';
+    s_bubbleLinger = 0.0f;
+    s_gen++;
+}
+
+/* Harry is the only thing in the alley that can kill one of them. */
+static void Gang_Died(int i)
+{
+    int cut = s_speaker == i && s_state == CS_SPEAKING;
+
+    SH_DBG("[CONSCIOUS] a grey child (slot %d) is dead", i);
+    if (cut || s_state == CS_THINKING)
+        Con_CutOff();
+    s_gangSpared = 0;
+    PcConChat_Add(PCCHAT_SYSTEM, NULL, "[One of them is dead!]");
+    Con_SubmitTurn("[He just KILLED one of your gang, right in front of the rest of you! Scream about it and "
+                   "go for him.]",
+                   PCCON_DECIDE_ATTACK);
+    Con_Enter(CS_THINKING);
+}
+
 static void Con_TickAlley(float dt)
 {
     float nearD;
+    int   i, alive = 0, died = -1;
+
+    (void)dt;
+    for (i = 0; i < NPC_N && i < SLOT_N; i++)
+    {
+        int a = g_SysWork.npcs[i].model.charaId == Chara_GreyChild && g_SysWork.npcs[i].health > 0;
+        if (s_gangAlive[i] && !a)
+            died = i;
+        s_gangAlive[i] = (u8)a;
+        alive += a;
+    }
+    if (died >= 0 && s_state != CS_OFF && s_state != CS_HOSTILE)
+    {
+        if (alive == 0)
+        {
+            SH_DBG("[CONSCIOUS] the whole gang is dead");
+            if (s_speaker == died)
+                Con_CutOff();
+            PcConChat_Close();
+            Con_Enter(CS_HOSTILE);
+            return;
+        }
+        Gang_Died(died);
+    }
 
     if (s_state == CS_OFF)
     {
-        int i;
         SH_DBG("[CONSCIOUS] grey children present: writing their opener");
         s_mode = MODE_ALLEY;
         Con_Enter(CS_ARMED);
@@ -1466,10 +1643,31 @@ static void Con_TickAlley(float dt)
             PcConMic_SetOn(1);
     }
 
-    if (s_state != CS_HOSTILE && g_SysWork.playerWork.player.health <= 0)
-    {
-        Con_Hostile("Harry is down");
+    if (s_state == CS_HOSTILE)
         return;
+    if (g_SysWork.playerWork.player.health <= 0)
+    {
+        SH_DBG("[CONSCIOUS] Harry is down");
+        PcConChat_Close();
+        Con_Enter(CS_HOSTILE);
+        return;
+    }
+
+    /* Back through the fence he came in by: the game goes on to the cafe
+     * the same way it does when he dies here (EventFlag_25 is what the
+     * death sets; map0_s00's own events run the rest). */
+    if (s_gangSpared && !s_fenceDone && !Savegame_EventFlagGet(EventFlag_25))
+    {
+        const float fx = (float)g_SysWork.playerWork.player.position.vx / 4096.0f - FENCE_X;
+        const float fz = (float)g_SysWork.playerWork.player.position.vz / 4096.0f - FENCE_Z;
+        if (fx * fx + fz * fz < FENCE_REACH * FENCE_REACH)
+        {
+            SH_DBG("[CONSCIOUS] released and back at the fence: on to the cafe");
+            s_fenceDone = 1;
+            PcConChat_Add(PCCHAT_SYSTEM, NULL, "[You slip back through the fence...]");
+            Savegame_EventFlagSet(EventFlag_25);
+            return;
+        }
     }
 
     switch (s_state)
@@ -1498,56 +1696,24 @@ static void Con_TickAlley(float dt)
         }
         break;
 
-    case CS_RELEASED:
-        /* Back through the fence he came in by: the game goes on to the cafe
-         * the same way it does when he dies here (EventFlag_25 is what the
-         * death sets; map0_s00's own events run the rest). */
-        if (!s_fenceDone && !Savegame_EventFlagGet(EventFlag_25))
-        {
-            const float fx = (float)g_SysWork.playerWork.player.position.vx / 4096.0f - FENCE_X;
-            const float fz = (float)g_SysWork.playerWork.player.position.vz / 4096.0f - FENCE_Z;
-            if (fx * fx + fz * fz < FENCE_REACH * FENCE_REACH)
-            {
-                SH_DBG("[CONSCIOUS] released and back at the fence: on to the cafe");
-                s_fenceDone = 1;
-                PcConChat_Add(PCCHAT_SYSTEM, NULL, "[You slip back through the fence...]");
-                Savegame_EventFlagSet(EventFlag_25);
-                break;
-            }
-        }
-        if (s_stateT >= g_PcCon.graceSec)
-        {
-            Con_Nearest(&nearD);
-            if (nearD < g_PcCon.hearRange * 0.5f)
-            {
-                char ev[320];
-                snprintf(ev, sizeof(ev),
-                         "[You told him to get out of your alley %d seconds ago, but he is STILL here. "
-                         "That makes %d time%s you let him go.%s]",
-                         (int)g_PcCon.graceSec, s_releases, s_releases == 1 ? "" : "s",
-                         s_releases >= 2 ? " Your patience is almost gone." : "");
-                PcConChat_Add(PCCHAT_SYSTEM, NULL, "[They're coming back...]");
-                Con_PlayerTurn(ev);
-            }
-        }
-        break;
-
     default:
         break;
     }
 }
 
-/* He hit one that had let him go: all of them that let him go turn on him,
- * and the one he hit says what it thinks of that. */
-static void Fld_Betrayed(int hit)
+/* He hit (or killed) one that had let him go: all of them that let him go
+ * turn on him, and the one he hit -- or the nearest that saw it die -- says
+ * what it thinks of that. */
+static void Fld_Betrayed(int hit, const char* name, int killed)
 {
-    int  i;
-    char ev[160];
+    int   i, lead = killed ? -1 : hit;
+    float bd = 1e9f;
+    char  ev[320];
 
-    SH_DBG("[CONSCIOUS] field: a spared %s (slot %d) was hit", Con_SlotName(hit), hit);
+    SH_DBG("[CONSCIOUS] field: a spared %s (slot %d) was %s", name, hit, killed ? "killed" : "hit");
     for (i = 0; i < NPC_N && i < SLOT_N; i++)
     {
-        if (!s_fld[i].spared)
+        if (!s_fld[i].spared || s_fld[i].part)
             continue;
         if (i != hit && (!Fld_Alive(i) || Con_DistToPlayer(i) > g_PcCon.monsterFleeRange))
             continue;
@@ -1556,17 +1722,92 @@ static void Fld_Betrayed(int hit)
             s_fld[i].part = 1;
         else
             s_fld[i].angered = 1;
+        if (killed && Con_DistToPlayer(i) < bd)
+        {
+            bd   = Con_DistToPlayer(i);
+            lead = i;
+        }
     }
-    if (s_state != CS_OFF)
+    if (s_state != CS_OFF || lead < 0)
         return;
     s_mode   = MODE_FIELD;
-    s_leader = hit;
+    s_leader = lead;
     PcConNet_Start();
-    snprintf(ev, sizeof(ev), "[You attacked the %s that let you go!]", Con_SlotName(hit));
+    snprintf(ev, sizeof(ev), "[You %s the %s that let you go!]", killed ? "killed" : "attacked", name);
     PcConChat_Add(PCCHAT_SYSTEM, NULL, ev);
-    Fld_Break("he hit one that let him go",
-              "[You let Harry go, and he just ATTACKED you anyway! You are furious: tell him what a mistake "
-              "that was, and attack him now.]");
+    if (killed)
+        snprintf(ev, sizeof(ev), "[You let %s go, and he just KILLED the %s anyway, right in front of you! You "
+                                 "are furious: tell him what a mistake that was, and attack him now.]",
+                 g_PcCon.playerName, name);
+    else
+        snprintf(ev, sizeof(ev), "[You let %s go, and he just ATTACKED you anyway! You are furious: tell him "
+                                 "what a mistake that was, and attack him now.]", g_PcCon.playerName);
+    Fld_Break(killed ? "he killed one that let him go" : "he hit one that let him go", ev);
+}
+
+/* Dead: it stops talking mid-word and its memory goes with it. The ones
+ * still close enough to have seen it know. */
+static void Fld_Died(int i, int byHarry)
+{
+    const FldMon m     = s_fld[i];
+    const int    spk   = s_turnSpk >= 0 ? s_turnSpk : s_leader;
+    const int    cut   = (s_state == CS_SPEAKING && s_speaker == i) || (s_state == CS_THINKING && spk == i);
+    const int    inTalk = s_state != CS_OFF && (m.part || m.combat);
+    char         name[32], ev[320];
+
+    SDL_strlcpy(name, Con_SlotName(i), sizeof(name));
+    SH_DBG("[CONSCIOUS] field: the %s (slot %d) is dead (%s)%s", name, i, byHarry ? "Harry" : "a bite",
+           cut ? ", mid-line" : "");
+    if (cut)
+        Con_CutOff();
+    Fld_Forget(i);
+    if (i == s_argA || i == s_argB)
+        s_argue = 0;
+    Fld_PickLeader();
+
+    if (byHarry && m.spared && !m.part)
+    {
+        Fld_Betrayed(i, name, 1);
+        return;
+    }
+    if (!inTalk)
+    {
+        snprintf(ev, sizeof(ev), "[The %s that was here just died%s.]", name, byHarry ? ": Harry killed it" : "");
+        Con_Heard(ev);
+        return;
+    }
+    if (s_leader < 0)
+    {
+        SH_DBG("[CONSCIOUS] field: nobody left to talk");
+        Con_FieldDone();
+        return;
+    }
+    if (m.foe1)
+    {
+        /* Bitten to death in a fight: the winner's gloat says it. */
+        if (cut)
+            Con_Enter(CS_LISTEN);
+        return;
+    }
+    if (byHarry && !s_angry)
+    {
+        snprintf(ev, sizeof(ev), "[%s just KILLED the %s, right in the middle of talking! You are furious and "
+                                 "attack him now.]", g_PcCon.playerName, name);
+        PcConChat_Add(PCCHAT_SYSTEM, NULL, "[You killed one of them!]");
+        Fld_Break("he killed one", ev);
+        return;
+    }
+    snprintf(ev, sizeof(ev), "[The %s that was with you just dropped dead%s.]", name,
+             byHarry ? ": Harry killed it" : "");
+    if (cut || s_state == CS_LISTEN)
+    {
+        Con_SubmitTurn(ev, s_angry ? PCCON_DECIDE_ATTACK : -1);
+        Con_Enter(CS_THINKING);
+    }
+    else
+    {
+        Con_Heard(ev);
+    }
 }
 
 static void Con_TickField(float dt)
@@ -1579,18 +1820,41 @@ static void Con_TickField(float dt)
     /* Spared means left alone, not invulnerable. */
     for (i = 0; i < NPC_N && i < SLOT_N; i++)
     {
-        if (s_fld[i].spared && Fld_HarryHit(i))
+        if (s_fld[i].spared && !s_fld[i].part && Fld_HarryHit(i))
         {
-            Fld_Betrayed(i);
+            Fld_Betrayed(i, Con_SlotName(i), 0);
             break;
         }
     }
 
     if (s_state == CS_OFF)
     {
+        int grudge = 0;
+        if (s_candN && (PcConMic_Speaking() || s_sttPending > 0 || PcConChat_IsOpen()))
+        {
+            for (i = 0; i < NPC_N && i < SLOT_N; i++)
+            {
+                if (Fld_Grudge(i))
+                {
+                    s_fld[i].combat = 1;
+                    grudge++;
+                }
+            }
+        }
+        if (grudge)
+        {
+            /* Already after him: no stopping to listen, they just answer. */
+            s_mode   = MODE_FIELD;
+            s_angry  = 1;
+            s_leader = -1;
+            PcConNet_Start();
+            Fld_PickLeader();
+            SH_DBG("[CONSCIOUS] field: %d attacking monster(s) hear him, a %s answers", grudge, Con_SpeakerName());
+            Con_Enter(CS_LISTEN);
+        }
         /* His voice is what stops them: talking, being transcribed or typing
          * near one opens the hearing, and they hold still while it runs. */
-        if (s_candN && (PcConMic_Speaking() || s_sttPending > 0 || PcConChat_IsOpen()))
+        else if (s_candN && (PcConMic_Speaking() || s_sttPending > 0 || PcConChat_IsOpen()))
         {
             s_mode = MODE_FIELD;
             PcConNet_Start();
@@ -1611,7 +1875,7 @@ static void Con_TickField(float dt)
         return;
     }
 
-    if (s_fldAngry)
+    if (s_angry)
     {
         /* They are on him; the shouting lasts while one of them is still close. */
         float cd;
@@ -1658,6 +1922,13 @@ static void Con_TickField(float dt)
             Fld_Unleash();
             Con_Reset();
         }
+        else if (Con_Spared())
+        {
+            /* They told him to go; going is what he was supposed to do. */
+            SH_DBG("[CONSCIOUS] field: he walked off from the ones that let him go");
+            Con_Heard("[He walked off.]");
+            Con_FieldDone();
+        }
         else
         {
             char ev[256];
@@ -1692,8 +1963,33 @@ static void Con_TickField(float dt)
     }
 }
 
+/* A load brings back fresh monsters in the same slots, and fresh children:
+ * nothing anyone remembers survives it. */
+static void Con_Forget(void)
+{
+    if (s_state != CS_OFF)
+        Con_Reset();
+    s_fldMap = -2;
+    Mem_Clear(MEM_GANG);
+    memset(s_gangAlive, 0, sizeof(s_gangAlive));
+    s_gangSpared = 0;
+    s_fenceDone  = 0;
+}
+
 static void Con_Tick(float dt, int live)
 {
+    switch (g_GameWork.gameState)
+    {
+    case GameState_AutoLoadSavegame:
+    case GameState_LoadSavegameScreen:
+    case GameState_MainLoadScreen:
+    case GameState_LoadMapScreen:
+    case GameState_MainMenu:
+        Con_Forget();
+        return;
+    default:
+        break;
+    }
     if (g_GameWork.gameState != GameState_InGame)
         return;
 
@@ -1707,8 +2003,11 @@ static void Con_Tick(float dt, int live)
     {
         if (s_state != CS_OFF)
             Con_Reset();
-        s_fenceDone = 0;
-        s_mode      = MODE_FIELD;
+        Mem_Clear(MEM_GANG);
+        memset(s_gangAlive, 0, sizeof(s_gangAlive));
+        s_gangSpared = 0;
+        s_fenceDone  = 0;
+        s_mode       = MODE_FIELD;
     }
 
     if (s_clip)
@@ -1755,10 +2054,10 @@ static void Con_Tick(float dt, int live)
                     Arg_Next();
                 }
             }
-            else if (s_mode == MODE_FIELD && (s_pendingDecision == PCCON_DECIDE_ATTACK || s_fldAngry))
+            else if (s_mode == MODE_FIELD && (s_pendingDecision == PCCON_DECIDE_ATTACK || s_angry))
             {
                 /* Coming at him, but still listening: he can keep talking. */
-                if (!s_fldAngry)
+                if (!s_angry)
                     Fld_Unleash();
                 if (Fld_Combatant(NULL) >= 0)
                     Con_Enter(CS_LISTEN);
@@ -1772,16 +2071,21 @@ static void Con_Tick(float dt, int live)
             else if (s_pendingDecision == PCCON_DECIDE_RELEASE && s_mode == MODE_FIELD)
             {
                 SH_DBG("[CONSCIOUS] field: they let him go");
-                PcConChat_Add(PCCHAT_SYSTEM, NULL, "[They're letting you go.]");
+                PcConChat_Add(PCCHAT_SYSTEM, NULL, "[They're letting you go. You can still talk.]");
                 Fld_Spare();
-                Con_FieldDone();
+                Con_Enter(CS_LISTEN);
+            }
+            else if (s_mode == MODE_ALLEY && s_gangSpared)
+            {
+                Con_Enter(CS_RELEASED);
             }
             else if (s_pendingDecision == PCCON_DECIDE_RELEASE)
             {
                 int i;
                 s_releases++;
+                s_gangSpared = 1;
                 /* Back off a step and a half from Harry and stay put, so the
-                 * way past them is open while the grace period runs. */
+                 * way past them is open. */
                 for (i = 0; i < NPC_N && i < SLOT_N; i++)
                 {
                     float sx = (float)g_SysWork.npcs[i].position.vx / 4096.0f;
@@ -1794,7 +2098,7 @@ static void Con_Tick(float dt, int live)
                     s_holdX[i] = sx + dx / l * 1.5f;
                     s_holdZ[i] = sz + dz / l * 1.5f;
                 }
-                PcConChat_Add(PCCHAT_SYSTEM, NULL, "[They are letting you go... for now.]");
+                PcConChat_Add(PCCHAT_SYSTEM, NULL, "[They are letting you go. You can still talk to them.]");
                 Con_Enter(CS_RELEASED);
             }
             else
@@ -1817,12 +2121,21 @@ static void Con_Tick(float dt, int live)
          * typing: an answer in progress is not silence. */
         if (PcConMic_Speaking() || s_sttPending > 0 || PcConChat_IsOpen())
             s_stateT -= dt;
-        if (s_mode == MODE_FIELD && (s_fldAngry || s_fight))
+        if (s_angry || s_fight)
         {
             /* Busy fighting: his silence is not a turn. */
-            if (s_fldAngry && s_stateT >= COMBAT_QUIET)
+            if (s_mode == MODE_FIELD && s_angry && s_stateT >= COMBAT_QUIET)
             {
                 SH_DBG("[CONSCIOUS] field: no more shouting, they just fight");
+                Con_FieldDone();
+            }
+        }
+        else if (Con_Spared())
+        {
+            /* Nothing more to say to ones that let him go: they go back to waiting. */
+            if (s_stateT >= g_PcCon.listenSec)
+            {
+                SH_DBG("[CONSCIOUS] field: quiet, the ones that let him go stop listening");
                 Con_FieldDone();
             }
         }
@@ -1841,7 +2154,7 @@ static void Con_Tick(float dt, int live)
         {
             SH_DBG("[CONSCIOUS] no answer from the model in %.0fs", THINK_LIMIT);
             s_gen++;
-            Con_SpeakResult(NULL, 1, s_fldAngry ? PCCON_DECIDE_ATTACK : -1);
+            Con_SpeakResult(NULL, 1, s_angry ? PCCON_DECIDE_ATTACK : -1);
         }
         break;
 
@@ -1960,7 +2273,7 @@ int Pc_Conscious_StalkerCalm(s_SubCharacter* chara, q19_12* goalX, q19_12* goalZ
 
     if (!g_PcCon.enabled || idx < 0 || idx >= NPC_N || idx >= SLOT_N)
         return 0;
-    if (s_mode != MODE_ALLEY || s_state == CS_OFF || s_state == CS_HOSTILE ||
+    if (s_mode != MODE_ALLEY || s_state == CS_OFF || s_state == CS_HOSTILE || s_angry ||
         g_SavegamePtr->mapIdx != MapIdx_MAP0_S00)
         return 0;
 
@@ -1971,7 +2284,7 @@ int Pc_Conscious_StalkerCalm(s_SubCharacter* chara, q19_12* goalX, q19_12* goalZ
         if (g_SysWork.npcs[i].model.charaId == Chara_GreyChild)
             rank++;
 
-    if (s_state == CS_RELEASED)
+    if (s_gangSpared)
     {
         *goalX    = (q19_12)(s_holdX[idx] * 4096.0f);
         *goalZ    = (q19_12)(s_holdZ[idx] * 4096.0f);
@@ -2122,9 +2435,13 @@ void Pc_Conscious_Frame(void)
         {
             snprintf(hud.status, sizeof(hud.status), "They're fighting each other!");
         }
-        else if (s_mode == MODE_FIELD && s_fldAngry)
+        else if (s_angry)
         {
             snprintf(hud.status, sizeof(hud.status), "They're attacking! You can still talk.");
+        }
+        else if (Con_Spared() && (s_state == CS_LISTEN || s_state == CS_RELEASED))
+        {
+            snprintf(hud.status, sizeof(hud.status), "They let you go. You can still talk.");
         }
         else if (s_mode == MODE_FIELD)
         {
@@ -2136,7 +2453,7 @@ void Pc_Conscious_Frame(void)
                 snprintf(hud.status, sizeof(hud.status), s_sttPending ? "The %s is listening..." :
                          "The %s wants an answer... %d", name, left < 0 ? 0 : left);
             }
-            else if (s_state == CS_THINKING && !s_fldAngry)
+            else if (s_state == CS_THINKING && !s_angry)
                 snprintf(hud.status, sizeof(hud.status), "The %s is thinking it over...", name);
         }
         else if (s_state == CS_LISTEN)
@@ -2148,11 +2465,6 @@ void Pc_Conscious_Frame(void)
         else if (s_state == CS_THINKING)
         {
             snprintf(hud.status, sizeof(hud.status), "The grey children mutter among themselves...");
-        }
-        else if (s_state == CS_RELEASED && s_stateT < g_PcCon.graceSec)
-        {
-            snprintf(hud.status, sizeof(hud.status), "They're letting you go... %d",
-                     (int)ceilf(g_PcCon.graceSec - s_stateT));
         }
     }
     if (inGame)

@@ -56,7 +56,6 @@ static const char s_template[] =
     "morpheus_dir = C:/Claude/morpheus/src/bin/Debug/net8.0\n"
     "\n"
     "listen_seconds = 30\n"
-    "grace_seconds = 30\n"
     "patience_seconds = 240\n"
     "min_words_first = 5\n"
     "min_words = 2\n"
@@ -106,7 +105,6 @@ static void Cfg_Defaults(PcConCfg* c)
     c->voiceStyle      = 0.65f;
     SDL_strlcpy(c->morpheusDir, "C:/Claude/morpheus/src/bin/Debug/net8.0", sizeof(c->morpheusDir));
     c->listenSec     = 30.0f;
-    c->graceSec      = 30.0f;
     c->patienceSec   = 240.0f;
     c->minWordsFirst = 5;
     c->minWords      = 2;
@@ -151,7 +149,7 @@ static void Cfg_Set(PcConCfg* c, const char* k, const char* v)
     FLT("voice_pitch", voicePitch) FLT("voice_stability", voiceStability)
     FLT("voice_similarity", voiceSimilarity) FLT("voice_style", voiceStyle)
     STR("morpheus_dir", morpheusDir)
-    FLT("listen_seconds", listenSec) FLT("grace_seconds", graceSec) FLT("patience_seconds", patienceSec)
+    FLT("listen_seconds", listenSec) FLT("patience_seconds", patienceSec)
     INT("min_words_first", minWordsFirst) INT("min_words", minWords) INT("max_turns", maxTurns)
     FLT("hear_range", hearRange)
     STR("key_mic", keyMic) STR("key_chat", keyChat) INT("mic_start_on", micStartOn)

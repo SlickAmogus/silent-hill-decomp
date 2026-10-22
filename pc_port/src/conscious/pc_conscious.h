@@ -28,7 +28,7 @@ typedef struct
     char  voiceId[64], ttsModel[64];
     float voicePitch, voiceStability, voiceSimilarity, voiceStyle;
     char  morpheusDir[260];
-    float listenSec, graceSec, patienceSec;
+    float listenSec, patienceSec;
     int   minWordsFirst, minWords, maxTurns;
     int   monsters;            /* other enemies can be talked to too */
     float monsterHearRange;    /* metres: they stop when Harry speaks this close */
@@ -92,6 +92,7 @@ void PcConNet_Start(void);
 void PcConNet_SubmitStt(unsigned int gen, unsigned char* wav, unsigned long wavLen);
 #define PCCON_JUDGE_TURN  0  /* ATTACK / RELEASE / TALK */
 #define PCCON_JUDGE_ARGUE 1  /* FIGHT / UNITE */
+#define PCCON_JUDGE_SPARED 2 /* ATTACK / TALK: they let him go, only a blatant insult undoes it */
 
 typedef struct
 {
