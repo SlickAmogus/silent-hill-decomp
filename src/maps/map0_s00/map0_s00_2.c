@@ -1853,9 +1853,20 @@ void func_800DD0CC(void) // 0x800DD0CC
      * alley flickers around the bright default fog instead of the black.
      * While the flicker runs it owns field_4 (its weight never reaches 1), so
      * anything else there means the state was rebuilt: put preset 10 back as
-     * the current effects and restart the flicker from it, as the PSX does. */
+     * the current effects and restart the flicker from it, as the PSX does.
+     *
+     * The lighter event is also what loads the match flame's texture (case 0,
+     * GameFs_FlameGfxLoad); the flame itself comes back with the save, so after
+     * a load it sampled an empty tpage and drew as a white square. Reload it
+     * then -- but not when field_4 is still the lighter event's own timer:
+     * that is normal play straight after the event, the texture is already in
+     * VRAM, and the event may still be streaming the children in. */
     if (g_SysWork.field_2388.field_4 != (s8*)&D_800DFB40)
     {
+        if (g_SysWork.field_2388.field_4 != (s8*)&D_800DFB5C)
+        {
+            GameFs_FlameGfxLoad();
+        }
         Gfx_MapEffectsUpdate(10, 10, PrimitiveType_None, NULL, 0, 0);
         g_SysWork.field_2388.field_1C[0] = g_SysWork.field_2388.field_84[0];
         g_SysWork.field_2388.field_1C[1] = g_SysWork.field_2388.field_84[1];
