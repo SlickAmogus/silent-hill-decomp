@@ -22,6 +22,11 @@
 #include "pc_conscious.h"
 #include "sh_log.h"
 
+#define STB_IMAGE_WRITE_STATIC
+#define STBI_WRITE_NO_STDIO
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
+
 #define NET_QUEUE 6
 #define TTS_RATE  22050
 
@@ -35,6 +40,8 @@ typedef struct
     char*          judgeText;
     int            forced;
     char           voiceId[64];
+    unsigned char* shot;
+    int            shotW, shotH;
 } NetJob;
 
 static SDL_Thread* s_thread;
@@ -45,6 +52,7 @@ static int         s_jobCount;
 static PcConResult s_results[NET_QUEUE];
 static int         s_resultCount;
 static int         s_inFlight;
+static int         s_visionRefused;
 
 /* ------------------------------------------------------------------ */
 /* JSON                                                                */
@@ -371,6 +379,157 @@ static char* Net_Stt(const unsigned char* wav, unsigned long wavLen)
 }
 
 /* ------------------------------------------------------------------ */
+/* What they see                                                       */
+/* ------------------------------------------------------------------ */
+
+typedef struct
+{
+    unsigned char* p;
+    size_t         n, cap;
+} JpgBuf;
+
+static void Jpg_Put(void* ctx, void* data, int size)
+{
+    JpgBuf* b = (JpgBuf*)ctx;
+    if (b->n + (size_t)size > b->cap)
+    {
+        size_t         cap = (b->cap ? b->cap * 2 : 65536) + (size_t)size;
+        unsigned char* p   = (unsigned char*)realloc(b->p, cap);
+        if (!p) return;
+        b->p   = p;
+        b->cap = cap;
+    }
+    memcpy(b->p + b->n, data, (size_t)size);
+    b->n += (size_t)size;
+}
+
+/* Bottom-up RGBA -> a "data:image/jpeg;base64,..." URL, box-filtered down to
+ * vision_width. The game is dark and foggy, so averaging rather than point
+ * sampling keeps what little detail there is. */
+static char* Shot_DataUrl(const unsigned char* rgba, int w, int h)
+{
+    static const char b64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    static const char head[] = "data:image/jpeg;base64,";
+    int            dw = w < g_PcCon.visionWidth ? w : g_PcCon.visionWidth;
+    int            dh = (int)((long long)h * dw / w);
+    unsigned char* rgb;
+    JpgBuf         jpg = { NULL, 0, 0 };
+    char*          url;
+    char*          o;
+    size_t         i;
+    int            x, y;
+
+    if (dh < 1)
+        return NULL;
+    rgb = (unsigned char*)malloc((size_t)dw * (size_t)dh * 3);
+    if (!rgb)
+        return NULL;
+    for (y = 0; y < dh; y++)
+    {
+        int y0 = (int)((long long)y * h / dh), y1 = (int)((long long)(y + 1) * h / dh);
+        if (y1 <= y0) y1 = y0 + 1;
+        for (x = 0; x < dw; x++)
+        {
+            int           x0 = (int)((long long)x * w / dw), x1 = (int)((long long)(x + 1) * w / dw);
+            unsigned long sum[3] = { 0, 0, 0 }, n = 0;
+            int           sx, sy;
+            if (x1 <= x0) x1 = x0 + 1;
+            for (sy = y0; sy < y1; sy++)
+            {
+                const unsigned char* row = rgba + (size_t)(h - 1 - sy) * (size_t)w * 4;
+                for (sx = x0; sx < x1; sx++, n++)
+                {
+                    sum[0] += row[sx * 4 + 0];
+                    sum[1] += row[sx * 4 + 1];
+                    sum[2] += row[sx * 4 + 2];
+                }
+            }
+            rgb[((size_t)y * dw + x) * 3 + 0] = (unsigned char)(sum[0] / n);
+            rgb[((size_t)y * dw + x) * 3 + 1] = (unsigned char)(sum[1] / n);
+            rgb[((size_t)y * dw + x) * 3 + 2] = (unsigned char)(sum[2] / n);
+        }
+    }
+    stbi_write_jpg_to_func(Jpg_Put, &jpg, dw, dh, 3, rgb, 80);
+    free(rgb);
+    if (!jpg.n)
+    {
+        free(jpg.p);
+        return NULL;
+    }
+    if (g_PcCon.visionSave)
+    {
+        FILE* f = fopen("conscious_view.jpg", "wb");
+        if (f)
+        {
+            fwrite(jpg.p, 1, jpg.n, f);
+            fclose(f);
+        }
+    }
+
+    url = (char*)malloc(sizeof(head) + (jpg.n + 2) / 3 * 4 + 1);
+    if (url)
+    {
+        strcpy(url, head);
+        o = url + sizeof(head) - 1;
+        for (i = 0; i < jpg.n; i += 3)
+        {
+            unsigned v = (unsigned)jpg.p[i] << 16;
+            if (i + 1 < jpg.n) v |= (unsigned)jpg.p[i + 1] << 8;
+            if (i + 2 < jpg.n) v |= jpg.p[i + 2];
+            *o++ = b64[(v >> 18) & 63];
+            *o++ = b64[(v >> 12) & 63];
+            *o++ = i + 1 < jpg.n ? b64[(v >> 6) & 63] : '=';
+            *o++ = i + 2 < jpg.n ? b64[v & 63] : '=';
+        }
+        *o = '\0';
+        SH_DBG("[CONSCIOUS] vision: %dx%d -> %dx%d, %lu byte jpeg", w, h, dw, dh, (unsigned long)jpg.n);
+    }
+    free(jpg.p);
+    return url;
+}
+
+/* The same messages with the picture added to the last user message, which is
+ * the only place the APIs accept one. NULL if there is no user message. */
+static char* Msgs_WithImage(const char* msgs, const char* url)
+{
+    static const char tag[]  = "{\"role\":\"user\",\"content\":\"";
+    static const char lead[] = "{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"";
+    static const char mid[]  = "\"},{\"type\":\"image_url\",\"image_url\":{\"url\":\"";
+    static const char shut[] = "\"}}]";
+    const char* last = NULL;
+    const char* p;
+    const char* text;
+    const char* q;
+    char*       out;
+    size_t      cap;
+
+    for (p = strstr(msgs, tag); p; p = strstr(p + 1, tag))
+        last = p;
+    if (!last)
+        return NULL;
+    text = last + sizeof(tag) - 1;
+    for (q = text; *q && *q != '"'; q++)
+        if (*q == '\\' && q[1])
+            q++;
+    if (!*q)
+        return NULL;
+
+    cap = strlen(msgs) + strlen(url) + sizeof(lead) + sizeof(mid) + sizeof(shut);
+    out = (char*)malloc(cap);
+    if (!out)
+        return NULL;
+    memcpy(out, msgs, (size_t)(last - msgs));
+    out[last - msgs] = '\0';
+    strcat(out, lead);
+    strncat(out, text, (size_t)(q - text));
+    strcat(out, mid);
+    strcat(out, url);
+    strcat(out, shut);
+    strcat(out, q + 1);
+    return out;
+}
+
+/* ------------------------------------------------------------------ */
 /* Thread                                                              */
 /* ------------------------------------------------------------------ */
 
@@ -388,8 +547,32 @@ static void Net_Run(const NetJob* j, PcConResult* r)
         return;
     }
 
-    r->text = Net_Chat(g_PcCon.llmUrl, g_PcCon.llmModel, g_PcCon.llmKey, j->replyMsgs,
-                       g_PcCon.llmMaxTokens, g_PcCon.llmTemperature);
+    if (j->shot && !s_visionRefused)
+    {
+        char* url  = Shot_DataUrl(j->shot, j->shotW, j->shotH);
+        char* msgs = url ? Msgs_WithImage(j->replyMsgs, url) : NULL;
+        free(url);
+        if (msgs)
+        {
+            r->text = Net_Chat(g_PcCon.llmUrl, g_PcCon.llmModel, g_PcCon.llmKey, msgs,
+                               g_PcCon.llmMaxTokens, g_PcCon.llmTemperature);
+            free(msgs);
+            if (!r->text)
+            {
+                r->text = Net_Chat(g_PcCon.llmUrl, g_PcCon.llmModel, g_PcCon.llmKey, j->replyMsgs,
+                                   g_PcCon.llmMaxTokens, g_PcCon.llmTemperature);
+                /* Text alone got through, so it was the picture: this model takes none. */
+                if (r->text)
+                {
+                    s_visionRefused = 1;
+                    SH_DBG("[CONSCIOUS] vision: %s refused the picture, text only from now on", g_PcCon.llmModel);
+                }
+            }
+        }
+    }
+    if (!r->text)
+        r->text = Net_Chat(g_PcCon.llmUrl, g_PcCon.llmModel, g_PcCon.llmKey, j->replyMsgs,
+                           g_PcCon.llmMaxTokens, g_PcCon.llmTemperature);
     if (!r->text)
         return;
     Text_Clean(r->text);
@@ -436,6 +619,7 @@ static int SDLCALL Net_Thread(void* unused)
         free(job.wav);
         free(job.replyMsgs);
         free(job.judgeText);
+        free(job.shot);
 
         SDL_LockMutex(s_lock);
         if (s_resultCount < NET_QUEUE)
@@ -474,6 +658,7 @@ static void Net_Push(const NetJob* j)
         free(j->wav);
         free(j->replyMsgs);
         free(j->judgeText);
+        free(j->shot);
     }
     SDL_CondSignal(s_cond);
     SDL_UnlockMutex(s_lock);
@@ -490,7 +675,8 @@ void PcConNet_SubmitStt(unsigned int gen, unsigned char* wav, unsigned long wavL
     Net_Push(&j);
 }
 
-void PcConNet_SubmitTurn(unsigned int gen, char* replyMsgs, char* judgeText, int forced, const char* voiceId)
+void PcConNet_SubmitTurn(unsigned int gen, char* replyMsgs, char* judgeText, int forced, const char* voiceId,
+                         unsigned char* shot, int shotW, int shotH)
 {
     NetJob j;
     memset(&j, 0, sizeof(j));
@@ -499,6 +685,9 @@ void PcConNet_SubmitTurn(unsigned int gen, char* replyMsgs, char* judgeText, int
     j.replyMsgs = replyMsgs;
     j.judgeText = judgeText;
     j.forced    = forced;
+    j.shot      = shot;
+    j.shotW     = shotW;
+    j.shotH     = shotH;
     if (voiceId)
         SDL_strlcpy(j.voiceId, voiceId, sizeof(j.voiceId));
     Net_Push(&j);

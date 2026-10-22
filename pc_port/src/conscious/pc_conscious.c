@@ -246,6 +246,27 @@ static const char* Mon_Self(int charaId)
     }
 }
 
+/* What it looks like from the game camera, so it can find itself in the shot. */
+static const char* Mon_Look(int charaId)
+{
+    switch (charaId)
+    {
+    case Chara_Groaner:     return "a raw, skinless, reddish dog-like beast on four legs";
+    case Chara_Romper:      return "a hunched, grey, ape-like creature with long arms";
+    case Chara_AirScreamer: return "a winged, beaked, leathery creature, flying or crouched on the ground";
+    case Chara_NightFlutter:return "a winged, leathery creature with worms for a face";
+    default:                return "small grey child-sized figures holding knives";
+    }
+}
+
+static const char s_vision[] =
+    "Each line from %s comes with a picture: exactly what the game camera shows right now, a dark, "
+    "foggy, over-the-shoulder view. %s is the fair-haired man in a jacket, usually near the middle. "
+    "If you see %s in it, that is you%s. "
+    "Use the picture when it matters: if he points at something (a car, a building, a sign, a door, you), "
+    "answer about what is really there. Do not describe the scene unprompted. "
+    "If something is too dark or foggy to make out, say so in character.";
+
 /* Height of the bubble above the model's root. */
 static float Mon_HeadY(int charaId)
 {
@@ -361,7 +382,7 @@ static void Fld_System(char* out, int cap)
 
 static char* Con_BuildMsgs(void)
 {
-    char   sys[sizeof(s_persona) + sizeof(s_fieldRules) + 1024];
+    char   sys[sizeof(s_persona) + sizeof(s_fieldRules) + sizeof(s_vision) + 1024];
     size_t cap = sizeof(sys) * 2 + 256;
     char*  out;
     int    i, from;
@@ -375,6 +396,14 @@ static char* Con_BuildMsgs(void)
         Fld_System(sys, (int)sizeof(sys));
     else
         snprintf(sys, sizeof(sys), s_persona, g_PcCon.playerName);
+    if (g_PcCon.vision)
+    {
+        int field = s_mode == MODE_FIELD;
+        snprintf(sys + strlen(sys), sizeof(sys) - strlen(sys), " ");
+        snprintf(sys + strlen(sys), sizeof(sys) - strlen(sys), s_vision, g_PcCon.playerName, g_PcCon.playerName,
+                 Mon_Look(field ? Fld_LeaderChara() : Chara_GreyChild),
+                 field ? " (any other monsters near you are the ones listening with you)" : " and your gang");
+    }
     strcpy(out, "[{\"role\":\"system\",\"content\":\"");
     PcCon_JsonEscapeCat(out, (int)cap, sys);
     strcat(out, "\"}");
@@ -731,6 +760,9 @@ static void Con_FieldDone(void)
 
 static void Con_SubmitTurn(const char* userContent, int forced)
 {
+    int            shotW = 0, shotH = 0;
+    unsigned char* shot  = g_PcCon.vision ? PcConHud_Capture(&shotW, &shotH) : NULL;
+
     if (s_note[0])
     {
         char buf[1600];
@@ -743,7 +775,7 @@ static void Con_SubmitTurn(const char* userContent, int forced)
         Hist_Add(0, userContent);
     }
     PcConNet_SubmitTurn(s_gen, Con_BuildMsgs(), Con_BuildJudge(), forced,
-                        s_mode == MODE_FIELD ? Fld_Voice() : NULL);
+                        s_mode == MODE_FIELD ? Fld_Voice() : NULL, shot, shotW, shotH);
 }
 
 static int Con_OutOfPatience(void)

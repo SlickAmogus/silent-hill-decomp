@@ -593,6 +593,44 @@ static void Hu_DrawBubble(const PcConHudState* st, int px, const GLint* vp)
     glDisable(GL_SCISSOR_TEST);
 }
 
+/* The overlay hook draws into the scene target or, at native resolution,
+ * straight onto the window inside the 4:3 rect -- whichever is bound, inside
+ * the current viewport, is the picture the player sees. */
+unsigned char* PcConHud_Capture(int* outW, int* outH)
+{
+    extern GLuint  GR_ScreenReadFBO(void);
+    GLint          vp[4], drawFb = 0, readFb = 0, pack = 4;
+    unsigned char* px;
+
+    *outW = *outH = 0;
+    glGetIntegerv(GL_VIEWPORT, vp);
+    if (vp[2] <= 0 || vp[3] <= 0)
+        return NULL;
+    px = (unsigned char*)malloc((size_t)vp[2] * (size_t)vp[3] * 4);
+    if (!px)
+        return NULL;
+    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &drawFb);
+    glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &readFb);
+    glGetIntegerv(GL_PACK_ALIGNMENT, &pack);
+    if (drawFb == 0)
+    {
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+        glReadBuffer(GL_BACK);
+    }
+    else
+    {
+        /* Multisampled scene targets cannot be read directly; this resolves. */
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, GR_ScreenReadFBO());
+    }
+    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+    glReadPixels(vp[0], vp[1], vp[2], vp[3], GL_RGBA, GL_UNSIGNED_BYTE, px);
+    glPixelStorei(GL_PACK_ALIGNMENT, pack);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, (GLuint)readFb);
+    *outW = vp[2];
+    *outH = vp[3];
+    return px;
+}
+
 void PcConHud_Draw(const PcConHudState* st)
 {
     GLint     vp[4];

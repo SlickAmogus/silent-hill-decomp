@@ -35,6 +35,9 @@ typedef struct
     float monsterFleeRange;    /* metres: past this mid-conversation he is running away */
     int   monsterMaxTurns;
     char  monsterVoices[640];  /* comma-separated ElevenLabs voice ids */
+    int   vision;              /* send what the camera sees with each of Harry's lines */
+    int   visionWidth;         /* pixels; the shot is scaled down to this */
+    int   visionSave;          /* also write the last shot to conscious_view.jpg */
     float hearRange;           /* metres: full volume within 3, silent beyond */
     char  keyMic[32], keyChat[32];
     int   micStartOn;
@@ -85,8 +88,10 @@ void PcConNet_Start(void);
 void PcConNet_SubmitStt(unsigned int gen, unsigned char* wav, unsigned long wavLen);
 /* replyMsgs: a JSON array of chat messages. judgeText: transcript for the
  * judge. forced >= 0 skips the judge and uses that decision. voiceId NULL or
- * "" = the configured voice. */
-void PcConNet_SubmitTurn(unsigned int gen, char* replyMsgs, char* judgeText, int forced, const char* voiceId);
+ * "" = the configured voice. shot: bottom-up RGBA of what the camera sees,
+ * attached to the last user message (NULL = text only); owned like the rest. */
+void PcConNet_SubmitTurn(unsigned int gen, char* replyMsgs, char* judgeText, int forced, const char* voiceId,
+                         unsigned char* shot, int shotW, int shotH);
 /* Returns 1 and fills *out when a result is waiting; free with PcConNet_Free. */
 int  PcConNet_Poll(PcConResult* out);
 void PcConNet_Free(PcConResult* r);
@@ -149,6 +154,9 @@ typedef struct
 } PcConHudState;
 
 void PcConHud_Draw(const PcConHudState* st);
+/* What is on screen right now, before this frame's HUD: malloc'd bottom-up
+ * RGBA, or NULL. Call from inside the overlay hook. */
+unsigned char* PcConHud_Capture(int* outW, int* outH);
 
 #ifdef __cplusplus
 }
