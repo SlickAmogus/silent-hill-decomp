@@ -6,6 +6,7 @@
 #include "maps/shared.h"
 #ifdef SH_PC_PORT
 #include "sh_log.h"
+#include "pc_conscious_hook.h"
 #endif
 #include "maps/characters/romper.h"
 
@@ -442,9 +443,83 @@ void sharedFunc_800E6420_2_s02(s_SubCharacter* romper)
     }
 }
 
+#ifdef SH_PC_PORT
+static u8 s_romperPcHeld[ARRAY_SIZE(g_SysWork.npcs)];
+
+/* Talking-monster hook: while Harry is talking to it the Romper crouches in
+ * its post-landing idle and faces him. It only stops on the ground between
+ * moves (never mid-leap or on top of him), lets go if a hit changes its state,
+ * and comes out of the hold running at him the way Romper_ControlWalkForward
+ * starts a run. */
+static bool Romper_PcParley(s_SubCharacter* romper)
+{
+    s32 idx = romper - g_SysWork.npcs;
+    u8* held;
+
+    if (idx < 0 || idx >= ARRAY_SIZE(g_SysWork.npcs))
+    {
+        return false;
+    }
+    held = &s_romperPcHeld[idx];
+
+    if (!Pc_Conscious_MonsterCalm(romper))
+    {
+        if (*held)
+        {
+            *held                           = 0;
+            romperProps.targetPositionX_FC  = g_SysWork.playerWork.player.position.vx;
+            romperProps.targetPositionZ_100 = g_SysWork.playerWork.player.position.vz;
+            romperProps.rotationY_F2        = romper->rotation.vy;
+            romper->model.controlState      = RomperControl_WalkForward;
+            romper->model.anim.status       = ANIM_STATUS(RomperAnim_RunForwardStart, false);
+            romperProps.field_10C           = 18;
+            romper->flags                  |= RomperFlag_2;
+        }
+        return false;
+    }
+
+    if (!*held)
+    {
+        if ((romper->model.controlState != RomperControl_1 &&
+             romper->model.controlState != RomperControl_WalkForward &&
+             romper->model.controlState != RomperControl_3) ||
+            (romperProps.flags & (RomperFlag_Falling | RomperFlag_4 | RomperFlag_11)) ||
+            romper->model.anim.status == ANIM_STATUS(RomperAnim_GrabAttack, true) ||
+            romper->model.anim.status == ANIM_STATUS(RomperAnim_GrabAttack, false))
+        {
+            return false;
+        }
+        *held = RomperControl_9;
+        romper->model.controlState = RomperControl_9;
+    }
+    else if (romper->model.controlState != RomperControl_9)
+    {
+        *held = 0;
+        return false;
+    }
+
+    romper->moveSpeed = MAX(romper->moveSpeed - Q12_MULT_PRECISE(g_DeltaTime, Q12(15.0f)), Q12(0.0f));
+    Pc_ConsciousFaceHarry(romper, Q12_ANGLE(90.0f));
+    romperProps.rotationY_F2 = romper->rotation.vy;
+    if (romper->model.anim.status != ANIM_STATUS(RomperAnim_JumpToIdleEnd, true) &&
+        romper->model.anim.status != ANIM_STATUS(RomperAnim_JumpToIdleEnd, false))
+    {
+        romper->model.anim.status = ANIM_STATUS(RomperAnim_JumpToIdleEnd, false);
+    }
+    return true;
+}
+#endif
+
 void Romper_ControlUpdate(s_SubCharacter* romper)
 {
     u8 controlState;
+
+#ifdef SH_PC_PORT
+    if (Romper_PcParley(romper))
+    {
+        return;
+    }
+#endif
 
     if (romper->model.controlState != RomperControl_Jump)
     {

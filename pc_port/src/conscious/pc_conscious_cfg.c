@@ -67,7 +67,15 @@ static const char s_template[] =
     "mic_start_on = 0\n"
     "vad_threshold = 0.02\n"
     "vad_hang_seconds = 1.1\n"
-    "player_name = Harry\n";
+    "player_name = Harry\n"
+    "\n"
+    "# Groaners, Rompers and Air Screamers stop and talk when Harry speaks near them.\n"
+    "monsters = 1\n"
+    "monster_hear_range = 12\n"
+    "monster_flee_range = 18\n"
+    "monster_max_turns = 8\n"
+    "# Callum, Charlie, George, Daniel, Oliver Silk, Harry (Fierce Warrior), Adam, Brian\n"
+    "monster_voices = N2lVS1w4EtoT3dr4eOWO,IKne3meq5aSn9XLyUdCD,JBFqnCBsd6RMkjVDRZzb,onwK4e9ZLuTAKqWW03F9,jfIS2w2yJi0grJZPyEsk,SOYHLrjzK2X1ezoPC6cr,pNInz6obpgDQGcFmaJgB,nPczCjzI2devNBz1zQrb\n";
 
 static void Cfg_Defaults(PcConCfg* c)
 {
@@ -98,6 +106,11 @@ static void Cfg_Defaults(PcConCfg* c)
     c->vadThreshold = 0.02f;
     c->vadHangSec   = 1.1f;
     SDL_strlcpy(c->playerName, "Harry", sizeof(c->playerName));
+    c->monsters         = 1;
+    c->monsterHearRange = 12.0f;
+    c->monsterFleeRange = 18.0f;
+    c->monsterMaxTurns  = 8;
+    SDL_strlcpy(c->monsterVoices, "N2lVS1w4EtoT3dr4eOWO,IKne3meq5aSn9XLyUdCD,JBFqnCBsd6RMkjVDRZzb,onwK4e9ZLuTAKqWW03F9,jfIS2w2yJi0grJZPyEsk,SOYHLrjzK2X1ezoPC6cr,pNInz6obpgDQGcFmaJgB,nPczCjzI2devNBz1zQrb", sizeof(c->monsterVoices));
 }
 
 static char* Cfg_Trim(char* s)
@@ -129,6 +142,9 @@ static void Cfg_Set(PcConCfg* c, const char* k, const char* v)
     STR("key_mic", keyMic) STR("key_chat", keyChat) INT("mic_start_on", micStartOn)
     FLT("vad_threshold", vadThreshold) FLT("vad_hang_seconds", vadHangSec)
     STR("player_name", playerName)
+    INT("monsters", monsters) FLT("monster_hear_range", monsterHearRange)
+    FLT("monster_flee_range", monsterFleeRange) INT("monster_max_turns", monsterMaxTurns)
+    STR("monster_voices", monsterVoices)
 #undef STR
 #undef INT
 #undef FLT
@@ -234,6 +250,10 @@ void PcCon_CfgLoad(void)
     if (g_PcCon.listenSec < 5.0f) g_PcCon.listenSec = 5.0f;
     if (g_PcCon.hearRange < 4.0f) g_PcCon.hearRange = 4.0f;
     if (g_PcCon.maxTurns < 1)     g_PcCon.maxTurns = 1;
+    if (g_PcCon.monsterHearRange < 3.0f) g_PcCon.monsterHearRange = 3.0f;
+    if (g_PcCon.monsterFleeRange < g_PcCon.monsterHearRange + 2.0f)
+        g_PcCon.monsterFleeRange = g_PcCon.monsterHearRange + 2.0f;
+    if (g_PcCon.monsterMaxTurns < 1) g_PcCon.monsterMaxTurns = 1;
 
     SH_DBG("[CONSCIOUS] enabled=%d llm=%s (%s, key %s) judge=%s tts=%d stt=%d eleven key %s voice=%s",
            g_PcCon.enabled, g_PcCon.llmUrl, g_PcCon.llmModel, g_PcCon.llmKey[0] ? "set" : "none",

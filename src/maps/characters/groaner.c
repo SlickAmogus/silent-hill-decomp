@@ -7,6 +7,7 @@
 #include "maps/characters/groaner.h"
 #ifdef SH_PC_PORT
 #include "sh_log.h"
+#include "pc_conscious_hook.h"
 #endif
 
 #define groanerProps groaner->properties.groaner
@@ -329,6 +330,68 @@ extern s_800EEE3C sharedData_800EEE3C_2_s00[];
     #define UNK_VAL Q12(1.0f)
 #endif
 
+#ifdef SH_PC_PORT
+static u8 s_groanerPcHeld[ARRAY_SIZE(g_SysWork.npcs)];
+
+/* Talking-monster hook: while Harry is talking to it the Groaner stands and
+ * faces him. It only stops between moves -- a jump already in the air lands
+ * first -- and anything that changes its state while held (a hit, a stun)
+ * lets go so retail handles it. Coming out of the hold it charges: whatever
+ * it was doing before, it has heard him now. */
+static bool Groaner_PcParley(s_SubCharacter* groaner)
+{
+    s32 idx = groaner - g_SysWork.npcs;
+    u8* held;
+
+    if (idx < 0 || idx >= ARRAY_SIZE(g_SysWork.npcs))
+    {
+        return false;
+    }
+    held = &s_groanerPcHeld[idx];
+
+    if (!Pc_Conscious_MonsterCalm(groaner))
+    {
+        if (*held)
+        {
+            *held                       = 0;
+            groaner->model.controlState = GroanerControl_RunForward;
+            groaner->model.anim.status  = ANIM_STATUS(GroanerAnim_RunForward, false);
+            groanerProps.flags.val16[0] &= ~GroanerFlag_0;
+            groanerProps.flags.val16[0] |= GroanerFlag_5 | GroanerFlag_10;
+            groanerProps.targetPositionX = g_SysWork.playerWork.player.position.vx;
+            groanerProps.targetPositionZ = g_SysWork.playerWork.player.position.vz;
+        }
+        return false;
+    }
+
+    if (!*held)
+    {
+        if ((groaner->model.controlState != GroanerControl_WalkForward &&
+             groaner->model.controlState != GroanerControl_RunForward &&
+             groaner->model.controlState != GroanerControl_4) ||
+            (groanerProps.flags.val16[0] & GroanerFlag_Airborne))
+        {
+            return false;
+        }
+        *held = groaner->model.controlState;
+    }
+    else if (groaner->model.controlState != *held)
+    {
+        *held = 0;
+        return false;
+    }
+
+    Chara_MoveSpeedUpdate(groaner, Q12(6.0f));
+    Pc_ConsciousFaceHarry(groaner, Q12_ANGLE(120.0f));
+    if (groaner->model.anim.status != ANIM_STATUS(GroanerAnim_StandIdle, true) &&
+        groaner->model.anim.status != ANIM_STATUS(GroanerAnim_StandIdle, false))
+    {
+        groaner->model.anim.status = ANIM_STATUS(GroanerAnim_StandIdle, false);
+    }
+    return true;
+}
+#endif
+
 void sharedFunc_800E384C_2_s00(s_SubCharacter* groaner)
 {
     extern void (*sharedData_800EEE14_2_s00[])(s_SubCharacter* chara);
@@ -379,6 +442,12 @@ void sharedFunc_800E384C_2_s00(s_SubCharacter* groaner)
      * PSX MIPS it's a fast trap that the original execution never
      * actually hits because controlState advances to >=1 in Init. Guard
      * just in case. */
+#ifdef SH_PC_PORT
+    if (Groaner_PcParley(groaner))
+    {
+        return;
+    }
+#endif
     if (sharedData_800EEE14_2_s00[groaner->model.controlState] != NULL)
     {
         sharedData_800EEE14_2_s00[groaner->model.controlState](groaner);

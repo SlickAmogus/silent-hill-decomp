@@ -30,6 +30,11 @@ typedef struct
     char  morpheusDir[260];
     float listenSec, graceSec, patienceSec;
     int   minWordsFirst, minWords, maxTurns;
+    int   monsters;            /* other enemies can be talked to too */
+    float monsterHearRange;    /* metres: they stop when Harry speaks this close */
+    float monsterFleeRange;    /* metres: past this mid-conversation he is running away */
+    int   monsterMaxTurns;
+    char  monsterVoices[640];  /* comma-separated ElevenLabs voice ids */
     float hearRange;           /* metres: full volume within 3, silent beyond */
     char  keyMic[32], keyChat[32];
     int   micStartOn;
@@ -79,8 +84,9 @@ void PcConNet_Start(void);
 /* Both take ownership of the malloc'd buffer they are given. */
 void PcConNet_SubmitStt(unsigned int gen, unsigned char* wav, unsigned long wavLen);
 /* replyMsgs: a JSON array of chat messages. judgeText: transcript for the
- * judge. forced >= 0 skips the judge and uses that decision. */
-void PcConNet_SubmitTurn(unsigned int gen, char* replyMsgs, char* judgeText, int forced);
+ * judge. forced >= 0 skips the judge and uses that decision. voiceId NULL or
+ * "" = the configured voice. */
+void PcConNet_SubmitTurn(unsigned int gen, char* replyMsgs, char* judgeText, int forced, const char* voiceId);
 /* Returns 1 and fills *out when a result is waiting; free with PcConNet_Free. */
 int  PcConNet_Poll(PcConResult* out);
 void PcConNet_Free(PcConResult* r);

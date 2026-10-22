@@ -34,6 +34,7 @@ typedef struct
     char*          replyMsgs;
     char*          judgeText;
     int            forced;
+    char           voiceId[64];
 } NetJob;
 
 static SDL_Thread* s_thread;
@@ -249,7 +250,7 @@ static int Net_Judge(const char* judgeText)
 {
     static const char sys[] =
         "You read a scene from a horror game and decide what a pack of monsters does next. "
-        "The monsters are the Grey Children. They have been questioning a man named Harry. "
+        "They have been talking with a man named Harry instead of attacking him. "
         "Look ONLY at whether their LATEST line means they are now attacking him, letting him go, "
         "or still talking / waiting for an answer. "
         "Answer with exactly one word: ATTACK, RELEASE, or TALK.\n"
@@ -289,7 +290,7 @@ static int Net_Judge(const char* judgeText)
     return d;
 }
 
-static short* Net_Tts(const char* text, unsigned int* outSamples)
+static short* Net_Tts(const char* text, const char* voiceId, unsigned int* outSamples)
 {
     char   url[256], hdr[320];
     char   body[2048];
@@ -301,7 +302,7 @@ static short* Net_Tts(const char* text, unsigned int* outSamples)
     if (!g_PcCon.tts || !g_PcCon.elevenKey[0] || !text[0])
         return NULL;
     snprintf(url, sizeof(url), "https://api.elevenlabs.io/v1/text-to-speech/%s?output_format=pcm_%d",
-             g_PcCon.voiceId, TTS_RATE);
+             voiceId[0] ? voiceId : g_PcCon.voiceId, TTS_RATE);
     snprintf(hdr, sizeof(hdr), "Content-Type: application/json\r\nAccept: audio/pcm\r\nxi-api-key: %s\r\n",
              g_PcCon.elevenKey);
     body[0] = '\0';
@@ -411,7 +412,7 @@ static void Net_Run(const NetJob* j, PcConResult* r)
             free(t);
         }
     }
-    r->pcm = Net_Tts(r->text, &r->samples);
+    r->pcm = Net_Tts(r->text, j->voiceId, &r->samples);
 }
 
 static int SDLCALL Net_Thread(void* unused)
@@ -489,7 +490,7 @@ void PcConNet_SubmitStt(unsigned int gen, unsigned char* wav, unsigned long wavL
     Net_Push(&j);
 }
 
-void PcConNet_SubmitTurn(unsigned int gen, char* replyMsgs, char* judgeText, int forced)
+void PcConNet_SubmitTurn(unsigned int gen, char* replyMsgs, char* judgeText, int forced, const char* voiceId)
 {
     NetJob j;
     memset(&j, 0, sizeof(j));
@@ -498,6 +499,8 @@ void PcConNet_SubmitTurn(unsigned int gen, char* replyMsgs, char* judgeText, int
     j.replyMsgs = replyMsgs;
     j.judgeText = judgeText;
     j.forced    = forced;
+    if (voiceId)
+        SDL_strlcpy(j.voiceId, voiceId, sizeof(j.voiceId));
     Net_Push(&j);
 }
 

@@ -5,6 +5,9 @@
 #include "main/rng.h"
 #include "maps/shared.h"
 #include "maps/characters/air_screamer.h"
+#ifdef SH_PC_PORT
+#include "pc_conscious_hook.h"
+#endif
 bool Ai_AirScreamer_Control(s_SubCharacter* airScreamer);bool Ai_AirScreamer_Init(s_SubCharacter* airScreamer);
 
 // NOTES:
@@ -19,6 +22,96 @@ bool Ai_AirScreamer_Control(s_SubCharacter* airScreamer);bool Ai_AirScreamer_Ini
 #define airScreamerProps airScreamer->properties.airScreamer
 
 
+#ifdef SH_PC_PORT
+/* Talking-monster hook. Held: 0 = free, else 1 + the anim status it was put
+ * in, so a hit (which sets a recoil anim) is seen and lets go. */
+static u8      s_asPcHeld[ARRAY_SIZE(g_SysWork.npcs)];
+static VECTOR3 s_asPcPin[ARRAY_SIZE(g_SysWork.npcs)];
+
+static bool AirScreamer_PcBusy(s_SubCharacter* airScreamer)
+{
+    switch (airScreamer->model.anim.status >> 1)
+    {
+        case AirScreamerAnim_StandBiteAttack:
+        case AirScreamerAnim_HoverBiteAttack:
+        case AirScreamerAnim_GlideScratchAttack:
+        case AirScreamerAnim_StandToStun:
+        case AirScreamerAnim_Death:
+        case AirScreamerAnim_StandRecoil:
+        case AirScreamerAnim_HoverRecoil:
+        case AirScreamerAnim_GlideRecoil:
+        case AirScreamerAnim_HoverInjuredBiteAttack:
+        case AirScreamerAnim_HoverToStun:
+        case AirScreamerAnim_GlideToStun:
+        case AirScreamerAnim_DeathThroes:
+        case AirScreamerAnim_StandBiteAttackStart:
+        case AirScreamerAnim_StandBiteAttackEnd:
+        case AirScreamerAnim_HoverInjuredToStun:
+        case AirScreamerAnim_Stun:
+            return true;
+    }
+    return false;
+}
+
+/* While Harry talks to it the Air Screamer hangs in the air where it was
+ * (or stands, if it was on the ground) and faces him: no control func runs,
+ * and AirScreamer_PcPin puts it back after the movement step. It only stops
+ * between attacks; on release the retail AI carries on from where it was. */
+static bool AirScreamer_PcParley(s_SubCharacter* airScreamer)
+{
+    s32 idx = airScreamer - g_SysWork.npcs;
+    u8* held;
+    u8  want;
+
+    if (idx < 0 || idx >= ARRAY_SIZE(g_SysWork.npcs))
+    {
+        return false;
+    }
+    held = &s_asPcHeld[idx];
+
+    if (!Pc_Conscious_MonsterCalm(airScreamer) || airScreamer->health <= Q12(0.0f))
+    {
+        *held = 0;
+        return false;
+    }
+
+    if (!*held)
+    {
+        if (AirScreamer_PcBusy(airScreamer))
+        {
+            return false;
+        }
+        s_asPcPin[idx] = airScreamer->position;
+        want = (airScreamerProps.groundHeight - airScreamer->position.vy > Q12(0.5f)) ?
+               ANIM_STATUS(AirScreamerAnim_HoverVariable, false) : ANIM_STATUS(AirScreamerAnim_StandIdle, false);
+        airScreamer->model.anim.status = want;
+        *held = want + 1;
+    }
+    else if (airScreamer->model.anim.status != *held - 1 && airScreamer->model.anim.status != *held)
+    {
+        *held = 0;
+        return false;
+    }
+
+    airScreamer->model.anim.flags |= AnimFlag_Unlocked;
+    return true;
+}
+
+static void AirScreamer_PcPin(s_SubCharacter* airScreamer)
+{
+    s32 idx = airScreamer - g_SysWork.npcs;
+
+    if (idx < 0 || idx >= ARRAY_SIZE(g_SysWork.npcs) || !s_asPcHeld[idx])
+    {
+        return;
+    }
+    airScreamer->position  = s_asPcPin[idx];
+    airScreamer->moveSpeed = Q12(0.0f);
+    airScreamer->fallSpeed = Q12(0.0f);
+    Pc_ConsciousFaceHarry(airScreamer, Q12_ANGLE(120.0f));
+}
+#endif
+
 void AirScreamer_Update(s_SubCharacter* airScreamer, s_AnmHeader* anmHdr, GsCOORDINATE2* coords)
 {
     sharedFunc_800D21E4_0_s01(anmHdr, coords);
@@ -30,6 +123,9 @@ void AirScreamer_Update(s_SubCharacter* airScreamer, s_AnmHeader* anmHdr, GsCOOR
     sharedFunc_800D2390_0_s01(airScreamer);
     Ai_AirScreamer_Control(airScreamer);
     sharedFunc_800D62D8_0_s01(airScreamer);
+#ifdef SH_PC_PORT
+    AirScreamer_PcPin(airScreamer);
+#endif
     sharedFunc_800D7AB0_0_s01(airScreamer);
     sharedFunc_800D7EBC_0_s01(airScreamer);
     sharedFunc_800D81B0_0_s01(airScreamer);
@@ -1058,6 +1154,11 @@ bool Ai_AirScreamer_Control(s_SubCharacter* airScreamer)
     if (airScreamerProps.field_E8_0 == 3)
     {
         airScreamerProps.field_E8_8 = 0;
+    }
+
+    if (AirScreamer_PcParley(airScreamer))
+    {
+        return true;
     }
 
     {
