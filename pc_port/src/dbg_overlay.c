@@ -2091,6 +2091,11 @@ void DbgOverlay_Render(void)
      * it would never run during normal gameplay. */
     { extern void Pc_RaToast_Draw(void); Pc_RaToast_Draw(); }
 
+    /* Talking grey children (silenthill-conscious): conversation tick, mic,
+     * chat and its HUD. Self-contained GL like the toast, and it must run
+     * every frame of gameplay, so it sits above the early-out too. */
+    { extern void Pc_Conscious_Frame(void); Pc_Conscious_Frame(); }
+
     /* Free camera controls panel, same self-contained-GL arrangement. */
     { extern void Pc_FreeCamHud_Draw(void); Pc_FreeCamHud_Draw(); }
 

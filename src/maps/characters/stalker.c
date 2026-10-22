@@ -56,6 +56,57 @@ static bool Pc_StalkerMayCommitAttack(void)
     return Rng_GenerateInt(0, TIMESTEP_30_FPS - 1) < g_DeltaTime;
 }
 #define SH_STALKER_MAY_COMMIT pcMayCommit
+
+#if defined(MAP0_S00)
+/* silenthill-conscious: while pc_conscious.c says a child is calm it walks to
+ * the goal it was given, stops short, and stands facing Harry. Turn rate and
+ * the alignment-scaled walk speed are Control_2's own, so the approach moves
+ * like the retail stalk. Anim 30's rate follows moveSpeed with a 0.1 floor, so
+ * a child that has stopped sways on the spot rather than freezing mid-stride. */
+int Pc_Conscious_StalkerCalm(s_SubCharacter* chara, q19_12* goalX, q19_12* goalZ, q19_12* stopDist);
+
+static void Pc_StalkerParley(s_SubCharacter* stalker, q19_12 goalX, q19_12 goalZ, q19_12 stopDist)
+{
+    q19_12 dist;
+    q3_12  face;
+    q3_12  delta;
+
+    dist   = SquareRoot0(SQUARE((goalX - stalker->position.vx) >> 6) + SQUARE((goalZ - stalker->position.vz) >> 6));
+    dist <<= 6;
+
+    if (dist > stopDist)
+    {
+        face  = ratan2(goalX - stalker->position.vx, goalZ - stalker->position.vz);
+        delta = Math_AngleNormalizeSigned(face - stalker->rotation.vy);
+        if (ABS(delta) > Q12_ANGLE(90.0f))
+        {
+            Chara_MoveSpeedUpdate(stalker, Q12(1.5f));
+        }
+        else
+        {
+            Chara_MoveSpeedUpdate3(stalker, Q12_ANGLE(180.0f), (Q12_ANGLE(90.0f) - ABS(delta)) * 4);
+        }
+    }
+    else
+    {
+        face  = Math_AngleBetweenPositionsGet(stalker->position, g_SysWork.playerWork.player.position);
+        delta = Math_AngleNormalizeSigned(face - stalker->rotation.vy);
+        Chara_MoveSpeedUpdate(stalker, Q12(3.0f));
+    }
+
+    if (TIMESTEP_ANGLE(1, 2) < ABS(delta))
+    {
+        if (delta > Q12_ANGLE(0.0f))
+        {
+            stalker->rotation.vy += Q12_MULT_PRECISE(g_DeltaTime, Q12_ANGLE(180.0f));
+        }
+        else
+        {
+            stalker->rotation.vy -= Q12_MULT_PRECISE(g_DeltaTime, Q12_ANGLE(180.0f));
+        }
+    }
+}
+#endif
 #else
 #define SH_STALKER_MAY_COMMIT 1
 #endif
@@ -716,6 +767,13 @@ void Ai_Stalker_Control_2(s_SubCharacter* stalker)
     s32    i;
 #ifdef SH_PC_PORT
     bool   pcMayCommit;
+    q19_12 pcGoalX, pcGoalZ, pcStop;
+
+    if (Pc_Conscious_StalkerCalm(stalker, &pcGoalX, &pcGoalZ, &pcStop))
+    {
+        Pc_StalkerParley(stalker, pcGoalX, pcGoalZ, pcStop);
+        return;
+    }
 #endif
 
     // TODO: Doesn't match?

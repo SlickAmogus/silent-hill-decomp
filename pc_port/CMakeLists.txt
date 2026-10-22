@@ -418,6 +418,12 @@ if(SH_HAVE_LUA)
     target_compile_definitions(SilentHillPC PRIVATE SH_LUA=1)
 endif()
 
+# Talking grey children (src/conscious/) post to their services through WinHTTP
+# whether or not RetroAchievements is built in.
+if(WIN32)
+    target_link_libraries(SilentHillPC PRIVATE winhttp)
+endif()
+
 # RetroAchievements: the runtime plus the platform HTTP backend it posts through
 # (WinHTTP ships with Windows; libcurl is the Linux/macOS standard).
 if(SH_HAVE_RETROACHIEVEMENTS)

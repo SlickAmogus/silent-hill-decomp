@@ -2379,6 +2379,27 @@ void MainLoop(void) // 0x80032EE0
                 }
             }
         }
+        {
+            /* Talking grey children: typing in the chat drops the pad, and the
+             * mic key (V = Circle) must not also press its button. */
+            extern unsigned int Pc_Conscious_PadMask(void);
+            unsigned int m = Pc_Conscious_PadMask();
+            if (m == ~0u) {
+                g_Controller0->heldBtnFlags      = 0;
+                g_Controller0->clickedBtnFlags   = 0;
+                g_Controller0->releasedBtnFlags  = 0;
+                g_Controller0->pulsedBtnFlags    = 0;
+                g_Controller0->pulsedGuiBtnFlags = 0;
+                g_Controller0->sticks_20.rawData_0 = 0;
+                g_Controller0->sticks_24.rawData_0 = 0;
+            } else if (m) {
+                g_Controller0->heldBtnFlags      &= ~m;
+                g_Controller0->clickedBtnFlags   &= ~m;
+                g_Controller0->releasedBtnFlags  &= ~m;
+                g_Controller0->pulsedBtnFlags    &= ~m;
+                g_Controller0->pulsedGuiBtnFlags &= ~m;
+            }
+        }
 
         /* Quick Save (F6) / Quick Load (F8) — always on, not debug-gated. */
         {
