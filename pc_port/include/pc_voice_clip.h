@@ -19,6 +19,8 @@ unsigned int Pc_VoiceClip_PlayEx(const short* pcm, unsigned int samples, int rat
                                  float gain, float pitch);
 void Pc_VoiceClip_SetGain(unsigned int handle, float gain);
 int  Pc_VoiceClip_Playing(unsigned int handle);
+/* 0..1 through the clip; 1 once it has finished or the handle is stale. */
+float Pc_VoiceClip_Progress(unsigned int handle);
 void Pc_VoiceClip_Stop(unsigned int handle);
 /* Once a frame: recycle finished sources. */
 void Pc_VoiceClip_Tick(void);

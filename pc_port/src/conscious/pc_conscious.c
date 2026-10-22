@@ -77,6 +77,9 @@ static int          s_openerReady;
 static unsigned int s_clip;
 static int          s_speaker = -1;
 static float        s_textHold;
+static char         s_line[400];      /* what the speaker is saying, for the bubble */
+static float        s_lineT, s_lineDur;
+static float        s_bubbleLinger;
 
 static unsigned int s_calmSeenMs[64];
 static float        s_holdX[64], s_holdZ[64];
@@ -253,6 +256,47 @@ static float Con_Gain(int npc)
     return d < 0.0f ? 0.0f : d;
 }
 
+/* PsyCross: the world pass's ortho rect in prim coordinates, which maps onto
+ * the presented picture -- the same viewport the post-capture HUD draws in,
+ * so the fraction below holds under hfov/vfov, pillarbox and Hor+ alike. */
+extern float g_PcWorldOrthoRect[4];
+
+/* Just above the head, as a fraction of the picture. 0 when behind the camera. */
+static int Con_HeadOnScreen(int npc, float* fx, float* fy)
+{
+    MATRIX               mat;
+    SVECTOR              v;
+    long                 sxy = 0, p = 0, flag = 0, otz;
+    float                x, y, w, h;
+    const s_SubCharacter* c;
+
+    if (npc < 0 || npc >= NPC_N || g_SysWork.npcs[npc].model.charaId != Chara_GreyChild)
+        return 0;
+    c = &g_SysWork.npcs[npc];
+    memset(&v, 0, sizeof(v));
+    Vw_WorldScreenMatrixAtPositionGet(&mat, c->position.vx, c->position.vy - Q12(1.45f), c->position.vz);
+    SetRotMatrix(&mat);
+    SetTransMatrix(&mat);
+    otz = RotTransPers(&v, &sxy, &p, &flag);
+    if (otz <= 8)
+        return 0;
+    x = (float)(s16)(sxy & 0xFFFF);
+    y = (float)(s16)((u32)sxy >> 16);
+    w = g_PcWorldOrthoRect[1] - g_PcWorldOrthoRect[0];
+    h = g_PcWorldOrthoRect[3] - g_PcWorldOrthoRect[2];
+    if (w == 0.0f || h == 0.0f)
+        return 0;
+    *fx = (x - g_PcWorldOrthoRect[0]) / w;
+    *fy = (y - g_PcWorldOrthoRect[2]) / h;
+    if (*fx < -0.2f || *fx > 1.2f || *fy < -0.2f || *fy > 1.2f)
+        return 0;
+    if (*fx < 0.12f) *fx = 0.12f;
+    if (*fx > 0.88f) *fx = 0.88f;
+    if (*fy < 0.10f) *fy = 0.10f;
+    if (*fy > 0.85f) *fy = 0.85f;
+    return 1;
+}
+
 static int Con_Awake(void)
 {
     const unsigned int now = SDL_GetTicks();
@@ -292,6 +336,7 @@ static void Con_Reset(void)
     s_hintShown      = 0;
     s_textHold       = 0.0f;
     s_speaker        = -1;
+    s_line[0]        = '\0';
     memset(s_calmSeenMs, 0, sizeof(s_calmSeenMs));
     PcConChat_Close();
     PcConMic_SetOn(0);
@@ -339,6 +384,10 @@ static void Con_Speak(const char* text, const short* pcm, unsigned int samples, 
     Pc_VoiceClip_Stop(s_clip);
     s_clip     = pcm ? Pc_VoiceClip_PlayEx(pcm, samples, rate, 0, Con_Gain(s_speaker), g_PcCon.voicePitch) : 0;
     s_textHold = s_clip ? 0.3f : 1.2f + 0.055f * (float)strlen(text);
+    SDL_strlcpy(s_line, text, sizeof(s_line));
+    s_lineT   = 0.0f;
+    s_lineDur = s_clip ? (float)samples / ((float)rate * g_PcCon.voicePitch) : s_textHold;
+    s_bubbleLinger = 1.5f;
     s_pendingDecision = decision;
     s_talking = 1;
     s_turns++;
@@ -788,6 +837,29 @@ void Pc_Conscious_Frame(void)
     Con_Tick(dt, live);
 
     memset(&hud, 0, sizeof(hud));
+    if (s_line[0] && s_state != CS_OFF && g_GameWork.gameState == GameState_InGame)
+    {
+        s_lineT += dt;
+        if (s_state != CS_SPEAKING)
+            s_bubbleLinger -= dt;
+        if (s_state == CS_SPEAKING || s_bubbleLinger > 0.0f)
+        {
+            if (Con_HeadOnScreen(s_speaker, &hud.bubbleX, &hud.bubbleY))
+            {
+                hud.bubble     = 1;
+                hud.bubbleText = s_line;
+                hud.bubbleProgress = s_clip ? Pc_VoiceClip_Progress(s_clip)
+                                            : (s_lineDur > 0.0f ? s_lineT / s_lineDur : 1.0f);
+                if (hud.bubbleProgress > 1.0f || s_state != CS_SPEAKING)
+                    hud.bubbleProgress = 1.0f;
+                hud.bubbleAlpha = (s_state == CS_SPEAKING || s_bubbleLinger > 0.5f) ? 1.0f : s_bubbleLinger / 0.5f;
+            }
+        }
+        else
+        {
+            s_line[0] = '\0';
+        }
+    }
     if (s_state != CS_OFF && s_state != CS_HOSTILE && g_GameWork.gameState == GameState_InGame)
     {
         hud.micIcon     = 1;

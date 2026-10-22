@@ -513,6 +513,86 @@ static void Hu_DrawMic(const PcConHudState* st, int px)
     }
 }
 
+#define BUBBLE_CHUNK 28
+#define BUBBLE_MAXCHUNKS 24
+
+/* The line over the speaker's head. Baked as word chunks laid end to end so a
+ * long line never needs one texture wider than the atlas; when it is wider
+ * than the bubble it scrolls right-to-left (read left to right) in step with
+ * the voice, clipped to the bubble by a scissor. */
+static void Hu_DrawBubble(const PcConHudState* st, int px, const GLint* vp)
+{
+    char        chunk[BUBBLE_MAXCHUNKS][BUBBLE_CHUNK + 8];
+    float       cw[BUBBLE_MAXCHUNKS];
+    int         n = 0, i;
+    const char* p = st->bubbleText;
+    const int   bp   = (int)((float)px * 0.95f);
+    const float gap  = (float)bp * 0.28f;
+    const float maxW = s_vpW * 0.40f;
+    const float padX = (float)bp * 0.6f, padY = (float)bp * 0.3f;
+    const float lh   = (float)bp * 1.4f;
+    float       total = 0.0f, winW, x0, y0, off = 0.0f, x;
+    float       a = st->bubbleAlpha;
+
+    while (*p && n < BUBBLE_MAXCHUNKS)
+    {
+        int len = 0, lastSp = -1;
+        while (p[len] && len < BUBBLE_CHUNK)
+        {
+            if (p[len] == ' ') lastSp = len;
+            len++;
+        }
+        if (p[len] && lastSp > 0)
+            len = lastSp;
+        memcpy(chunk[n], p, (size_t)len);
+        chunk[n][len] = '\0';
+        cw[n] = Hu_TextWidth(chunk[n], bp);
+        total += cw[n] + (n ? gap : 0.0f);
+        n++;
+        p += len;
+        while (*p == ' ') p++;
+    }
+    if (n == 0)
+        return;
+
+    winW = total < maxW ? total : maxW;
+    x0   = st->bubbleX * s_vpW - winW * 0.5f;
+    if (x0 < padX) x0 = padX;
+    if (x0 + winW + padX > s_vpW) x0 = s_vpW - winW - padX;
+    y0 = st->bubbleY * s_vpH - lh - padY * 2.0f;
+    if (y0 < padY) y0 = padY;
+
+    if (total > maxW)
+    {
+        /* A beat at each end so the first and last words can be read. */
+        float t = (st->bubbleProgress - 0.08f) / 0.80f;
+        if (t < 0.0f) t = 0.0f;
+        if (t > 1.0f) t = 1.0f;
+        off = t * (total - maxW);
+    }
+
+    Hu_FillPx(x0 - padX, y0 - padY, winW + padX * 2.0f, lh + padY * 2.0f, 0.02f, 0.02f, 0.03f, 0.72f * a);
+    Hu_FillPx(x0 - padX, y0 - padY, winW + padX * 2.0f, 2.0f, 0.70f, 0.30f, 0.26f, 0.80f * a);
+    {
+        const float cx = st->bubbleX * s_vpW;
+        const float ty = y0 + lh + padY;
+        Hu_FillPx(cx - (float)bp * 0.30f, ty,                     (float)bp * 0.60f, (float)bp * 0.18f, 0.02f, 0.02f, 0.03f, 0.72f * a);
+        Hu_FillPx(cx - (float)bp * 0.15f, ty + (float)bp * 0.18f, (float)bp * 0.30f, (float)bp * 0.18f, 0.02f, 0.02f, 0.03f, 0.72f * a);
+    }
+
+    glEnable(GL_SCISSOR_TEST);
+    glScissor(vp[0] + (GLint)x0, vp[1] + (GLint)(s_vpH - (y0 + lh + padY)),
+              (GLsizei)(winW + 1.0f), (GLsizei)(lh + padY * 2.0f));
+    x = x0 - off;
+    for (i = 0; i < n; i++)
+    {
+        if (x + cw[i] >= x0 - 2.0f && x <= x0 + winW + 2.0f)
+            Hu_DrawText(chunk[i], x, y0, bp, 1.0f, 0.62f, 0.52f, a);
+        x += cw[i] + gap;
+    }
+    glDisable(GL_SCISSOR_TEST);
+}
+
 void PcConHud_Draw(const PcConHudState* st)
 {
     GLint     vp[4];
@@ -521,7 +601,7 @@ void PcConHud_Draw(const PcConHudState* st)
     GLboolean prevDepth, prevBlend, prevCull, prevScissor;
     int       px;
 
-    if (!st->micIcon && !st->status[0] && !PcConChat_DisplayActive())
+    if (!st->micIcon && !st->status[0] && !st->bubble && !PcConChat_DisplayActive())
         return;
     if (s_glReady == 0)
         Hu_GlInit();
@@ -576,6 +656,8 @@ void PcConHud_Draw(const PcConHudState* st)
     glBlendEquation(GL_FUNC_ADD);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+    if (st->bubble && st->bubbleText && st->bubbleText[0])
+        Hu_DrawBubble(st, px, vp);
     if (PcConChat_DisplayActive())
         Hu_DrawChat(px);
     if (st->micIcon)

@@ -135,6 +135,11 @@ typedef struct
     const char* micKeyName;
     const char* chatKeyName;
     char        status[128];    /* centred prompt, "" for none */
+    int         bubble;         /* speech over the speaker's head */
+    float       bubbleX, bubbleY;   /* head, as fractions of the picture */
+    float       bubbleProgress;     /* 0..1 through the line: drives the scroll */
+    float       bubbleAlpha;
+    const char* bubbleText;
 } PcConHudState;
 
 void PcConHud_Draw(const PcConHudState* st);
