@@ -1843,6 +1843,26 @@ void func_800DD0CC(void) // 0x800DD0CC
 {
     s32 vecs[2];
 
+#ifdef SH_PC_PORT
+    /* The flicker below is a transition FROM a snapshot of the current effects
+     * toward preset 6, held at a weight of only ~4-11%. On PSX the snapshot is
+     * always the dark preset 10 the lighter event (case 9 above) just faded
+     * in: there is no save point between the two. A PC quick load breaks that.
+     * The load screen resets the effects to preset 0 (field_4 = NULL), the
+     * lighter event never re-runs because EventFlag_17 is already set, and the
+     * alley flickers around the bright default fog instead of the black.
+     * While the flicker runs it owns field_4 (its weight never reaches 1), so
+     * anything else there means the state was rebuilt: put preset 10 back as
+     * the current effects and restart the flicker from it, as the PSX does. */
+    if (g_SysWork.field_2388.field_4 != (s8*)&D_800DFB40)
+    {
+        Gfx_MapEffectsUpdate(10, 10, PrimitiveType_None, NULL, 0, 0);
+        g_SysWork.field_2388.field_1C[0] = g_SysWork.field_2388.field_84[0];
+        g_SysWork.field_2388.field_1C[1] = g_SysWork.field_2388.field_84[1];
+        D_800DFB40 = NO_VALUE;
+    }
+#endif
+
     if (D_800DFB40 == NO_VALUE)
     {
         Gfx_MapEffectsUpdate(6, 6, PrimitiveType_S32, &D_800DFB40, 0, Q12(100.0f));
