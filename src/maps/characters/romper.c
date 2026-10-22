@@ -451,20 +451,33 @@ static u8 s_romperPcHeld[ARRAY_SIZE(g_SysWork.npcs)];
  * moves (never mid-leap or on top of him), lets go if a hit changes its state,
  * and comes out of the hold running at him the way Romper_ControlWalkForward
  * starts a run. */
+static void Romper_PcAnim(s_SubCharacter* romper, s32 anim)
+{
+    if ((romper->model.anim.status >> 1) != anim)
+    {
+        romper->model.anim.status = ANIM_STATUS(anim, false);
+    }
+}
+
 static bool Romper_PcParley(s_SubCharacter* romper)
 {
-    s32 idx = romper - g_SysWork.npcs;
-    u8* held;
+    s32             idx = romper - g_SysWork.npcs;
+    u8*             held;
+    s_SubCharacter* foe      = NULL;
+    s32             striking = 0;
+    s32             order;
 
     if (idx < 0 || idx >= ARRAY_SIZE(g_SysWork.npcs))
     {
         return false;
     }
-    held = &s_romperPcHeld[idx];
+    held  = &s_romperPcHeld[idx];
+    order = Pc_Conscious_MonsterOrder(romper, &foe, &striking);
 
-    if (!Pc_Conscious_MonsterCalm(romper))
+    if (order == PcConOrder_Free)
     {
-        if (*held)
+        /* A death lets go too, and must not be turned into a charge. */
+        if (*held && romper->health > Q12(0.0f))
         {
             *held                           = 0;
             romperProps.targetPositionX_FC  = g_SysWork.playerWork.player.position.vx;
@@ -475,6 +488,7 @@ static bool Romper_PcParley(s_SubCharacter* romper)
             romperProps.field_10C           = 18;
             romper->flags                  |= RomperFlag_2;
         }
+        *held = 0;
         return false;
     }
 
@@ -498,14 +512,33 @@ static bool Romper_PcParley(s_SubCharacter* romper)
         return false;
     }
 
-    romper->moveSpeed = MAX(romper->moveSpeed - Q12_MULT_PRECISE(g_DeltaTime, Q12(15.0f)), Q12(0.0f));
-    Pc_ConsciousFaceHarry(romper, Q12_ANGLE(90.0f));
-    romperProps.rotationY_F2 = romper->rotation.vy;
-    if (romper->model.anim.status != ANIM_STATUS(RomperAnim_JumpToIdleEnd, true) &&
-        romper->model.anim.status != ANIM_STATUS(RomperAnim_JumpToIdleEnd, false))
+    if (order == PcConOrder_Fight)
     {
-        romper->model.anim.status = ANIM_STATUS(RomperAnim_JumpToIdleEnd, false);
+        /* The bite is the brain's to land; this only runs at it and pounces. */
+        Pc_ConsciousFaceOrder(romper, foe, Q12_ANGLE(200.0f));
+        romperProps.rotationY_F2 = romper->rotation.vy;
+        if (striking)
+        {
+            romper->moveSpeed = MAX(romper->moveSpeed - Q12_MULT_PRECISE(g_DeltaTime, Q12(15.0f)), Q12(0.0f));
+            Romper_PcAnim(romper, RomperAnim_GrabAttack);
+        }
+        else if (Pc_ConsciousDist(romper, foe) > Q12(1.3f))
+        {
+            romper->moveSpeed = Q12(3.0f);
+            Romper_PcAnim(romper, RomperAnim_RunForwardLoop);
+        }
+        else
+        {
+            romper->moveSpeed = MAX(romper->moveSpeed - Q12_MULT_PRECISE(g_DeltaTime, Q12(15.0f)), Q12(0.0f));
+            Romper_PcAnim(romper, RomperAnim_JumpToIdleEnd);
+        }
+        return true;
     }
+
+    romper->moveSpeed = MAX(romper->moveSpeed - Q12_MULT_PRECISE(g_DeltaTime, Q12(15.0f)), Q12(0.0f));
+    Pc_ConsciousFaceOrder(romper, foe, Q12_ANGLE(90.0f));
+    romperProps.rotationY_F2 = romper->rotation.vy;
+    Romper_PcAnim(romper, RomperAnim_JumpToIdleEnd);
     return true;
 }
 #endif

@@ -42,6 +42,9 @@ typedef struct
     char           voiceId[64];
     unsigned char* shot;
     int            shotW, shotH;
+    int            judgeKind;
+    char*          incite;
+    int            inciteFalls;
 } NetJob;
 
 static SDL_Thread* s_thread;
@@ -254,6 +257,89 @@ static char* Net_Chat(const char* url, const char* model, const char* key,
     return content;
 }
 
+/* Last mention wins: a reasoning model may list every word before deciding. */
+static int Net_LastWord(char* ans, const char* const* words, const int* decisions, int n, int fallback)
+{
+    const char* best = NULL;
+    int         d    = fallback;
+    int         i;
+    char*       p;
+
+    for (p = ans; *p; p++) *p = (char)toupper((unsigned char)*p);
+    for (i = 0; i < n; i++)
+    {
+        const char* q;
+        for (q = strstr(ans, words[i]); q; q = strstr(q + 1, words[i]))
+            if (!best || q > best) { best = q; d = decisions[i]; }
+    }
+    return d;
+}
+
+static char* Net_OneShot(const char* sys, const char* user, int maxTokens)
+{
+    size_t cap = strlen(sys) * 2 + strlen(user) * 2 + 96;
+    char*  msgs = (char*)malloc(cap);
+    char*  ans;
+
+    if (!msgs)
+        return NULL;
+    msgs[0] = '\0';
+    strcat(msgs, "[{\"role\":\"system\",\"content\":\"");
+    PcCon_JsonEscapeCat(msgs, (int)cap - 64, sys);
+    strcat(msgs, "\"},{\"role\":\"user\",\"content\":\"");
+    PcCon_JsonEscapeCat(msgs, (int)cap - 8, user);
+    strcat(msgs, "\"}]");
+    ans = Net_Chat(g_PcCon.judgeUrl, g_PcCon.judgeModel, g_PcCon.judgeKey, msgs, maxTokens, 0.0f);
+    free(msgs);
+    if (ans)
+        Text_Clean(ans);
+    return ans;
+}
+
+static int Net_JudgeArgue(const char* judgeText)
+{
+    static const char sys[] =
+        "You read a scene from a horror game. A man named Harry tried to turn two monsters against each other, "
+        "and they argued about it. Look ONLY at the FIRST monster's LATEST line and decide what it does now. "
+        "Answer with exactly one word: FIGHT or UNITE.\n"
+        "FIGHT = it believes Harry, it turns on the other monster, it attacks / kills / bites the other one.\n"
+        "UNITE = it sees Harry tricked them, it sides with the other monster, they go after Harry together.";
+    static const char* const words[] = { "FIGHT", "UNITE" };
+    static const int         dec[]   = { PCCON_DECIDE_FIGHT, PCCON_DECIDE_UNITE };
+    char* ans = Net_OneShot(sys, judgeText, 400);
+    int   d;
+
+    if (!ans)
+        return PCCON_DECIDE_UNITE;
+    d = Net_LastWord(ans, words, dec, 2, PCCON_DECIDE_UNITE);
+    SH_DBG("[CONSCIOUS] argue judge said '%.60s' -> %d", ans, d);
+    free(ans);
+    return d;
+}
+
+/* Is he trying to set them on each other? Decided before the reply is
+ * written, because the reply has to know whether it worked. */
+static int Net_Incite(const char* scene)
+{
+    static const char sys[] =
+        "You read a scene from a horror game. A man named Harry is talking to a group of monsters that "
+        "stopped to listen to him. Decide whether his LATEST line is trying to turn them against EACH OTHER: "
+        "telling one that another betrayed it, mocked it, is after its food or plans to eat it, that it is "
+        "weaker or the other one is in charge, or urging them to fight each other. "
+        "Insulting or threatening the monsters themselves does NOT count. Answer with exactly one word: YES or NO.";
+    static const char* const words[] = { "YES", "NO" };
+    static const int         dec[]   = { 1, 0 };
+    char* ans = Net_OneShot(sys, scene, 300);
+    int   d;
+
+    if (!ans)
+        return 0;
+    d = Net_LastWord(ans, words, dec, 2, 0);
+    SH_DBG("[CONSCIOUS] incite check said '%.40s' -> %d", ans, d);
+    free(ans);
+    return d;
+}
+
 static int Net_Judge(const char* judgeText)
 {
     static const char sys[] =
@@ -265,34 +351,14 @@ static int Net_Judge(const char* judgeText)
         "ATTACK = they say they will kill/get/eat/hurt him now, they've lost patience, they order the attack.\n"
         "RELEASE = they tell him to leave, get lost, they'll spare him, back off, warn him not to come back.\n"
         "TALK = anything else: questions, threats about what MIGHT happen, demands for an answer.";
-    char   msgs[8192];
-    char*  ans;
-    int    d = PCCON_DECIDE_TALK;
-    char*  p;
+    static const char* const words[] = { "ATTACK", "RELEASE", "TALK" };
+    static const int         dec[]   = { PCCON_DECIDE_ATTACK, PCCON_DECIDE_RELEASE, PCCON_DECIDE_TALK };
+    char* ans = Net_OneShot(sys, judgeText, 400);
+    int   d;
 
-    msgs[0] = '\0';
-    strcat(msgs, "[{\"role\":\"system\",\"content\":\"");
-    PcCon_JsonEscapeCat(msgs, (int)sizeof(msgs) - 64, sys);
-    strcat(msgs, "\"},{\"role\":\"user\",\"content\":\"");
-    PcCon_JsonEscapeCat(msgs, (int)sizeof(msgs) - 8, judgeText);
-    strcat(msgs, "\"}]");
-
-    ans = Net_Chat(g_PcCon.judgeUrl, g_PcCon.judgeModel, g_PcCon.judgeKey, msgs, 400, 0.0f);
     if (!ans)
-        return d;
-    Text_Clean(ans);
-    for (p = ans; *p; p++) *p = (char)toupper((unsigned char)*p);
-    /* Last mention wins: a reasoning model may list all three before deciding. */
-    {
-        const char* a = strstr(ans, "ATTACK");
-        const char* r = strstr(ans, "RELEASE");
-        const char* t = strstr(ans, "TALK");
-        const char* best = NULL;
-        const char* q;
-        for (q = a; q; q = strstr(q + 1, "ATTACK"))  if (!best || q > best) { best = q; d = PCCON_DECIDE_ATTACK; }
-        for (q = r; q; q = strstr(q + 1, "RELEASE")) if (!best || q > best) { best = q; d = PCCON_DECIDE_RELEASE; }
-        for (q = t; q; q = strstr(q + 1, "TALK"))    if (!best || q > best) { best = q; d = PCCON_DECIDE_TALK; }
-    }
+        return PCCON_DECIDE_TALK;
+    d = Net_LastWord(ans, words, dec, 3, PCCON_DECIDE_TALK);
     SH_DBG("[CONSCIOUS] judge said '%.60s' -> %d", ans, d);
     free(ans);
     return d;
@@ -529,11 +595,43 @@ static char* Msgs_WithImage(const char* msgs, const char* url)
     return out;
 }
 
+/* The same messages with note added to the end of the last user message. */
+static char* Msgs_WithNote(const char* msgs, const char* note)
+{
+    static const char tag[] = "{\"role\":\"user\",\"content\":\"";
+    const char* last = NULL;
+    const char* p;
+    const char* q;
+    char*       out;
+    size_t      cap, n;
+
+    for (p = strstr(msgs, tag); p; p = strstr(p + 1, tag))
+        last = p;
+    if (!last)
+        return NULL;
+    for (q = last + sizeof(tag) - 1; *q && *q != '"'; q++)
+        if (*q == '\\' && q[1])
+            q++;
+    if (!*q)
+        return NULL;
+    cap = strlen(msgs) + strlen(note) * 2 + 16;
+    out = (char*)malloc(cap);
+    if (!out)
+        return NULL;
+    n = (size_t)(q - msgs);
+    memcpy(out, msgs, n);
+    out[n] = '\0';
+    strcat(out, "\\n");
+    PcCon_JsonEscapeCat(out, (int)cap - (int)strlen(q) - 2, note);
+    strcat(out, q);
+    return out;
+}
+
 /* ------------------------------------------------------------------ */
 /* Thread                                                              */
 /* ------------------------------------------------------------------ */
 
-static void Net_Run(const NetJob* j, PcConResult* r)
+static void Net_Run(NetJob* j, PcConResult* r)
 {
     memset(r, 0, sizeof(*r));
     r->kind = j->kind;
@@ -545,6 +643,29 @@ static void Net_Run(const NetJob* j, PcConResult* r)
         r->text = Net_Stt(j->wav, j->wavLen);
         r->ok   = (r->text != NULL);
         return;
+    }
+
+    if (j->incite && Net_Incite(j->incite))
+    {
+        if (j->inciteFalls)
+        {
+            SH_DBG("[CONSCIOUS] incite: it lands");
+            r->ok       = 1;
+            r->decision = PCCON_DECIDE_INCITE;
+            return;
+        }
+        else
+        {
+            char* m = Msgs_WithNote(j->replyMsgs,
+                                    "[He is trying to turn you against the others. You see right through it: call "
+                                    "it out, mock him for trying, and keep dealing with HIM.]");
+            SH_DBG("[CONSCIOUS] incite: they see through it");
+            if (m)
+            {
+                free(j->replyMsgs);
+                j->replyMsgs = m;
+            }
+        }
     }
 
     if (j->shot && !s_visionRefused)
@@ -591,7 +712,7 @@ static void Net_Run(const NetJob* j, PcConResult* r)
         if (t)
         {
             snprintf(t, n, "%s\nTHEIR LATEST LINE: \"%s\"", j->judgeText, r->text);
-            r->decision = Net_Judge(t);
+            r->decision = j->judgeKind == PCCON_JUDGE_ARGUE ? Net_JudgeArgue(t) : Net_Judge(t);
             free(t);
         }
     }
@@ -620,6 +741,7 @@ static int SDLCALL Net_Thread(void* unused)
         free(job.replyMsgs);
         free(job.judgeText);
         free(job.shot);
+        free(job.incite);
 
         SDL_LockMutex(s_lock);
         if (s_resultCount < NET_QUEUE)
@@ -659,6 +781,7 @@ static void Net_Push(const NetJob* j)
         free(j->replyMsgs);
         free(j->judgeText);
         free(j->shot);
+        free(j->incite);
     }
     SDL_CondSignal(s_cond);
     SDL_UnlockMutex(s_lock);
@@ -675,8 +798,7 @@ void PcConNet_SubmitStt(unsigned int gen, unsigned char* wav, unsigned long wavL
     Net_Push(&j);
 }
 
-void PcConNet_SubmitTurn(unsigned int gen, char* replyMsgs, char* judgeText, int forced, const char* voiceId,
-                         unsigned char* shot, int shotW, int shotH)
+void PcConNet_SubmitTurn(unsigned int gen, char* replyMsgs, char* judgeText, int forced, const PcConTurnOpts* opts)
 {
     NetJob j;
     memset(&j, 0, sizeof(j));
@@ -685,11 +807,17 @@ void PcConNet_SubmitTurn(unsigned int gen, char* replyMsgs, char* judgeText, int
     j.replyMsgs = replyMsgs;
     j.judgeText = judgeText;
     j.forced    = forced;
-    j.shot      = shot;
-    j.shotW     = shotW;
-    j.shotH     = shotH;
-    if (voiceId)
-        SDL_strlcpy(j.voiceId, voiceId, sizeof(j.voiceId));
+    if (opts)
+    {
+        j.shot        = opts->shot;
+        j.shotW       = opts->shotW;
+        j.shotH       = opts->shotH;
+        j.judgeKind   = opts->judgeKind;
+        j.incite      = opts->incite ? SDL_strdup(opts->incite) : NULL;
+        j.inciteFalls = opts->inciteFalls;
+        if (opts->voiceId)
+            SDL_strlcpy(j.voiceId, opts->voiceId, sizeof(j.voiceId));
+    }
     Net_Push(&j);
 }
 

@@ -57,19 +57,37 @@ static bool AirScreamer_PcBusy(s_SubCharacter* airScreamer)
  * (or stands, if it was on the ground) and faces him: no control func runs,
  * and AirScreamer_PcPin puts it back after the movement step. It only stops
  * between attacks; on release the retail AI carries on from where it was. */
+static s_SubCharacter* s_asPcFoe[ARRAY_SIZE(g_SysWork.npcs)];
+static u8              s_asPcFight[ARRAY_SIZE(g_SysWork.npcs)];
+
+static void AirScreamer_PcAnim(s_SubCharacter* airScreamer, u8* held, s32 anim)
+{
+    if ((airScreamer->model.anim.status >> 1) != anim)
+    {
+        airScreamer->model.anim.status = ANIM_STATUS(anim, false);
+    }
+    *held = ANIM_STATUS(anim, false) + 1;
+}
+
 static bool AirScreamer_PcParley(s_SubCharacter* airScreamer)
 {
-    s32 idx = airScreamer - g_SysWork.npcs;
-    u8* held;
-    u8  want;
+    s32             idx = airScreamer - g_SysWork.npcs;
+    u8*             held;
+    u8              want;
+    s_SubCharacter* foe      = NULL;
+    s32             striking = 0;
+    s32             order;
 
     if (idx < 0 || idx >= ARRAY_SIZE(g_SysWork.npcs))
     {
         return false;
     }
-    held = &s_asPcHeld[idx];
+    held  = &s_asPcHeld[idx];
+    order = Pc_Conscious_MonsterOrder(airScreamer, &foe, &striking);
 
-    if (!Pc_Conscious_MonsterCalm(airScreamer) || airScreamer->health <= Q12(0.0f))
+    /* Its damage is only taken inside the control funcs this skips: a hit has
+     * to let go, or it never registers and the creature stays frozen. */
+    if (order == PcConOrder_Free || airScreamer->health <= Q12(0.0f) || airScreamer->damage.amount > Q12(0.0f))
     {
         *held = 0;
         return false;
@@ -93,6 +111,12 @@ static bool AirScreamer_PcParley(s_SubCharacter* airScreamer)
         return false;
     }
 
+    s_asPcFoe[idx]   = foe;
+    s_asPcFight[idx] = order == PcConOrder_Fight;
+    if (s_asPcFight[idx])
+    {
+        AirScreamer_PcAnim(airScreamer, held, striking ? AirScreamerAnim_HoverBiteAttack : AirScreamerAnim_HoverVariable);
+    }
     airScreamer->model.anim.flags |= AnimFlag_Unlocked;
     return true;
 }
@@ -105,10 +129,36 @@ static void AirScreamer_PcPin(s_SubCharacter* airScreamer)
     {
         return;
     }
+    if (s_asPcFight[idx] && s_asPcFoe[idx])
+    {
+        /* Flies itself: hangs a body length off the foe, just above its head. */
+        s_SubCharacter* foe  = s_asPcFoe[idx];
+        VECTOR3*        pin  = &s_asPcPin[idx];
+        q19_12          dx   = foe->position.vx - pin->vx;
+        q19_12          dz   = foe->position.vz - pin->vz;
+        q19_12          dist = Math_Vector2MagCalc(dx, dz);
+        q19_12          step = Q12_MULT_PRECISE(g_DeltaTime, Q12(3.0f));
+        q19_12          goY  = foe->position.vy - Q12(1.1f);
+
+        if (dist > Q12(1.2f))
+        {
+            q19_12 go = MIN(step, dist - Q12(1.2f));
+            pin->vx += (q19_12)(((s64)dx * go) / dist);
+            pin->vz += (q19_12)(((s64)dz * go) / dist);
+        }
+        if (ABS(goY - pin->vy) <= step)
+        {
+            pin->vy = goY;
+        }
+        else
+        {
+            pin->vy += (goY > pin->vy) ? step : -step;
+        }
+    }
     airScreamer->position  = s_asPcPin[idx];
     airScreamer->moveSpeed = Q12(0.0f);
     airScreamer->fallSpeed = Q12(0.0f);
-    Pc_ConsciousFaceHarry(airScreamer, Q12_ANGLE(120.0f));
+    Pc_ConsciousFaceOrder(airScreamer, s_asPcFoe[idx], Q12_ANGLE(s_asPcFight[idx] ? 240.0f : 120.0f));
 }
 #endif
 

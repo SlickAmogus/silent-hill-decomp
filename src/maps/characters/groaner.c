@@ -338,20 +338,33 @@ static u8 s_groanerPcHeld[ARRAY_SIZE(g_SysWork.npcs)];
  * first -- and anything that changes its state while held (a hit, a stun)
  * lets go so retail handles it. Coming out of the hold it charges: whatever
  * it was doing before, it has heard him now. */
+static void Groaner_PcAnim(s_SubCharacter* groaner, s32 anim)
+{
+    if ((groaner->model.anim.status >> 1) != anim)
+    {
+        groaner->model.anim.status = ANIM_STATUS(anim, false);
+    }
+}
+
 static bool Groaner_PcParley(s_SubCharacter* groaner)
 {
-    s32 idx = groaner - g_SysWork.npcs;
-    u8* held;
+    s32             idx = groaner - g_SysWork.npcs;
+    u8*             held;
+    s_SubCharacter* foe      = NULL;
+    s32             striking = 0;
+    s32             order;
 
     if (idx < 0 || idx >= ARRAY_SIZE(g_SysWork.npcs))
     {
         return false;
     }
-    held = &s_groanerPcHeld[idx];
+    held  = &s_groanerPcHeld[idx];
+    order = Pc_Conscious_MonsterOrder(groaner, &foe, &striking);
 
-    if (!Pc_Conscious_MonsterCalm(groaner))
+    if (order == PcConOrder_Free)
     {
-        if (*held)
+        /* A death lets go too, and must not be turned into a charge. */
+        if (*held && groaner->health > Q12(0.0f))
         {
             *held                       = 0;
             groaner->model.controlState = GroanerControl_RunForward;
@@ -361,6 +374,7 @@ static bool Groaner_PcParley(s_SubCharacter* groaner)
             groanerProps.targetPositionX = g_SysWork.playerWork.player.position.vx;
             groanerProps.targetPositionZ = g_SysWork.playerWork.player.position.vz;
         }
+        *held = 0;
         return false;
     }
 
@@ -381,13 +395,31 @@ static bool Groaner_PcParley(s_SubCharacter* groaner)
         return false;
     }
 
-    Chara_MoveSpeedUpdate(groaner, Q12(6.0f));
-    Pc_ConsciousFaceHarry(groaner, Q12_ANGLE(120.0f));
-    if (groaner->model.anim.status != ANIM_STATUS(GroanerAnim_StandIdle, true) &&
-        groaner->model.anim.status != ANIM_STATUS(GroanerAnim_StandIdle, false))
+    if (order == PcConOrder_Fight)
     {
-        groaner->model.anim.status = ANIM_STATUS(GroanerAnim_StandIdle, false);
+        /* The bite is the brain's to land; this only runs at it and lunges. */
+        Pc_ConsciousFaceOrder(groaner, foe, Q12_ANGLE(240.0f));
+        if (striking)
+        {
+            Chara_MoveSpeedUpdate(groaner, Q12(6.0f));
+            Groaner_PcAnim(groaner, GroanerAnim_JumpAttack);
+        }
+        else if (Pc_ConsciousDist(groaner, foe) > Q12(1.2f))
+        {
+            groaner->moveSpeed = Q12(3.5f);
+            Groaner_PcAnim(groaner, GroanerAnim_RunForward);
+        }
+        else
+        {
+            Chara_MoveSpeedUpdate(groaner, Q12(6.0f));
+            Groaner_PcAnim(groaner, GroanerAnim_StandIdle);
+        }
+        return true;
     }
+
+    Chara_MoveSpeedUpdate(groaner, Q12(6.0f));
+    Pc_ConsciousFaceOrder(groaner, foe, Q12_ANGLE(120.0f));
+    Groaner_PcAnim(groaner, GroanerAnim_StandIdle);
     return true;
 }
 #endif

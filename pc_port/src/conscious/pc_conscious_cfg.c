@@ -76,6 +76,9 @@ static const char s_template[] =
     "monster_max_turns = 8\n"
     "# Callum, Charlie, George, Daniel, Oliver Silk, Harry (Fierce Warrior), Adam, Brian\n"
     "monster_voices = N2lVS1w4EtoT3dr4eOWO,IKne3meq5aSn9XLyUdCD,JBFqnCBsd6RMkjVDRZzb,onwK4e9ZLuTAKqWW03F9,jfIS2w2yJi0grJZPyEsk,SOYHLrjzK2X1ezoPC6cr,pNInz6obpgDQGcFmaJgB,nPczCjzI2devNBz1zQrb\n"
+    "# When Harry tries to turn two of them on each other: the chance they fall for it\n"
+    "# at all (then they argue, and either fight each other or come for him together).\n"
+    "monster_incite_chance = 0.35\n"
     "\n"
     "# 1 = each of Harry's lines goes out with a screenshot, so they can see what he means.\n"
     "# Needs a model that takes images (deepseek-chat / deepseek-flash do); one that\n"
@@ -119,6 +122,7 @@ static void Cfg_Defaults(PcConCfg* c)
     c->monsterFleeRange = 18.0f;
     c->monsterMaxTurns  = 8;
     SDL_strlcpy(c->monsterVoices, "N2lVS1w4EtoT3dr4eOWO,IKne3meq5aSn9XLyUdCD,JBFqnCBsd6RMkjVDRZzb,onwK4e9ZLuTAKqWW03F9,jfIS2w2yJi0grJZPyEsk,SOYHLrjzK2X1ezoPC6cr,pNInz6obpgDQGcFmaJgB,nPczCjzI2devNBz1zQrb", sizeof(c->monsterVoices));
+    c->monsterInciteChance = 0.35f;
     c->vision      = 1;
     c->visionWidth = 640;
     c->visionSave  = 1;
@@ -155,7 +159,7 @@ static void Cfg_Set(PcConCfg* c, const char* k, const char* v)
     STR("player_name", playerName)
     INT("monsters", monsters) FLT("monster_hear_range", monsterHearRange)
     FLT("monster_flee_range", monsterFleeRange) INT("monster_max_turns", monsterMaxTurns)
-    STR("monster_voices", monsterVoices)
+    STR("monster_voices", monsterVoices) FLT("monster_incite_chance", monsterInciteChance)
     INT("vision", vision) INT("vision_width", visionWidth) INT("vision_save", visionSave)
 #undef STR
 #undef INT
@@ -266,6 +270,8 @@ void PcCon_CfgLoad(void)
     if (g_PcCon.monsterFleeRange < g_PcCon.monsterHearRange + 2.0f)
         g_PcCon.monsterFleeRange = g_PcCon.monsterHearRange + 2.0f;
     if (g_PcCon.monsterMaxTurns < 1) g_PcCon.monsterMaxTurns = 1;
+    if (g_PcCon.monsterInciteChance < 0.0f) g_PcCon.monsterInciteChance = 0.0f;
+    if (g_PcCon.monsterInciteChance > 1.0f) g_PcCon.monsterInciteChance = 1.0f;
     if (g_PcCon.visionWidth < 160)   g_PcCon.visionWidth = 160;
     if (g_PcCon.visionWidth > 1600)  g_PcCon.visionWidth = 1600;
 

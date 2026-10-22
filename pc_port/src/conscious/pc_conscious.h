@@ -35,6 +35,7 @@ typedef struct
     float monsterFleeRange;    /* metres: past this mid-conversation he is running away */
     int   monsterMaxTurns;
     char  monsterVoices[640];  /* comma-separated ElevenLabs voice ids */
+    float monsterInciteChance; /* 0..1: that turning them on each other works at all */
     int   vision;              /* send what the camera sees with each of Harry's lines */
     int   visionWidth;         /* pixels; the shot is scaled down to this */
     int   visionSave;          /* also write the last shot to conscious_view.jpg */
@@ -65,7 +66,10 @@ typedef enum
 {
     PCCON_DECIDE_TALK = 0,
     PCCON_DECIDE_RELEASE,
-    PCCON_DECIDE_ATTACK
+    PCCON_DECIDE_ATTACK,
+    PCCON_DECIDE_INCITE,   /* no line: he turned them on each other, the brain stages it */
+    PCCON_DECIDE_FIGHT,    /* end of an argument: they fight each other */
+    PCCON_DECIDE_UNITE     /* end of an argument: they go for him together */
 } e_PcConDecision;
 
 typedef struct
@@ -86,12 +90,26 @@ typedef struct
 void PcConNet_Start(void);
 /* Both take ownership of the malloc'd buffer they are given. */
 void PcConNet_SubmitStt(unsigned int gen, unsigned char* wav, unsigned long wavLen);
+#define PCCON_JUDGE_TURN  0  /* ATTACK / RELEASE / TALK */
+#define PCCON_JUDGE_ARGUE 1  /* FIGHT / UNITE */
+
+typedef struct
+{
+    const char*    voiceId;     /* NULL or "" = the configured voice */
+    unsigned char* shot;        /* bottom-up RGBA of what the camera sees, NULL = text only; owned */
+    int            shotW, shotH;
+    int            judgeKind;   /* PCCON_JUDGE_* */
+    /* Set: first ask whether Harry's line tries to turn them on each other
+     * ("who is listening + what he said"). If it does and inciteFalls, the
+     * turn returns PCCON_DECIDE_INCITE with no line; if it does not land,
+     * they are told to see through it. */
+    const char*    incite;
+    int            inciteFalls;
+} PcConTurnOpts;
+
 /* replyMsgs: a JSON array of chat messages. judgeText: transcript for the
- * judge. forced >= 0 skips the judge and uses that decision. voiceId NULL or
- * "" = the configured voice. shot: bottom-up RGBA of what the camera sees,
- * attached to the last user message (NULL = text only); owned like the rest. */
-void PcConNet_SubmitTurn(unsigned int gen, char* replyMsgs, char* judgeText, int forced, const char* voiceId,
-                         unsigned char* shot, int shotW, int shotH);
+ * judge. forced >= 0 skips the judge and uses that decision. opts may be NULL. */
+void PcConNet_SubmitTurn(unsigned int gen, char* replyMsgs, char* judgeText, int forced, const PcConTurnOpts* opts);
 /* Returns 1 and fills *out when a result is waiting; free with PcConNet_Free. */
 int  PcConNet_Poll(PcConResult* out);
 void PcConNet_Free(PcConResult* r);
