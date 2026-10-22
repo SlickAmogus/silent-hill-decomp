@@ -45,10 +45,10 @@ static const char s_template[] =
     "tts = 1\n"
     "stt = 1\n"
     "elevenlabs_key =\n"
-    "# Callum - Husky Trickster, pitched up into a gremlin\n"
-    "voice_id = N2lVS1w4EtoT3dr4eOWO\n"
+    "# Jimbo - Thick Australian Accent (ElevenLabs library voice)\n"
+    "voice_id = YLbQE9U7P1K6rBNJWNSv\n"
     "tts_model = eleven_turbo_v2_5\n"
-    "voice_pitch = 1.3\n"
+    "voice_pitch = 1.0\n"
     "voice_stability = 0.3\n"
     "voice_similarity = 0.75\n"
     "voice_style = 0.65\n"
@@ -79,9 +79,9 @@ static void Cfg_Defaults(PcConCfg* c)
     c->llmMaxTokens   = 120;
     c->tts = 1;
     c->stt = 1;
-    SDL_strlcpy(c->voiceId, "N2lVS1w4EtoT3dr4eOWO", sizeof(c->voiceId));
+    SDL_strlcpy(c->voiceId, "YLbQE9U7P1K6rBNJWNSv", sizeof(c->voiceId));
     SDL_strlcpy(c->ttsModel, "eleven_turbo_v2_5", sizeof(c->ttsModel));
-    c->voicePitch      = 1.3f;
+    c->voicePitch      = 1.0f;
     c->voiceStability  = 0.3f;
     c->voiceSimilarity = 0.75f;
     c->voiceStyle      = 0.65f;

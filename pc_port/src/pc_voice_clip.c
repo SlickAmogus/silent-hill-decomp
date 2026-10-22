@@ -31,6 +31,21 @@ static VcSlot       s_slots[VC_SOURCES];
 static int          s_ready;
 static unsigned int s_serial;
 
+/* The game's voice volume slider, so these sit at the level of the XA lines. */
+extern float g_PcXaVolume;
+
+/* OpenAL's error flag is one sticky value for the whole context: it holds the
+ * last error ANYONE raised until someone reads it, and the SPU emulation does
+ * not read its own. Testing alGetError() after our calls therefore blamed us
+ * for PsyCross's leftovers -- the sources were never marked ready and every
+ * clip failed silently. Drain it first, and judge our own calls by what they
+ * produced (valid names, a playing source) rather than by the flag. */
+static void Vc_DrainErrors(void)
+{
+    int n = 0;
+    while (alGetError() != AL_NO_ERROR && ++n < 16) {}
+}
+
 static int Vc_Ready(void)
 {
     int i;
@@ -42,14 +57,20 @@ static int Vc_Ready(void)
     {
         return 0; /* PsyCross has not brought audio up (or runs without it) */
     }
+    Vc_DrainErrors();
     for (i = 0; i < VC_SOURCES; i++)
     {
         alGenSources(1, &s_slots[i].source);
         alGenBuffers(1, &s_slots[i].buffer);
         s_slots[i].busy = 0;
+        if (!alIsSource(s_slots[i].source) || !alIsBuffer(s_slots[i].buffer))
+        {
+            SH_DBG("[VOICECLIP] could not create OpenAL source/buffer %d (err 0x%x)", i, alGetError());
+            return 0;
+        }
     }
-    s_ready = (alGetError() == AL_NO_ERROR);
-    return s_ready;
+    s_ready = 1;
+    return 1;
 }
 
 static VcSlot* Vc_FromHandle(unsigned int handle)
@@ -110,16 +131,29 @@ unsigned int Pc_VoiceClip_PlayEx(const short* pcm, unsigned int samples, int rat
     if (gain > 1.0f) gain = 1.0f;
     if (pitch < 0.5f) pitch = 0.5f;
     if (pitch > 2.0f) pitch = 2.0f;
+    Vc_DrainErrors();
     alBufferData(s_slots[pick].buffer, stereo ? AL_FORMAT_STEREO16 : AL_FORMAT_MONO16,
                  pcm, (ALsizei)(samples * sizeof(short)), rate);
     alSourcei(s_slots[pick].source, AL_BUFFER, (ALint)s_slots[pick].buffer);
-    alSourcef(s_slots[pick].source, AL_GAIN, gain);
+    /* Not positioned in 3D: the caller does distance falloff through gain,
+     * and a source left at the listener origin would be spatialised by
+     * whatever listener state the spatial SPU backend last set. */
+    alSourcei(s_slots[pick].source, AL_SOURCE_RELATIVE, AL_TRUE);
+    alSource3f(s_slots[pick].source, AL_POSITION, 0.0f, 0.0f, 0.0f);
+    alSourcef(s_slots[pick].source, AL_GAIN, gain * g_PcXaVolume);
     alSourcef(s_slots[pick].source, AL_PITCH, pitch);
     alSourcePlay(s_slots[pick].source);
-    s_slots[pick].busy = (alGetError() == AL_NO_ERROR);
-    if (!s_slots[pick].busy)
     {
-        return 0;
+        ALint st = AL_STOPPED;
+        ALenum err = alGetError();
+        alGetSourcei(s_slots[pick].source, AL_SOURCE_STATE, &st);
+        s_slots[pick].busy = (st == AL_PLAYING);
+        if (!s_slots[pick].busy)
+        {
+            SH_DBG("[VOICECLIP] clip did not start (%u samples @ %d Hz, state 0x%x, err 0x%x)",
+                   samples, rate, st, err);
+            return 0;
+        }
     }
     s_serial = (s_serial + 1) & 0x0FFFFFFFu;
     if (s_serial == 0) s_serial = 1;
@@ -139,7 +173,7 @@ void Pc_VoiceClip_SetGain(unsigned int handle, float gain)
     {
         if (gain < 0.0f) gain = 0.0f;
         if (gain > 1.0f) gain = 1.0f;
-        alSourcef(s->source, AL_GAIN, gain);
+        alSourcef(s->source, AL_GAIN, gain * g_PcXaVolume);
     }
 }
 

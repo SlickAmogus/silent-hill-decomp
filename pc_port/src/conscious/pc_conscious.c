@@ -342,7 +342,8 @@ static void Con_Speak(const char* text, const short* pcm, unsigned int samples, 
     s_pendingDecision = decision;
     s_talking = 1;
     s_turns++;
-    SH_DBG("[CONSCIOUS] say (turn %d, decision %d, audio %s): %s", s_turns, decision, s_clip ? "yes" : "no", text);
+    SH_DBG("[CONSCIOUS] say (turn %d, decision %d, tts %u samples, playing %s, gain %.2f): %s", s_turns, decision,
+           pcm ? samples : 0u, s_clip ? "yes" : "no", Con_Gain(s_speaker), text);
     Con_Enter(CS_SPEAKING);
 }
 
