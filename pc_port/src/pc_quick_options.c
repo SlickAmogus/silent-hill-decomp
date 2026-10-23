@@ -108,6 +108,31 @@ extern const char* const PC_PGXP_FOG_MSG;
 #define QO_MOBILE 1
 #endif
 
+/* The touch LAYOUT -- short chunked pages, the full-screen panel and the
+ * `-  value  +` steppers -- apart from the phone-only ROWS above. A phone
+ * build always has it. The web build is one page for desktops and phones, so
+ * it decides at runtime from what the page saw before main() (shell.js), and
+ * keeps the desktop row tables either way: the touch rows in s_pageControls
+ * have no entry in the web Options table to resolve against. Fixed for the
+ * session, so the pages never re-chunk under a finger. */
+#if defined(QO_MOBILE)
+#define QO_TOUCH_UI 1
+#define qo_touch_ui() 1
+#elif defined(__EMSCRIPTEN__)
+#include "web_platform.h"
+#define QO_TOUCH_UI 1
+static int qo_touch_ui(void)
+{
+    static int s_touch = -1;
+
+    if (s_touch < 0)
+        s_touch = Web_IsTouchDevice() ? 1 : 0;
+    return s_touch;
+}
+#else
+#define qo_touch_ui() 0
+#endif
+
 enum { ROW_OPT = 0, ROW_EXTRA, ROW_PAGE, ROW_CLOSE, ROW_CHEAT, ROW_ACTION };
 enum { QO_A_VIEWRESET = 0, QO_A_KEYBINDS, QO_A_TOTITLE };
 
@@ -530,7 +555,7 @@ static const char* const s_pageNames[QO_PAGES] = {
  * The desktop tables stay the single source of truth for what is offered and in
  * what order -- a parallel set of mobile tables would drift the first time
  * someone added a row to one and not the other. */
-#if defined(QO_MOBILE)
+#if defined(QO_TOUCH_UI)
 
 #define QO_M_CONTENT 5   /* settings per page, before the three nav rows */
 
@@ -571,7 +596,7 @@ static void qo_locate(int page, int* sec, int* chunk, int* chunks)
     *sec = 0; *chunk = 0; *chunks = 1;
 }
 
-static int qo_page_count(void)
+static int qo_m_page_count(void)
 {
     int s, t = 0;
 
@@ -596,7 +621,7 @@ static void qo_chunk_span(int content, int chunks, int chunk, int* base, int* le
     *base = (chunk * q) + ((chunk < r) ? chunk : r);
 }
 
-static const QoRowDef* qo_page_rows(int page, int* count)
+static const QoRowDef* qo_m_page_rows(int page, int* count)
 {
     const QoRowDef* src;
     int n, sec, chunk, chunks, base, len, i, k = 0;
@@ -631,7 +656,7 @@ static const QoRowDef* qo_page_rows(int page, int* count)
     return s_mRows;
 }
 
-static const char* qo_page_title(int page)
+static const char* qo_m_page_title(int page)
 {
     int sec, chunk, chunks;
 
@@ -643,6 +668,21 @@ static const char* qo_page_title(int page)
         snprintf(s_mTitle, sizeof(s_mTitle), "%s", s_pageTitles[sec]);
 
     return s_mTitle;
+}
+
+static int qo_page_count(void)
+{
+    return qo_touch_ui() ? qo_m_page_count() : QO_PAGES;
+}
+
+static const QoRowDef* qo_page_rows(int page, int* count)
+{
+    return qo_touch_ui() ? qo_m_page_rows(page, count) : qo_section_rows(page, count);
+}
+
+static const char* qo_page_title(int page)
+{
+    return qo_touch_ui() ? qo_m_page_title(page) : s_pageTitles[page];
 }
 
 #else /* desktop: the sections ARE the pages */
@@ -687,7 +727,7 @@ static int            s_fontsScript = -1; /* Pc_LangQuickScript the face was pic
  * re-baked whenever their text changes. */
 static GLuint s_texTitle, s_texHint;
 static int    s_titleW, s_titleH, s_hintW, s_hintH;
-#if defined(QO_MOBILE)
+#if defined(QO_TOUCH_UI)
 /* Stepper marks for the tap halves. Baked ONCE and reused by every row --
  * two atlas slots for the whole panel, not two per row. */
 static GLuint s_texDec, s_texInc;
@@ -708,7 +748,7 @@ static float s_geoListT, s_geoRowPitch, s_geoRowH, s_geoPanelL, s_geoPanelR;
 /* Panel bottom as well (s_geoTitleT is already its top), so a pointer can be
  * tested against the whole rectangle -- see the tap-outside close. */
 static float s_geoPanelB;
-#if defined(QO_MOBILE)
+#if defined(QO_TOUCH_UI)
 /* The stepper column: a fixed strip down the right of every row holding
  * `-  value  +`. Fixed rather than fitted to each value's width so the two
  * halves land in the SAME place on every row -- a thumb learns one spot
@@ -1382,7 +1422,7 @@ static void qo_free_text(void)
     qo_atlas_reset();
     qo_retire(s_texTitle); s_texTitle = 0;
     qo_retire(s_texHint);  s_texHint  = 0;
-#if defined(QO_MOBILE)
+#if defined(QO_TOUCH_UI)
     qo_retire(s_texDec); s_texDec = 0;
     qo_retire(s_texInc); s_texInc = 0;
 #endif
@@ -1918,7 +1958,7 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
         }
     }
 
-#if defined(QO_MOBILE)
+#if defined(QO_TOUCH_UI)
     /* Slide a value. Dragging across the stepper column moves it continuously,
      * which is what a slider wants -- tapping 0.05 at a time to cross a range is
      * the thing that made these unusable with a thumb.
@@ -1933,6 +1973,7 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
      *
      * The initial press has already applied its own tap step above; this only
      * adds more as the finger travels, so a tap and a drag agree on direction. */
+    if (qo_touch_ui())
     {
         static int   s_slideRow = -1;
         static float s_slideX, s_slideAccum;
@@ -1988,6 +2029,7 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
     /* Title-bar drag. Held (not clicked) so it tracks continuously, and it is
      * resolved before the row hit-test below so dragging never also activates
      * whatever the cursor passes over. */
+    if (!qo_touch_ui())
     {
         float dmx, dmy;
 
@@ -2045,8 +2087,8 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
             if (mClick)
             {
                 s_sel = row;
-#if defined(QO_MOBILE)
-                if (qo_row_is_list(&rows[row]))
+#if defined(QO_TOUCH_UI)
+                if (qo_touch_ui() && qo_row_is_list(&rows[row]))
                 {
                     /* No dropdown on touch. It is a scrolling sub-list inside
                      * one row, which is the smallest thing on the panel and the
@@ -2073,8 +2115,8 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
                     if (s_ddScroll < 0) s_ddScroll = 0;
                     s_ddShown  = 0;
                 }
-#if defined(QO_MOBILE)
-                else if (QO_IS_VALUE_ROW(rows[row].kind))
+#if defined(QO_TOUCH_UI)
+                else if (qo_touch_ui() && QO_IS_VALUE_ROW(rows[row].kind))
                 {
                     /* A finger has no right button and no wheel, so the value
                      * needs both directions from taps alone.
@@ -2305,59 +2347,60 @@ void Pc_QuickOptions_Draw(void)
         }
     }
 
-#if defined(QO_MOBILE)
-    /* Fills the screen. The desktop panel is a small left-anchored box you can
-     * drag aside to watch the scene while tuning; neither half of that makes
-     * sense on a phone, where there is no second place to look and no cursor to
-     * drag with. Centred, and deliberately not draggable -- a drag here is the
-     * page swipe. */
-    /* Not the full width. A phone in landscape is better than two to one, so
-     * 94% of it put a two-word label and a number at opposite ends of a stripe
-     * most of the screen long, with nothing in between. */
-    panelW = 0.80f * vpW;
-    panelH = 0.90f * vpH;
-    panelL = (vpW - panelW) * 0.5f;
-    panelB = (vpH - panelH) * 0.5f;
-#else
-    /* Layout (viewport px, origin bottom-left). Left-anchored rather than
-     * centred so the scene stays visible beside it while you tune. */
-    panelH = 0.74f * vpH;
-    panelW = 0.80f * panelH;
-    if (panelW > 0.90f * vpW) panelW = 0.90f * vpW;
-    panelL = vpW * 0.04f;
-    panelB = (vpH - panelH) * 0.5f;
-
-    /* User drag offset, clamped so a good part of the panel always stays on
-     * screen (never let it be dragged fully out of reach). */
+#if defined(QO_TOUCH_UI)
+    if (qo_touch_ui())
     {
-        const float minL = -panelW * 0.75f;
-        const float maxL = vpW - panelW * 0.25f;
-        const float minB = -panelH * 0.75f;
-        const float maxB = vpH - panelH * 0.25f;
-
-        panelL += s_panelOfsX;
-        panelB += s_panelOfsY;
-        if (panelL < minL) { s_panelOfsX += minL - panelL; panelL = minL; }
-        if (panelL > maxL) { s_panelOfsX += maxL - panelL; panelL = maxL; }
-        if (panelB < minB) { s_panelOfsY += minB - panelB; panelB = minB; }
-        if (panelB > maxB) { s_panelOfsY += maxB - panelB; panelB = maxB; }
+        /* Fills the screen. The desktop panel is a small left-anchored box you can
+         * drag aside to watch the scene while tuning; neither half of that makes
+         * sense on a phone, where there is no second place to look and no cursor to
+         * drag with. Centred, and deliberately not draggable -- a drag here is the
+         * page swipe. */
+        /* Not the full width. A phone in landscape is better than two to one, so
+         * 94% of it put a two-word label and a number at opposite ends of a stripe
+         * most of the screen long, with nothing in between. */
+        panelW = 0.80f * vpW;
+        panelH = 0.90f * vpH;
+        panelL = (vpW - panelW) * 0.5f;
+        panelB = (vpH - panelH) * 0.5f;
     }
+    else
 #endif
+    {
+        /* Layout (viewport px, origin bottom-left). Left-anchored rather than
+         * centred so the scene stays visible beside it while you tune. */
+        panelH = 0.74f * vpH;
+        panelW = 0.80f * panelH;
+        if (panelW > 0.90f * vpW) panelW = 0.90f * vpW;
+        panelL = vpW * 0.04f;
+        panelB = (vpH - panelH) * 0.5f;
+
+        /* User drag offset, clamped so a good part of the panel always stays on
+         * screen (never let it be dragged fully out of reach). */
+        {
+            const float minL = -panelW * 0.75f;
+            const float maxL = vpW - panelW * 0.25f;
+            const float minB = -panelH * 0.75f;
+            const float maxB = vpH - panelH * 0.25f;
+
+            panelL += s_panelOfsX;
+            panelB += s_panelOfsY;
+            if (panelL < minL) { s_panelOfsX += minL - panelL; panelL = minL; }
+            if (panelL > maxL) { s_panelOfsX += maxL - panelL; panelL = maxL; }
+            if (panelB < minB) { s_panelOfsY += minB - panelB; panelB = minB; }
+            if (panelB > maxB) { s_panelOfsY += maxB - panelB; panelB = maxB; }
+        }
+    }
 
     panelR = panelL + panelW;
     panelT = panelB + panelH;
 
     pad      = panelW * 0.05f;
     titleH   = panelH * 0.09f;
-#if defined(QO_MOBILE)
     /* No controls footer, so no band to reserve for it -- just enough of a
      * margin that Close does not sit on the panel border. Every term the
      * desktop line carries names a key or a gesture a thumb already knows, and
      * the row it was costing is worth more than the sentence. */
-    hintH    = panelH * 0.015f;
-#else
-    hintH    = panelH * 0.07f;
-#endif
+    hintH    = panelH * (qo_touch_ui() ? 0.015f : 0.07f);
     listT    = panelT - titleH;
     listB    = panelB + hintH;
     listH    = listT - listB;
@@ -2365,7 +2408,7 @@ void Pc_QuickOptions_Draw(void)
     rowH     = rowPitch * 0.84f;
     px       = (int)(rowH * 0.52f);
     if (px < 8) px = 8;
-#if defined(QO_MOBILE)
+#if defined(QO_TOUCH_UI)
     /* Rows are enormous on a phone and 0.52 of one would ask for ~80px text.
      * Every baked string shares ONE 2048x1024 atlas, and qo_upload_rgba returns
      * 0 when it fills -- which draws nothing at all rather than complaining. At
@@ -2375,7 +2418,7 @@ void Pc_QuickOptions_Draw(void)
      * 56px is ~19pt on a 3x panel: comfortably readable, and it keeps a page
      * inside about a quarter of the atlas. The touch TARGET is the row, which
      * stays full height regardless of how tall the glyphs are. */
-    if (px > 56) px = 56;
+    if (qo_touch_ui() && px > 56) px = 56;
 #endif
 
     {
@@ -2395,36 +2438,42 @@ void Pc_QuickOptions_Draw(void)
         /* Mobile pages are CHUNKS of a section, so the page index is not a
          * section index there and qo_page_title is the only thing that can name
          * one -- it already carries the "(2/3)" that says where you are. */
-#if defined(QO_MOBILE)
-        s_texTitle = qo_bake(qo_page_title(s_page), (float)(int)(titleH * 0.46f),
-                             &s_titleW, &s_titleH);
-#else
-        char titleBuf[192];
-        char name[96];
-
-        Pc_LangUtf8Upper(Pc_LangQuick(s_pageNames[s_page]), name, (int)sizeof(name));
-        if (s_page == QO_PG_VIEW)
-        {
-            int m = qo_view_cam_mode();
-            snprintf(titleBuf, sizeof(titleBuf), "%s  -  %s  (%s)", Pc_LangQuick("QUICK OPTIONS"), name,
-                     Pc_LangQuick((m == QO_CAM_FPS) ? "Firstperson" :
-                                  (m == QO_CAM_OTS) ? "Over-the-Shoulder" :
-                                  (m == QO_CAM_TPS) ? "Thirdperson" : "Classic"));
-        }
+#if defined(QO_TOUCH_UI)
+        if (qo_touch_ui())
+            s_texTitle = qo_bake(qo_page_title(s_page), (float)(int)(titleH * 0.46f),
+                                 &s_titleW, &s_titleH);
         else
-            snprintf(titleBuf, sizeof(titleBuf), "%s  -  %s", Pc_LangQuick("QUICK OPTIONS"), name);
-        s_texTitle = qo_bake(titleBuf, (float)(int)(titleH * 0.46f), &s_titleW, &s_titleH);
 #endif
+        {
+            char titleBuf[192];
+            char name[96];
+
+            Pc_LangUtf8Upper(Pc_LangQuick(s_pageNames[s_page]), name, (int)sizeof(name));
+            if (s_page == QO_PG_VIEW)
+            {
+                int m = qo_view_cam_mode();
+                snprintf(titleBuf, sizeof(titleBuf), "%s  -  %s  (%s)", Pc_LangQuick("QUICK OPTIONS"), name,
+                         Pc_LangQuick((m == QO_CAM_FPS) ? "Firstperson" :
+                                      (m == QO_CAM_OTS) ? "Over-the-Shoulder" :
+                                      (m == QO_CAM_TPS) ? "Thirdperson" : "Classic"));
+            }
+            else
+                snprintf(titleBuf, sizeof(titleBuf), "%s  -  %s", Pc_LangQuick("QUICK OPTIONS"), name);
+            s_texTitle = qo_bake(titleBuf, (float)(int)(titleH * 0.46f), &s_titleW, &s_titleH);
+        }
     }
-#if defined(QO_MOBILE)
-    if (!s_texDec) s_texDec = qo_bake("-", (float)px, &s_decW, &s_decH);
-    if (!s_texInc) s_texInc = qo_bake("+", (float)px, &s_incW, &s_incH);
+#if defined(QO_TOUCH_UI)
+    if (qo_touch_ui())
+    {
+        if (!s_texDec) s_texDec = qo_bake("-", (float)px, &s_decW, &s_decH);
+        if (!s_texInc) s_texInc = qo_bake("+", (float)px, &s_incW, &s_incH);
+    }
 #endif
     /* Controls footer. It used to run off-screen at some panel widths, so bake
      * it once at the natural size and, if it overflows, re-bake once scaled to
      * fit -- the text always ends up inside the panel whatever its width. */
 #if !defined(QO_MOBILE)
-    if (!s_texHint)
+    if (!qo_touch_ui() && !s_texHint)
     {
         char  hint[384];
         float avail = panelW - 2.0f * pad;
@@ -2454,7 +2503,7 @@ void Pc_QuickOptions_Draw(void)
     s_geoPanelL = panelL; s_geoPanelR = panelR; s_geoRows = nRows;
     s_geoTitleT = panelT; s_geoTitleB = panelT - titleH;
     s_geoPanelB = panelB;
-#if defined(QO_MOBILE)
+#if defined(QO_TOUCH_UI)
     /* The stepper column. 34% of the panel is wide enough that each half is
      * a comfortable target at this panel size, and narrow enough to leave
      * the label readable beside it.
@@ -2463,6 +2512,7 @@ void Pc_QuickOptions_Draw(void)
      * means crossing the whole thing is ~28 steps: a slider moves at a
      * readable pace instead of flying past the value you wanted, and a tap
      * that rolls a few pixels never registers as a drag at all. */
+    if (qo_touch_ui())
     {
         const float stepW = panelW * 0.34f;
 
@@ -2588,10 +2638,10 @@ void Pc_QuickOptions_Draw(void)
             {
                 float vg = (i == s_sel) ? 1.0f : 0.85f;
                 float vr = panelR - pad - (float)s_valueW[i];
-#if defined(QO_MOBILE)
+#if defined(QO_TOUCH_UI)
                 /* Right-aligned against the + rather than the panel edge, so
                  * the mark sits beside the number instead of on top of it. */
-                if (!qo_row_is_list(r))
+                if (qo_touch_ui() && !qo_row_is_list(r))
                     vr = panelR - pad * 0.12f - (float)s_incW - pad * 0.45f
                        - (float)s_valueW[i];
 #endif
@@ -2599,7 +2649,7 @@ void Pc_QuickOptions_Draw(void)
                 qo_quad(s_texValue[i], NX(vr), NY(tY), NX(vr + s_valueW[i]), NY(tY - tH),
                         vg, vg * 0.85f, vg * 0.45f, dim);
             }
-#if defined(QO_MOBILE)
+#if defined(QO_TOUCH_UI)
             /* Say which half does what. The stepper is the right-hand column,
              * `-  value  +`, and the half of THAT you tap is the direction it
              * moves. It used to be the whole row split down the panel's middle,
@@ -2609,7 +2659,7 @@ void Pc_QuickOptions_Draw(void)
              * unselected rows so a page does not read as a wall of symbols. */
             /* Not on a list row: that one is not a stepper -- its halves fire
              * and cycle -- so - and + would describe the wrong gesture. */
-            if (!qo_row_is_list(r))
+            if (qo_touch_ui() && !qo_row_is_list(r))
             {
                 const float mg = (i == s_sel) ? 0.95f : 0.45f;
 
