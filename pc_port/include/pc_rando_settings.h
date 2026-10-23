@@ -2,7 +2,7 @@
 /*
  * pc_rando_settings.h - in-game randomizer settings panel.
  *
- * An overlay modelled on the achievement browser (pc_ra_browser.c): its own GL
+ * An overlay modelled on the old GL achievement browser (since removed): its own GL
  * program + stb_truetype text, drawn from the post-capture hook, updated on the
  * game thread. Opened in a live run by TAPPING the Map button; HOLDING the Map
  * button opens the real map instead. Navigable by keyboard, controller and mouse.

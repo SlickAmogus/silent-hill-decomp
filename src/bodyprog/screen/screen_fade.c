@@ -83,13 +83,14 @@ static q19_12 g_ScreenFadeProgress = Q12(0.0f);
  * the old *4 hack papered over); (2) during a room/area load g_DeltaTimeRaw
  * SPIKES (the load runs alongside the fade), and an un-clamped step jumps
  * progress 1.0->0 in one frame -> the fade is invisible (the reported "no fade
- * on transitions"). Clamp the fade's dt to [1/60, 1/30]: floored so it always
- * advances, capped so a load hitch can't skip it. No *4 — that just made PC
- * fades 4x too fast. */
+ * on transitions"). Cap the fade's dt at 1/30 so a load hitch can't skip it, and
+ * substitute 1/60 only when dt is 0 so it always advances. Flooring every frame
+ * to 1/60 instead ran each fade 4x too fast at 240 fps (Split Head's death fade
+ * became a hard cut). No *4 — that just made PC fades 4x too fast. */
 static q19_12 Screen_FadeDtGet(void)
 {
     q19_12 dt = g_DeltaTimeRaw;
-    if (dt < Q12(1.0f / 60.0f)) dt = Q12(1.0f / 60.0f);
+    if (dt <= 0) dt = Q12(1.0f / 60.0f);
     if (dt > Q12(1.0f / 30.0f)) dt = Q12(1.0f / 30.0f);
     return dt;
 }

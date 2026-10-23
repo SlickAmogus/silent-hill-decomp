@@ -88,17 +88,17 @@ typedef enum _MainMenuEntry
     MainMenuEntry_Continue = 1,
     MainMenuEntry_Start    = 2,
     MainMenuEntry_Option   = 3,
+#ifdef SH_PC_PORT
+    /* PC port: the unused Extra slot becomes Achievements, then the port's Exit
+     * row. Draw order is entry order, so both sit under Option. */
+    MainMenuEntry_Achievements = 4,
+    MainMenuEntry_Exit         = 5,
+    MainMenuEntry_Count        = 6
+#else
     MainMenuEntry_Extra    = 4, /** @unused The extra options menu may have been accessible via the main menu. */
 
-#ifdef SH_PC_PORT
-    /* PC port: the port's Exit row reuses the unused Extra slot. It sits
-     * directly under Option in draw order and inside the existing
-     * MainMenuEntry_Count, so the row layout, selection wrap and mouse
-     * hit-test all keep working untouched. */
-    MainMenuEntry_Exit     = 4,
-#endif
-
     MainMenuEntry_Count    = 5
+#endif
 } e_MainMenuEntry;
 
 typedef enum _MainMenuState
@@ -107,7 +107,12 @@ typedef enum _MainMenuState
     MenuState_Main               = 1,
     MenuState_LoadGame           = 2,
     MenuState_DifficultySelector = 3,
+#ifdef SH_PC_PORT
+    MenuState_NewGameStart       = 4,
+    MenuState_Achievements       = 5
+#else
     MenuState_NewGameStart       = 4
+#endif
 } e_MainMenuState;
 
 /** Used by `func_8003F654` to cast a specific field to the desired type. */

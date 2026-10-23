@@ -262,6 +262,216 @@ NOTE: controller preset name
 EN: TYPE 3
 RU: ТИП_3
 
+[MENU.ACHIEVEMENTS]
+NOTE: title menu row and Achievements screen heading
+EN: ACHIEVEMENTS
+RU: ДОСТИЖЕНИЯ
+
+[MENU.UNLOCKED]
+NOTE: Achievements screen, ": <date and time>" follows on the same line; max ~9 characters
+EN: UNLOCKED
+RU: ПОЛУЧЕНО
+
+[MENU.LOCKED]
+NOTE: Achievements screen, an achievement not yet earned
+EN: LOCKED
+RU: НЕ_ПОЛУЧЕНО
+
+[MENU.Point]
+NOTE: Achievements screen, after "1"
+EN: Point
+RU: очко
+
+[MENU.Points]
+NOTE: Achievements screen, after any other number; an abbreviation is fine
+EN: Points
+RU: очк.
+
+[MENU.points]
+NOTE: Achievements screen counter "(12/400 points)"; an abbreviation is fine
+EN: points
+RU: очк.
+
+[MENU.Gamepad_Icons]
+NOTE: Controls screen row; its value (Auto / PS Classic / PS Modern / Xbox / Nintendo / Steam) shares the line
+EN: Gamepad Icons
+RU: Значки_геймпада
+
+[MENU.Auto]
+NOTE: Gamepad Icons value: follows the connected controller
+EN: Auto
+RU: Авто
+
+[MENU.PS_Classic]
+NOTE: Gamepad Icons value (brand name)
+EN: PS Classic
+RU: ПС_Классик
+
+[MENU.PS_Modern]
+NOTE: Gamepad Icons value (brand name)
+EN: PS Modern
+RU: ПС_Модерн
+
+[MENU.Xbox]
+NOTE: Gamepad Icons value (brand name)
+EN: Xbox
+RU: Иксбокс
+
+[MENU.Nintendo]
+NOTE: Gamepad Icons value (brand name)
+EN: Nintendo
+RU: Нинтендо
+
+[MENU.Steam]
+NOTE: Gamepad Icons value (brand name)
+EN: Steam
+RU: Стим
+
+[MENU.Function]
+NOTE: Controls screen column heading over the action names; max ~12 characters
+EN: Function
+RU: Функция
+
+[MENU.Keyboard]
+NOTE: Controls screen column heading; max ~9 characters
+EN: Keyboard
+RU: Клавиши
+
+[MENU.Controller]
+NOTE: Controls screen column heading; max ~8 characters
+EN: Controller
+RU: Геймпад
+
+[MENU.Reset]
+NOTE: Controls screen row: reset every bind to its default
+EN: Reset
+RU: Сброс
+
+[MENU.Reset_controls?]
+NOTE: Controls screen confirm question, Yes / No below
+EN: Reset controls?
+RU: Сбросить_управление?
+
+[MENU.Yes]
+NOTE: confirm answer
+EN: Yes
+RU: Да
+
+[MENU.No]
+NOTE: confirm answer
+EN: No
+RU: Нет
+
+[MENU.Move_Up]
+NOTE: Controls screen action, a colon follows; max ~12 characters
+EN: Move Up
+RU: Вперед
+
+[MENU.Move_Down]
+NOTE: Controls screen action, a colon follows; max ~12 characters
+EN: Move Down
+RU: Назад
+
+[MENU.Turn_Left]
+NOTE: Controls screen action, a colon follows; max ~12 characters
+EN: Turn Left
+RU: Налево
+
+[MENU.Turn_Right]
+NOTE: Controls screen action, a colon follows; max ~12 characters
+EN: Turn Right
+RU: Направо
+
+[MENU.Action_/_Shoot]
+NOTE: Controls screen action, a colon follows; max ~12 characters
+EN: Action / Shoot
+RU: Действ./огонь
+
+[MENU.Run]
+NOTE: Controls screen action, a colon follows; max ~12 characters
+EN: Run
+RU: Бег
+
+[MENU.Sidestep_Left]
+NOTE: Controls screen action, a colon follows; max ~12 characters
+EN: Sidestep Left
+RU: Шаг_влево
+
+[MENU.Sidestep_Right]
+NOTE: Controls screen action, a colon follows; max ~12 characters
+EN: Sidestep Right
+RU: Шаг_вправо
+
+[MENU.View]
+NOTE: Controls screen action, a colon follows; max ~12 characters
+EN: View
+RU: Вид
+
+[MENU.Aim]
+NOTE: Controls screen action, a colon follows; max ~12 characters
+EN: Aim
+RU: Прицел
+
+[MENU.Pause]
+NOTE: Controls screen action, a colon follows; max ~12 characters
+EN: Pause
+RU: Пауза
+
+[MENU.Inventory]
+NOTE: Controls screen action, a colon follows; max ~12 characters
+EN: Inventory
+RU: Инвентарь
+
+[MENU.Reload]
+NOTE: used in two places: the inventory command for a weapon (max ~10 characters); the Controls screen action, a colon follows (max ~12 characters)
+EN: Reload
+RU: Зарядить
+
+[MENU.Cycle_Weapons]
+NOTE: Controls screen action, a colon follows; max ~12 characters
+EN: Cycle Weapons
+RU: Смена_оружия
+
+[MENU.Quick_Heal]
+NOTE: Controls screen action, a colon follows; max ~12 characters
+EN: Quick Heal
+RU: Лечение
+
+[MENU.Quick_Turn]
+NOTE: Controls screen action, a colon follows; max ~12 characters
+EN: Quick Turn
+RU: Разворот
+
+[MENU.Rear_Look]
+NOTE: Controls screen action, a colon follows; max ~12 characters
+EN: Rear Look
+RU: Взгляд_назад
+
+[MENU.Change_Camera]
+NOTE: Controls screen action, a colon follows; max ~12 characters
+EN: Change Camera
+RU: Смена_камеры
+
+[MENU.Swap_Shoulder]
+NOTE: Controls screen action, a colon follows; max ~12 characters
+EN: Swap Shoulder
+RU: Смена_плеча
+
+[MENU.Quick_Options]
+NOTE: Controls screen action, a colon follows; max ~12 characters
+EN: Quick Options
+RU: Быстрое_меню
+
+[MENU.Quick_Save]
+NOTE: Controls screen action, a colon follows; max ~12 characters
+EN: Quick Save
+RU: Быстр._сохр.
+
+[MENU.Quick_Load]
+NOTE: Controls screen action, a colon follows; max ~12 characters
+EN: Quick Load
+RU: Быстр._загр.
+
 [MENU.LOAD]
 EN: LOAD
 RU: ЗАГРУЗИТЬ
@@ -607,10 +817,6 @@ RU: Взять
 EN: Unequip
 RU: Убрать
 
-[MENU.Reload]
-EN: Reload
-RU: Зарядить
-
 [MENU.Detail]
 EN: Detail
 RU: Инфо
@@ -826,7 +1032,7 @@ EN: Tone Mapping
 RU: Тонмаппинг
 
 [MENU.Map]
-NOTE: row name, Graphics page, max ~14 characters (also used in the original menus)
+NOTE: used in three places: the inventory screen box that opens the map (max ~10 characters); the PC Options Graphics row that picks the New Game start map (max ~14 characters); the Controls screen action that opens the map, a colon follows (max ~12 characters)
 EN: Map
 RU: Карта
 
@@ -1286,6 +1492,11 @@ NOTE: row name
 EN: Dream Blur Strength
 RU: Сила размытия сна
 
+[QUICK.Crosshair_Style]
+NOTE: row name
+EN: Crosshair Style
+RU: 
+
 [QUICK.Speaker_Layout]
 NOTE: row name
 EN: Speaker Layout
@@ -1300,6 +1511,11 @@ RU: Громкость музыки
 NOTE: row name
 EN: Effects Volume
 RU: Громкость эффектов
+
+[QUICK.Dialog_Pause]
+NOTE: row name
+EN: Dialog Pause
+RU: 
 
 [QUICK.Disable_D-pad_for_Movement]
 NOTE: row name
@@ -1596,6 +1812,11 @@ RU: Начальная карта
 NOTE: cheat / debug row. Keep key names in brackets
 EN: Spawn
 RU: Создать
+
+[QUICK.FPS_Display]
+NOTE: cheat / debug row. Keep key names in brackets
+EN: FPS Display
+RU: 
 
 [QUICK.Log_Harry_position]
 NOTE: cheat / debug row. Keep key names in brackets

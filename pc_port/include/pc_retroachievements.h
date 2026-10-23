@@ -33,6 +33,31 @@ int Pc_Ra_IsActive(void);
 
 /* "12/40 (135 pts)" for HUD/console use; empty string when inactive. */
 const char* Pc_Ra_StatusLine(void);
+/* Why no achievement set is loaded, for the player (never NULL). */
+const char* Pc_Ra_UnavailableReason(void);
+/* 1 when a set is loaded and Pc_Ra_SnapshotAchievements can return it. */
+int Pc_Ra_SetLoaded(void);
+/* 1 while login or the set load is still in flight, so the reason is not final. */
+int Pc_Ra_IsPending(void);
+
+/* One achievement, flattened out of rcheevos so UI TUs need no rcheevos
+ * headers. Sizes follow RA's own limits with room to spare. */
+typedef struct PcRaAch
+{
+    char     title[128];
+    char     desc[256];
+    char     badge[16];
+    unsigned points;
+    int      unlocked;
+    long long unlockTime;   /* unix seconds; 0 when unknown or still locked */
+} PcRaAch;
+
+/* Fill `out` with the loaded set. Returns the count written, 0 when no set is
+ * loaded. Defined in pc_retroachievements.c, which owns the rcheevos client. */
+int  Pc_Ra_SnapshotAchievements(PcRaAch* out, int max);
+
+/* Queue a badge PNG download. No-op for a name already requested this session. */
+void Pc_Ra_RequestBadge(const char* badgeName);
 
 /* Interactive sign-in, for targets with no launcher to authenticate first
  * (iOS). Exchanges a password for a connect token, stores the token in the

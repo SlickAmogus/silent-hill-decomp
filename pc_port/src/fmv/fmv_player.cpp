@@ -311,6 +311,7 @@ static void RestoreGLState(const FmvGLState* s)
     if (s->blend) glEnable(GL_BLEND); else glDisable(GL_BLEND);
     if (s->scissor_test) glEnable(GL_SCISSOR_TEST); else glDisable(GL_SCISSOR_TEST);
     glViewport(s->viewport[0], s->viewport[1], s->viewport[2], s->viewport[3]);
+    GR_InvalidateViewScissorCache();
     glClearColor(s->clear_color[0], s->clear_color[1], s->clear_color[2], s->clear_color[3]);
     glActiveTexture(s->active_texture);
     glBindTexture(GL_TEXTURE_2D, s->bound_texture);

@@ -83,6 +83,7 @@ extern const char* const PC_PGXP_FOG_TITLE;
 extern const char* const PC_PGXP_FOG_MSG;
 #endif
 
+#define QO_X_QUICK_WEAPONS 1000
 #define QO_GARBAGE  48
 #define QO_MAX_ROWS 18
 /* CONTROLS is appended last, so every existing section index -- and the "Next
@@ -242,6 +243,7 @@ static const QoRowDef s_page5[] = {
     { ROW_OPT,   "invert_mouse_y",         0, NULL },
     { ROW_OPT,   "invert_controller_y",    0, NULL },
     { ROW_OPT,   "aim_assist",             0, NULL },
+    { ROW_EXTRA, NULL, QO_X_QUICK_WEAPONS, "Quick Weapon Switching" },
     { ROW_EXTRA, NULL, QO_X_DPADMOVE,        "Disable D-pad for Movement" },
     { ROW_PAGE,  NULL, 0,                   "Next page  (Graphics)" },
     { ROW_CLOSE, NULL, 0,                   "Close" },
@@ -671,7 +673,6 @@ static GLuint s_prog, s_vao, s_vbo;
 static GLint  s_locColor;
 static int    s_glReady;
 static GLuint s_texWhite;
-static GLuint s_texCursor;
 static GLuint s_garbage[QO_GARBAGE];
 static int    s_garbageCount;
 
@@ -1376,12 +1377,9 @@ static void qo_free_text(void)
      *
      * EVERY handle held outside this function has to be dropped with them,
      * or it keeps pointing at a slot index that now belongs to a different
-     * image. The cursor is the one that is not in the loops below: after a
-     * page change it drew a label's pixels, then vanished once the index
-     * fell past the live slot count. Only slot 0, the white texel, survives
-     * a reset, because qo_atlas_reset re-claims it in place. */
+     * image. Only slot 0, the white texel, survives a reset, because
+     * qo_atlas_reset re-claims it in place. */
     qo_atlas_reset();
-    s_texCursor = 0; /* re-uploaded on the next draw */
     qo_retire(s_texTitle); s_texTitle = 0;
     qo_retire(s_texHint);  s_texHint  = 0;
 #if defined(QO_MOBILE)
@@ -1497,7 +1495,6 @@ static void qo_validate_cache(void)
     qo_validate(&s_texTitle,  "title");
     qo_validate(&s_texHint,   "hint");
     qo_validate(&s_texWhite,  "white");
-    qo_validate(&s_texCursor, "cursor");
     for (i = 0; i < QO_MAX_ROWS; i++)
     {
         qo_validate(&s_texLabel[i], "label");
@@ -1562,7 +1559,11 @@ static void qo_row_value(const QoRowDef* r, char* out, int n)
     }
     else if (r->kind == ROW_EXTRA)
     {
-        snprintf(out, (size_t)n, "%s", PcOpt_QuickExtraLabel(r->extra, buf, (int)sizeof(buf)));
+        if (r->extra == QO_X_QUICK_WEAPONS) {
+            extern int g_PcQuickWeaponsEnabled;
+            snprintf(out, (size_t)n, "%s", g_PcQuickWeaponsEnabled ? "On" : "Off");
+        } else
+            snprintf(out, (size_t)n, "%s", PcOpt_QuickExtraLabel(r->extra, buf, (int)sizeof(buf)));
     }
     else if (r->kind == ROW_CHEAT)
     {
@@ -1718,7 +1719,17 @@ static void qo_activate(const QoRowDef* r, int dir)
             if (h) PcOpt_QuickAdjust(h, dir);
             break;
         }
-        case ROW_EXTRA: PcOpt_QuickExtraAdjust(r->extra, dir); break;
+        case ROW_EXTRA:
+            if (r->extra == QO_X_QUICK_WEAPONS) {
+                extern int g_PcQuickWeaponsEnabled;
+                extern void PcConfig_SaveKeyValues(const char* const*, const char* const*, int);
+                const char* key = "quick_weapon_switch";
+                const char* value;
+                g_PcQuickWeaponsEnabled = !g_PcQuickWeaponsEnabled;
+                value = g_PcQuickWeaponsEnabled ? "1" : "0";
+                PcConfig_SaveKeyValues(&key, &value, 1);
+            } else PcOpt_QuickExtraAdjust(r->extra, dir);
+            break;
         case ROW_CHEAT: Pc_Cheats_Adjust(r->cpage, r->extra, dir); break;
         case ROW_PAGE:
             qo_beep(Sfx_MenuMove);
@@ -2230,7 +2241,6 @@ void Pc_QuickOptions_Draw(void)
         s_atlasReady = 0;
         qo_free_text();   /* every slot handle refers to the dead atlas */
         s_texWhite   = 0;
-        s_texCursor  = 0;
         qo_atlas_ensure();
         qo_build_white();
     }
@@ -2685,21 +2695,6 @@ void Pc_QuickOptions_Draw(void)
         }
         s_ddL = ddL; s_ddR = ddR; s_ddTop = ddTop; s_ddRowH = ddH;
         s_ddShown = 1;
-    }
-
-    /* Mouse cursor last, so it rides above the panel (the PSX-drawn one is
-     * composited under every overlay). Nearest keeps the sprite's pixel look. */
-    if (!s_texCursor)
-    {
-        unsigned char rgba[32 * 32 * 4];
-        if (Pc_MouseCursor_SpriteRgba(rgba))
-            s_texCursor = qo_upload_rgba(rgba, 32, 32, 1);
-    }
-    if (s_texCursor)
-    {
-        float cx, cy, cw, ch;
-        if (Pc_MouseCursor_GlRect(vpW, vpH, &cx, &cy, &cw, &ch))
-            qo_quad(s_texCursor, NX(cx), NY(cy), NX(cx + cw), NY(cy - ch), 1.0f, 1.0f, 1.0f, 1.0f);
     }
 
 #undef NX

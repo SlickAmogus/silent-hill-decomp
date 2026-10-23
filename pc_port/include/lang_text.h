@@ -114,6 +114,10 @@ void Pc_TextOverrideApply(int mapIdx);
  * unchanged). Pc_LangMenuTextWidth measures a (first line of a) menu string
  * in pixels for the centered title/difficulty entries. */
 const char* Pc_LangMenuText(const char* str);
+/* Non-zero while drawing text that is data, not a UI label (RetroAchievements
+ * titles): the chokepoint skips Pc_LangMenuText, so a title that happens to
+ * equal a menu key ("Back") is not translated. */
+extern int  g_PcLangMenuVerbatim;
 /* Gfx_StringDraw length argument for a string of unfixed length (see lang_menu.c). */
 int         Pc_LangMenuGlyphCount(const char* str);
 

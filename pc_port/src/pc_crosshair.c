@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
-/* Center crosshair drawn while aiming in TPS / OTS (always in FPS), gated by the
+/* Center crosshair drawn while aiming in TPS / OTS (always in FPS unless crosshair_fps_aim_only), gated by the
  * `crosshair` config option; `crosshair_style` selects the shape. A small
  * translucent white 2D overlay, modeled on the cutscene-border draw: centered
  * screen coords -> AddPrim onto the g_OtTags0 overlay layer that OT2 draws on
@@ -121,8 +121,10 @@ void Pc_CrosshairDraw(void)
     if (g_GameWork.gameState != GameState_InGame) return;
     /* Settled gameplay only — no reticle over cutscenes, menus, or the map. */
     if (g_SysWork.sysState != SysState_Gameplay) return;
-    /* Aim-only in TPS/OTS; always shown in first-person (the view IS the aim). */
-    if (g_ControlStyle != ControlStyle_Fps && !g_SysWork.playerCombat.isAiming) return;
+    /* Aim-only in TPS/OTS. First-person is always shown (the view IS the aim)
+     * unless crosshair_fps_aim_only is set, which makes it aim-only too. */
+    if (!g_SysWork.playerCombat.isAiming &&
+        (g_ControlStyle != ControlStyle_Fps || g_PcConfig.crosshairFpsAimOnly)) return;
 
     if (!s_inited)
     {

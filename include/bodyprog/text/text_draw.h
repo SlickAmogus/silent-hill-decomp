@@ -97,6 +97,13 @@ void Gfx_Strings2dLayerIdxSet(s32 idx);
 
 void Gfx_StringsReset2dLayerIdx(void);
 
+#ifdef SH_PC_PORT
+/** Restricts glyphs to screen x [x0, x1), cutting the ones on the edges, until
+ * cleared with x1 <= x0. The native menus pan text too wide for its space
+ * through such a window. */
+void Gfx_PcStringSetClipX(s32 x0, s32 x1);
+#endif
+
 /** Sets the color of the next string drawn by `Gfx_StringDraw`. Uses `e_ColorId`. */
 void Gfx_StringSetColor(s16 colorId);
 

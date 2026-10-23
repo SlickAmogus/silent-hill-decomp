@@ -1177,4 +1177,32 @@ if(BUILD_TESTING)
         "${DECOMP_DIR}/include" "${DECOMP_DIR}/include/decomp"
         "${PSYCROSS_DIR}/include/psx" "${PSYCROSS_DIR}/include")
     add_test(NAME pc_big_tmd_test COMMAND pc_big_tmd_test)
+
+    # Renderer-free native menu core (scroll, text fitting, row page).
+    add_executable(pc_native_menu_test
+        tests/pc_native_menu_test.c
+        src/pc_native_menu.c)
+    target_include_directories(pc_native_menu_test PRIVATE include)
+    add_test(NAME pc_native_menu_test COMMAND pc_native_menu_test)
+
+    # Achievements screen model (list order, refresh, badge slot cache).
+    add_executable(pc_ach_model_test
+        tests/pc_ach_model_test.c
+        src/pc_ach_model.c)
+    target_include_directories(pc_ach_model_test PRIVATE include)
+    add_test(NAME pc_ach_model_test COMMAND pc_ach_model_test)
+
+    # Bind table logic (rows, usable cells, duplicates, set, toast text).
+    add_executable(pc_bind_core_test
+        tests/pc_bind_core_test.c
+        src/pc_bind_core.c)
+    target_include_directories(pc_bind_core_test PRIVATE include)
+    add_test(NAME pc_bind_core_test COMMAND pc_bind_core_test)
+
+    # Input glyphs (bind mapping, set labels, Auto detection, atlas cells).
+    add_executable(pc_input_glyphs_test
+        tests/pc_input_glyphs_test.c
+        src/pc_input_glyphs.c)
+    target_include_directories(pc_input_glyphs_test PRIVATE include)
+    add_test(NAME pc_input_glyphs_test COMMAND pc_input_glyphs_test)
 endif()

@@ -28,6 +28,7 @@ SAME = {
     'QUICK.HUD', 'QUICK.FOV', 'QUICK.Quad', 'QUICK.HRTF', 'QUICK.Noclip',
     # Proper nouns.
     'ITEM_NAME.68', 'ITEM_NAME.93', 'ITEM_NAME.102', 'ITEM_NAME.131',
+    'MENU.PS_Classic', 'MENU.PS_Modern', 'MENU.Xbox', 'MENU.Nintendo', 'MENU.Steam',
 }
 
 # --- The Language row, which Portuguese can now appear on ------------------
@@ -41,4 +42,43 @@ MENU = {
     'Italian':  'Italiano',
     'Japanese': 'Japonês',
     'Chinese':  'Chinês',
+
+    # Title menu ACHIEVEMENTS row, Achievements and Controls screens. The
+    # Controls action labels have the 129 px before their colon.
+    'ACHIEVEMENTS':    'CONQUISTAS',
+    'UNLOCKED':        'OBTIDA',
+    'LOCKED':          'BLOQUEADA',
+    'Point':           'Ponto',
+    'Points':          'Pontos',
+    'points':          'pontos',
+    'Gamepad_Icons':   'Ícones_do_controle',
+    'Auto':            'Automático',
+    'Function':        'Função',
+    'Keyboard':        'Teclado',
+    'Controller':      'Controle',
+    'Reset':           'Restaurar',
+    'Reset_controls?': 'Restaurar_controles?',
+    'Yes':             'Sim',
+    'No':              'Não',
+    'Move_Up':         'Avançar',
+    'Move_Down':       'Recuar',
+    'Turn_Left':       'Virar_à_Esq.',
+    'Turn_Right':      'Virar_à_Dir.',
+    'Action_/_Shoot':  'Ação/Atirar',
+    'Run':             'Correr',
+    'Sidestep_Left':   'Passo_Lat._Esq.',
+    'Sidestep_Right':  'Passo_Lat._Dir.',
+    'View':            'Visão',
+    'Aim':             'Mirar',
+    'Pause':           'Pausar',
+    'Inventory':       'Inventário',
+    'Cycle_Weapons':   'Trocar_Arma',
+    'Quick_Heal':      'Cura_Rápida',
+    'Quick_Turn':      'Giro_Rápido',
+    'Rear_Look':       'Olhar_p/_Trás',
+    'Change_Camera':   'Trocar_Câmera',
+    'Swap_Shoulder':   'Trocar_Ombro',
+    'Quick_Options':   'Menu_Rápido',
+    'Quick_Save':      'Salvar_Rápido',
+    'Quick_Load':      'Carregar_Ráp.',
 }

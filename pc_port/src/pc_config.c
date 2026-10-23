@@ -4,6 +4,7 @@
 #include "pc_title_style.h"
 #include "lang_text.h"
 #include "pc_binds.h"
+#include "pc_input_glyphs.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -79,6 +80,7 @@ s_PcConfig g_PcConfig = {
                          * 240Hz menu moved them four times too fast (reported). */
     .lowHealthGlow = 0, /* 1=pulsing red edge glow below 20 hp (SH2 remake style); off by default */
     .bulletDecals = 0, /* 1=bullet-hole decals at player gunshot impacts (gamedata/decal.png); off by default */
+    .gamepadIcons = GLYPH_SET_AUTO,
     .globalCharaPool = 1, /* 1=all chara assets resident PC-side + chara_global.dll AI backfill (SPAWN anything anywhere) */
     .wholeMapExteriors = 2, /* auto: whole town drawn while fog_strength < 1.0, the only time it can be seen */
     .usePgxp        = 0, /* 0=affine textures (PSX look), 1=PGXP perspective correct (WIP) */
@@ -128,6 +130,7 @@ s_PcConfig g_PcConfig = {
     .crosshair           = 0, /* draw a center crosshair while aiming in TPS/OTS */
     .crosshairStyle      = 0, /* 0 = cross (+), 1 = dot, 2 = circle, 3 = dashes/gap */
     .crosshairSize       = 100.0f,
+    .crosshairFpsAimOnly = 0, /* FPS crosshair: 0 = always shown, 1 = only while aiming */
     .textSize            = 100.0f,
     .aimAssist           = 1, /* OTS/TPS free-aim aim assist (mouse body-coverage + controller auto-aim) */
     .mouseCursor         = 1, /* mouse controls cursor puzzles + clickable main menu */
@@ -802,6 +805,10 @@ void PcConfig_Load(const char* path)
         {
             g_PcConfig.bulletDecals = (atoi(value) != 0);
         }
+        else if (strcmp(key, "gamepad_icons") == 0)
+        {
+            g_PcConfig.gamepadIcons = InputGlyphs_ClampSet(atoi(value));
+        }
         else if (strcmp(key, "whole_map_exteriors") == 0)
         {
             int v = atoi(value);
@@ -1161,6 +1168,10 @@ void PcConfig_Load(const char* path)
             if (v > 125.0f) v = 125.0f;
             g_PcConfig.crosshairSize = v;
         }
+        else if (strcmp(key, "crosshair_fps_aim_only") == 0)
+        {
+            g_PcConfig.crosshairFpsAimOnly = (atoi(value) != 0);
+        }
         else if (strcmp(key, "text_size") == 0)
         {
             float v = (float)atof(value);
@@ -1225,6 +1236,11 @@ void PcConfig_Load(const char* path)
             if (v < 0.1f) v = 0.1f;
             if (v > 4.0f) v = 4.0f;
             g_PcConfig.touchLookSensitivity = v;
+        }
+        else if (strcmp(key, "quick_weapon_switch") == 0)
+        {
+            extern int g_PcQuickWeaponsEnabled;
+            g_PcQuickWeaponsEnabled = (atoi(value) != 0);
         }
         else if (strcmp(key, "aim_assist") == 0)
         {

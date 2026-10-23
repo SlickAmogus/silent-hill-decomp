@@ -211,6 +211,8 @@ typedef struct {
     int bulletDecals;     /* 1 = bullet-hole decals where player gunfire hits world geometry
                            * (gamedata/decal.png; up to 64 FIFO, cleared on map load)
                            * (config key: bullet_decals) */
+    int gamepadIcons;     /* e_GlyphSet: 0 Auto, 1 PS Classic, 2 PS Modern, 3 Xbox, 4 Nintendo, 5 Steam
+                           * (gamedata/icons/input_glyphs.png; config key: gamepad_icons) */
     int globalCharaPool;  /* 1 = global chara/asset pool: every monster's model+anim+texture stays
                            * resident PC-side (virtual GL texture slots) and chara_global.dll backfills
                            * AI update funcs, so console SPAWN works for every type in any map. Native
@@ -580,6 +582,12 @@ typedef struct {
      * itself is never slowed, the new area just waits. 0 = no minimum.
      * (config key: load_screen_min; console: loadmin) */
     float loadScreenMin;
+
+    /* 1 = in FPS, show the crosshair only while aiming (weapon raised), like
+     * TPS/OTS. 0 = always shown in FPS (default, the previous behaviour).
+     * Appended last so plugins built against the earlier layout still read the
+     * fields above. (config key: crosshair_fps_aim_only) */
+    int crosshairFpsAimOnly;
 } s_PcConfig;
 
 extern s_PcConfig g_PcConfig;
