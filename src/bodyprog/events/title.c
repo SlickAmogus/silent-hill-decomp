@@ -274,7 +274,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                     Pc_RaBrowser_Open();
                     browserOpen = true;
                 }
-#if defined(SH_IOS) || defined(__ANDROID__)
+#if defined(SH_IOS) || defined(__ANDROID__) || defined(__EMSCRIPTEN__)
                 /* Tap the hint to open it. The zone is the bottom-left corner
                  * rather than the text's own rectangle: the string layer works
                  * in its own coordinate space (Gfx_StringSetPosition subtracts
@@ -818,6 +818,20 @@ static void MainMenu_AchievementHintDraw(void)
     Gfx_StringDraw("Achievements", DEFAULT_MAP_MESSAGE_LENGTH);
     return;
 #else
+#if defined(__EMSCRIPTEN__)
+    /* A phone in the browser has no key to name either; the tap zone in
+     * GameState_MainMenu_Update opens it there, as on the native touch builds. */
+    {
+        extern int Web_IsTouchDevice(void);
+
+        if (Web_IsTouchDevice())
+        {
+            Gfx_StringSetPosition(ACH_HINT_POS_X, ACH_HINT_POS_Y);
+            Gfx_StringDraw("Achievements", DEFAULT_MAP_MESSAGE_LENGTH);
+            return;
+        }
+    }
+#endif
     mapBtn = g_GameWorkPtr->config.controllerConfig.map;
     key    = PcConfig_BindName(mapBtn, 0, 0, 0);
     pad    = PcConfig_BindName(mapBtn, 1, 0, 0);
