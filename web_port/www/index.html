@@ -89,11 +89,12 @@ button:disabled { opacity: .4; cursor: default; border-color: var(--line); color
 #progress > div { height: 100%; width: 0; background: var(--rust-lit); transition: width .15s; }
 #status { font-size: .85rem; min-height: 1.2em; margin-top: .6rem; }
 .controls { display: none; font-size: .78rem; color: var(--ash-dim); margin-top: 1rem; border-top: 1px solid var(--line); padding-top: .8rem; }
-.controls table { border-collapse: collapse; width: 100%; }
+.controls table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+.controls table:last-of-type { margin-bottom: .6rem; }
 .controls td { padding: .12rem .3rem; }
 .controls td:first-child { color: var(--ash); }
 body.desktop .controls { display: block; }
-#fsbtn {
+.controls .head { margin: .7rem 0 .2rem .3rem; color: var(--ash); font-size: .7rem; letter-spacing: .14em; text-transform: uppercase; }#fsbtn {
 	position: fixed; top: max(8px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
 	z-index: 5; display: none; padding: .35rem .7rem; font-size: .8rem;
 	background: rgba(0,0,0,.55); border-color: rgba(255,255,255,.15);
@@ -166,7 +167,20 @@ body.desktop .controls { display: block; }
 				<tr><td>Select</td><td>Space</td><td>L1 / R1</td><td>A / D</td></tr>
 				<tr><td>L2 / R2</td><td>R-Shift / L-Shift</td><td></td><td></td></tr>
 			</table>
-			A USB or Bluetooth controller also works: press any button on it once the game is running. Rebind keys in-game from the Options menu.
+			<div class="head">Extras</div>
+			<table>
+				<tr><td>Quick menu</td><td>F10</td><td>Change camera</td><td>F9</td></tr>
+				<tr><td>Quick save</td><td>F6</td><td>Quick load</td><td>F8</td></tr>
+				<tr><td>Reload</td><td>R</td><td>Console</td><td>` (backquote)</td></tr>
+			</table>
+			<div class="head">Over-the-shoulder camera (F9)</div>
+			<table>
+				<tr><td>Move</td><td>W A S D</td><td>Turn</td><td>Arrow keys</td></tr>
+				<tr><td>Aim / Fire</td><td>Right / Left click</td><td>Use</td><td>E</td></tr>
+				<tr><td>Flashlight</td><td>F</td><td>Map</td><td>Tab</td></tr>
+				<tr><td>Run</td><td>L-Shift</td><td>Swap shoulder</td><td>Middle click</td></tr>
+			</table>
+			A USB or Bluetooth controller also works: press any button on it once the game is running. Rebind keys in-game from Options &gt; Controller Config.
 		</div>
 
 		<p class="note" id="platformNote"></p>
