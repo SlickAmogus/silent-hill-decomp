@@ -1641,8 +1641,8 @@ void GsSortObject4J(GsDOBJ2 *obj, GsOT *ot, int shift, unsigned long *scratch)
         u8 mode = pp[3];
         int batch, lsc, iip, qd, tme;
         u8 *next;
-        typedef PACKET* (*tmd_func_lit)(void*, VERT*, VERT*, PACKET*, int, int, GsOT*, u_long*);
-        typedef PACKET* (*tmd_func_nl)(void*, VERT*, PACKET*, int, int, GsOT*, u_long*);
+        typedef void (*tmd_func_lit)(void*, VERT*, VERT*, PACKET*, int, int, GsOT*, u_long*);
+        typedef void (*tmd_func_nl)(void*, VERT*, PACKET*, int, int, GsOT*, u_long*);
  
         if (ilen == 0) break;
  

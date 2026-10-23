@@ -77,14 +77,17 @@ Native ABIs tolerate these and wasm does not, so they show up here first:
   `SH_PC_PORT` block at the end of `include/bodyprog/bodyprog.h`).
 - **Calling through a pointer of the wrong function type** traps at runtime.
   The web build re-enables `-Wincompatible-function-pointer-types` and
-  `-Wcast-function-type-mismatch` so these show up in the build log.
+  `-Wcast-function-type-mismatch` so these show up in the build log. An
+  explicit cast hides the mismatch from both; a one-off build with
+  `-Wcast-function-type-strict` lists every cast to check by hand.
 - **Libc names defined by the PSX API** (`open`, `close`, `lseek`, ...). These
   would capture libc's own internal calls in a static link, so `libapi.h`
   renames them on Emscripten.
 
 ## Local testing
 
-`?disc=<url>`, `?touch=1` and `?log=1` work on `localhost` only. They load a
-disc from the dev server, force the phone path, and turn on the debug log.
+`?disc=<url>`, `?touch=1`, `?log=1` and `?map=<name>` work on `localhost` only.
+They load a disc from the dev server, force the phone path, turn on the debug
+log, and start a new game straight on one map (`?map=map0_s01` is the cafe).
 `window.SHWeb.logText()` and `SHWeb.dumpFiles()` return the log and the files
 the game wrote.

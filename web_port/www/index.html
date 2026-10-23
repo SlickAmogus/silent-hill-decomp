@@ -98,6 +98,14 @@ body.desktop .controls { display: block; }
 	z-index: 5; display: none; padding: .35rem .7rem; font-size: .8rem;
 	background: rgba(0,0,0,.55); border-color: rgba(255,255,255,.15);
 }
+#rotate {
+	position: fixed; inset: 0; z-index: 12; display: none; flex-direction: column;
+	align-items: center; justify-content: center; gap: 1.2rem; padding: 16px;
+	background: var(--bg); color: var(--ash); text-align: center;
+	font-size: 1rem; letter-spacing: .08em;
+}
+#rotate svg { width: 4.5rem; height: 4.5rem; color: var(--rust-lit); animation: tilt 2.4s ease-in-out infinite; }
+@keyframes tilt { 0%, 30% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }
 #ra {
 	position: fixed; inset: 0; z-index: 15; display: none; align-items: center; justify-content: center;
 	background: rgba(0,0,0,.7); padding: 16px;
@@ -122,6 +130,12 @@ body.desktop .controls { display: block; }
 <body>
 <canvas id="canvas" tabindex="-1" oncontextmenu="event.preventDefault()"></canvas>
 <button id="fsbtn" type="button">Full screen</button>
+<div id="rotate">
+	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+		<rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18.5" x2="13" y2="18.5"/>
+	</svg>
+	<div>Turn your phone sideways to play</div>
+</div>
 
 <div id="launcher">
 	<div class="card">

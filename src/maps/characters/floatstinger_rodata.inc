@@ -12,19 +12,22 @@
  * floatstinger pointer from a0, which Floatstinger_ControlUpdate still
  * holds at the jalr. On PC the table is typed to take the pointer and
  * the call site passes it explicitly. func_800D341C is authored as a
- * no-arg no-op; the cast is harmless under the x64 calling convention.
+ * no-arg no-op: harmless to call with an argument on x64, a signature
+ * trap on wasm, so the table holds a one-argument thunk instead.
  *
  * Included at the bottom of floatstinger.c so the map4_s05 DLL gets the
  * table alongside the handlers it dispatches to (same reasoning as
  * romper_rodata.inc: the exe import lib has no visibility into
  * DLL-resident functions). */
 
+static void func_800D341C_Thunk(s_SubCharacter* chara) { (void)chara; func_800D341C(); }
+
 void (*D_800D7A04[7])(s_SubCharacter*) = {
     /* [0] */ NULL,
     /* [1] */ NULL,
     /* [2] */ func_800D1BF8,
     /* [3] */ func_800D2B90,
-    /* [4] */ (void (*)(s_SubCharacter*))func_800D341C,
+    /* [4] */ func_800D341C_Thunk,
     /* [5] */ func_800D3424,
     /* [6] */ func_800D3564,
 };

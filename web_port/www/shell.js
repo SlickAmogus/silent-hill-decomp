@@ -38,6 +38,9 @@
 
 	document.body.classList.add(isTouch ? "touch" : "desktop");
 
+	var devMap = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) &&
+		(new URLSearchParams(location.search).get("map") || "").replace(/[^a-z0-9_]/g, "");
+
 	var chosen = null;   /* File or Blob with a .name */
 	var Module = null;
 	var running = false;
@@ -403,6 +406,35 @@
 	document.addEventListener("fullscreenchange", updateFsButton);
 	document.addEventListener("webkitfullscreenchange", updateFsButton);
 
+	/* ---------------- Landscape only ---------------- */
+
+	/* orientation.lock only works in fullscreen on Android and not at all on
+	 * iOS, so a phone can still be turned upright. The game sizes itself from
+	 * the canvas, and a run of portrait/landscape resizes leaves it confused,
+	 * so in portrait the canvas keeps its last landscape size behind a cover
+	 * and the game never sees the turn. */
+	var rotateCover = $("rotate");
+	var landSize = null;
+
+	function checkOrientation() {
+		var portrait = window.innerHeight > window.innerWidth;
+		var cover = running && isTouch && portrait;
+		if (!portrait) landSize = { w: window.innerWidth, h: window.innerHeight };
+		rotateCover.style.display = cover ? "flex" : "none";
+		if (cover) {
+			var s = landSize || { w: window.innerHeight, h: window.innerWidth };
+			ui.canvas.style.width = s.w + "px";
+			ui.canvas.style.height = s.h + "px";
+		} else {
+			ui.canvas.style.width = "";
+			ui.canvas.style.height = "";
+		}
+	}
+
+	window.addEventListener("resize", checkOrientation);
+	window.addEventListener("orientationchange", checkOrientation);
+	checkOrientation();
+
 	/* ---------------- Launch ---------------- */
 
 	function loadScript(src) {
@@ -472,6 +504,13 @@
 					try { cfg = FS.readFile("/game/config.cfg", { encoding: "utf8" }); } catch (e) { /* none yet */ }
 					FS.writeFile("/game/config.cfg", cfg + "\nenable_debug_log = 1\ngl_verbose = 1\n");
 				}
+				/* Development only: ?map=map0_s01 on a local server starts a new
+				 * game straight on that map (the desktop -skiptogame switch). */
+				if (devMap) {
+					var mcfg = "";
+					try { mcfg = FS.readFile("/game/config.cfg", { encoding: "utf8" }); } catch (e) { /* none yet */ }
+					FS.writeFile("/game/config.cfg", mcfg + "\nmap = " + devMap + "\n");
+				}
 				stagePortAssets(FS);
 				mkdirp(FS, "/disc");
 				FS.writeFile("/disc/" + discFsName(name), discBytes, { canOwn: true });
@@ -484,6 +523,7 @@
 			ui.launcher.classList.add("hidden");
 			ui.progress.style.display = "none";
 			running = true;
+			checkOrientation();
 			updateFsButton();
 			ui.canvas.focus();
 			syncTimer = setInterval(persistNow, 4000);
@@ -492,7 +532,7 @@
 			});
 			window.addEventListener("pagehide", persistNow);
 			try {
-				Module.callMain([]);
+				Module.callMain(devMap ? ["-skiptogame"] : []);
 			} catch (e) {
 				/* ASYNCIFY unwinds main at its first yield by throwing "unwind";
 				 * that is normal, anything else is a real failure. */
