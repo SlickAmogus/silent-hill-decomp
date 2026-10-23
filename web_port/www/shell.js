@@ -290,11 +290,51 @@
 		}
 	};
 
+	/* Only a WebAssembly trap stops the game; an abort reports itself through
+	 * onAbort. Everything else that lands here is the browser declining
+	 * something the page asked for and the game carries on: requestPointerLock
+	 * returns a promise that rejects when the click that asked for it came
+	 * while focus was still returning from another window. Those are logged,
+	 * not shown, or a game running fine underneath gets a crash card on top. */
+	function fatal(err) {
+		return typeof WebAssembly !== "undefined" && err instanceof WebAssembly.RuntimeError;
+	}
+
+	/* Any other error that escaped the game's own frame could still have
+	 * stalled it, and the type alone cannot say. Watching whether it keeps
+	 * drawing can: count the WebGL draws for a few seconds and report only if
+	 * they stop while the page is on screen. */
+	var drawWatch = null;
+	function confirmStalled(detail) {
+		var gl = ui.canvas.getContext("webgl2");
+		if (drawWatch || !gl) return;
+		drawWatch = { draws: 0, orig: { drawArrays: gl.drawArrays, drawElements: gl.drawElements } };
+		["drawArrays", "drawElements"].forEach(function (fn) {
+			gl[fn] = function () { drawWatch.draws++; return drawWatch.orig[fn].apply(gl, arguments); };
+		});
+		setTimeout(function () {
+			var stalled = drawWatch.draws === 0 && document.visibilityState === "visible";
+			gl.drawArrays = drawWatch.orig.drawArrays;
+			gl.drawElements = drawWatch.orig.drawElements;
+			drawWatch = null;
+			if (stalled) showCrash("The game stopped unexpectedly.", detail);
+		}, 3000);
+	}
+
+	function onPageError(err, detail) {
+		if (!running) return;
+		if (fatal(err)) {
+			showCrash("The game stopped unexpectedly.", detail);
+			return;
+		}
+		console.warn("[shell] non-fatal error, game still checked:", detail);
+		confirmStalled(detail);
+	}
 	window.addEventListener("error", function (e) {
-		if (running) showCrash("The game stopped unexpectedly.", String(e.message || "") + "\n" + String(e.error && e.error.stack || ""));
+		onPageError(e.error, String(e.message || "") + "\n" + String(e.error && e.error.stack || ""));
 	});
 	window.addEventListener("unhandledrejection", function (e) {
-		if (running) showCrash("The game stopped unexpectedly.", String(e.reason && (e.reason.stack || e.reason)));
+		onPageError(e.reason, String(e.reason && (e.reason.stack || e.reason)));
 	});
 
 	/* ---------------- Audio lifecycle ---------------- */
