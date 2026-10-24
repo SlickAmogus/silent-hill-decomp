@@ -810,6 +810,14 @@ install(TARGETS SilentHillPC RUNTIME DESTINATION bin)
 if(BUILD_TESTING)
     enable_testing()
 
+    # PSY-Q math used by the flashlight flare's relative-angle calculation.
+    add_executable(pc_gte_math_test
+        tests/pc_gte_math_test.c
+        src/pc_gte_math.c)
+    target_include_directories(pc_gte_math_test PRIVATE
+        "${PSYCROSS_DIR}/include/psx" "${PSYCROSS_DIR}/include")
+    add_test(NAME pc_gte_math_test COMMAND pc_gte_math_test)
+
     # Oversized loose ITEM TMD capacity lift (pc_big_tmd.c). Links the real
     # module against the real file table so path building, slot arithmetic and
     # the accept/reject verdicts are exercised exactly as the game does them.
