@@ -6745,14 +6745,28 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
      * (classic makes you stop to aim) — so aim never engaged and you just slowed
      * down. In TPS/OTS with a gun, treat a Run* upper body as Walk so it falls
      * into the aim-entry case and snaps to the ready pose, identical whether you
-     * started walking or running. Classic (g_DebugThirdPersonCam==0) untouched. */
-    if (g_DebugThirdPersonCam && g_Player_IsAiming &&
+     * started walking or running. Classic 2D movement also uses the shim:
+     * its Run* state cannot drain through the native lower-body machine until
+     * isAiming is set, so holding aim after a run leaves it stuck indefinitely.
+     * Allow the same handoff there, but keep classic tank controls unchanged. */
+    if ((g_DebugThirdPersonCam ||
+         (g_PcConfig.control2d && !g_PcFpsCam && !(g_SysWork.sysFlags & SysFlag_DemoActive))) &&
+        g_Player_IsAiming &&
         g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_KitchenKnife, AttackInputType_Tap) &&
         (g_SysWork.playerWork.extra.upperBodyState == PlayerUpperBodyState_RunForward ||
          g_SysWork.playerWork.extra.upperBodyState == PlayerUpperBodyState_RunRight ||
          g_SysWork.playerWork.extra.upperBodyState == PlayerUpperBodyState_RunLeft))
     {
         g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_WalkForward;
+        /* Classic has no AimRunForward handler. Enter AimWalkForward below
+         * rather than adding the aim offset to the shim's RunForward state. */
+        if (!g_DebugThirdPersonCam &&
+            g_SysWork.playerWork.extra.lowerBodyState == PlayerLowerBodyState_RunForward)
+        {
+            g_SysWork.playerWork.extra.lowerBodyState = PlayerLowerBodyState_WalkForward;
+            player->model.stateStep = 0;
+            player->model.controlState = 0;
+        }
     }
 #endif
 
