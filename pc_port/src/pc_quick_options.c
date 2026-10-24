@@ -29,6 +29,8 @@
 #include "stb_truetype.h"
 
 #include "pc_quick_options.h"
+#include "pc_menu_font.h"
+#include "pc_title_screen.h"
 #include "pc_mouse_click_icons.h"
 #include "pc_dpad_icons.h"
 #include "pc_bind_panel.h"
@@ -38,8 +40,14 @@
 #include "pc_cheats.h"
 #include "control_style.h"
 #include "lang_quick.h"
+#include "pc_options_help.h"
+#include "pc_menu_preview.h"
 #include "sh_log.h"
 #include "game.h"
+#include "bodyprog/bodyprog.h"
+#include "bodyprog/screen/screen_data.h"
+#include "screens/options.h"
+#include "bodyprog/screen/screen_draw.h"
 #include "bodyprog/sound/sfx_id_enum.h"
 #include "bodyprog/sound/sound_system.h"
 
@@ -57,6 +65,11 @@ extern const char* PcOpt_QuickName(const void* h);
 extern const char* PcOpt_QuickLabel(const void* h, char* buf, int bufsz);
 extern void        PcOpt_QuickAdjust(const void* h, int dir);
 extern int         PcOpt_QuickRealtime(const void* h);
+extern int         PcOpt_ScreenCount(int page);
+extern const void* PcOpt_ScreenEntry(int page, int row);
+extern const char* PcOpt_ScreenKey(const void* h);
+extern int         PcOpt_ScreenAction(const void* h);
+extern s32 g_MainOptionsMenu_SelectedEntry;
 /* options.c: rows that are not in that table. Keep in step with the identical
  * enum there -- these are indices into its switch, nothing more. */
 enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
@@ -112,6 +125,9 @@ typedef struct
  * the neighbouring pages' names, which depend on where the page sits. */
 #define QO_NAV_ROW   { ROW_PAGE,  NULL, 0, "Previous / Next" }
 #define QO_CLOSE_ROW { ROW_CLOSE, NULL, 0, "Close" }
+
+static int s_native;
+static int s_previewOnly;
 
 static const QoRowDef s_pageGfx1[] = {
     { ROW_OPT,   "texture_filter",       0, NULL },  /* Texture_Filter */
@@ -365,6 +381,19 @@ enum { QO_PG_GFX1 = 0, QO_PG_GFX2, QO_PG_HUD, QO_PG_AUDIO, QO_PG_VIEW,
 
 static const QoRowDef* qo_page_rows(int page, int* count)
 {
+    if (s_native) {
+        static QoRowDef nativeRows[QO_MAX_ROWS];
+        int i;
+        *count = PcOpt_ScreenCount(page);
+        if (*count > QO_MAX_ROWS) *count = QO_MAX_ROWS;
+        for (i = 0; i < *count; i++) {
+            const void* h = PcOpt_ScreenEntry(page, i);
+            int action = PcOpt_ScreenAction(h);
+            nativeRows[i] = (QoRowDef){ action == 2 ? ROW_CLOSE : action ? ROW_PAGE : ROW_OPT,
+                PcOpt_ScreenKey(h), i, PcOpt_QuickName(h), action };
+        }
+        return nativeRows;
+    }
     switch (page)
     {
         case QO_PG_GFX2:     return QO_TABLE(s_pageGfx2);
@@ -400,6 +429,36 @@ int g_PcQuickOptionsActive = 0;
 
 static int s_page;
 static int s_sel;
+/* Separate from the gameplay freeze flag: the original options state already
+ * owns input/timing. The quick menu retains its own page and selection. */
+static int s_quickPage, s_quickSel;
+static int s_cachedRu = -1, s_cachedW, s_cachedH;
+static GLuint s_nativeText[64];
+static int s_nativeW[64], s_nativeH[64], s_nativePx[64];
+static char s_nativeStrings[64][512];
+static GLuint qo_upload_rgba(const unsigned char* rgba,int w,int h,int special);
+
+static GLuint qo_disc_bake(const char* text,float px,int* outW,int* outH)
+{
+    unsigned char* rgba=Pc_MenuFontRaster(text,px,outW,outH);
+    GLuint result=rgba?qo_upload_rgba(rgba,*outW,*outH,0):0;
+    free(rgba);
+    return result;
+}
+static const char* const s_nativeNames[5][2] = {
+    { "Graphics", "Графика" }, { "Lighting & System", "Освещение и система" },
+    { "Controls", "Управление" }, { "Camera", "Камера" }, { "HUD", "Интерфейс" }
+};
+
+static const char* qo_local(const char* en, const char* ru)
+{
+    return Pc_MenuLanguageRussian() ? ru : en;
+}
+
+static const void* qo_handle(const QoRowDef* r)
+{
+    return s_native ? PcOpt_ScreenEntry(s_page, r->extra) : PcOpt_QuickFind(r->key);
+}
 
 /* GL */
 static GLuint s_prog, s_vao, s_vbo;
@@ -937,6 +996,12 @@ static void qo_fonts_init(void)
             continue;
         if (stbtt_InitFont(&s_font, data, stbtt_GetFontOffsetForIndex(data, 0)))
         {
+            /* Do not silently select a Latin-only fallback on a Russian disc. */
+            if (Pc_MenuLanguageRussian() && (!stbtt_FindGlyphIndex(&s_font, 0x042F) ||
+                                !stbtt_FindGlyphIndex(&s_font, 0x044F))) {
+                free(data);
+                continue;
+            }
             s_fontData = data; /* stbtt keeps pointers into this - never free */
             s_fontOk   = 1;
             s_fontPath = paths[i];
@@ -959,13 +1024,30 @@ static GLuint qo_bake_once(const char* text, float px, int* outW, int* outH, int
     unsigned char *cov, *rgba, *scratch;
     GLuint tex;
 
+    if (!s_native && Pc_MenuLanguageSupported() && text && text[0] && px>=4 &&
+        Pc_LangQuickScript()==LANG_QUICK_SCRIPT_LATIN && Pc_MenuFontReady()) {
+        if (outInk) *outInk=0;
+        return qo_disc_bake(text,px,outW,outH);
+    }
+
     if (!s_fontOk || !text || !text[0] || px < 4.0f)
         return 0;
 
     scale = stbtt_ScaleForPixelHeight(&s_font, px);
     stbtt_GetFontVMetrics(&s_font, &asc, &desc, &gap);
 
-    W = (int)(px * 0.62f * (float)strlen(text)) + 8 * pad;
+    /* UTF-8 byte count can overestimate Cyrillic text by several times and
+     * reject valid ultrawide help lines at the 4096px allocation guard. */
+    penX = 0;
+    p = text;
+    while (*p) {
+        int cp = (int)Pc_LangUtf8Next(&p), advance, bearing;
+        stbtt_GetCodepointHMetrics(&s_font, cp, &advance, &bearing);
+        penX += (advance + (prev ? stbtt_GetCodepointKernAdvance(&s_font, prev, cp) : 0)) * scale;
+        prev = cp;
+    }
+    prev = 0;
+    W = (int)ceilf(penX + px) + 8 * pad;
     H = (int)ceilf(px * 1.4f) + 2 * pad;
     if (W <= 0 || H <= 0 || W > 4096 || H > 512)
         return 0;
@@ -1205,6 +1287,7 @@ static void qo_free_text(void)
      * image. Only slot 0, the white texel, survives a reset, because
      * qo_atlas_reset re-claims it in place. */
     qo_atlas_reset();
+    memset(s_nativeText, 0, sizeof(s_nativeText));
     qo_retire(s_texTitle); s_texTitle = 0;
     qo_retire(s_texHint);  s_texHint  = 0;
     qo_retire(s_texHint2); s_texHint2 = 0;
@@ -1343,11 +1426,15 @@ static void qo_row_name(const QoRowDef* r, char* out, int n)
 
     if (r->kind == ROW_OPT)
     {
-        const void* h = PcOpt_QuickFind(r->key);
-        src = h ? Pc_LangQuickMenu(PcOpt_QuickName(h)) : r->key;
+        const void* h = qo_handle(r);
+        const PcOptionHelp* help = Pc_OptionsHelp(r->key);
+        src = s_native && help ? help->name[Pc_MenuLanguageRussian()] :
+            h ? Pc_LangQuickMenu(PcOpt_QuickName(h)) : r->key;
     }
     else if (r->kind == ROW_CHEAT)
         src = Pc_LangQuick(Pc_Cheats_Name(r->cpage, r->extra));
+    else if (s_native)
+        src = Pc_LangQuickMenu(r->label);
     else
         src = Pc_LangQuick(r->label);
 
@@ -1362,13 +1449,13 @@ static void qo_row_value(const QoRowDef* r, char* out, int n)
     out[0] = 0;
     if (r->kind == ROW_OPT)
     {
-        const void* h = PcOpt_QuickFind(r->key);
+        const void* h = qo_handle(r);
         const char* v = h ? Pc_LangQuickMenu(PcOpt_QuickLabel(h, buf, (int)sizeof(buf))) : "?";
         int i;
         for (i = 0; i < n - 1 && v[i]; i++)
             out[i] = (v[i] == '_') ? ' ' : v[i];
         out[i] = 0;
-        if (h && !PcOpt_QuickRealtime(h) && i < n - 3)
+        if (!s_native && h && !PcOpt_QuickRealtime(h) && i < n - 3)
         {
             out[i++] = ' '; out[i++] = '*'; out[i] = 0;
         }
@@ -1393,7 +1480,7 @@ static void qo_row_value(const QoRowDef* r, char* out, int n)
 
 int Pc_QuickOptions_IsOpen(void)
 {
-    return s_phase != QO_CLOSED;
+    return !s_native && s_phase != QO_CLOSED;
 }
 
 int Pc_QuickOptions_ShowsMinimapRows(void)
@@ -1401,7 +1488,7 @@ int Pc_QuickOptions_ShowsMinimapRows(void)
     const QoRowDef* rows;
     int             n, i;
 
-    if (s_phase == QO_CLOSED)
+    if ((s_native && !Pc_OptionsScenePreview()) || s_phase == QO_CLOSED)
     {
         return 0;
     }
@@ -1429,6 +1516,21 @@ static void qo_open(void)
 
 void Pc_QuickOptions_Close(void)
 {
+    if (s_native) {
+        if (s_previewOnly) {
+            s_previewOnly=0; s_native=0; s_phase=QO_CLOSED;
+            s_page=s_quickPage; s_sel=s_quickSel;
+            g_PcQuickOptionsActive=0;
+            return;
+        }
+        g_GameWork.gameStateSteps[0] = OptionsMenuState_LeavePcOptions;
+        g_GameWork.gameStateSteps[1] = 0;
+        g_GameWork.gameStateSteps[2] = 0;
+        g_SysWork.counters_1C[1] = 0;
+        g_PcQuickOptionsActive = 0;
+        ScreenFade_Start(true, false, false);
+        return;
+    }
     s_ddRow = -1;
     if (s_phase == QO_CLOSED || s_phase == QO_CLOSING)
         return;
@@ -1442,12 +1544,25 @@ void Pc_QuickOptions_Close(void)
 
 void Pc_QuickOptions_Toggle(void)
 {
+    if (s_native) { Pc_QuickOptions_Close(); return; }
     /* The keybind panel owns the keyboard while it is up -- F10 may be the
      * very key being bound -- so the toggle does nothing until it closes. */
     if (Pc_BindPanel_IsOpen())
         return;
     if (s_phase == QO_CLOSED || s_phase == QO_CLOSING)
-        qo_open();
+    {
+        /* The same five pages in gameplay, with an isolated showcase instead
+         * of rendering or advancing the player's paused world. Other languages
+         * retain their existing translated quick menu. */
+        if (Pc_MenuLanguageSupported() &&
+            g_GameWork.gameState==GameState_InGame && g_SysWork.sysState==SysState_Gameplay &&
+            !(g_SysWork.sysFlags & (SysFlag_CutsceneActive|SysFlag_DemoActive))) {
+            s_quickPage=s_page; s_quickSel=s_sel;
+            s_native=1; s_previewOnly=1; s_page=s_sel=0;
+            s_phase=QO_SHOWN; g_PcQuickOptionsActive=1; s_viewRowsDirty=1;
+            Pc_MenuPreview_Preload();
+        } else qo_open();
+    }
     else
     {
         qo_beep(Sfx_MenuCancel);
@@ -1504,7 +1619,8 @@ static void qo_set_page(int page)
 {
     int n;
     s_ddRow = -1;
-    s_page = (page + QO_PAGES) % QO_PAGES;
+    int pages = s_native ? 5 : QO_PAGES;
+    s_page = (page + pages) % pages;
     qo_page_rows(s_page, &n);
     if (s_sel >= n) s_sel = n - 1;
     if (s_sel < 0)  s_sel = 0;
@@ -1538,7 +1654,7 @@ static void qo_activate(const QoRowDef* r, int dir)
     {
         case ROW_OPT:
         {
-            const void* h = PcOpt_QuickFind(r->key);
+            const void* h = qo_handle(r);
             if (h) PcOpt_QuickAdjust(h, dir);
             break;
         }
@@ -1652,6 +1768,13 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
 
     /* Keyboard extras (arrows arrive through the pad emulation already). */
     if (qo_key_edge(SDL_SCANCODE_ESCAPE))   close    = 1;
+    /* Keep the pre-existing ten-page quick menu (audio, bindings, mods and
+     * cheats) reachable; the scene preview must not remove those features. */
+    if (qo_key_edge(SDL_SCANCODE_TAB) && s_previewOnly) {
+        s_previewOnly=0; s_native=0; s_page=s_quickPage; s_sel=s_quickSel;
+        s_viewRowsDirty=1;
+        return;
+    }
     if (qo_key_edge(SDL_SCANCODE_PAGEDOWN) || qo_key_edge(SDL_SCANCODE_E)) pageNext = 1;
     if (qo_key_edge(SDL_SCANCODE_PAGEUP)   || qo_key_edge(SDL_SCANCODE_Q)) pagePrev = 1;
 
@@ -1788,7 +1911,7 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
         float mpx = mx * s_vpW;
         int   row = (int)((s_geoListT - py) / s_geoRowPitch);
         int   inX = mpx >= s_geoPanelL && mpx <= s_geoPanelR;
-        if (inX && row >= 0 && row < nRows)
+        if (inX && py <= s_geoListT && row >= 0 && row < nRows)
         {
             if (mMoved) s_sel = row;
             if (mClick)
@@ -1829,6 +1952,12 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
 
 static void qo_confirm(const QoRowDef* r)
 {
+    if (s_native && r->kind == ROW_PAGE) {
+        qo_beep(Sfx_MenuMove);
+        qo_set_page(s_page + r->cpage);
+        s_sel = 0;
+        return;
+    }
     if (r->kind == ROW_CHEAT)
         Pc_Cheats_Confirm(r->cpage, r->extra);
     else if (r->kind == ROW_ACTION)
@@ -1843,6 +1972,98 @@ static void qo_confirm(const QoRowDef* r)
     }
     else
         qo_activate(r, +1);
+}
+
+int Pc_OptionsScreen_Update(void)
+{
+    const s_ControllerConfig* cc = &g_GameWorkPtr->config.controllerConfig;
+    extern unsigned int Pc_MouseCursor_BoundPadBits(void);
+    u32 mouseBits = Pc_MouseCursor_BoundPadBits();
+    u32 held = g_Controller0->heldBtnFlags & ~mouseBits;
+    u32 clicked = g_Controller0->clickedBtnFlags & ~mouseBits;
+
+    /* Draw initializes GL in its own context; allow the legacy screen for the
+     * first frame, and permanently if initialization fails. */
+    if (!Pc_MenuLanguageSupported() ||
+        s_glReady < 0 || (s_fontsTried && !s_fontOk && !Pc_MenuFontReady())) {
+        extern int g_PcOptionsWideScreen;
+        g_PcOptionsWideScreen = 0;
+        if (s_native) {
+            s_native = 0;
+            s_phase = QO_CLOSED;
+            s_page = s_quickPage;
+            s_sel = s_quickSel;
+        }
+        return 0;
+    }
+    if (!s_native) {
+        s_quickPage = s_page;
+        s_quickSel = s_sel;
+        s_native = 1;
+        s_page = 0;
+        s_sel = 0;
+        s_ddRow = -1;
+        s_phase = QO_SHOWN;
+        g_PcQuickOptionsActive = 0;
+        s_viewRowsDirty = 1;
+        Pc_MenuPreview_Preload();
+    }
+    Pc_MouseCursor_Show();
+    Pc_QuickOptions_Update(
+        (held & (ControllerFlag_LStickUp | ControllerFlag_DpadUp)) != 0,
+        (held & (ControllerFlag_LStickDown | ControllerFlag_DpadDown)) != 0,
+        (held & (ControllerFlag_LStickLeft | ControllerFlag_DpadLeft)) != 0,
+        (held & (ControllerFlag_LStickRight | ControllerFlag_DpadRight)) != 0,
+        (clicked & (cc->enter | cc->action)) != 0,
+        (clicked & (cc->cancel | cc->option)) != 0,
+        (clicked & ControllerFlag_R1) != 0,
+        (clicked & ControllerFlag_L1) != 0);
+    return s_glReady == 1;
+}
+
+int Pc_OptionsScenePreview(void)
+{
+    /* Freeze the player's game without rendering it. The isolated child alone
+     * redraws the showcase; game_sys_states distinguishes the two owners. */
+    return (Pc_MenuPreview_IsChild() && g_PcQuickOptionsActive) ||
+        (s_native && s_previewOnly) ||
+        (g_GameWork.gameState==GameState_OptionScreen &&
+         g_GameWork.gameStatePrev==GameState_InGame &&
+         g_GameWork.gameStateSteps[0]==OptionsMenuState_PcOptions);
+}
+
+int Pc_OrdinaryOptions_Active(void)
+{
+    int step=g_GameWork.gameStateSteps[0];
+    return g_GameWork.gameState==GameState_OptionScreen && s_glReady==1 &&
+        Pc_MenuLanguageSupported() &&
+        Pc_MenuFontReady() && (step==OptionsMenuState_MainOptions ||
+        step==OptionsMenuState_EnterMainOptions || step==OptionsMenuState_LeavePcOptions ||
+        step==OptionsMenuState_Leave || step==OptionsMenuState_LeaveMainOptions ||
+        step==OptionsMenuState_EnterScreenPos || step==OptionsMenuState_EnterBrightness ||
+        step==OptionsMenuState_EnterController || step==OptionsMenuState_EnterExtraOptions ||
+        step==OptionsMenuState_EnterPcOptions);
+}
+
+int Pc_OptionsOverlay_Active(void)
+{
+    return s_native || Pc_OrdinaryOptions_Active() || Pc_TitleMenu_Active();
+}
+
+int Pc_TitleMenu_Active(void)
+{
+    return s_glReady==1 && Pc_TitleScreen_Available();
+}
+
+int Pc_OrdinaryOptions_Mouse(int* row,float* valueFraction)
+{
+    float x,y;
+    if(!Pc_OrdinaryOptions_Active() || !Pc_MouseCursor_ViewportPos(&x,&y))return 0;
+    /* Fractions are shared by drawing and hit-testing at every aspect ratio. */
+    *row=(y>=.18f && y<.18f+.058f*MainOptionsMenuEntry_Count)?
+        (int)((y-.18f)/.058f):-1;
+    *valueFraction=(x-.59f)/.31f;
+    return 1;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1874,22 +2095,269 @@ void Pc_QuickOptions_PreloadGL(void)
     qo_atlas_ensure();
     qo_build_white();
 }
+
+/* Full-width PC options shares the isolated GL compositor, but rasterizes the
+ * game's FONT16 letterforms. Scene previews are render-only, not screenshots. */
+static float qo_text_width(const char* text, float px)
+{
+    if (s_native && Pc_MenuFontReady()) return Pc_MenuFontWidth(text,px);
+    const char* p = text;
+    float width = 0, scale = stbtt_ScaleForPixelHeight(&s_font, px);
+    int previous = 0;
+    while (*p) {
+        int advance, bearing;
+        int cp = (int)Pc_LangUtf8Next(&p);
+        stbtt_GetCodepointHMetrics(&s_font, cp, &advance, &bearing);
+        width += scale * (advance + stbtt_GetCodepointKernAdvance(&s_font, previous, cp));
+        previous = cp;
+    }
+    return width;
+}
+
+static void qo_native_text(int slot, const char* text, float px, float x, float y,
+                           float maxWidth, float vpW, float vpH, float r, float g, float b)
+{
+    int fit = (int)px;
+    float width;
+    if (!text || !*text || maxWidth <= 0 || slot < 0 || slot >= 64) return;
+    width = qo_text_width(text, px);
+    if (width > maxWidth) fit = (int)(px * maxWidth / width);
+    if (fit < 6) fit = 6;
+    if (!s_nativeText[slot] || s_nativePx[slot] != fit || strcmp(text, s_nativeStrings[slot])) {
+        qo_retire(s_nativeText[slot]);
+        snprintf(s_nativeStrings[slot], sizeof(s_nativeStrings[slot]), "%s", text);
+        s_nativePx[slot] = fit;
+        s_nativeText[slot] = Pc_MenuFontReady() ?
+            qo_disc_bake(text,(float)fit,&s_nativeW[slot],&s_nativeH[slot]) :
+            qo_bake(text, (float)fit, &s_nativeW[slot], &s_nativeH[slot]);
+    }
+    qo_quad(s_nativeText[slot], -1 + 2*x/vpW, 1 - 2*y/vpH,
+        -1 + 2*(x+s_nativeW[slot])/vpW, 1 - 2*(y+s_nativeH[slot])/vpH, r,g,b,1);
+}
+
+static void qo_native_rect(float x, float y, float w, float h, float vpW, float vpH,
+                            float r, float g, float b, float a)
+{
+    qo_quad(s_texWhite, -1+2*x/vpW, 1-2*y/vpH, -1+2*(x+w)/vpW, 1-2*(y+h)/vpH, r,g,b,a);
+}
+
+static float qo_native_paragraph(const char* text, int slot, float px, float x, float y,
+                                 float width, float bottom, float vpW, float vpH)
+{
+    const char* p = text;
+    /* Each line lives in the shared 2048px atlas. Ultrawide displays must wrap
+     * before that limit, not ask the atlas for an impossible texture. */
+    if (width > QO_ATLAS_W - 32) width = QO_ATLAS_W - 32;
+    while (*p && y + px < bottom && slot < 60) {
+        char line[512];
+        const char *end = p, *space = NULL, *next;
+        size_t n = 0;
+        while (*end) {
+            next = end;
+            Pc_LangUtf8Next(&next);
+            n = (size_t)(next - p);
+            if (n >= sizeof(line)-1) break;
+            memcpy(line,p,n); line[n]=0;
+            if (qo_text_width(line,px) > width) break;
+            if (*end == ' ') space = end;
+            end = next;
+        }
+        if (*end && space && space > p) end = space;
+        if (end == p) { end = p; Pc_LangUtf8Next(&end); }
+        n = (size_t)(end-p);
+        if (n >= sizeof(line)) n=sizeof(line)-1;
+        memcpy(line,p,n); line[n]=0;
+        qo_native_text(slot++,line,px,x,y,width,vpW,vpH,.80f,.83f,.86f);
+        y += px * 1.45f;
+        p = end; while (*p==' ') p++;
+    }
+    return y;
+}
+
+static void qo_native_draw(float vpW, float vpH, const QoRowDef* rows, int count)
+{
+    PcOptionsLayout l = Pc_OptionsLayout(vpW,vpH);
+    float header = l.font*2.8f, footer = l.font*3.2f;
+    float listT = l.top+header;
+    float listH = l.height-header-footer;
+    float rowPitch, helpX, helpY, helpW, bottom = l.top+l.height-footer;
+    int i, ru=Pc_MenuLanguageRussian();
+    if (l.stacked) listH *= .58f;
+    rowPitch = listH / 11;
+    helpX = l.stacked ? l.left : l.left+l.listWidth+l.gap;
+    helpY = l.stacked ? listT+listH+l.gap : listT;
+    helpW = l.stacked ? l.width : l.width-l.listWidth-l.gap;
+
+    qo_native_rect(0,0,vpW,vpH,vpW,vpH,0,0,0,1);
+    qo_native_text(0,qo_local("PC OPTIONS", "НАСТРОЙКИ ПК"),l.font*1.2f,l.left+l.padding,l.top+l.font*.6f,l.width*.30f,vpW,vpH,.78f,.82f,.78f);
+    qo_native_text(1,s_nativeNames[s_page][ru],l.font,l.left+l.width*.35f,l.top+l.font*.75f,l.width*.40f,vpW,vpH,.85f,.88f,.9f);
+    qo_native_text(2,s_previewOnly?qo_local("Esc: Back","Esc: Назад"):qo_local("R: Reset", "R: Сброс"),l.font*.8f,l.left+l.width*.84f,l.top+l.font*.8f,l.width*.15f,vpW,vpH,.75f,.78f,.8f);
+
+    s_vpW=vpW; s_vpH=vpH;
+    s_geoPanelL=l.left; s_geoPanelR=l.left+l.listWidth;
+    s_geoListT=vpH-listT; s_geoRowPitch=rowPitch; s_geoRowH=rowPitch;
+    s_geoRows=count; s_geoTitleB=s_geoTitleT=-1; /* fixed responsive screen, no drag */
+
+    for(i=0;i<count;i++) {
+        char label[192], value[128];
+        float y=listT+i*rowPitch;
+        qo_row_name(&rows[i],label,sizeof(label));
+        if(i==s_sel) {
+            float pulse=.45f+.18f*sinf(SDL_GetTicks()*.004f);
+            qo_native_rect(l.left,y+rowPitch*.88f,l.listWidth,1,vpW,vpH,48/255.f,1,80/255.f,pulse);
+            qo_native_text(62,">",l.font*.65f,l.left-l.padding*.7f,y+rowPitch*.35f,l.padding,vpW,vpH,48/255.f,1,80/255.f);
+        }
+        qo_native_text(3+i*2,label,fminf(l.font,rowPitch*.63f),l.left+l.padding,y+rowPitch*.25f,l.listWidth*.70f-l.padding*2,vpW,vpH,i==s_sel?48/255.f:.82f,i==s_sel?1:.84f,i==s_sel?80/255.f:.82f);
+        value[0] = 0;
+        if (rows[i].kind == ROW_OPT) qo_row_value(&rows[i],value,sizeof(value));
+        qo_native_text(4+i*2,value,fminf(l.font*.9f,rowPitch*.60f),l.left+l.listWidth*.72f,y+rowPitch*.27f,l.listWidth*.28f-l.padding,vpW,vpH,i==s_sel?48/255.f:.82f,i==s_sel?1:.84f,i==s_sel?80/255.f:.82f);
+    }
+    {
+        const PcOptionHelp* help=Pc_OptionsHelp(rows[s_sel].key);
+        const char* heading=help ? help->name[ru] : qo_local("Navigation", "Навигация");
+        const char* description=help ? help->description[ru] : qo_local(
+            "Choose a category with Q/E, PgUp/PgDn or the shoulder buttons. Back returns to the original options menu.",
+            "Выберите раздел клавишами Q/E, PgUp/PgDn или верхними кнопками геймпада. «Назад» возвращает в исходное меню настроек.");
+        float textY;
+        int scene=Pc_OptionsPreviewScene(rows[s_sel].key);
+        float previewH;
+        qo_native_text(30,heading,l.font*1.1f,helpX,helpY,helpW,vpW,vpH,.4f,.85f,.48f);
+        textY=qo_native_paragraph(description,31,l.font*.9f,helpX,helpY+l.font*2,helpW,bottom-l.font*.7f,vpW,vpH);
+        previewH=fminf(helpW*9/16,fmaxf(0,bottom-textY-l.font*.7f));
+        if(!scene) previewH=0;
+        if(previewH<=0) Pc_MenuPreview_Idle();
+        if(previewH>0) {
+            static GLuint texture;
+            static unsigned previous;
+            unsigned serial=0;int width=0,height=0;
+            const char* key=rows[s_sel].key;
+            Pc_MenuPreview_Select(key);
+            Pc_MenuPreview_Camera(key && !strcmp(key,"fps_fov")?ControlStyle_Fps:
+                key && !strcmp(key,"ots_fov")?ControlStyle_Ots:
+                key && (!strcmp(key,"tps_fov")||!strcmp(key,"tps_camera_collision"))?ControlStyle_Tps:
+                ControlStyle_Classic);
+            const unsigned char* pixels=Pc_MenuPreview_Frame(&serial,&width,&height);
+            float pw=previewH*16/9,px=helpX+helpW-pw,py=bottom-previewH;
+            if(pixels) {
+                float v[6][4]={{-1+2*px/vpW,1-2*py/vpH,0,1},
+                    {-1+2*px/vpW,1-2*(py+previewH)/vpH,0,0},
+                    {-1+2*(px+pw)/vpW,1-2*py/vpH,1,1},
+                    {-1+2*(px+pw)/vpW,1-2*py/vpH,1,1},
+                    {-1+2*px/vpW,1-2*(py+previewH)/vpH,0,0},
+                    {-1+2*(px+pw)/vpW,1-2*(py+previewH)/vpH,1,0}};
+                if(!texture){glGenTextures(1,&texture);previous=0;}
+                glBindTexture(GL_TEXTURE_2D,texture);
+                if(previous!=serial) {
+                    glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,width,height,0,GL_RGBA,GL_UNSIGNED_BYTE,pixels);
+                    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
+                    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+                    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
+                    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);previous=serial;
+                }
+                glUniform4f(s_locColor,1,1,1,1);
+                glBufferSubData(GL_ARRAY_BUFFER,0,sizeof(v),v);glDrawArrays(GL_TRIANGLES,0,6);
+            } else qo_native_text(61,Pc_MenuPreview_Available() ?
+                qo_local("Loading scene...", "Загрузка сцены...") :
+                qo_local("Scene preview unavailable", "Предпросмотр недоступен"),
+                l.font*.8f,px,py+previewH*.4f,pw,vpW,vpH,.7f,.73f,.7f);
+        }
+    }
+    qo_native_text(27,qo_local("Up/Down: select    Left/Right: adjust    Q/E or LB/RB: category", "Вверх/вниз: выбор    Влево/вправо: значение    Q/E или LB/RB: раздел"),l.font*.75f,l.left,bottom+l.font*.7f,l.width,vpW,vpH,.72f,.75f,.78f);
+    qo_native_text(28,s_previewOnly ? qo_local("Mouse: click / wheel    Esc: return    Tab: extended quick menu", "Мышь: щелчок / колесо    Esc: назад    Tab: расширенное быстрое меню") : qo_local("Mouse: hover and click / wheel    Esc / Back: return    Restart-only: resolution / MSAA", "Мышь: наведение, щелчок / колесо    Esc: назад    Перезапуск: разрешение / MSAA"),l.font*.70f,l.left,bottom+l.font*1.9f,l.width,vpW,vpH,.62f,.65f,.68f);
+}
+
+/* Borrowed by title composition; this owns shader/VBO submission, not assets. */
+static void qo_image_tint(GLuint texture,float x,float y,float w,float h,
+                                float vpW,float vpH,float r,float g,float b,float opacity)
+{
+    float v[6][4]={{-1+2*x/vpW,1-2*y/vpH,0,0},
+        {-1+2*x/vpW,1-2*(y+h)/vpH,0,1},
+        {-1+2*(x+w)/vpW,1-2*y/vpH,1,0},
+        {-1+2*(x+w)/vpW,1-2*y/vpH,1,0},
+        {-1+2*x/vpW,1-2*(y+h)/vpH,0,1},
+        {-1+2*(x+w)/vpW,1-2*(y+h)/vpH,1,1}};
+    glBindTexture(GL_TEXTURE_2D,texture);glUniform4f(s_locColor,r,g,b,opacity);
+    glBufferSubData(GL_ARRAY_BUFFER,0,sizeof(v),v);glDrawArrays(GL_TRIANGLES,0,6);
+}
+
+static void qo_ordinary_draw(float w,float h)
+{
+    static const char* const names[][2]={
+        {"Back","Назад"},{"Brightness","Яркость"},
+        {"Controller configuration","Настройка управления"},{"PC options","Настройки ПК"},
+        {"Vibration","Вибрация"},{"Auto load","Автозагрузка"},
+        {"Sound output","Вывод звука"},{"Music volume","Громкость музыки"},
+        {"Effects volume","Громкость эффектов"},{"Voice volume","Громкость речи"}};
+    const char* sound[]={"Auto","Stereo","Quad","5.1","7.1","HRTF"};
+    const char* soundRu[]={"Авто","Стерео","Квадро","5.1","7.1","HRTF"};
+    int i,ru=Pc_MenuLanguageRussian();float px=fminf(h/900*28,48);
+    qo_native_rect(0,0,w,h,w,h,0,0,0,1);
+    qo_native_text(0,qo_local("OPTIONS","ОПЦИИ"),px*1.3f,w*.10f,h*.075f,w*.6f,w,h,.83f,.85f,.83f);
+    for(i=0;i<MainOptionsMenuEntry_Count;i++) {
+        char buffer[64];const char* value="";const char* label=names[i][ru];
+        float y=h*(.18f+i*.058f),r=.82f,g=.84f,b=.82f;
+        if(i==g_MainOptionsMenu_SelectedEntry){r=48/255.f;g=1;b=80/255.f;
+            qo_native_text(62,">",px*.65f,w*.075f,y+px*.2f,w*.02f,w,h,r,g,b);
+            qo_native_rect(w*.10f,y+px*1.1f,w*.80f,1,w,h,r,g,b,.7f);}
+        if(i==MainOptionsMenuEntry_AutoLoad && Pc_LangMenuRowActive()) {
+            label=qo_local("Language","Язык");
+            /* The original slot label remains owned by the language system;
+             * avoid reinterpreting its FONT16 bytes as UTF-8. */
+            const char* code=Pc_LangIdForSlot(Pc_LangSlotCurrent());
+            snprintf(buffer,sizeof(buffer),"%s",code?code:"?");value=buffer;
+        } else if(i==MainOptionsMenuEntry_Vibration)value=g_GameWork.config.vibrationEnabled?qo_local("On","Вкл."):qo_local("Off","Выкл.");
+        else if(i==MainOptionsMenuEntry_AutoLoad)value=g_GameWork.config.autoLoad?qo_local("On","Вкл."):qo_local("Off","Выкл.");
+        else if(i==MainOptionsMenuEntry_Sound){int m=g_PcConfig.audioOutput;if(m<0||m>5)m=0;value=ru?soundRu[m]:sound[m];}
+        qo_native_text(3+i*2,label,px,w*.10f,y,w*.45f,w,h,r,g,b);
+        if(i>=MainOptionsMenuEntry_BgmVolume) {
+            extern float g_PcXaVolume;
+            float volume=i==MainOptionsMenuEntry_BgmVolume?g_GameWork.config.volumeBgm/128.f:
+                i==MainOptionsMenuEntry_SfxVolume?g_GameWork.config.volumeSe/128.f:g_PcXaVolume;
+            int j,lit=(int)(volume*16+.5f);
+            for(j=0;j<16;j++)qo_native_rect(w*(.59f+j*.018f),y+px*.22f,w*.012f,px*.65f,w,h,
+                j<lit?r:.13f,j<lit?g:.18f,j<lit?b:.14f,1);
+            snprintf(buffer,sizeof(buffer),"%d",(int)(volume*100+.5f));value=buffer;
+            qo_native_text(4+i*2,value,px*.85f,w*.90f,y,w*.08f,w,h,r,g,b);
+        }else qo_native_text(4+i*2,value,px,w*.59f,y,w*.31f,w,h,r,g,b);
+    }
+    qo_native_text(27,qo_local("Arrows: select / adjust    Enter: open    Esc: back",
+        "Стрелки: выбор и значение    Enter: открыть    Esc: назад"),px*.75f,w*.10f,h*.87f,w*.80f,w,h,.65f,.7f,.65f);
+    qo_native_text(28,qo_local("Mouse: select, click, drag volume    LB/RB: extra options",
+        "Мышь: выбор, щелчок, громкость    LB/RB: дополнительные опции"),px*.7f,w*.10f,h*.92f,w*.80f,w,h,.65f,.7f,.65f);
+}
+
 void Pc_QuickOptions_Draw(void)
 {
     GLint vp[4];
     float vpW, vpH, panelW, panelH, panelL, panelR, panelT, panelB;
     float titleH, hintH, listT, rowPitch, rowH, pad, dim = 1.0f;
     int   nRows;
-    const QoRowDef* rows = qo_page_rows(s_page, &nRows);
+    const QoRowDef* rows;
     int   px, i;
 
     GLint  prevProg = 0, prevVao = 0, prevBuf = 0, prevTex = 0, prevUnit = GL_TEXTURE0, prevAlign = 4;
     GLint  prevSrcRgb = GL_ONE, prevDstRgb = GL_ZERO, prevSrcA = GL_ONE, prevDstA = GL_ZERO;
     GLint  prevEqRgb = GL_FUNC_ADD, prevEqA = GL_FUNC_ADD;
     GLboolean prevBlend, prevDepth, prevCull;
+    int ordinary=Pc_OrdinaryOptions_Active();
+    int title=Pc_TitleMenu_Active();
+    static int previewWasOpen;
 
-    if (s_phase == QO_CLOSED)
+    if (s_native && !(s_previewOnly && g_GameWork.gameState==GameState_InGame) &&
+        (g_GameWork.gameState != GameState_OptionScreen ||
+        g_GameWork.gameStateSteps[0] != OptionsMenuState_PcOptions)) {
+        s_previewOnly=0;
+        s_native = 0;
+        s_phase = QO_CLOSED;
+        s_page = s_quickPage;
+        s_sel = s_quickSel;
+        s_viewRowsDirty = 1;
+    }
+    if(previewWasOpen && !s_native)Pc_MenuPreview_Stop();
+    previewWasOpen=s_native;
+    if (s_phase == QO_CLOSED && !ordinary && !title)
         return;
+    rows = qo_page_rows(s_page, &nRows);
     /* The keybind panel stands in for this menu while it is open. */
     if (Pc_BindPanel_IsOpen())
         return;
@@ -1977,6 +2445,38 @@ void Pc_QuickOptions_Draw(void)
 
     qo_gl_pump();
     qo_validate_cache();
+
+    if (s_cachedRu != Pc_MenuLanguageRussian() || s_cachedW != (int)vpW || s_cachedH != (int)vpH) {
+        qo_free_text();
+        s_cachedRu = Pc_MenuLanguageRussian();
+        s_cachedW = (int)vpW;
+        s_cachedH = (int)vpH;
+    }
+
+    if (s_native || ordinary || title) {
+        qo_build_white();
+        glUseProgram(s_prog);
+        glBindVertexArray(s_vao);
+        glBindBuffer(GL_ARRAY_BUFFER,s_vbo);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0,2,GL_FLOAT,GL_FALSE,4*sizeof(float),(void*)0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1,2,GL_FLOAT,GL_FALSE,4*sizeof(float),(void*)(2*sizeof(float)));
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+        glBlendEquation(GL_FUNC_ADD);
+        glDisable(GL_DEPTH_TEST);
+        glDisable(GL_CULL_FACE);
+        if(title) {
+            const PcTitlePainter painter={vpW,vpH,qo_image_tint,qo_native_rect,qo_native_text};
+            int wasNative=s_native;s_native=1;
+            Pc_TitleScreen_Draw(&painter);
+            s_native=wasNative;
+        }
+        else if(ordinary) {int wasNative=s_native;s_native=1;qo_ordinary_draw(vpW,vpH);s_native=wasNative;}
+        else qo_native_draw(vpW,vpH,rows,nRows);
+        goto restore;
+    }
 
     /* Fade only; the phase itself advances in Update (game thread). */
     {

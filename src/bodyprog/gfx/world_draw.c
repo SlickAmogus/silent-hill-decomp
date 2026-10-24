@@ -2,6 +2,7 @@
 #ifdef SH_PC_PORT
 #include "pc_pick.h"
 #include <stdio.h>
+#include <string.h>
 #include "sh_log.h"
 #include "pc_config.h"
 #include "pc_big_lm.h"
@@ -678,6 +679,25 @@ void Gfx_WorldObjectsClear(s_WorldGfxWork* worldGfxWork) // 0x8003CB3C
 void Gfx_WorldObjectsDraw(s_WorldGfxWork* worldGfxWork) // 0x8003CB44
 {
     s_WorldObject* curObj;
+#ifdef SH_PC_PORT
+    /* Dynamic objects are normally enqueued by map simulation, which the
+     * options preview must not run. Reuse the last rendered list instead. */
+    {
+        extern int Pc_OptionsScenePreview(void);
+        static s_WorldObject objects[ARRAY_SIZE(((s_WorldGfxWork*)0)->objects)];
+        static s32 count, map=-1;
+        if (!Pc_OptionsScenePreview()) {
+            count=worldGfxWork->objectCount;
+            if (count<0) count=0;
+            if (count>ARRAY_SIZE(objects)) count=ARRAY_SIZE(objects);
+            memcpy(objects,worldGfxWork->objects,count*sizeof(objects[0]));
+            map=g_SavegamePtr->mapIdx;
+        } else if (map==g_SavegamePtr->mapIdx) {
+            memcpy(worldGfxWork->objects,objects,count*sizeof(objects[0]));
+            worldGfxWork->objectCount=count;
+        }
+    }
+#endif
 
     // Run through world objects to draw.
     for (curObj = &worldGfxWork->objects[0]; curObj < &worldGfxWork->objects[worldGfxWork->objectCount]; curObj++)

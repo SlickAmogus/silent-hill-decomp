@@ -16,6 +16,7 @@
 #include "mdec.h"
 #include "str_demux.h"
 #include "sh_log.h"
+#include "pc_config.h"
 
 #include <PsyX/PsyX_public.h>
 #include <PsyX/PsyX_render.h>
@@ -353,6 +354,9 @@ static void DrawVideoFrameEx(const unsigned char* pixels, int image_w, int image
         scaleX = video_aspect / window_aspect;
         scaleY = 1.0f;
     }
+    /* Match the user's full-width menu/splash preference without cropping any
+     * original video content. 4:3 presentation remains selectable. */
+    if (!g_PcConfig.menuPillarbox) scaleX=scaleY=1.0f;
 
     /* pos.x, pos.y, uv.x, uv.y */
     float quad[] = {

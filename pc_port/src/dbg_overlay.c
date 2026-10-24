@@ -1517,6 +1517,32 @@ void DbgOverlay_Update(void)
     }
     s_prev_tilde = cur_tilde;
 
+    /* Local testing shortcut: compare 2D and tank controls without opening
+     * Options. Track each key separately and ignore holds/repeat and menus. */
+    {
+        extern int g_PcQuickOptionsActive;
+        static int s_prevControlPlus = 0;
+        static int s_prevControlEquals = 0;
+        int plus = ks[SDL_SCANCODE_KP_PLUS];
+        int equals = ks[SDL_SCANCODE_EQUALS];
+        SDL_Keymod mods = SDL_GetModState();
+        int pressed = (plus && !s_prevControlPlus) ||
+                      (equals && !s_prevControlEquals && (mods & KMOD_SHIFT));
+
+        s_prevControlPlus = plus;
+        s_prevControlEquals = equals;
+        if (pressed && !(mods & (KMOD_CTRL | KMOD_ALT | KMOD_GUI)) &&
+            !s_console_open && !g_PcQuickOptionsActive &&
+            g_GameWork.gameState == GameState_InGame &&
+            g_SysWork.sysState == SysState_Gameplay &&
+            !(g_SysWork.sysFlags & (SysFlag_DemoActive | SysFlag_CutsceneActive)))
+        {
+            g_PcConfig.control2d = !g_PcConfig.control2d;
+            PcConfig_SaveKeyValue("control_2d", g_PcConfig.control2d ? "1" : "0");
+            DbgOverlay_ToastLine(g_PcConfig.control2d ? "Controls: 2D" : "Controls: Tank");
+        }
+    }
+
     /* Console apply window: while it runs the game is unfrozen (so the last
      * command's effect shows) and pad input is suppressed; when it elapses, drop
      * back into input mode if the console is still open. */
@@ -2057,6 +2083,12 @@ void DbgOverlay_Update(void)
 
 void DbgOverlay_Render(void)
 {
+    extern int Pc_MenuPreview_IsChild(void);
+    if (Pc_MenuPreview_IsChild()) {
+        extern int g_cfg_sceneFrame;
+        g_cfg_sceneFrame=1;
+        return;
+    }
     /* Publish whether this frame renders the 3D world, for the image-adjustment
      * scope in GR_PostProcess (which runs immediately after this hook). The
      * movie, menu, inventory, paper-map, save and load screens draw no world,

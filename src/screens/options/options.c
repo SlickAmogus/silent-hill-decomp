@@ -29,6 +29,8 @@
 #include "pc_mouse_cursor.h"
 #include "map_registry.h"
 #include "lang_text.h" /* PAL Language row (title-screen options) */
+#include "lang_ru.h"   /* Repainted Russian fonts cannot show Latin map IDs. */
+#include "pc_quick_options.h"
 #ifdef SH_PC_PORT
 #include "lang_quick.h" /* quick-menu row values */
 #endif
@@ -381,7 +383,17 @@ static const char* PcOpt_ValueLabel(const s_PcOpt* e, char* buf, int bufsz)
         return buf;
     }
     if (e->kind == PCK_MAP) {
-        return g_PcConfig.mapName[0] ? g_PcConfig.mapName : "map0_s00";
+        const char* map = g_PcConfig.mapName[0] ? g_PcConfig.mapName : "map0_s00";
+
+        /* Keep the actual identifier/config untouched; the repainted atlas
+         * cannot draw its Latin prefix. Show the same map/section as digits. */
+        if (Pc_RuActive() && strlen(map) == 8 && strncmp(map, "map", 3) == 0 &&
+            map[3] >= '0' && map[3] <= '9' && map[4] == '_' && map[5] == 's' &&
+            map[6] >= '0' && map[6] <= '9' && map[7] >= '0' && map[7] <= '9') {
+            snprintf(buf, bufsz, "%c-%c%c", map[3], map[6], map[7]);
+            return buf;
+        }
+        return map;
     }
     if (e->field == NULL)
         return "";
@@ -522,6 +534,34 @@ const void* PcOpt_QuickFind(const char* key)
 
 const char* PcOpt_QuickName(const void* h)     { return ((const s_PcOpt*)h)->name; }
 int         PcOpt_QuickRealtime(const void* h) { return ((const s_PcOpt*)h)->realtime; }
+
+/* Opaque access for the responsive screen; all adjustment/save semantics
+ * remain in this file, shared with the original/fallback menu. */
+int PcOpt_ScreenCount(int page)
+{
+    int count;
+    PcOpt_PageByIndex(page, &count);
+    return count;
+}
+
+const void* PcOpt_ScreenEntry(int page, int row)
+{
+    int count;
+    const s_PcOpt* entries = PcOpt_PageByIndex(page, &count);
+    return row >= 0 && row < count ? &entries[row] : NULL;
+}
+
+const char* PcOpt_ScreenKey(const void* h)
+{
+    const s_PcOpt* e = h;
+    return e->kind == PCK_RES ? "width" : e->key;
+}
+
+int PcOpt_ScreenAction(const void* h)
+{
+    const s_PcOpt* e = h;
+    return e->kind == PCK_NEXT ? 1 : e->kind == PCK_PREV ? -1 : e->kind == PCK_BACK ? 2 : 0;
+}
 
 const char* PcOpt_QuickLabel(const void* h, char* buf, int bufsz)
 {
@@ -1264,6 +1304,22 @@ void Options_PcOptionsMenu_Control(void)
     int            count;
     const s_PcOpt* tbl = PcOpt_Page(&count);
 
+#ifdef SH_PC_PORT
+    /* The replacement compositor owns the entire return transition too. The
+     * legacy PC list must not leak through while the stock fade finishes. */
+    if (g_GameWork.gameStateSteps[0] == OptionsMenuState_LeavePcOptions &&
+        Pc_OrdinaryOptions_Active()) return;
+    if (g_GameWork.gameStateSteps[0] == OptionsMenuState_PcOptions) {
+        /* The compositor supplies a black background and its independent school
+         * viewport. Do not redraw or modify the player's paused world here. */
+        if (PcOpt_ResetConfirm_Run()) {
+            /* Keep the responsive screen visible behind the modal dialog. */
+            return;
+        }
+        if (Pc_OptionsScreen_Update()) return;
+    }
+#endif
+
     Options_PcOptionsMenu_EntryStringsDraw();
     Options_PcOptionsMenu_ConfigDraw();
     Options_PcOptionsMenu_SelectionHighlightDraw();
@@ -1616,7 +1672,11 @@ void GameState_Options_Update(void) // 0x801E2D44
         func_800363D0();
     }
 
-    if (g_GameWork.gameStatePrev != GameState_MainMenu)
+    if (g_GameWork.gameStatePrev != GameState_MainMenu
+#ifdef SH_PC_PORT
+        && g_GameWork.gameStateSteps[0] != OptionsMenuState_PcOptions
+#endif
+       )
     {
         Game_TimerUpdate();
     }
@@ -2124,7 +2184,11 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
     s32 audioType;
     s32 vol;
 
-    // Draw graphics.
+    // Draw graphics. The PC compositor lays out labels and sliders in separate
+    // columns instead of stretching the original overlapping 320px layout.
+#ifdef SH_PC_PORT
+    if (!Pc_OrdinaryOptions_Active()) {
+#endif
     Options_MainOptionsMenu_EntryStringsDraw();
     Options_MainOptionsMenu_ConfigDraw();
     Options_MainOptionsMenu_SelectionHighlightDraw();
@@ -2134,6 +2198,9 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
     Options_MainOptionsMenu_SfxVolumeBarDraw();
 #ifdef SH_PC_PORT
     Options_MainOptionsMenu_FmvVolumeBarDraw();
+#endif
+#ifdef SH_PC_PORT
+    }
     Pc_MouseCursor_Show();
 #endif
 
@@ -2172,11 +2239,17 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
         {
             s32 row = -1;
             s32 i;
+            float fraction=0;
 
             for (i = 0; i < MainOptionsMenuEntry_Count; i++)
             {
                 s32 top = 56 + (i * 16) - 3;
                 if (my >= top && my < top + 16) { row = i; break; }
+            }
+            if(Pc_OrdinaryOptions_Mouse(&row,&fraction)) {
+                /* Map the responsive slider back to the original notch logic. */
+                mx=184+OPT_VOLUME_BAR_DX+(int)(fraction*96)-1;
+                if(row<MainOptionsMenuEntry_BgmVolume)mx=fraction<.5f?210:245;
             }
 
             if (row >= 0 && Pc_MouseCursor_Moved() && row != g_MainOptionsMenu_SelectedEntry)

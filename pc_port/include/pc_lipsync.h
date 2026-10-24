@@ -3,6 +3,7 @@
 #define PC_LIPSYNC_H
 
 #include <stdint.h>
+#include <stddef.h> /* NULL in the generated speaker table. */
 
 #ifdef __cplusplus
 extern "C" {

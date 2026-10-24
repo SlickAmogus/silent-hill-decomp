@@ -385,6 +385,13 @@ unsigned char Pc_RuPackByte(unsigned int cp)
     return RuEncodeLetterIn(&s_Charset_ConsolGames, idx, isUpper);
 }
 
+unsigned char Pc_RuDiscByte(unsigned int cp)
+{
+    int upper = 0;
+    int idx = RuLetterIndex(cp, &upper);
+    return s_Active && idx >= 0 ? RuEncodeLetter(idx, upper) : 0;
+}
+
 /* Transcode a UTF-8 menu string into the active patch's font bytes. ASCII
  * passes through untouched: '_' is the renderer's space, '\x01'/'\x07' are its
  * kerning and colour codes, and digits/punctuation still occupy their own
@@ -510,6 +517,13 @@ const char* Pc_RuMenuText(const char* us)
 
     if (s_Active == NULL || us == NULL)
         return NULL;
+
+    /* ViT Co repaints '[' (0x5B) as uppercase Ы. The title and difficulty
+     * drawers send their selection marker as a standalone menu literal;
+     * use the surviving right quote for both sides. This is a decoration
+     * fallback, not a byte remap: disc text must still draw 0x5B as Ы. */
+    if (s_Active == &s_Charset_ViTCo && strcmp(us, "[") == 0)
+        return "]";
 
     for (i = 0; i < RU_MENU_COUNT; i++)
     {

@@ -1,0 +1,58 @@
+{
+  "labels": {
+    "source": "Mounted ViT Co/Metallist Russian disc FONT16 (Cyrillic) and existing shipped PAL FONT16 (English). Rendered at original glyph scale, locally upscaled 4x with Real-ESRGAN realesrgan-x4plus, grayscale alpha extracted. No replacement typeface.",
+    "indices": [
+      "LOAD",
+      "CONTINUE",
+      "START",
+      "OPTION",
+      "ACHIEVEMENTS",
+      "EXIT",
+      "EASY",
+      "NORMAL",
+      "HARD",
+      "ЗАГРУЗКА",
+      "ДАЛЕЕ",
+      "СТАРТ",
+      "ОПЦИИ",
+      "ДОСТИЖЕНИЯ",
+      "ВЫХОД",
+      "ЛЕГКО",
+      "НОРМА",
+      "ТРУДНО"
+    ],
+    "rights": "Derived game letterforms; no new copyright license is asserted over underlying game resources."
+  },
+  "files": {
+    "label-00.png": "815c08205a396720821d810fecb63ccfa9a5b7f24cf2723a7d26248939be68f8",
+    "label-01.png": "0df5df00e39abd19a08ee348b8401f014bdc13068b3be3ed1023b93196ee230e",
+    "label-02.png": "51d2bb7282fd66578d5b94d72f1d54030305d4a74ee9b8811ddae7bf005d68f7",
+    "label-03.png": "be86ec2f8602698f1643fbade7a80bcf1c8289635a912f4951a0e4ca546438b9",
+    "label-04.png": "b94eec208fac89bab7232c0706f6b77799f94f6f87cef5fb4cfcaf1c6f341dec",
+    "label-05.png": "6cb46bcd359dd8b0f837ae4288436a3b6abeb8decc7d2448209bace2d03459e2",
+    "label-06.png": "e767a1b5bd7753cb34bf4ccf038a0d007a1eb6a60d5f6b29e0d6a6337c1af353",
+    "label-07.png": "af0a49a058df852729cd53d8253121f93dae276b8f6d67ccddb126bd4141b0c6",
+    "label-08.png": "96386e3f4e5f59be7b2c879ca79dd484038d423a676b3987565ed5f37e251d14",
+    "label-09.png": "600cd3121d39375d0600c1be775743c5944341de72b3b0a143eef172e5c02b6c",
+    "label-10.png": "e15dd54b04fd88b0e30066ff15e680ed465c2b98d0d2c29f06a9fd4eac1eee03",
+    "label-11.png": "d1153898bf30cc00c41f62026b01c50c120ba211e6f7863a9944dfec63653159",
+    "label-12.png": "e6d405de462c9af6dba80d718a2ae461d60709b0221f9d8495dd460b63ba62d6",
+    "label-13.png": "5045f8d8971a367b4be2426dc3b3d58d62a705d527f407177b2787a17db1ae5e",
+    "label-14.png": "49213c7317ccc4e2f2f7a4be3ce8d12f09b48e86164153d2bca5618e3e2830e6",
+    "label-15.png": "f44530dece4f8aaea13954cf894f4a1a8a919b2180e8ff899fcfa4ee3a0690cb",
+    "label-16.png": "95f32d717e62273164b563e9c8439585516f0d1ddee099d8eba2c584bc12242c",
+    "label-17.png": "db804f0dec0798154a7e3132babde43669ce3e0cc94b6c4bade05c7a97927dce",
+    "title-us.png": "3100618c576dc8faafda77f664f0c653b8327e3aca2b1bf7c869f53afb9e2d1f",
+    "title-us-wide.png": "b6abde6507a631ea284a8a916bbded61d02c44bb225eaefdb32837c2827119e5",
+    "title-pal.png": "4f61b5b72f5133407a693326e7f366d144f7efd59fd97741b001b6e26526d0bc",
+    "side-left.png": "ed08fafac4e5e1e008b3a71d0d7242d9b29547ca8af96f53947f2ad66a45ece9",
+    "side-right.png": "7ab571beebdb31404ed3d81563417d13addded8f66934a30f334d281a37d1e98"
+  },
+  "backgrounds": {
+    "title-us.png": "User-supplied 1448x1086 reconstruction/upscale of the original US title alley. Copied without additional processing.",
+    "title-us-wide.png": "User-supplied 1672x940 widescreen adaptation of the same alley, with repositioned SILENT HILL logo. Copied without additional processing.",
+    "title-pal.png": "Existing shipped PAL title TIM, locally upscaled 4x with Real-ESRGAN realesrgan-x4plus.",
+    "side-left.png, side-right.png": "Blurred narrow unlettered edge strips from the user-supplied 4:3 composition; only used outside contained art.",
+    "rights": "Derived original-game artwork. User requested inclusion as a separate optional-art commit; no ownership or new license over underlying game imagery is asserted. Can be dropped independently; renderer falls back to disc art."
+  }
+}

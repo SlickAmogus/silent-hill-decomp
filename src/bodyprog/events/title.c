@@ -12,6 +12,7 @@
 #include "pc_mouse_cursor.h"
 #include "pc_native_menu_draw.h"
 #include "pc_retroachievements.h"
+#include "pc_title_screen.h"
 #endif
 
 #include <psyq/libetc.h>
@@ -86,6 +87,36 @@ static u32 g_MainMenu_VisibleEntryFlags = MAINMENU_BASE_ENTRY_FLAGS;
 static NmScroll s_MainMenu_Scroll;
 static s32      s_MainMenu_Order[MainMenuEntry_Count];
 static s32      s_MainMenu_RowCount;
+static s32      s_TitleDifficulty;
+static u32 func_8003B7FC(s32 idx);
+
+/* Read-only view for the full-resolution compositor; selection and launch
+ * behaviour remain in the original menu state machine. */
+int Pc_TitleMenu_Rows(int* ids, int* selected, int* difficulty)
+{
+    int slot,count=0;
+    if(g_GameWork.gameState!=GameState_MainMenu ||
+       g_MainMenuState==MenuState_Achievements || g_PcConfig.skipIntros>=2)return 0;
+    *difficulty=g_MainMenuState>=MenuState_DifficultySelector;
+    *selected=*difficulty?s_TitleDifficulty:g_MainMenu_SelectedEntry;
+    if(*difficulty) {for(slot=0;slot<3;slot++)ids[count++]=slot;return count;}
+    for(slot=0;slot<s_MainMenu_Scroll.visible;slot++) {
+        int idx=s_MainMenu_Scroll.top+slot;
+        if(idx<s_MainMenu_RowCount)ids[count++]=s_MainMenu_Order[idx];
+    }
+    return count;
+}
+
+/* The high-resolution compositor consumes the SAME animated simulation as
+ * retail; no screenshot or independent replacement animation. */
+void Pc_TitleFogRgb(unsigned char* rgb)
+{
+    int i;
+    for(i=0;i<441;i++) {
+        u32 c=D_800BCDE0?func_8003B7FC(i):0;
+        rgb[i*3]=c&255;rgb[i*3+1]=(c>>8)&255;rgb[i*3+2]=(c>>16)&255;
+    }
+}
 
 static void MainMenu_LayoutSync(void)
 {
@@ -350,7 +381,16 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 s32 slot;
                 s32 notches;
 
-                if (Pc_MouseCursor_UiPos(&mx, &my))
+                if (Pc_TitleMenu_Active()) {
+                    int hit=Pc_TitleMenu_MouseRow(s_MainMenu_Scroll.visible);
+                    if(hit>=0) {
+                        int row=s_MainMenu_Order[s_MainMenu_Scroll.top+hit];
+                        if(Pc_MouseCursor_LeftClicked()) {
+                            g_MainMenu_SelectedEntry=row;
+                            g_Controller0->clickedBtnFlags|=g_GameWorkPtr->config.controllerConfig.enter;
+                        } else if(Pc_MouseCursor_Moved())g_MainMenu_SelectedEntry=row;
+                    }
+                } else if (Pc_MouseCursor_UiPos(&mx, &my))
                 {
                     for (slot = base; slot < base + s_MainMenu_Scroll.visible; slot++)
                     {
@@ -510,7 +550,9 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 extern int Pc_MouseCursor_Moved(void);
                 extern int Pc_MouseCursor_RightClicked(void);
                 int mcClicked = 0;
-                int mcRow     = Pc_MouseCursor_MenuRowHover(204, 20, 3, ~0u, &mcClicked);
+                int mcRow     = Pc_TitleMenu_Active()?Pc_TitleMenu_MouseRow(3):
+                    Pc_MouseCursor_MenuRowHover(204, 20, 3, ~0u, &mcClicked);
+                if(Pc_TitleMenu_Active())mcClicked=Pc_MouseCursor_LeftClicked();
                 if (mcRow >= 0)
                 {
                     if (mcClicked)
@@ -871,6 +913,7 @@ static void MainMenu_MainTextDraw(void) // 0x8003B568
     s32 slot;
 
     MainMenu_LayoutSync();
+    if(Pc_TitleMenu_Active())return;
     base = Nm_SlotBase(s_MainMenu_RowCount, MAINMENU_WINDOW_SLOTS);
     rowY = MainMenu_RowY();
 
@@ -885,8 +928,8 @@ static void MainMenu_MainTextDraw(void) // 0x8003B568
         }
         id = s_MainMenu_Order[i];
 
-        /* Translated entries have different widths — recentre from the
-         * actual string ('[' is 6px wide); untranslated keeps the constant. */
+        /* Translated entries and patch-specific selection markers can have
+         * different widths; untranslated retail rows keep their constants. */
         {
             const char* tr   = Pc_LangMenuText(MAIN_MENU_ENTRY_STRINGS[id]);
             /* STR_OFFSETS_X holds hand-measured centres for the retail rows, so
@@ -895,7 +938,8 @@ static void MainMenu_MainTextDraw(void) // 0x8003B568
              * them from the measured width in every language, English included. */
             s32         offX = (tr == MAIN_MENU_ENTRY_STRINGS[id] && id < MainMenuEntry_Achievements)
                                    ? STR_OFFSETS_X[id]
-                                   : ((Pc_LangMenuTextWidth(tr) + 6) >> 1);
+                                   : ((Pc_LangMenuTextWidth(tr) +
+                                       Pc_LangMenuTextWidth(Pc_LangMenuText("["))) >> 1);
             Gfx_StringSetPosition(COLUMN_POS_X - offX, rowY + (slot * MAINMENU_ROW_PITCH));
         }
         Gfx_StringSetColor(StringColorId_White);
@@ -960,6 +1004,10 @@ static void MainMenu_MainTextDraw(void) // 0x8003B568
 
 static void MainMenu_DifficultyTextDraw(s32 idx) // 0x8003B678
 {
+#ifdef SH_PC_PORT
+    s_TitleDifficulty=idx;
+    if(Pc_TitleMenu_Active())return;
+#endif
     #define DIFFICULTY_MENU_SELECTION_COUNT 3
     #define COLUMN_POS_X                    158
     #define COLUMN_POS_Y                    204
@@ -982,7 +1030,8 @@ static void MainMenu_DifficultyTextDraw(s32 idx) // 0x8003B678
             const char* tr   = Pc_LangMenuText(DIFFICULTY_MENU_ENTRY_STRINGS[i]);
             s32         offX = (tr == DIFFICULTY_MENU_ENTRY_STRINGS[i])
                                    ? STR_OFFSETS_X[i]
-                                   : ((Pc_LangMenuTextWidth(tr) + 6) >> 1);
+                                   : ((Pc_LangMenuTextWidth(tr) +
+                                       Pc_LangMenuTextWidth(Pc_LangMenuText("["))) >> 1);
             Gfx_StringSetPosition(COLUMN_POS_X - offX, COLUMN_POS_Y + (i * STR_OFFSET_Y));
         }
 #else

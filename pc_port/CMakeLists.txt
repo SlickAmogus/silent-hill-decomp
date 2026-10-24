@@ -836,6 +836,10 @@ if(BUILD_TESTING)
     target_include_directories(pc_native_menu_test PRIVATE include)
     add_test(NAME pc_native_menu_test COMMAND pc_native_menu_test)
 
+    add_executable(pc_options_help_test tests/pc_options_help_test.c src/pc_options_help.c)
+    target_include_directories(pc_options_help_test PRIVATE include)
+    add_test(NAME pc_options_help_test COMMAND pc_options_help_test)
+
     # Achievements screen model (list order, refresh, badge slot cache).
     add_executable(pc_ach_model_test
         tests/pc_ach_model_test.c
