@@ -4844,6 +4844,31 @@ void func_800D88C8(s_800E06A0* arg0, u8 arg1) // 0x800D88C8
         sp30[1][1].field_8    = (sp30[1][0].field_8 + sp30[1][2].field_8) >> 1;
         sp30[1][1].field_A    = (sp30[1][0].field_A + sp30[1][2].field_A) >> 1;
 
+#ifdef SH_PC_PORT
+        if (g_PsxUsePgxp)
+        {
+            // The large TV is subdivided in screen space on PSX. With PGXP,
+            // project the grid in object space instead so it stays on the TV's
+            // plane, and preserve each projection for the packet copies below.
+            for (j = 0; j < 3; j++)
+            {
+                for (k = 0; k < 3; k++)
+                {
+                    SVECTOR v;
+
+                    v.vx = ((2 - j) * ((2 - k) * arg0->field_0[0].vx + k * arg0->field_0[1].vx) +
+                            j * ((2 - k) * arg0->field_0[2].vx + k * arg0->field_0[3].vx)) >> 2;
+                    v.vy = ((2 - j) * ((2 - k) * arg0->field_0[0].vy + k * arg0->field_0[1].vy) +
+                            j * ((2 - k) * arg0->field_0[2].vy + k * arg0->field_0[3].vy)) >> 2;
+                    v.vz = ((2 - j) * ((2 - k) * arg0->field_0[0].vz + k * arg0->field_0[1].vz) +
+                            j * ((2 - k) * arg0->field_0[2].vz + k * arg0->field_0[3].vz)) >> 2;
+                    v.pad = 0;
+                    sp30[j][k].field_0.vz = RotTransPers(&v, (s32*)&sp30[j][k].field_0, &spA0, &spA0) * 4;
+                }
+            }
+        }
+#endif
+
         for (j = 0; j < 2; j++)
         {
             for (k = 0; k < 2; k++)
@@ -4872,6 +4897,15 @@ void func_800D88C8(s_800E06A0* arg0, u8 arg1) // 0x800D88C8
 
                     poly2->tpage = spA8;
                     poly2->clut  = temp_fp->field_2;
+#ifdef SH_PC_PORT
+                    if (g_PsxUsePgxp)
+                    {
+                        Shadow_Copy(&poly2->x0, &sp30[j][k]);
+                        Shadow_Copy(&poly2->x1, &sp30[j][k + 1]);
+                        Shadow_Copy(&poly2->x2, &sp30[j + 1][k]);
+                        Shadow_Copy(&poly2->x3, &sp30[j + 1][k + 1]);
+                    }
+#endif
                     AddPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[temp_a2], poly2);
                     GsOUT_PACKET_P = poly2 + 1;
                 }
