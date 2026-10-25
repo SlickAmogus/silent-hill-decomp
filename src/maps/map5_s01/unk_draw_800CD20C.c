@@ -9,10 +9,68 @@
  * GCC tolerates it, Clang (Android NDK / Apple) rejects it. */
 void func_800CDA8C(void);
 
+#ifdef SH_PC_PORT
+/* The reels answer only to the d-pad, and a touchscreen shows none on this
+ * screen, so without a pad the lock could not be opened (reported on the web
+ * build). A press on a reel selects it, as Up/Down would; a press on the reel
+ * already selected turns it, Left on or left of its front digit and Right on
+ * the right, held to keep turning as a held pad does. The press is latched
+ * because each turn plays a 16-frame tween that takes no input, and a quick
+ * tap would otherwise fall into it and be lost. */
+extern int Pc_MouseCursor_TouchDown(int* outX, int* outY);
+extern int Pc_MouseCursor_TouchPressed(void);
+extern int Pc_MouseCursor_UiPos(int* outX, int* outY);
+extern int Pc_MouseCursor_LeftClicked(void);
+extern int Pc_MouseCursor_LeftHeld(void);
+
+static s32 s_PcLockPressRow = NO_VALUE;
+static s32 s_PcLockPressDir;
+static s32 s_PcLockHeldDir;
+static s32 s_PcLockDown;
+
+static void Pc_LockPointerPoll(void)
+{
+    int x, y, press, r;
+
+    if (Pc_MouseCursor_TouchDown(&x, &y))
+        press = Pc_MouseCursor_TouchPressed();
+    else if (Pc_MouseCursor_LeftHeld() && Pc_MouseCursor_UiPos(&x, &y))
+        press = Pc_MouseCursor_LeftClicked();
+    else
+    {
+        s_PcLockDown    = 0;
+        s_PcLockHeldDir = 0;
+        return;
+    }
+
+    s_PcLockDown = 1;
+    if (!press)
+        return;
+
+    /* UiPos is the text-authoring space; the reels are framebuffer centre
+     * origin (pc_mouse_cursor.c MC_OFFSET_X/Y). The bands are the reels as
+     * they are drawn, which sit a little below the arrows' own 20 px steps. */
+    x -= 160;
+    y -= 112;
+    if (x < -72 || x > 72 || y < -32 || y > 64)
+        return;
+
+    r = (y + 27) / 21;
+    if (r > 3)
+        r = 3;
+
+    s_PcLockPressRow = 3 - r;
+    s_PcLockPressDir = (x > 12) ? 1 : -1;
+}
+#endif
+
 s16 func_800CD20C(void) // 0x800CD20C
 {
     s32      i;
     GsDOBJ2* itemModel;
+#ifdef SH_PC_PORT
+    s32      pcTurn = 0;
+#endif
 
 #ifdef SH_PC_PORT
     /* This close-up combination-lock puzzle draws its reel models into OT0 (the
@@ -35,12 +93,35 @@ s16 func_800CD20C(void) // 0x800CD20C
      * are excluded from per-pixel flashlight + PGXP vertex data — irrelevant
      * for a full-screen close-up. */
     { extern int g_PcPuzzleItemDepth; g_PcPuzzleItemDepth = 1; }
+
+    if (g_SysWork.sysStateSteps[0] == 5)
+        Pc_LockPointerPoll();
 #endif
 
     if (D_800F159C == 1)
     {
         if (g_SysWork.sysStateSteps[0] == 5)
         {
+#ifdef SH_PC_PORT
+            if (s_PcLockPressRow != NO_VALUE)
+            {
+                if (s_PcLockPressRow != D_800ED5C8)
+                {
+                    D_800ED5C8 = s_PcLockPressRow;
+                    Sd_PlaySfx(Sfx_MenuMove, 0, 0x40);
+                }
+                else
+                {
+                    pcTurn          = s_PcLockPressDir;
+                    s_PcLockHeldDir = s_PcLockDown ? s_PcLockPressDir : 0;
+                }
+                s_PcLockPressRow = NO_VALUE;
+            }
+            else
+            {
+                pcTurn = s_PcLockHeldDir;
+            }
+#endif
             if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickDown)
             {
                 D_800ED5C8 += 3;
@@ -55,7 +136,11 @@ s16 func_800CD20C(void) // 0x800CD20C
 
             D_800ED5C8 &= 0x3;
 
+#ifdef SH_PC_PORT
+            if ((g_Controller0->heldBtnFlags & ControllerFlag_LStickLeft) || pcTurn < 0)
+#else
             if (g_Controller0->heldBtnFlags & ControllerFlag_LStickLeft)
+#endif
             {
                 Sd_PlaySfx(Sfx_Unk1589, 0, 0x40);
 
@@ -66,7 +151,11 @@ s16 func_800CD20C(void) // 0x800CD20C
                 }
             }
 
+#ifdef SH_PC_PORT
+            if ((g_Controller0->heldBtnFlags & ControllerFlag_LStickRight) || pcTurn > 0)
+#else
             if (g_Controller0->heldBtnFlags & ControllerFlag_LStickRight)
+#endif
             {
                 Sd_PlaySfx(Sfx_Unk1589, 0, 0x40);
 
@@ -287,6 +376,11 @@ void func_800CD860(void) // 0x800CD860
     D_800F159C = 0;
     D_800F159D = 0;
     D_800ED5C8 = 3;
+
+#ifdef SH_PC_PORT
+    s_PcLockPressRow = NO_VALUE;
+    s_PcLockHeldDir  = 0;
+#endif
 
     ItemScreen_CamSet(&D_800F1570, &D_800F1510, (SVECTOR3*)&D_800F1560, 0);
 
