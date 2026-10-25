@@ -103,17 +103,33 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-      # Newest build on the rolling `realtime` pre-release (pc-port's
-      # build-windows.yml creates it). One fixed name, replaced on every push:
-      # only the newest iOS build is kept there.
-      - name: Replace the .ipa on the realtime release
+      # Newest build on the `realtime` pre-release (one fixed name, replaced every
+      # push) plus a dated copy on `realtime-history`, which keeps this platform's
+      # newest 15. pc-port's tools/realtime_publish.py leaves both alone.
+      - name: Publish to the realtime releases
         if: github.event_name == 'push' && github.ref == 'refs/heads/ios-port'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
+          SRC: build-ios/SilentHill-unsigned.ipa
+          FIXED: SilentHill-ios-unsigned.ipa
+          STEM: SilentHill-ios-unsigned
+          EXT: .ipa
+          KEEP: 15
         run: |
-          cp build-ios/SilentHill-unsigned.ipa "$RUNNER_TEMP/SilentHill-ios-unsigned.ipa"
-          gh release upload realtime "$RUNNER_TEMP/SilentHill-ios-unsigned.ipa" --clobber --repo "$GITHUB_REPOSITORY"
+          set -euo pipefail
+          R="$GITHUB_REPOSITORY"
+          cp "$SRC" "$RUNNER_TEMP/$FIXED"
+          gh release upload realtime "$RUNNER_TEMP/$FIXED" --clobber --repo "$R"
+          gh release view realtime-history --repo "$R" >/dev/null 2>&1 ||
+            gh release create realtime-history --repo "$R" --prerelease --latest=false \
+              --title "Realtime history (older builds)" --notes "Older automatic builds." || true
+          DATED="${STEM}_$(date -u +%Y.%m.%d)-${GITHUB_SHA:0:9}${EXT}"
+          cp "$SRC" "$RUNNER_TEMP/$DATED"
+          gh release upload realtime-history "$RUNNER_TEMP/$DATED" --clobber --repo "$R"
+          gh api "repos/$R/releases/tags/realtime-history" --jq \
+            "[.assets[] | select(.name | startswith(\"${STEM}_\"))] | sort_by(.created_at) | reverse | .[${KEEP}:] | .[].name" |
+            while read -r n; do gh release delete-asset realtime-history "$n" --repo "$R" --yes; done
 
   # Launches the app in the iOS Simulator to see how far startup gets, with no
   # device, no Apple ID and no signing. It exercises the parts that are brand
