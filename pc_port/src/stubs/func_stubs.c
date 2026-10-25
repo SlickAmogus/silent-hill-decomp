@@ -104,7 +104,7 @@ void gte_ldv3c() { }
 void gte_stsxy3_g3() { }
 void gte_stsxy3c() { }
 void gte_stsz3c() { }
-void OuterProduct12(VECTOR* v0, VECTOR* v1, VECTOR* v2) { (void)v0; (void)v1; (void)v2; }
+/* OuterProduct12: real Q12 cross product in pc_gte_math.c. */
 /* SetMulRotMatrix is implemented for real in PsyCross (psx/libgte.c) — it was a
  * no-op here, which dropped the caller's own rotation from the product. */
 VECTOR* Square0(VECTOR* v0, VECTOR* v1) {

@@ -9,6 +9,7 @@ void func_80057228(MATRIX* mat, s32 alpha, SVECTOR* arg2, VECTOR3* arg3);
 
 #ifdef SH_PC_PORT
 #include "pc_config.h"
+#include "pc_skin_chara.h"
 /* The pixel aspect the renderer is really using (PsyX_render.cpp). NOT
  * GR_LivePixelAspect(), which display_aspect = crt does not read. */
 extern float GR_LivePixelAspect(void);
@@ -262,6 +263,13 @@ static void Pc_FarOtAdd(void* prim, u32 key)
 
 #define SH_ADDPRIM_MESH(tag, sd, shift, prim)                                    \
     do {                                                                        \
+        if (g_PsxActorDepth)                                                    \
+            PsyX_SetNextPrimSzActor((sd)->field_18C[(sd)->field_380.s_0.field_10], \
+                (sd)->field_18C[(sd)->field_380.s_0.field_11],                  \
+                (sd)->field_18C[(sd)->field_380.s_0.field_12],                  \
+                (sd)->field_18C[(sd)->field_380.s_0.field_13 == 0xFF            \
+                    ? (sd)->field_380.s_0.field_12 : (sd)->field_380.s_0.field_13], \
+                (sd)->field_380.s_0.field_13 == 0xFF ? 3 : 4);                  \
         if (s_pcFarOtActive && (sd)->field_380.s_0.field_18 == SH_OT_LAST_DEPTH(shift)) \
             Pc_FarOtAdd((prim), Pc_FarKey((u16)(sd)->field_18C[(sd)->field_380.s_0.field_10], \
                 (u16)(sd)->field_18C[(sd)->field_380.s_0.field_11],              \
@@ -950,6 +958,20 @@ void func_800554C4(s32 arg0, s16 arg1, GsCOORDINATE2* coord0, GsCOORDINATE2* coo
     {
         Vw_CoordHierarchyMatrixCompute(coord1, &mat);
 
+#ifdef SH_PC_PORT
+        /* A replacement model's own flashlight can sit elsewhere on the chest
+         * (Heather's is on her right, Harry's on his left). */
+        if (coord1 == &g_SysWork.playerBoneCoords[HarryBone_Torso])
+        {
+            s32 off[3];
+            if (Pc_SkinChara_HeroLightOffset(off))
+            {
+                x += off[0];
+                y += off[1];
+                z += off[2];
+            }
+        }
+#endif
         tempSvec.vx = Q12_TO_Q8(x);
         tempSvec.vy = Q12_TO_Q8(y);
         tempSvec.vz = Q12_TO_Q8(z);
@@ -4442,6 +4464,31 @@ void func_8005A21C(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
         func_8005AC50(curMeshHdr, (s_GteScratchData2*)scratchData, otTag, (s32)(intptr_t)arg2);
     }
 }
+
+#ifdef SH_PC_PORT
+/* func_8005A21C's transform and vertex lighting without its prims. A part
+ * reads the seam vertices it shares with a neighbour from the scratch slots
+ * that neighbour filled when it drew; when a skinned replacement draws the
+ * neighbour instead, a stock part kept beside it (Cybil's gun hands) needs
+ * the slots filled this way, or it reads stale ones and stretches across the
+ * screen. Expects the part's lighting prelude already run (Pc_SkinChara_Bone). */
+void Pc_PartFillScratch(s_ModelInfo* modelInfo, MATRIX* viewMat)
+{
+    s_ModelHeader*    modelHdr = modelInfo->modelHdr;
+    s_MeshHeader*     curMeshHdr;
+    s_GteScratchData* scratchData = PSX_SCRATCH_ADDR(0);
+
+    if (modelHdr == NULL || modelHdr->meshHdrs == NULL || modelInfo->field_0 < 0 || !modelHdr->field_B_0 ||
+        (modelHdr->field_B_4 & 0xFF) != 0)
+        return;
+    for (curMeshHdr = modelHdr->meshHdrs; curMeshHdr < &modelHdr->meshHdrs[modelHdr->meshCount]; curMeshHdr++)
+    {
+        func_8005A900(curMeshHdr, modelHdr->vertexOffset, scratchData, viewMat);
+        if (g_WorldEnvWork.field_0 != 0)
+            func_8005AA08(curMeshHdr, modelHdr->normalOffset, (s_GteScratchData2*)scratchData);
+    }
+}
+#endif
 
 void func_8005A42C(s_GteScratchData* scratchData, q19_12 alpha) // 0x8005A42C
 {

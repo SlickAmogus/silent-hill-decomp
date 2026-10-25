@@ -511,6 +511,13 @@ const char* Pc_RuMenuText(const char* us)
     if (s_Active == NULL || us == NULL)
         return NULL;
 
+    /* ViT Co repaints '[' (0x5B) as uppercase Ы. The title and difficulty
+     * drawers send their selection marker as a standalone menu literal;
+     * use the surviving right quote for both sides. This is a decoration
+     * fallback, not a byte remap: disc text must still draw 0x5B as Ы. */
+    if (s_Active == &s_Charset_ViTCo && strcmp(us, "[") == 0)
+        return "]";
+
     for (i = 0; i < RU_MENU_COUNT; i++)
     {
         if (s_RuMenu[i].us[0] == us[0] && strcmp(s_RuMenu[i].us, us) == 0)

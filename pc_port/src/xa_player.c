@@ -4,6 +4,7 @@
 #include "sh_log.h"
 #include "main/fileinfo.h"   /* g_FileXaLoc[] — XA file disc-sector offsets */
 #include "pc_config.h"       /* g_PcConfig.cutsceneLineGapMs */
+#include "pc_lipsync.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -629,6 +630,7 @@ void XaPlayer_Stop(void) {
     }
 
     g_XaPlayer.isPlaying = 0;
+    Pc_Lip_Stop();
     XaOverride_Free();
     /* Clear all the streaming-state flags that Sd_AudioStreamingCheck consults.
      * Skip when this Stop is the queued-Stop-before-Play in Sd_XaAudioPlayTaskAdd:
@@ -755,6 +757,8 @@ static int FillAndUploadOne(ALuint alBuffer) {
         memcpy(g_XaPlayer.pcmBuffer, s_ovPcm + s_ovPos, n);
         s_ovPos += n;
         g_XaPlayer.remainingSectors--;
+        Pc_Lip_Feed(g_XaPlayer.xaIdx, (const int16_t*)g_XaPlayer.pcmBuffer, (int)(n / (g_XaPlayer.isStereo ? 4u : 2u)),
+                    g_XaPlayer.sampleRate, g_XaPlayer.isStereo ? 2 : 1);
         alBufferData(alBuffer, g_XaPlayer.isStereo ? AL_FORMAT_STEREO16 : AL_FORMAT_MONO16,
                      g_XaPlayer.pcmBuffer, (ALsizei)n, g_XaPlayer.sampleRate);
         alSourceQueueBuffers(g_XaPlayer.alSource, 1, &alBuffer);
@@ -802,6 +806,8 @@ static int FillAndUploadOne(ALuint alBuffer) {
     g_XaPlayer.remainingSectors -= matchedCount;
 
     int byteCount = totalSamples * (int)sizeof(int16_t);
+    Pc_Lip_Feed(g_XaPlayer.xaIdx, g_XaPlayer.pcmBuffer, totalSamples / (g_XaPlayer.isStereo ? 2 : 1),
+                g_XaPlayer.sampleRate, g_XaPlayer.isStereo ? 2 : 1);
     ALenum format = g_XaPlayer.isStereo ? AL_FORMAT_STEREO16 : AL_FORMAT_MONO16;
     alBufferData(alBuffer, format, g_XaPlayer.pcmBuffer, byteCount, g_XaPlayer.sampleRate);
     alSourceQueueBuffers(g_XaPlayer.alSource, 1, &alBuffer);
@@ -868,6 +874,7 @@ void XaPlayer_Update(void) {
         SH_DBG("[XA] finished xaIdx=%u (drained) playedMs=%u", (unsigned)g_XaPlayer.xaIdx,
                (unsigned)(SDL_GetTicks() - s_xaPlayStartMs));
         g_XaPlayer.isPlaying = 0;
+        Pc_Lip_Stop();
         /* g_XaPlayer.file aliases the shared s_BinFile — never fclose it
          * here. The BIN handle is held for the lifetime of the process. */
         g_XaPlayer.file = NULL;
@@ -921,6 +928,7 @@ void XaPlayer_SetPauseHold(int hold) {
         if (g_XaPlayer.isPlaying && g_XaPlayer.alSource) {
             alSourcePause(g_XaPlayer.alSource);
         }
+        Pc_Lip_Hold(1);
     } else {
         Uint32 heldMs = SDL_GetTicks() - s_xaPauseStartMs;
 
@@ -931,6 +939,7 @@ void XaPlayer_SetPauseHold(int hold) {
         s_xaPlayStartMs += heldMs;
         s_xaPrevFireMs  += heldMs;
         if (s_xaSeekEndMs != 0) s_xaSeekEndMs += heldMs;
+        Pc_Lip_Hold(0);
         if (g_XaPlayer.isPlaying && g_XaPlayer.alSource) {
             ALint st = 0;
             alGetSourcei(g_XaPlayer.alSource, AL_SOURCE_STATE, &st);

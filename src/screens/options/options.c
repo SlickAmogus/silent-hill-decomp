@@ -2247,7 +2247,13 @@ void GameState_Options_Update(void) // 0x801E2D44
         func_800363D0();
     }
 
-    if (g_GameWork.gameStatePrev != GameState_MainMenu)
+    /* Retail's options screen keeps the play timer running; the PC-only
+     * options page has no retail counterpart, so time spent there is not play. */
+    if (g_GameWork.gameStatePrev != GameState_MainMenu
+#ifdef SH_PC_PORT
+        && g_GameWork.gameStateSteps[0] != OptionsMenuState_PcOptions
+#endif
+       )
     {
         Game_TimerUpdate();
     }

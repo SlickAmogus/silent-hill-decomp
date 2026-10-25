@@ -735,9 +735,16 @@ void func_8008E5B4(void) // 0x8008E5B4
      * the GL offscreen round trip was not. Rasterize the two 1:1 layers in
      * software (PsyX_VramDrawTexturedRect) in the order DrawOTag drew them:
      * the opaque base, then the additive copy; dtd is on (main.c). */
-    if (g_DeltaTime != Q12(0.0f))
+    /* The original counter advances once per 30 FPS game tick, not once per
+     * rendered frame. Retain fractional ticks at higher frame rates and wrap
+     * after 128 ticks, when both 32-texel scrolling layers repeat. Using the
+     * game's Q12 timestep also preserves the original 30 FPS sequence. */
+    static s32 waterTime = 0;
+
+    if (g_DeltaTime > Q12(0.0f))
     {
-        D_800AFDAC++;
+        waterTime = (waterTime + g_DeltaTime) % (128 * TIMESTEP_30_FPS);
+        D_800AFDAC = waterTime / TIMESTEP_30_FPS;
     }
 
     PsyX_VramDrawTexturedRect(D_800AFDA4.x, D_800AFDA4.y, D_800AFDA4.w, D_800AFDA4.h,

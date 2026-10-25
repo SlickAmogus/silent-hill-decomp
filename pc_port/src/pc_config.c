@@ -131,6 +131,7 @@ s_PcConfig g_PcConfig = {
     .crosshairStyle      = 0, /* 0 = cross (+), 1 = dot, 2 = circle, 3 = dashes/gap */
     .crosshairSize       = 100.0f,
     .crosshairFpsAimOnly = 0, /* FPS crosshair: 0 = always shown, 1 = only while aiming */
+    .ragdoll             = 0,
     .textSize            = 100.0f,
     .aimAssist           = 1, /* OTS/TPS free-aim aim assist (mouse body-coverage + controller auto-aim) */
     .mouseCursor         = 1, /* mouse controls cursor puzzles + clickable main menu */
@@ -149,7 +150,15 @@ s_PcConfig g_PcConfig = {
     .touchLookSensitivity = 1.0f,
     .renderScale         = 1.0f,
     .lowEndMode          = 0,
+#if defined(__EMSCRIPTEN__)
+    /* On in the browser: Aim also fires. The two-button split leaves a phone
+     * holding Aim and reaching for Fire while it turns the free-aim cameras,
+     * which is near impossible on glass. It only changes the touch overlay, and
+     * the web Options menu has no row to turn it back, so it is the one mode. */
+    .oneButtonCombat      = 1,
+#else
     .oneButtonCombat      = 0, /* off: Aim holds, a separate Fire button shoots */
+#endif
     .altButtonSprint     = 0, /* alt cams sprint from the run control only (off = full stick push also sprints) */
     .immersiveFpsHeadTracking = 0, /* FPS view follows head-bone rotation (experiment, off by default) */
     .control2d               = 0, /* 2D screen-relative movement (experiment, off by default) */
@@ -1171,6 +1180,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "crosshair_fps_aim_only") == 0)
         {
             g_PcConfig.crosshairFpsAimOnly = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "ragdoll") == 0)
+        {
+            g_PcConfig.ragdoll = (atoi(value) != 0);
         }
         else if (strcmp(key, "text_size") == 0)
         {

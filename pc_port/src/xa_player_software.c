@@ -4,6 +4,7 @@
 #include "sh_log.h"
 #include "main/fileinfo.h"   /* g_FileXaLoc[] — XA file disc-sector offsets */
 #include "pc_config.h"       /* g_PcConfig.cutsceneLineGapMs */
+#include "pc_lipsync.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -502,6 +503,7 @@ void PcSoftwareXa_Stop(void) {
     PsyX_AudioResetXa();
 
     g_XaPlayer.isPlaying = 0;
+    Pc_Lip_Stop();
     XaOverride_Free();
     /* Clear all the streaming-state flags that Sd_AudioStreamingCheck consults.
      * Skip when this Stop is the queued-Stop-before-Play in Sd_XaAudioPlayTaskAdd:
@@ -539,6 +541,7 @@ static int FillAndQueueOne(void) {
                                     (uint32_t)g_XaPlayer.sampleRate, (uint32_t)channels)) {
             return 0;
         }
+        Pc_Lip_Feed(g_XaPlayer.xaIdx, g_XaPlayer.pcmBuffer, frames, g_XaPlayer.sampleRate, channels);
         s_ovPos += n;
         g_XaPlayer.remainingSectors = (s_ovPos >= s_ovBytes) ? 0 : g_XaPlayer.remainingSectors - 1;
         return frames;
@@ -590,6 +593,7 @@ static int FillAndQueueOne(void) {
                                 (uint32_t)g_XaPlayer.sampleRate, (uint32_t)channels)) {
         return 0;
     }
+    Pc_Lip_Feed(g_XaPlayer.xaIdx, g_XaPlayer.pcmBuffer, frames, g_XaPlayer.sampleRate, channels);
     return frames;
 }
 
@@ -632,6 +636,7 @@ void PcSoftwareXa_Update(void) {
         SsSetSerialAttr(0, 0, 0);
     }
     g_XaPlayer.isPlaying = 0;
+    Pc_Lip_Stop();
     XaOverride_Free();
     Xa_SignalPlaybackFinished();
 }
@@ -672,6 +677,7 @@ void PcSoftwareXa_SetPauseHold(int hold) {
     if (hold) {
         s_xaPauseStartMs = SDL_GetTicks();
         PsyX_AudioSetXaPaused(1);
+        Pc_Lip_Hold(1);
     } else {
         Uint32 heldMs = SDL_GetTicks() - s_xaPauseStartMs;
 
@@ -683,6 +689,7 @@ void PcSoftwareXa_SetPauseHold(int hold) {
         s_xaPrevFireMs  += heldMs;
         if (s_xaSeekEndMs != 0) s_xaSeekEndMs += heldMs;
         PsyX_AudioSetXaPaused(0);
+        Pc_Lip_Hold(0);
     }
 }
 

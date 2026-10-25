@@ -114,6 +114,7 @@ typedef struct PcModernDrawBinding
     int nativeWidth, nativeHeight;
     int offsetX, offsetY;
     int hiresWidth, hiresHeight;
+    int indexCount; /* > 0: drawn indexed from Pc_ModernVertex_UploadIndices */
 } PcModernDrawBinding;
 
 /* Renderer preparation seam. Uploads the already-expanded command and returns

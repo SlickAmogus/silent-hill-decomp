@@ -588,6 +588,11 @@ typedef struct {
      * Appended last so plugins built against the earlier layout still read the
      * fields above. (config key: crosshair_fps_aim_only) */
     int crosshairFpsAimOnly;
+
+    /* 1 = a skinned glTF replacement of Harry falls as a ragdoll when he dies,
+     * pushed along the last hit. Stock models are never affected.
+     * (config key: ragdoll) */
+    int ragdoll;
 } s_PcConfig;
 
 extern s_PcConfig g_PcConfig;
