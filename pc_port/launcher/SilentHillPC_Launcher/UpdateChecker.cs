@@ -75,6 +75,29 @@ namespace SilentHillPC_Launcher
             [DataMember(Name = "url")]    public string Url;
         }
 
+        // Realtime index (realtime.json on the source repo's rolling `realtime`
+        // release, written by tools/realtime_publish.py). Newest build first; each
+        // build is a zip-mode manifest: one SHPC_rt-<version>.zip plus per-file hashes.
+        [DataContract]
+        public class RealtimeIndex
+        {
+            [DataMember(Name = "builds")] public List<RealtimeBuild> Builds;
+        }
+
+        [DataContract]
+        public class RealtimeBuild
+        {
+            [DataMember(Name = "id")]      public string Id;
+            [DataMember(Name = "version")] public string Version;
+            [DataMember(Name = "commit")]  public string Commit;
+            [DataMember(Name = "date")]    public string Date;
+            [DataMember(Name = "summary")] public List<string> Summary;
+            [DataMember(Name = "mode")]     public string Mode;
+            [DataMember(Name = "zip_name")] public string ZipName;
+            [DataMember(Name = "zip_url")]  public string ZipUrl;
+            [DataMember(Name = "files")]   public List<FileEntry> Files;
+        }
+
         public class UpdatePlan
         {
             public string RemoteVersion;
@@ -89,6 +112,7 @@ namespace SilentHillPC_Launcher
             public bool   IsBeta;          // newest build is a beta-branch release (surfaced in the update dialog)
             public bool   IsCustom;        // an opt-in named build (custom branch), never the main stream
             public string BuildName;       // custom builds: the display name from the manifest
+            public bool   IsRealtime;      // an automatic per-push build (realtime stream)
             public List<FileEntry> Changed = new List<FileEntry>();
             public bool HasUpdate => Changed.Count > 0;
 
@@ -153,8 +177,34 @@ namespace SilentHillPC_Launcher
             if (!settings.TryGetOwnerRepo(out owner, out repo))
                 throw new Exception(Loc.F("Invalid repo URL in launcher settings: {0}", settings.RepoUrl));
 
-            var src      = await ResolveManifestSourceAsync(owner, repo, settings, ct).ConfigureAwait(false);
-            var manifest = await FetchManifestAsync(src.Url, ct).ConfigureAwait(false);
+            ManifestSource src;
+            Manifest       manifest;
+            if (settings.UsesRealtime)
+            {
+                var rt = await ResolveRealtimeBuildAsync(settings, ct).ConfigureAwait(false);
+                src = new ManifestSource
+                {
+                    Url   = LauncherSettings.RealtimeIndexUrl,
+                    Label = Loc.F("realtime build {0} ({1})", rt.Version, ShortCommit(rt.Commit)),
+                    Tag   = rt.Id,
+                };
+                manifest = new Manifest
+                {
+                    Version   = rt.Version,
+                    Tag       = rt.Id,
+                    Mode      = string.IsNullOrWhiteSpace(rt.Mode) ? "loose" : rt.Mode,
+                    ZipUrl    = rt.ZipUrl,
+                    ZipName   = rt.ZipName,
+                    BuildDate = rt.Date,
+                    Stream    = "realtime",
+                    Files     = rt.Files ?? new List<FileEntry>(),
+                };
+            }
+            else
+            {
+                src      = await ResolveManifestSourceAsync(owner, repo, settings, ct).ConfigureAwait(false);
+                manifest = await FetchManifestAsync(src.Url, ct).ConfigureAwait(false);
+            }
 
             string mode = string.IsNullOrWhiteSpace(manifest.Mode) ? "loose" : manifest.Mode.Trim().ToLowerInvariant();
 
@@ -165,13 +215,14 @@ namespace SilentHillPC_Launcher
                 Mode            = mode,
                 ZipUrl          = manifest.ZipUrl,
                 RepoLabel       = src.Label,
-                ChangelogUrl    = DeriveChangelogUrl(src.Url),
+                ChangelogUrl    = settings.UsesRealtime ? LauncherSettings.RealtimeChangelogUrl : DeriveChangelogUrl(src.Url),
                 LauncherVersion = manifest.LauncherVersion,
                 MigrateToBranch = src.MigrateBranch,
                 IsBeta          = src.IsBeta,
                 IsCustom        = string.Equals(manifest.Stream, "custom", StringComparison.OrdinalIgnoreCase) ||
                                   CustomFamilyPrefix(src.Tag) != null,
                 BuildName       = manifest.Name,
+                IsRealtime      = settings.UsesRealtime,
             };
 
             if (manifest.Files != null)
@@ -192,7 +243,13 @@ namespace SilentHillPC_Launcher
 
             // Launcher self-update gate.
             var launcherEntry = plan.LauncherEntry;
-            if (launcherEntry != null)
+            if (launcherEntry != null && plan.IsRealtime)
+            {
+                // The launcher is the updater: it only ever comes from a scripted
+                // release, so an automatic build can never strand anyone.
+                plan.Changed.Remove(launcherEntry);
+            }
+            else if (launcherEntry != null)
             {
                 // NEVER self-update the launcher from a non-default (untrusted)
                 // repo. A third-party repo may update game data, but replacing the
@@ -282,6 +339,59 @@ namespace SilentHillPC_Launcher
             return list;
         }
 
+        /// <summary>The realtime builds still available (newest first), for the Build
+        /// Settings dropdown. Each label carries the date and the build's first commit
+        /// subject so a rollback target can be picked by what it changed.</summary>
+        public static async Task<List<BuildInfo>> ListRealtimeBuildsAsync(CancellationToken ct = default(CancellationToken))
+        {
+            var idx = await FetchRealtimeIndexAsync(ct).ConfigureAwait(false);
+            var list = new List<BuildInfo>();
+            foreach (var b in idx.Builds ?? new List<RealtimeBuild>())
+            {
+                if (b == null || string.IsNullOrEmpty(b.Id)) continue;
+                var summary = b.Summary ?? new List<string>();
+                string first = summary.Count > 0 ? summary[0] : "";
+                if (first.Length > 60) first = first.Substring(0, 57) + "...";
+                string more = summary.Count > 1 ? " " + Loc.F("(+{0} more)", summary.Count - 1) : "";
+                list.Add(new BuildInfo
+                {
+                    Tag   = b.Id,
+                    Label = $"{b.Version}  ({ParseDate(b.Date):yyyy-MM-dd HH:mm})  {first}{more}"
+                });
+            }
+            return list;
+        }
+
+        private static async Task<RealtimeIndex> FetchRealtimeIndexAsync(CancellationToken ct)
+        {
+            using (var resp = await _http.GetAsync(LauncherSettings.RealtimeIndexUrl, ct).ConfigureAwait(false))
+            {
+                if (resp.StatusCode == System.Net.HttpStatusCode.NotFound)
+                    throw new Exception(Loc.T("No realtime builds have been published yet."));
+                resp.EnsureSuccessStatusCode();
+                var bytes = await resp.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
+                return DeserializeJson<RealtimeIndex>(bytes) ?? new RealtimeIndex();
+            }
+        }
+
+        private static async Task<RealtimeBuild> ResolveRealtimeBuildAsync(LauncherSettings s, CancellationToken ct)
+        {
+            var idx    = await FetchRealtimeIndexAsync(ct).ConfigureAwait(false);
+            var builds = (idx.Builds ?? new List<RealtimeBuild>()).Where(b => b != null && b.Files != null).ToList();
+            if (builds.Count == 0)
+                throw new Exception(Loc.T("No realtime builds have been published yet."));
+            if (s.IsLatestBuild) return builds[0];
+            var pinned = builds.FirstOrDefault(b => string.Equals(b.Id, s.Build, StringComparison.OrdinalIgnoreCase));
+            if (pinned == null)
+                throw new Exception(Loc.F("Realtime build '{0}' is no longer available. Only the newest builds are kept; pick another in Build Settings.", s.Build));
+            return pinned;
+        }
+
+        private static string ShortCommit(string sha)
+        {
+            return string.IsNullOrEmpty(sha) ? "?" : sha.Substring(0, Math.Min(9, sha.Length));
+        }
+
         // -- Public: cross-platform archives (Build Settings) -----------------
 
         /// <summary>Resolve the download URL for a cross-platform archive asset
@@ -291,6 +401,10 @@ namespace SilentHillPC_Launcher
         public static async Task<string> GetCrossPlatformAssetUrlAsync(LauncherSettings settings, string branch,
             string build, string assetName, CancellationToken ct = default(CancellationToken))
         {
+            // The realtime release only keeps the newest Linux/macOS archives.
+            if (settings.UsesRealtime)
+                return LauncherSettings.RealtimeReleaseBase + assetName;
+
             string owner, repo;
             if (!settings.TryGetOwnerRepo(out owner, out repo))
                 throw new Exception(Loc.F("Invalid repo URL: {0}", settings.RepoUrl));
@@ -789,6 +903,8 @@ namespace SilentHillPC_Launcher
         /// repo/branch/build, to preview a build before installing it.</summary>
         public static async Task<string> GetChangelogTextAsync(LauncherSettings settings, CancellationToken ct = default(CancellationToken))
         {
+            if (settings.UsesRealtime)
+                return await FetchTextAsync(LauncherSettings.RealtimeChangelogUrl, ct).ConfigureAwait(false);
             string owner, repo;
             if (!settings.TryGetOwnerRepo(out owner, out repo))
                 throw new Exception(Loc.F("Invalid repo URL: {0}", settings.RepoUrl));

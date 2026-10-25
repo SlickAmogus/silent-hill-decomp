@@ -8,6 +8,15 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "sh_log.h"
+
+static int s_skinLitShader;
+
+int Pc_ModernShader_SkinLit(void)
+{
+    return s_skinLitShader;
+}
+
 #define PC_MODERN_SHADER_COUNT 4
 #define PC_MODERN_ATTRIBUTE_COUNT 8
 #define PC_UV_ASSIGNMENT "\t\tv_texcoord = a_texcoord;\n"
@@ -21,6 +30,79 @@
  * legacy path supplies for lit prims. */
 #define PC_COLOR_MULTIPLY "\t\tv_color.xyz *= a_texcoord.z;\n"
 #define PC_COLOR_MULTIPLY_CONST "\t\tv_color.xyz *= 2.0;\n"
+
+/* Per-pixel character lighting, RGBA variant only (skins always upload RGBA).
+ * The PSX lights a character per vertex with the GTE: three light rows dotted
+ * with the inward normal, clamped, through the colour matrix, plus the back
+ * colour. The same sum runs here per pixel on the interpolated (optionally
+ * normal-mapped) normal, and the point light's row is aimed from each pixel
+ * instead of from each bone's origin. Uniforms come from pc_skin_chara.c. */
+#define PC_SKIN_VARYINGS_AT "varying float v_texfmt;\n"
+#define PC_SKIN_VARYINGS \
+    "varying float v_texfmt;\n" \
+    "varying vec4 v_skinN;\n" \
+    "varying vec4 v_skinT;\n" \
+    "#ifdef VERTEX\n" \
+    "attribute vec4 a_skinNormal;\n" \
+    "attribute vec4 a_skinTangent;\n" \
+    "#endif\n"
+#define PC_SKIN_VERTEX_AT "\t\tv_uvlim = a_uvlim;\n"
+#define PC_SKIN_VERTEX \
+    "\t\tv_uvlim = a_uvlim;\n" \
+    "\t\tv_skinN = a_skinNormal;\n" \
+    "\t\tv_skinT = a_skinTangent;\n"
+#define PC_SKIN_UNIFORMS_AT "\tuniform vec2 u_hiresHalf;\n"
+#define PC_SKIN_UNIFORMS \
+    "\tuniform vec2 u_hiresHalf;\n" \
+    "\tuniform int u_skinLit;\n" \
+    "\tuniform int u_skinNormalMap;\n" \
+    "\tuniform sampler2D u_skinNormalTex;\n" \
+    "\tuniform int u_skinPoint;\n" \
+    "\tuniform vec3 u_skinL0;\n" \
+    "\tuniform vec3 u_skinL1;\n" \
+    "\tuniform vec3 u_skinL2;\n" \
+    "\tuniform float u_skinL1Mag;\n" \
+    "\tuniform vec3 u_skinLightPos;\n" \
+    "\tuniform vec3 u_skinLC0;\n" \
+    "\tuniform vec3 u_skinLC1;\n" \
+    "\tuniform vec3 u_skinLC2;\n" \
+    "\tuniform vec3 u_skinBK;\n" \
+    "\tuniform float u_skinBright;\n"
+#define PC_SKIN_SHADE_AT "\t\tvec3 flAlbedo = fragColor.rgb;\n\t\tfragColor *= v_color;\n"
+#define PC_SKIN_SHADE \
+    "\t\tvec3 flAlbedo = fragColor.rgb;\n" \
+    "\t\tvec3 skN = vec3(0.0);\n" \
+    "\t\tif (u_skinLit > 0) {\n" \
+    "\t\t\tvec3 N = v_skinN.xyz;\n" \
+    "\t\t\tfloat nLen = length(N);\n" \
+    "\t\t\tN = (nLen > 1e-6) ? N / nLen : vec3(0.0, 0.0, -1.0);\n" \
+    "\t\t\tif (u_skinNormalMap > 0 && dot(v_skinT.xyz, v_skinT.xyz) > 1e-8) {\n" \
+    "\t\t\t\tvec3 T = v_skinT.xyz - N * dot(N, v_skinT.xyz);\n" \
+    "\t\t\t\tfloat tLen = length(T);\n" \
+    "\t\t\t\tif (tLen > 1e-6) {\n" \
+    "\t\t\t\t\tT /= tLen;\n" \
+    "\t\t\t\t\tvec3 B = cross(N, T) * ((v_skinT.w < 0.0) ? -1.0 : 1.0);\n" \
+    "\t\t\t\t\tvec3 nm = texture2D(u_skinNormalTex, tc).xyz * 2.0 - 1.0;\n" \
+    "\t\t\t\t\tN = normalize(T * nm.x + B * nm.y + N * max(nm.z, 0.05));\n" \
+    "\t\t\t\t}\n" \
+    "\t\t\t}\n" \
+    "\t\t\tskN = N;\n" \
+    "\t\t\tvec3 r1 = u_skinL1;\n" \
+    "\t\t\tif (u_skinPoint > 0) {\n" \
+    "\t\t\t\tvec3 toL = u_skinLightPos - v_viewpos;\n" \
+    "\t\t\t\tfloat dL = length(toL);\n" \
+    "\t\t\t\tif (dL > 1e-4) r1 = -(toL / dL) * u_skinL1Mag;\n" \
+    "\t\t\t}\n" \
+    "\t\t\tvec3 ir = clamp(vec3(dot(u_skinL0, -N), dot(r1, -N), dot(u_skinL2, -N)), 0.0, 8.0);\n" \
+    "\t\t\tvec3 lit = clamp(u_skinBK + vec3(dot(u_skinLC0, ir), dot(u_skinLC1, ir), dot(u_skinLC2, ir)), 0.0, 1.0);\n" \
+    "\t\t\tfragColor *= vec4(min(lit * u_skinBright, vec3(1.0)) * 2.0, v_color.a);\n" \
+    "\t\t} else {\n" \
+    "\t\t\tfragColor *= v_color;\n" \
+    "\t\t}\n"
+#define PC_SKIN_BEAM_AT "\t\t\t\t\tif (dot(N, flP) > 0.0) N = -N;\n"
+#define PC_SKIN_BEAM \
+    "\t\t\t\t\tif (dot(N, flP) > 0.0) N = -N;\n" \
+    "\t\t\t\t\tif (u_skinLit > 0) N = skN;\n"
 
 _Static_assert(PC_MODERN_ATTRIBUTE_COUNT <= 8, "modern shader exceeds GLES2 attributes");
 
@@ -77,10 +159,18 @@ static char* ReplaceOnce(const char* source, const char* needle, const char* rep
     return result;
 }
 
-static char* BuildModernSource(const char* source)
+static char* BuildModernSource(const char* source, TexFormat format)
 {
+    static const char* const skin[][2] = {
+        { PC_SKIN_VARYINGS_AT, PC_SKIN_VARYINGS },
+        { PC_SKIN_VERTEX_AT, PC_SKIN_VERTEX },
+        { PC_SKIN_UNIFORMS_AT, PC_SKIN_UNIFORMS },
+        { PC_SKIN_SHADE_AT, PC_SKIN_SHADE },
+        { PC_SKIN_BEAM_AT, PC_SKIN_BEAM },
+    };
     char* uvPatched;
     char* colorPatched;
+    size_t i;
 
     uvPatched = ReplaceOnce(source, PC_UV_ASSIGNMENT, PC_FLOAT_UV_ASSIGNMENT);
     if (uvPatched == NULL)
@@ -88,7 +178,27 @@ static char* BuildModernSource(const char* source)
 
     colorPatched = ReplaceOnce(uvPatched, PC_COLOR_MULTIPLY, PC_COLOR_MULTIPLY_CONST);
     free(uvPatched);
-    return colorPatched;
+    if (format != TF_32_BIT_RGBA || colorPatched == NULL)
+        return colorPatched;
+    {
+        char* lit = ReplaceOnce(colorPatched, skin[0][0], skin[0][1]);
+        for (i = 1; lit != NULL && i < sizeof(skin) / sizeof(skin[0]); i++)
+        {
+            char* next = ReplaceOnce(lit, skin[i][0], skin[i][1]);
+            free(lit);
+            lit = next;
+        }
+        /* Items share this variant, so a shader edit that moves an anchor
+         * costs only the per-pixel character path, not the variant. */
+        if (lit == NULL)
+        {
+            SH_DBG("[SKIN] per-pixel lighting patch did not apply (anchor %d); characters stay per-vertex", (int)i - 1);
+            return colorPatched;
+        }
+        free(colorPatched);
+        s_skinLitShader = 1;
+        return lit;
+    }
 }
 
 static void InitialiseVariant(TexFormat format, const char* legacySource)
@@ -96,7 +206,7 @@ static void InitialiseVariant(TexFormat format, const char* legacySource)
     PcModernShaderVariant* variant = FindVariant(format);
     if (variant == NULL || variant->source != NULL)
         return;
-    variant->source = BuildModernSource(legacySource);
+    variant->source = BuildModernSource(legacySource, format);
     if (variant->source != NULL)
         variant->shader = GR_Shader_Compile(variant->source);
 }

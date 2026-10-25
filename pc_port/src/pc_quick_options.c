@@ -72,7 +72,7 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_SPU,
        QO_X_DREAMSTR, QO_X_DREAMBLUR, QO_X_DPADMOVE,
        QO_X_CAMSTYLE, QO_X_OTSSIDE, QO_X_CROSSHAIRSTYLE,
-       QO_X_LINEGAP };
+       QO_X_LINEGAP, QO_X_CHARALIGHT };
 extern const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz);
 extern void        PcOpt_QuickExtraAdjust(int which, int dir);
 extern void        PcOpt_QuickViewReset(int mode);
@@ -204,6 +204,7 @@ static const QoRowDef s_page0[] = {
      * page is at its row limit, and this is a look you judge by watching it. */
     { ROW_EXTRA, NULL, QO_X_DREAMBLUR,      "Dream Blur" },
     { ROW_EXTRA, NULL, QO_X_DREAMSTR,       "Dream Blur Strength" },
+    { ROW_EXTRA, NULL, QO_X_CHARALIGHT,     "Character Lighting" },
     { ROW_OPT,   "bullet_decals",        0, NULL },
 #if defined(QO_MOBILE)
     /* Frame cap, beside Weather_Rate for the same reason the Options menu puts

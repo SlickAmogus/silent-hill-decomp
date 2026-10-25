@@ -44,6 +44,10 @@ void  Pc_PartFillScratch(s_ModelInfo* modelInfo, MATRIX* viewMat);
 
 int   Pc_SkinChara_PrepareDraw(u32 handle, PcModernDrawBinding* binding);
 
+/* Sets the per-pixel lighting uniforms (and the normal map) on the bound
+ * modern program for a skin handle; any other handle switches them off. */
+void  Pc_SkinChara_ApplyLighting(u32 handle, unsigned int program);
+
 /* Which file HERO's replacement loads: a play-as swap's base name (HERO_CJ),
  * or NULL for HERO itself. A swap whose file is gone falls back to HERO. */
 void  Pc_SkinChara_SetHeroFile(const char* file);

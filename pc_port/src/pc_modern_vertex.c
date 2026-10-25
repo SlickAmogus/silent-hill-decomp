@@ -39,6 +39,14 @@ void Pc_ModernVertex_Upload(const struct GrModernVertex* vertices, int count)
             glVertexAttribPointer(i, sizes[i], types[i], i == a_color ? GL_TRUE : GL_FALSE,
                                   sizeof(GrModernVertex), (const void*)offsets[i]);
         }
+        /* Outside the GLES2 eight: the shaders already declare twelve
+         * attributes, so any context that runs them has these slots too. */
+        glEnableVertexAttribArray(a_skinNormal);
+        glVertexAttribPointer(a_skinNormal, 4, GL_FLOAT, GL_FALSE, sizeof(GrModernVertex),
+                              (const void*)offsetof(GrModernVertex, snx));
+        glEnableVertexAttribArray(a_skinTangent);
+        glVertexAttribPointer(a_skinTangent, 4, GL_FLOAT, GL_FALSE, sizeof(GrModernVertex),
+                              (const void*)offsetof(GrModernVertex, stx));
     }
     else
     {

@@ -572,6 +572,12 @@ typedef struct {
      * worth more than a rebuild. (config key: dream_blur; console: dreamblur) */
     int  dreamBlur;
 
+    /* Skinned replacement characters: 1 = lit per pixel (the game's own
+     * lights evaluated per fragment, plus the model's normal map), 0 = per
+     * vertex like the stock characters. Applies live.
+     * (config key: chara_per_pixel_light) */
+    int  charaPerPixelLight;
+
     /* Strength of that blur: the gain of its feedback loop, 0 to 1. 1.0 is
      * hardware, where the overlay's own 50/50 composite is the only decay.
      * Lower fades the ghost faster. (config key: dream_blur_strength) */

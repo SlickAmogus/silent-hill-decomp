@@ -39,6 +39,7 @@
 #include "pc_config.h"
 #include "pc_lipsync.h"
 #include "pc_modern_mesh.h"
+#include "pc_modern_shader.h"
 #include "pc_modern_vertex.h"
 #include "pc_skin_chara.h"
 #include "sh_log.h"
@@ -170,6 +171,7 @@ typedef struct
     u8    n;
     u8    dom;
     SVECTOR gteNormal;        /* dominant-bone-local, the ILM's inward sign */
+    float   tan[4];           /* dominant-bone-local tangent, w = bitangent sign */
 } PcSkinVert;
 
 typedef struct
@@ -191,6 +193,9 @@ typedef struct
     unsigned char*  rgba;
     int             w, h;
     u32             texture;
+    unsigned char*  nrgba;    /* normal map, if the material has one */
+    int             nw, nh;
+    u32             ntexture;
     GrModernVertex* out[PC_SKIN_INST][2];
     u32*            idx[PC_SKIN_INST][2];
     int             idxCount[PC_SKIN_INST][2];
@@ -208,6 +213,17 @@ typedef struct
  * is built from the chest at load, so every model gets it. */
 enum { PC_SKIN_MORPH_BLINK, PC_SKIN_MORPH_MOUTH, PC_SKIN_MORPH_GRIP_L, PC_SKIN_MORPH_GRIP_R, PC_SKIN_MORPH_BREATH,
        PC_SKIN_MORPH_COUNT };
+
+/* One frame's lights for the per-pixel path, in view space: the GTE light
+ * rows and back colour of the bone that lights the most vertices, and the
+ * point light's position so its row can be aimed from each pixel. */
+typedef struct
+{
+    int   on, point;
+    float L[3][3], l1Mag, lightPos[3];
+    float LC[3][3], BK[3];
+    float bright;
+} PcSkinLight;
 
 typedef struct
 {
@@ -234,6 +250,10 @@ typedef struct
     u8          lit[PC_SKIN_BONES];
     float       rw[PC_SKIN_BONES][9]; /* bone -> world, for the ragdoll */
     float       tw[PC_SKIN_BONES][3];
+    s16         gteL[PC_SKIN_BONES][9];  /* light rows each bone was lit with */
+    s32         gteBK[PC_SKIN_BONES][3];
+    s16         gteLC[9];
+    PcSkinLight light[PC_SKIN_INST][2];
     int         isPlayer;
 
     /* retarget, kept for shape keys (delta -> bone-local per influence) */
@@ -246,6 +266,7 @@ typedef struct
     float       mouth;
     float       grip[2];
     float       gunOff[3]; /* right-hand bone frame */
+    int         lightLogged;
     int         gunRaise, gunOut, gunTwist; /* ini: mm, mm, degrees */
     int         female;
     int         brightness; /* percent of the lit vertex colour */
@@ -658,17 +679,27 @@ static void Skin_FileRelease(const struct cgltf_memory_options* mem, const struc
     free(data);
 }
 
+static void Skin_DecodeTexture(const cgltf_texture* tex, const char* gltfPath, unsigned char** rgba, int* w,
+                               int* h, const char* what);
+
 static void Skin_LoadImage(PcSkinMat* mat, const cgltf_material* m, const char* gltfPath)
 {
-    const cgltf_texture* tex;
+    if (m == NULL)
+        return;
+    if (m->has_pbr_metallic_roughness)
+        Skin_DecodeTexture(m->pbr_metallic_roughness.base_color_texture.texture, gltfPath, &mat->rgba, &mat->w,
+                           &mat->h, m->name);
+    Skin_DecodeTexture(m->normal_texture.texture, gltfPath, &mat->nrgba, &mat->nw, &mat->nh, m->name);
+}
+
+static void Skin_DecodeTexture(const cgltf_texture* tex, const char* gltfPath, unsigned char** rgba, int* w,
+                               int* h, const char* what)
+{
     const cgltf_image* img;
     unsigned char* bytes = NULL;
     cgltf_size size = 0;
     int owned = 0;
 
-    if (m == NULL || !m->has_pbr_metallic_roughness)
-        return;
-    tex = m->pbr_metallic_roughness.base_color_texture.texture;
     if (tex == NULL || (img = tex->image) == NULL)
         return;
     if (img->buffer_view != NULL && img->buffer_view->buffer->data != NULL)
@@ -696,10 +727,10 @@ static void Skin_LoadImage(PcSkinMat* mat, const cgltf_material* m, const char* 
         owned = 1;
     }
     if (bytes != NULL && size > 0 && size < 0xffffffffu &&
-        HiresOverride_DecodeToRGBA(bytes, (unsigned)size, &mat->rgba, &mat->w, &mat->h) != 0)
+        HiresOverride_DecodeToRGBA(bytes, (unsigned)size, rgba, w, h) != 0)
     {
-        SH_DBG("[SKIN] texture for material %s did not decode (PNG only)", m->name ? m->name : "?");
-        mat->rgba = NULL;
+        SH_DBG("[SKIN] texture for material %s did not decode (PNG only)", what ? what : "?");
+        *rgba = NULL;
     }
     if (owned)
         free(bytes);
@@ -992,6 +1023,78 @@ static int Skin_BuildCorners(PcSkinMat* mat, int vertCount)
     return 1;
 }
 
+/* Tangents for the vertices the file gave none, from each triangle's UV
+ * gradient. Image V runs down in glTF while a normal map's green points up the
+ * image, so the bitangent is the direction of decreasing V. */
+static void Skin_FillTangents(PcSkinChara* ch, const float* gpos, const float* gnrm, float* gtan)
+{
+    float* bit = (float*)calloc((size_t)ch->vertCount * 3, sizeof(float));
+    int m, t, c, j;
+
+    if (bit == NULL)
+        return;
+    for (m = 0; m < ch->matCount; m++)
+    {
+        const PcSkinMat* mat = &ch->mats[m];
+        for (t = 0; t < mat->triCount; t++)
+        {
+            const PcSkinTri* tri = &mat->tris[t];
+            const float* p0 = &gpos[tri->v[0] * 3];
+            const float* p1 = &gpos[tri->v[1] * 3];
+            const float* p2 = &gpos[tri->v[2] * 3];
+            float e1[3], e2[3], du1, dv1, du2, dv2, det, tg[3], bt[3];
+
+            for (c = 0; c < 3; c++)
+            {
+                e1[c] = p1[c] - p0[c];
+                e2[c] = p2[c] - p0[c];
+            }
+            du1 = tri->uv[1][0] - tri->uv[0][0];
+            dv1 = tri->uv[1][1] - tri->uv[0][1];
+            du2 = tri->uv[2][0] - tri->uv[0][0];
+            dv2 = tri->uv[2][1] - tri->uv[0][1];
+            det = du1 * dv2 - du2 * dv1;
+            if (fabsf(det) < 1e-12f)
+                continue;
+            for (c = 0; c < 3; c++)
+            {
+                tg[c] = (e1[c] * dv2 - e2[c] * dv1) / det;
+                bt[c] = -(e2[c] * du1 - e1[c] * du2) / det;
+            }
+            for (j = 0; j < 3; j++)
+            {
+                float* g = &gtan[tri->v[j] * 4];
+                if (g[3] == 1.0f || g[3] == -1.0f)
+                    continue;
+                g[3] = 2.0f;
+                for (c = 0; c < 3; c++)
+                {
+                    g[c] += tg[c];
+                    bit[tri->v[j] * 3 + c] += bt[c];
+                }
+            }
+        }
+    }
+    for (j = 0; j < ch->vertCount; j++)
+    {
+        float* g = &gtan[j * 4];
+        const float* n = &gnrm[j * 3];
+        const float* b = &bit[j * 3];
+        float nt, cx, cy, cz;
+
+        if (g[3] != 2.0f)
+            continue;
+        nt = g[0] * n[0] + g[1] * n[1] + g[2] * n[2];
+        for (c = 0; c < 3; c++)
+            g[c] -= n[c] * nt;
+        cx = n[1] * g[2] - n[2] * g[1];
+        cy = n[2] * g[0] - n[0] * g[2];
+        cz = n[0] * g[1] - n[1] * g[0];
+        g[3] = (cx * b[0] + cy * b[1] + cz * b[2]) < 0.0f ? -1.0f : 1.0f;
+    }
+    free(bit);
+}
+
 static int Skin_Load(PcSkinChara* ch, const char* path)
 {
     cgltf_options opt;
@@ -1013,6 +1116,7 @@ static int Skin_Load(PcSkinChara* ch, const char* path)
     float R[PC_SKIN_BONES][9], axis[PC_SKIN_BONES][3], k[PC_SKIN_BONES];
     float* gpos = NULL;
     float* gnrm = NULL;
+    float* gtan = NULL;
     int handJoint[2] = { -1, -1 }, indexJoint[2][3] = { { -1, -1, -1 }, { -1, -1, -1 } };
     int b;
 
@@ -1115,7 +1219,8 @@ static int Skin_Load(PcSkinChara* ch, const char* path)
     ch->verts = (PcSkinVert*)calloc((size_t)totalVerts, sizeof(PcSkinVert));
     gpos = (float*)calloc((size_t)totalVerts * 3, sizeof(float));
     gnrm = (float*)calloc((size_t)totalVerts * 3, sizeof(float));
-    if (ch->verts == NULL || gpos == NULL || gnrm == NULL)
+    gtan = (float*)calloc((size_t)totalVerts * 4, sizeof(float));
+    if (ch->verts == NULL || gpos == NULL || gnrm == NULL || gtan == NULL)
         goto fail;
 
     /* Geometry. */
@@ -1129,7 +1234,7 @@ static int Skin_Load(PcSkinChara* ch, const char* path)
             for (pi = 0; pi < node->mesh->primitives_count; pi++)
             {
                 const cgltf_primitive* p = &node->mesh->primitives[pi];
-                const cgltf_accessor *aPos = NULL, *aNrm = NULL, *aUv = NULL, *aJ = NULL, *aW = NULL;
+                const cgltf_accessor *aPos = NULL, *aNrm = NULL, *aTan = NULL, *aUv = NULL, *aJ = NULL, *aW = NULL;
                 size_t a, vc, ic, t;
                 int mi;
                 PcSkinMat* mat;
@@ -1141,6 +1246,7 @@ static int Skin_Load(PcSkinChara* ch, const char* path)
                     const cgltf_attribute* at = &p->attributes[a];
                     if (at->type == cgltf_attribute_type_position) aPos = at->data;
                     else if (at->type == cgltf_attribute_type_normal) aNrm = at->data;
+                    else if (at->type == cgltf_attribute_type_tangent) aTan = at->data;
                     else if (at->type == cgltf_attribute_type_texcoord && at->index == 0) aUv = at->data;
                     else if (at->type == cgltf_attribute_type_joints && at->index == 0) aJ = at->data;
                     else if (at->type == cgltf_attribute_type_weights && at->index == 0) aW = at->data;
@@ -1181,6 +1287,17 @@ static int Skin_Load(PcSkinChara* ch, const char* path)
                     gnrm[(vbase + t) * 3 + 0] = nrm[0];
                     gnrm[(vbase + t) * 3 + 1] = -nrm[1];
                     gnrm[(vbase + t) * 3 + 2] = nrm[2];
+                    /* The Y flip into game space mirrors the frame, so the
+                     * bitangent sign flips with it. */
+                    if (aTan != NULL)
+                    {
+                        float tg[4] = { 0, 0, 0, 1 };
+                        cgltf_accessor_read_float(aTan, t, tg, 4);
+                        gtan[(vbase + t) * 4 + 0] = tg[0];
+                        gtan[(vbase + t) * 4 + 1] = -tg[1];
+                        gtan[(vbase + t) * 4 + 2] = tg[2];
+                        gtan[(vbase + t) * 4 + 3] = tg[3] < 0.0f ? 1.0f : -1.0f;
+                    }
                     sv->n = 0;
                     for (q = 0; q < 4; q++)
                     {
@@ -1462,6 +1579,8 @@ static int Skin_Load(PcSkinChara* ch, const char* path)
             anchor[b][0] = ch->def->rest[b].T[0];
     }
 
+    Skin_FillTangents(ch, gpos, gnrm, gtan);
+
     /* Bone-local positions per influence, lighting normal per vertex. */
     for (j = 0; j < (size_t)ch->vertCount; j++)
     {
@@ -1488,6 +1607,8 @@ static int Skin_Load(PcSkinChara* ch, const char* path)
         sv->gteNormal.vx = (s16)(-nl[0] / len * 4064.0f);
         sv->gteNormal.vy = (s16)(-nl[1] / len * 4064.0f);
         sv->gteNormal.vz = (s16)(-nl[2] / len * 4064.0f);
+        M3_MulTV(R[sv->dom], &gtan[j * 4], sv->tan);
+        sv->tan[3] = gtan[j * 4 + 3];
     }
 #undef TO_GAME
 
@@ -1556,12 +1677,14 @@ static int Skin_Load(PcSkinChara* ch, const char* path)
         SH_DBG("[SKIN]   bone %2d anchor (%.0f %.0f %.0f) k %.2f", b, anchor[b][0], anchor[b][1], anchor[b][2], k[b]);
     free(gpos);
     free(gnrm);
+    free(gtan);
     cgltf_free(data);
     return 1;
 
 fail:
     free(gpos);
     free(gnrm);
+    free(gtan);
     cgltf_free(data);
     return 0;
 }
@@ -1949,6 +2072,19 @@ void Pc_SkinChara_Bone(void* chara, int boneIdx, MATRIX* worldMat, MATRIX* viewM
             gte_lddqa(g_WorldEnvWork.field_4C);
             gte_lddqb_0();
             break;
+    }
+    if (g_WorldEnvWork.field_0 != 0)
+    {
+        const s32 L[9] = { C2_L11, C2_L12, C2_L13, C2_L21, C2_L22, C2_L23, C2_L31, C2_L32, C2_L33 };
+        const s32 LC[9] = { C2_LR1, C2_LR2, C2_LR3, C2_LG1, C2_LG2, C2_LG3, C2_LB1, C2_LB2, C2_LB3 };
+        for (i = 0; i < 9; i++)
+        {
+            ch->gteL[boneIdx][i] = (s16)L[i];
+            ch->gteLC[i] = (s16)LC[i];
+        }
+        ch->gteBK[boneIdx][0] = C2_RBK;
+        ch->gteBK[boneIdx][1] = C2_GBK;
+        ch->gteBK[boneIdx][2] = C2_BBK;
     }
     if (g_WorldEnvWork.field_0 == 0)
     {
@@ -2528,6 +2664,66 @@ static void Skin_ApplyMorphs(PcSkinChara* ch, float h, float ofx, float ofy, flo
     }
 }
 
+/* Mirror sign of the view matrices: the tangent frame's handedness follows it. */
+static float s_rvSign = 1.0f;
+
+static void Skin_FrameLight(PcSkinChara* ch, int buf)
+{
+    PcSkinLight* lt = &ch->light[ch->inst][buf];
+    const float* rv;
+    const float* rw;
+    float l[3], d[3], w[3];
+    int b, ref = -1, r, c;
+
+    memset(lt, 0, sizeof(*lt));
+    if (!g_PcConfig.charaPerPixelLight || !Pc_ModernShader_SkinLit() || g_WorldEnvWork.field_0 == 0)
+        return;
+    for (b = 0; b < PC_SKIN_BONES; b++)
+        if (ch->have[b] && ch->lit[b] && (ref < 0 || ch->byBoneCount[b] > ch->byBoneCount[ref]))
+            ref = b;
+    if (ref < 0)
+        return;
+    rv = ch->rv[ref];
+    rw = ch->rw[ref];
+    s_rvSign = (rv[0] * (rv[4] * rv[8] - rv[5] * rv[7]) - rv[1] * (rv[3] * rv[8] - rv[5] * rv[6]) +
+                rv[2] * (rv[3] * rv[7] - rv[4] * rv[6])) < 0.0f ? -1.0f : 1.0f;
+    for (r = 0; r < 3; r++)
+    {
+        for (c = 0; c < 3; c++)
+        {
+            l[c] = ch->gteL[ref][r * 3 + c] / 4096.0f;
+            lt->LC[r][c] = ch->gteLC[r * 3 + c] / (16.0f * 255.0f);
+        }
+        M3_MulV(rv, l, lt->L[r]);
+        lt->BK[r] = ch->gteBK[ref][r] / (16.0f * 255.0f);
+    }
+    /* Mode 1 aims row 1 at the point light from each bone's origin
+     * (func_8005A478); its length is the distance falloff, kept as is. */
+    lt->point = (g_WorldEnvWork.field_0 == 1);
+    lt->l1Mag = V3_Len(lt->L[1]);
+    d[0] = g_WorldEnvWork.field_60.vx / 16.0f - ch->tw[ref][0];
+    d[1] = g_WorldEnvWork.field_60.vy / 16.0f - ch->tw[ref][1];
+    d[2] = g_WorldEnvWork.field_60.vz / 16.0f - ch->tw[ref][2];
+    M3_MulTV(rw, d, w);
+    M3_MulV(rv, w, lt->lightPos);
+    for (c = 0; c < 3; c++)
+        lt->lightPos[c] += ch->tv[ref][c];
+    lt->bright = ch->brightness / 100.0f;
+    lt->on = 1;
+    if (!ch->lightLogged && lt->point)
+    {
+        float toL[3], len, cosA = 0.0f;
+        for (c = 0; c < 3; c++)
+            toL[c] = lt->lightPos[c] - ch->tv[ref][c];
+        len = V3_Len(toL) * lt->l1Mag;
+        if (len > 0.0f)
+            cosA = (lt->L[1][0] * toL[0] + lt->L[1][1] * toL[1] + lt->L[1][2] * toL[2]) / len;
+        ch->lightLogged = 1;
+        SH_DBG("[SKIN] %s per-pixel light: ref bone %d, cos(row1, to light) %.2f (expect -1), |row1| %.2f",
+               ch->file, ref, cosA, lt->l1Mag);
+    }
+}
+
 void Pc_SkinChara_End(void* chara, void* otp, int shift, int hideHead)
 {
     PcSkinChara* ch = (PcSkinChara*)chara;
@@ -2579,6 +2775,7 @@ void Pc_SkinChara_End(void* chara, void* otp, int shift, int hideHead)
     Skin_ApplyMorphs(ch, h, ofx, ofy, offX, offY);
     if (maxZ <= 0.0f)
         return;
+    Skin_FrameLight(ch, buf);
     PsyX_NoteItemDepthSz((unsigned)maxZ);
 
     bucket = PC_SKIN_OT_BASE + ((((int)minZ) >> shift) >> 2);
@@ -2627,6 +2824,15 @@ void Pc_SkinChara_End(void* chara, void* otp, int shift, int hideHead)
             o->b = Skin_Scale8(ch->color[vi].b, ch->brightness, 255);
             o->fog = (char)Skin_Scale8(Skin_Fog((s32)z), ch->fogPct, 127);
             o->nz = beam;
+            if (ch->light[ch->inst][buf].on)
+            {
+                const PcSkinVert* sv = &ch->verts[vi];
+                const float* r = ch->rv[sv->dom];
+                float n[3] = { -sv->gteNormal.vx / 4064.0f, -sv->gteNormal.vy / 4064.0f, -sv->gteNormal.vz / 4064.0f };
+                M3_MulV(r, n, &o->snx);
+                M3_MulV(r, sv->tan, &o->stx);
+                o->stw = sv->tan[3] * s_rvSign;
+            }
             o->ppx = o->x;
             o->ppy = o->y;
             o->ppw = z;
@@ -2673,6 +2879,8 @@ int Pc_SkinChara_PrepareDraw(u32 handle, PcModernDrawBinding* binding)
         if (mat->texture == 0)
             return 0;
     }
+    if (mat->ntexture == 0 && mat->nrgba != NULL)
+        mat->ntexture = HiresOverride_CreateTextureRGBA(mat->nrgba, mat->nw, mat->nh);
     /* Depth is normalized here, at draw time, as the stock prims are. With PGXP
      * off the divisor is the SZ maximum that each GsDrawOt swaps in; read at
      * sort time it came from the frame's last OT -- the 2D one, near zero --
@@ -2693,4 +2901,60 @@ int Pc_SkinChara_PrepareDraw(u32 handle, PcModernDrawBinding* binding)
     binding->indexCount = mat->idxCount[inst][buf];
     binding->nativeWidth = binding->nativeHeight = 256;
     return 1;
+}
+
+void Pc_SkinChara_ApplyLighting(u32 handle, unsigned int program)
+{
+    enum { U_LIT, U_NMAP, U_NTEX, U_POINT, U_L0, U_L1, U_L2, U_L1MAG, U_LPOS, U_LC0, U_LC1, U_LC2, U_BK, U_BRIGHT,
+           U_COUNT };
+    static const char* const names[U_COUNT] = { "u_skinLit", "u_skinNormalMap", "u_skinNormalTex", "u_skinPoint",
+                                                "u_skinL0", "u_skinL1", "u_skinL2", "u_skinL1Mag", "u_skinLightPos",
+                                                "u_skinLC0", "u_skinLC1", "u_skinLC2", "u_skinBK", "u_skinBright" };
+    static unsigned int s_program;
+    static GLint loc[U_COUNT];
+    int ci = (int)((handle >> 8) & 0xFF), inst = (int)((handle >> 6) & 3), buf = (int)((handle >> 5) & 1),
+        m = (int)(handle & 0x1F);
+    const PcSkinChara* ch;
+    const PcSkinLight* lt;
+    const PcSkinMat* mat;
+    int i;
+
+    if (program != s_program)
+    {
+        s_program = program;
+        for (i = 0; i < U_COUNT; i++)
+            loc[i] = glGetUniformLocation(program, names[i]);
+    }
+    if (loc[U_LIT] < 0)
+        return;
+    if (!(handle & PC_SKIN_HANDLE_FLAG) || ci >= s_charaCount || s_chara[ci].state != 1 ||
+        m >= s_chara[ci].matCount || !s_chara[ci].light[inst][buf].on)
+    {
+        glUniform1i(loc[U_LIT], 0);
+        return;
+    }
+    ch = &s_chara[ci];
+    lt = &ch->light[inst][buf];
+    mat = &ch->mats[m];
+    glUniform1i(loc[U_LIT], 1);
+    glUniform1i(loc[U_POINT], lt->point);
+    glUniform3fv(loc[U_L0], 1, lt->L[0]);
+    glUniform3fv(loc[U_L1], 1, lt->L[1]);
+    glUniform3fv(loc[U_L2], 1, lt->L[2]);
+    glUniform1f(loc[U_L1MAG], lt->l1Mag);
+    glUniform3fv(loc[U_LPOS], 1, lt->lightPos);
+    glUniform3fv(loc[U_LC0], 1, lt->LC[0]);
+    glUniform3fv(loc[U_LC1], 1, lt->LC[1]);
+    glUniform3fv(loc[U_LC2], 1, lt->LC[2]);
+    glUniform3fv(loc[U_BK], 1, lt->BK);
+    glUniform1f(loc[U_BRIGHT], lt->bright);
+    glUniform1i(loc[U_NMAP], mat->ntexture != 0);
+    /* Units 0-2 are the scene texture, the shadow map and the decode table. */
+    if (mat->ntexture != 0)
+    {
+        glUniform1i(loc[U_NTEX], 3);
+        glActiveTexture(GL_TEXTURE3);
+        glBindTexture(GL_TEXTURE_2D, mat->ntexture);
+        glActiveTexture(GL_TEXTURE0);
+    }
 }

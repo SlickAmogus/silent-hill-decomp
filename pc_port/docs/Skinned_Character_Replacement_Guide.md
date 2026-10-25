@@ -71,7 +71,7 @@ The list is read when the game starts.
 | Facing | glTF standard: Y up, facing +Z. This is what Blender exports by default. |
 | Size | Any. The model is scaled so its **shoulders** sit at Harry's shoulder height, feet on the floor. |
 | Weights | Up to 4 bones per vertex, as glTF allows. |
-| Textures | **PNG**, base colour only. JPEG is not decoded. Embed them in the `.glb`. |
+| Textures | **PNG**: base colour, plus an optional normal map (see [Lighting and normal maps](#lighting-and-normal-maps)). JPEG is not decoded. Embed them in the `.glb`. |
 | Polygons | Up to about 260,000 vertices per material. Every vertex is skinned each frame, so a model of 20,000 to 50,000 triangles keeps the frame rate comfortable. |
 
 ### Bones the game uses
@@ -138,7 +138,8 @@ Outliner. The vertex groups follow automatically.
 - **Format:** glTF Binary (`.glb`)
 - **Include:** Selected Objects. Select the armature and every mesh that belongs to the
   character, and nothing else: no lights, no cameras.
-- **Data > Mesh:** Apply Modifiers **off**, UVs **on**, Normals **on**. Blender cannot
+- **Data > Mesh:** Apply Modifiers **off**, UVs **on**, Normals **on**, Tangents **on**
+  if the model has a normal map. Blender cannot
   export shape keys with Apply Modifiers on, and the Armature modifier does not need
   applying: the skin is exported from the armature either way. If you use another
   modifier, such as Mirror or Subdivision, apply it by hand before adding shape keys.
@@ -199,6 +200,28 @@ game until you add the alpha:
    **Alpha** output to the Principled BSDF **Alpha** input, so the exporter keeps it.
 
 The cut is hard-edged. Soft, blended alpha is not supported.
+
+## Lighting and normal maps
+
+The game lights the model with its own lights, the same ones that light Harry. By
+default this runs per pixel. Set **Character Lighting** to Per Vertex in the F10 quick
+menu (Graphics page 2), or `chara_per_pixel_light = 0` in the config, to light it per
+vertex like the stock characters.
+
+Per pixel, a **normal map** in the material adds surface detail such as folds, seams and
+pores, most visibly under the flashlight. In Blender, connect the normal map image
+(Color Space: Non-Color) through a **Normal Map** node into the Principled BSDF
+**Normal** input, and the exporter writes it as the material's normal texture.
+
+- Use OpenGL-style normal maps (green up), which is what Blender and glTF expect. A
+  DirectX-style map, common from Unreal and some game rips, has its green channel
+  inverted: bumps read as dents. Invert the green channel first.
+- Export with **Tangents** on. Without tangents the game builds its own from the UVs,
+  which works but can show seams where Blender's would not.
+- The vertex normals still decide the overall shading. Check Shade Smooth and Auto
+  Smooth before blaming the normal map.
+
+Metallic, roughness, occlusion and emissive textures are ignored.
 
 ## Blinking
 

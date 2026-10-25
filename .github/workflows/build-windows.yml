@@ -1,0 +1,155 @@
+name: Build PC Port (Windows)
+
+# Builds the Windows release layout on every push to pc-port and publishes it to
+# the rolling `realtime` pre-release on THIS repo (tools/realtime_publish.py),
+# which launchers with "Realtime updates" enabled follow. Scripted releases in
+# silent-hill-pc-nightly are untouched, and launchers that predate the feature
+# only read that repo, so they never see these builds.
+
+on:
+  push:
+    branches:
+      - pc-port
+    paths-ignore:
+      - '**.md'
+      - 'pc_port/launcher/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: github.repository == 'SlickAmogus/silent-hill-decomp'
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - name: Checkout (with PsyCross submodule)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up MSYS2 MinGW x64
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: false
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-pkgconf
+            mingw-w64-x86_64-python
+            mingw-w64-x86_64-SDL2
+            mingw-w64-x86_64-openal
+            mingw-w64-x86_64-libjpeg-turbo
+
+      # Headers only, pinned: ffmpeg is loaded at runtime and its DLLs are carried
+      # from the official release (realtime_publish.py), which ships FFmpeg 8
+      # (avcodec-62). The runner's current MSYS2 ffmpeg is a newer major than the
+      # loader's 6/7/8 table, so build against the 8.0.1 headers that match the
+      # shipped DLLs instead. Unpacked, never installed. If the pinned package
+      # has left the repo the build still succeeds with the fallback compiled
+      # out, so this step never decides whether the job runs.
+      - name: ffmpeg 8 headers (optional, pinned)
+        timeout-minutes: 5
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          PKG=mingw-w64-x86_64-ffmpeg-8.0.1-7-any.pkg.tar.zst
+          FF="$(cygpath -u "$RUNNER_TEMP")/ffmpeg8"
+          mkdir -p "$FF"
+          curl -fsSL --retry 3 -o "$FF/$PKG" "https://repo.msys2.org/mingw/mingw64/$PKG"
+          tar --zstd -xf "$FF/$PKG" -C "$FF" --wildcards 'mingw64/include/libav*' 'mingw64/include/libsw*'
+          grep -m1 LIBAVCODEC_VERSION_MAJOR "$FF/mingw64/include/libavcodec/version_major.h"
+          echo "FFMPEG_PREFIX=$(cygpath -m "$FF")/mingw64" >> "$GITHUB_ENV"
+
+      # Same configure as build.sh, but -k 0 keeps going past the first failure,
+      # so one CI run reports every file a newer MSYS2 toolchain rejects.
+      - name: Build (Ninja + map DLLs)
+        run: |
+          FFARG=()
+          if [ -n "${FFMPEG_PREFIX:-}" ]; then
+            FFARG=(-DSH_FFMPEG_PREFIX="$FFMPEG_PREFIX")
+          else
+            echo "::warning::Pinned ffmpeg headers unavailable; this build has the FMV fallback compiled out."
+          fi
+          cmake -S pc_port -B pc_port/build -G Ninja -DSH_BUILD_MAP_DLLS=ON "${FFARG[@]}"
+          cmake --build pc_port/build -- -k 0
+
+      - name: Stage release files
+        run: |
+          set -euo pipefail
+          STAGE="$(cygpath -u "$RUNNER_TEMP")/SHPC-windows-x64"
+          rm -rf "$STAGE"
+          mkdir -p "$STAGE/maps"
+          cp pc_port/build/SilentHillPC.exe "$STAGE/"
+          cp pc_port/build/maps/*.dll       "$STAGE/maps/"
+          cp pc_port/config.cfg             "$STAGE/config.cfg"
+          cp -r pc_port/assets/.            "$STAGE/"
+          # The exe and map DLLs link against this toolchain's runtime, so ship
+          # the MinGW-prefix DLLs they import (recursively), never another build's.
+          queue=("$STAGE/SilentHillPC.exe" "$STAGE"/maps/*.dll)
+          while [ ${#queue[@]} -gt 0 ]; do
+            pe="${queue[0]}"; queue=("${queue[@]:1}")
+            for dll in $(objdump -p "$pe" | sed -n 's/^\s*DLL Name: //p'); do
+              src="/mingw64/bin/$dll"
+              if [ -f "$src" ] && [ ! -f "$STAGE/$dll" ]; then
+                cp "$src" "$STAGE/"
+                queue+=("$STAGE/$dll")
+              fi
+            done
+          done
+          echo "Bundled runtime DLLs:"; ls "$STAGE"/*.dll
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SHPC-windows-x64
+          path: ${{ runner.temp }}/SHPC-windows-x64
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    needs: build
+    if: github.repository == 'SlickAmogus/silent-hill-decomp' && github.ref == 'refs/heads/pc-port'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    # Publishes edit one shared index, so they run one at a time and never cancel
+    # each other mid-upload. A newer pending run replaces an older pending one,
+    # and its changelog still covers every commit since the last published build.
+    concurrency:
+      group: realtime-publish
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout (history for the changelog)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download Windows build
+        uses: actions/download-artifact@v4
+        with:
+          name: SHPC-windows-x64
+          path: ${{ runner.temp }}/stage
+
+      - name: Publish to the realtime release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 tools/realtime_publish.py \
+            --stage "$RUNNER_TEMP/stage" \
+            --repo "$GITHUB_REPOSITORY" \
+            --commit "$GITHUB_SHA" \
+            --run "$GITHUB_RUN_NUMBER"

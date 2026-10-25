@@ -1222,10 +1222,11 @@ static q19_12 s_walkRunBlendTime = 0;
 
 /* Alternate-camera diagonal legs. The TPS shim moves Harry 45 degrees off his
  * facing while the forward or backward clip plays, so his feet stepped straight
- * ahead of the direction he actually travelled. The matching strafe clip is
- * overlaid on the leg bones, phase-locked to the playing cycle. Pose only:
- * position, speed, footsteps and the anim state machine never see it, and it
- * works on the bone coords, so replacement characters inherit it. */
+ * ahead of the direction he actually travelled. Running overlays the run-strafe
+ * clip on the leg bones, phase-locked to the playing cycle; walking turns the
+ * legs instead (see turn below). Pose only: position, speed, footsteps and the
+ * anim state machine never see it, and it works on the bone coords, so
+ * replacement characters inherit it. */
 typedef struct
 {
     u8  baseStatus;
@@ -1233,17 +1234,23 @@ typedef struct
     u8  rightAnim;
     s16 leftPhase;
     s16 rightPhase;
+    s16 turn;
 } s_PcDiagLegClip;
 
-/* Phase offsets (fraction of a cycle) line each foot's swing in the strafe clip
- * up with the same foot's swing in the base clip, measured from HB_BASE.ANM foot
- * positions. The sidesteps lead with the outside foot, hence the half-cycle
- * difference between left and right; the run-strafes are a forward run with the
- * legs turned and already line up. */
+/* Running: the run-strafes are a forward run with the legs turned, so half of
+ * one blended with the forward run turns the stride; the phase offsets (fraction
+ * of a cycle, from HB_BASE.ANM foot positions) keep each foot in step.
+ *
+ * Walking has no turned clip. The sidesteps are a sideways shuffle, so blending
+ * them only slid the feet while knees and hips kept facing ahead, which read as
+ * no change at all. Walking instead yaws the hips, which carry the whole leg
+ * chain but not the torso, by `turn` toward the travel direction (positive =
+ * toward Harry's right). Backing up mirrors it: backing to the left points the
+ * hips to the right of straight back. */
 static const s_PcDiagLegClip PC_DIAG_LEG_CLIPS[] = {
-    { ANIM_STATUS(HarryAnim_WalkForward,  true), HarryAnim_SidestepLeft, HarryAnim_SidestepRight, -Q12(0.17f),  Q12(0.34f) },
-    { ANIM_STATUS(HarryAnim_WalkBackward, true), HarryAnim_SidestepLeft, HarryAnim_SidestepRight,  Q12(0.28f), -Q12(0.21f) },
-    { ANIM_STATUS(HarryAnim_RunForward,   true), HarryAnim_RunLeft,      HarryAnim_RunRight,       Q12(0.0f),  -Q12(0.06f) },
+    { ANIM_STATUS(HarryAnim_WalkForward,  true), 0,                 0,                  Q12(0.0f),  Q12(0.0f),   Q12_ANGLE(45.0f) },
+    { ANIM_STATUS(HarryAnim_WalkBackward, true), 0,                 0,                  Q12(0.0f),  Q12(0.0f),  -Q12_ANGLE(45.0f) },
+    { ANIM_STATUS(HarryAnim_RunForward,   true), HarryAnim_RunLeft, HarryAnim_RunRight, Q12(0.0f), -Q12(0.06f),  Q12_ANGLE(0.0f) },
 };
 
 static q19_12        s_DiagLegWeight;
@@ -1252,7 +1259,11 @@ static s32           s_DiagLegSide;
 static GsCOORDINATE2 s_DiagLegStrafe[HarryBone_Count];
 static MATRIX        s_DiagLegLast[HarryBone_Count];
 
-static void Pc_DiagLegMix(MATRIX* dst, const MATRIX* src, q19_12 w)
+/* Only channels the clip keys are mixed. Bones without keyed translation (thighs,
+ * shins, feet) keep the offset Anim_BoneInit wrote once and the anim never
+ * rewrites it, so pulling it toward the scratch pose compounded frame over frame
+ * and folded the legs into the hips. */
+static void Pc_DiagLegMix(MATRIX* dst, const MATRIX* src, q19_12 w, const s_AnmBindPose* bind)
 {
     float fw = w / 4096.0f;
     float m[3][3];
@@ -1273,8 +1284,16 @@ static void Pc_DiagLegMix(MATRIX* dst, const MATRIX* src, q19_12 w)
             lb     += (float)src->m[i][j] * src->m[i][j];
             m[i][j] = dst->m[i][j] + (src->m[i][j] - dst->m[i][j]) * fw;
         }
-        len[i]     = sqrtf(la) + (sqrtf(lb) - sqrtf(la)) * fw;
-        dst->t[i] += ((src->t[i] - dst->t[i]) * w) >> Q12_SHIFT;
+        len[i] = sqrtf(la) + (sqrtf(lb) - sqrtf(la)) * fw;
+        if (bind->translationDataIdx >= 0)
+        {
+            dst->t[i] += ((src->t[i] - dst->t[i]) * w) >> Q12_SHIFT;
+        }
+    }
+
+    if (bind->rotationDataIdx < 0)
+    {
+        return;
     }
 
     /* A component lerp between clips whose hips sit up to ~60 degrees apart
@@ -1345,7 +1364,14 @@ static void Pc_DiagonalLegsApply(s_SubCharacter* player, s_AnmHeader* anmHdr, Gs
          * under an alternate camera". */
         mZ     = ((g_Player_IsMovingForward & 1) ? 1 : 0) - (g_Player_IsMovingBackward ? 1 : 0);
         mX     = (g_Player_IsSteppingRightHold ? 1 : 0) - (g_Player_IsSteppingLeftHold ? 1 : 0);
-        target = (g_DebugThirdPersonCam && mZ != 0 && mX != 0 && g_Player_HeadingAngle != Q12_ANGLE(0.0f)) ? Q12(0.5f) : Q12(0.0f);
+        target = (g_DebugThirdPersonCam && mZ != 0 && mX != 0 && g_Player_HeadingAngle != Q12_ANGLE(0.0f))
+                     ? (clip->turn != 0 ? Q12(1.0f) : Q12(0.5f))
+                     : Q12(0.0f);
+        if (clip->turn != 0)
+        {
+            // Twice the range, same ~0.125s ease.
+            step *= 2;
+        }
 
         // Swapping sides drains to the base clip first instead of snapping to the other strafe.
         if (target != Q12(0.0f) && mX != s_DiagLegSide)
@@ -1377,7 +1403,26 @@ static void Pc_DiagonalLegsApply(s_SubCharacter* player, s_AnmHeader* anmHdr, Gs
         s_DiagLegFade   = Q12(1.0f);
     }
 
-    if (s_DiagLegWeight > Q12(0.0f))
+    if (s_DiagLegWeight > Q12(0.0f) && clip->turn != 0)
+    {
+        // Yaw in the hips' parent (root) space: rows 0 and 2 rotate about Y.
+        MATRIX* m     = &coords[HarryBone_Hips].coord;
+        q19_12  angle = Q12_MULT(clip->turn * s_DiagLegSide, s_DiagLegWeight);
+        q19_12  c     = Math_Cos(angle);
+        q19_12  s     = Math_Sin(angle);
+        s32     j;
+
+        for (j = 0; j < 3; j++)
+        {
+            s32 r0 = m->m[0][j];
+            s32 r2 = m->m[2][j];
+
+            m->m[0][j] = (s16)((c * r0 + s * r2) >> Q12_SHIFT);
+            m->m[2][j] = (s16)((c * r2 - s * r0) >> Q12_SHIFT);
+        }
+        coords[HarryBone_Hips].flg = false;
+    }
+    else if (s_DiagLegWeight > Q12(0.0f))
     {
         s_AnimInfo* base = &HARRY_BASE_ANIM_INFOS[clip->baseStatus];
         s_AnimInfo* side = &HARRY_BASE_ANIM_INFOS[ANIM_STATUS((s_DiagLegSide > 0) ? clip->rightAnim : clip->leftAnim, true)];
@@ -1401,7 +1446,7 @@ static void Pc_DiagonalLegsApply(s_SubCharacter* player, s_AnmHeader* anmHdr, Gs
         Anim_BoneUpdate(anmHdr, s_DiagLegStrafe, kf0, kf1, Q12_FRACT(phase));
         for (i = HarryBone_Hips; i < HarryBone_Count; i++)
         {
-            Pc_DiagLegMix(&coords[i].coord, &s_DiagLegStrafe[i].coord, s_DiagLegWeight);
+            Pc_DiagLegMix(&coords[i].coord, &s_DiagLegStrafe[i].coord, s_DiagLegWeight, &anmHdr->bindPoses[i]);
         }
     }
 
@@ -1409,7 +1454,7 @@ static void Pc_DiagonalLegsApply(s_SubCharacter* player, s_AnmHeader* anmHdr, Gs
     {
         for (i = HarryBone_Hips; i < HarryBone_Count; i++)
         {
-            Pc_DiagLegMix(&coords[i].coord, &s_DiagLegLast[i], s_DiagLegFade);
+            Pc_DiagLegMix(&coords[i].coord, &s_DiagLegLast[i], s_DiagLegFade, &anmHdr->bindPoses[i]);
         }
         s_DiagLegFade = MAX(s_DiagLegFade - (step * 2), Q12(0.0f));
     }

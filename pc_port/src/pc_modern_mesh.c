@@ -1173,6 +1173,11 @@ int Pc_ModernMesh_Emit(void* object, void* orderingTable, int shift)
     return 1;
 }
 
+void Pc_ModernMesh_ApplyLighting(u32 meshHandle, unsigned int program)
+{
+    Pc_SkinChara_ApplyLighting(meshHandle, program);
+}
+
 int Pc_ModernMesh_PrepareDraw(u32 meshHandle, PcModernDrawBinding* binding)
 {
     PcModernMeshEntry* entry = NULL;
