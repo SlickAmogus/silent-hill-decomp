@@ -91,14 +91,20 @@ extern void PGXP_StoreAddr(void* addr, int slot);
  *
  * On PSX (32-bit, non-extended) compiles, fall back to the original
  * offsets so this header stays valid for both targets. */
+#include <stddef.h>
 #undef gte_stsxy3_g3
+/* Offsets from the struct, not literals: the header is 12 bytes on a
+ * 64-bit build but 8 on wasm32, where 16/24/32 landed on the uv/clut/tpage
+ * words and left x0..x2 stale (glass shards and blood drawn with garbage
+ * texels and corners flung across the screen). POLY_G3, POLY_FT4 and
+ * POLY_GT4 share these three offsets. */
 #if defined(_M_X64) || defined(__amd64__) || defined(SH_PC_PORT)
 #define gte_stsxy3_g3( p ) do { \
     char *_b = (char*)(p); \
-    *(uint*)(_b + 16) = MFC2(12); \
-    *(uint*)(_b + 24) = MFC2(13); \
-    *(uint*)(_b + 32) = MFC2(14); \
-    if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight) { PGXP_StoreAddr(_b + 16, 0); PGXP_StoreAddr(_b + 24, 1); PGXP_StoreAddr(_b + 32, 2); } \
+    *(uint*)(_b + offsetof(POLY_G3, x0)) = MFC2(12); \
+    *(uint*)(_b + offsetof(POLY_G3, x1)) = MFC2(13); \
+    *(uint*)(_b + offsetof(POLY_G3, x2)) = MFC2(14); \
+    if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight) { PGXP_StoreAddr(_b + offsetof(POLY_G3, x0), 0); PGXP_StoreAddr(_b + offsetof(POLY_G3, x1), 1); PGXP_StoreAddr(_b + offsetof(POLY_G3, x2), 2); } \
 } while(0)
 #else
 #define gte_stsxy3_g3( p ) do { \
