@@ -334,6 +334,10 @@ static int Tc_MenuAllowed(void)
     return !(g_SysWork.sysFlags & SysFlag_DemoActive);
 }
 
+/* Stamped with g_TickCount by a puzzle that reads taps itself rather than
+ * through the free-cursor servo (the map5_s01 combination lock). */
+int g_PcTapPuzzleFrame = -100;
+
 static int Tc_Mode(void)
 {
     int level = Tc_Level();
@@ -579,7 +583,10 @@ static int Tc_Mode(void)
          * opening one on a phone was a softlock. Give it the same lone Back
          * button the brightness screen gets. The drag still reaches the cursor;
          * only that one corner slot is taken. */
-        if (Pc_MouseCursor_PuzzleActive())
+        /* The combination lock too: under ADVANCE its corner was the scene
+         * Skip, which the lock does not read, so it could only be left by
+         * solving it. */
+        if (Pc_MouseCursor_PuzzleActive() || (g_TickCount - g_PcTapPuzzleFrame) <= 2)
             return TC_MODE_BACK_CURSOR;
 
         return TC_MODE_ADVANCE;
