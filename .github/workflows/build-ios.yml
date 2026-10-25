@@ -24,6 +24,8 @@ on:
 jobs:
   build:
     if: github.repository == 'SlickAmogus/silent-hill-decomp'
+    permissions:
+      contents: write
     runs-on: macos-15
 
     steps:
@@ -100,6 +102,18 @@ jobs:
           path: build-ios/SilentHill-unsigned.ipa
           if-no-files-found: error
           retention-days: 90
+
+      # Newest build on the rolling `realtime` pre-release (pc-port's
+      # build-windows.yml creates it). One fixed name, replaced on every push:
+      # only the newest iOS build is kept there.
+      - name: Replace the .ipa on the realtime release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/ios-port'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp build-ios/SilentHill-unsigned.ipa "$RUNNER_TEMP/SilentHill-ios-unsigned.ipa"
+          gh release upload realtime "$RUNNER_TEMP/SilentHill-ios-unsigned.ipa" --clobber --repo "$GITHUB_REPOSITORY"
 
   # Launches the app in the iOS Simulator to see how far startup gets, with no
   # device, no Apple ID and no signing. It exercises the parts that are brand
