@@ -95,7 +95,14 @@ s16 func_800CD20C(void) // 0x800CD20C
     { extern int g_PcPuzzleItemDepth; g_PcPuzzleItemDepth = 1; }
 
     if (g_SysWork.sysStateSteps[0] == 5)
+    {
+        /* Puts the touch overlay's corner Back (cancel) up while the lock
+         * takes input; cancel is the lock's only way out unsolved. */
+        extern int g_PcTapPuzzleFrame;
+
+        g_PcTapPuzzleFrame = g_TickCount;
         Pc_LockPointerPoll();
+    }
 #endif
 
     if (D_800F159C == 1)
