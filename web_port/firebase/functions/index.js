@@ -66,9 +66,10 @@ exports.qolMods = onRequest(
                 res.status(r.status || 502).send("not found");
                 return;
             }
+            /* No Content-Length: Cloud Run caps a sized response at 32 MiB, and
+             * only a chunked one may be bigger. The game knows each size from
+             * the catalog anyway. */
             res.status(200).set("Content-Type", r.headers.get("content-type") || "application/octet-stream");
-            const len = r.headers.get("content-length");
-            if (len) res.set("Content-Length", len);
             Readable.fromWeb(r.body).pipe(res);
         } catch (e) {
             res.status(502).send("GitHub could not be reached.");
