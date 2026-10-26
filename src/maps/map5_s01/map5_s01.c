@@ -201,11 +201,19 @@ void func_800EBA40(void) // 0x800EBA40
 
 #ifdef SH_PC_PORT
             Pc_MouseCursor_PuzzleOverride(&D_800F0354, &D_800F0358);
-#endif
+            /* Stick integration was per RENDERED frame -- the cursor flew 8x
+             * faster at 240fps. Scale by dt (30fps norm), like the elevator. */
+            D_800F0354 += TIMESTEP_SCALE_30_FPS(g_DeltaTime, (g_Controller0->sticks_24.sticks_0.leftX * 16384) / 75);
+#else
             D_800F0354 += (g_Controller0->sticks_24.sticks_0.leftX * 16384) / 75;
+#endif
             D_800F0354  = CLAMP_RANGE(D_800F0354, Q12(-160.0f), Q12(160.0f));
 
+#ifdef SH_PC_PORT
+            D_800F0358 += TIMESTEP_SCALE_30_FPS(g_DeltaTime, (g_Controller0->sticks_24.sticks_0.leftY * 16384) / 75);
+#else
             D_800F0358 += (g_Controller0->sticks_24.sticks_0.leftY * 16384) / 75;
+#endif
             D_800F0358  = CLAMP_RANGE(D_800F0358, Q12(-120.0f), Q12(120.0f));
 
             Game_TimerUpdate();

@@ -522,11 +522,19 @@ void MapEvent_PianoPuzzle(bool playNote) // 0x800D7F18
 
 #ifdef SH_PC_PORT
     Pc_MouseCursor_PuzzleOverride(&g_PianoCursorX, &g_PianoCursorY);
-#endif
+    /* Stick integration was per RENDERED frame -- the cursor flew 8x
+     * faster at 240fps. Scale by dt (30fps norm), like the elevator. */
+    g_PianoCursorX += TIMESTEP_SCALE_30_FPS(g_DeltaTime, (g_Controller0->sticks_24.sticks_0.leftX * 16384) / 75);
+#else
     g_PianoCursorX += (g_Controller0->sticks_24.sticks_0.leftX * 16384) / 75;
+#endif
     g_PianoCursorX  = CLAMP_RANGE(g_PianoCursorX, Q12(-89.0f), Q12(85.0f));
 
+#ifdef SH_PC_PORT
+    g_PianoCursorY += TIMESTEP_SCALE_30_FPS(g_DeltaTime, (g_Controller0->sticks_24.sticks_0.leftY * 16384) / 75);
+#else
     g_PianoCursorY += (g_Controller0->sticks_24.sticks_0.leftY * 16384) / 75;
+#endif
     g_PianoCursorY  = CLAMP_RANGE(g_PianoCursorY, Q12(-71.0f), Q12(84.0f));
 
     Game_TimerUpdate();
