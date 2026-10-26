@@ -14,8 +14,10 @@
  * integrates the left analog stick into a cursor position, draws through
  * Gfx_CursorDraw, and confirms with the `enter` bind. Each one calls
  * Pc_MouseCursor_PuzzleOverride between its stick integration and its clamp,
- * which puts the cursor exactly under the mouse pointer like the menus do;
- * Gfx_CursorDraw tells us one is on screen so clicks land as enter/cancel.
+ * which puts the cursor exactly under the mouse pointer like the menus do, or
+ * moves it by a DualShock 4 / DualSense touchpad drag like a trackpad;
+ * Gfx_CursorDraw tells us one is on screen so clicks (and a touchpad press)
+ * land as enter/cancel.
  *
  * Menu: the title menu is discrete row-selection, so we hit-test the mouse
  * against the row bands, drive the selection on hover, and confirm on click. */
@@ -32,10 +34,11 @@ void Pc_MouseCursor_FrameUpdate(void);
  * back onto it so the pointer can't drift past the puzzle's bounds. */
 void Pc_MouseCursor_NoteCursorDrawn(int curX, int curY);
 
-/* Called by each cursor puzzle after it adds the stick to its cursor and before
- * it clamps it. While the mouse owns the cursor, overwrites both Q12 positions
- * (framebuffer centre-origin px) with the point under the mouse pointer. A mouse
- * move takes ownership; a real stick deflection hands it back to the pad. */
+/* Called by each cursor puzzle just before it adds the stick to its cursor.
+ * While the mouse owns the cursor, overwrites both Q12 positions (framebuffer
+ * centre-origin px) with the point under the mouse pointer; while the touchpad
+ * owns it, adds this frame's finger drag. Whichever of stick, mouse and touchpad
+ * moved last owns the cursor. */
 void Pc_MouseCursor_PuzzleOverride(int* cursorX, int* cursorY);
 
 /* Hit-test a vertical list of menu rows drawn at y = baseY + i*stepY (top-left

@@ -44,13 +44,30 @@ static int   s_havePrev;
 static int   s_moved;        /* mouse moved this frame */
 static int   s_prevMx = -1, s_prevMy = -1;
 
-/* The mouse owns the puzzle cursor from a mouse move until a real stick deflects,
- * so an idle mouse never pins the cursor against a pad. */
-static int   s_puzzleMouseOwns;
+/* Who drives the puzzle cursor: whichever of stick, mouse and touchpad moved
+ * last, so an idle mouse never pins the cursor against a pad. */
+enum
+{
+    MC_OWNER_PAD,
+    MC_OWNER_MOUSE,
+    MC_OWNER_TOUCH
+};
+static int   s_puzzleOwner;
 /* Where the override put the cursor this frame (framebuffer centre-origin px),
  * checked against where the puzzle actually drew it after its clamp. */
 static float s_puzzleTargetX, s_puzzleTargetY;
 static int   s_puzzleOverrode;
+
+/* DualShock 4 / DualSense touchpad, finger 0, as a relative trackpad. Under
+ * Steam Input the pad arrives as OS mouse motion instead and takes the mouse
+ * path. SDL reports 0..1 on both axes of a pad about twice as wide as tall, so
+ * Y is scaled by that ratio to move the cursor the same per thumb distance; one
+ * full swipe across covers the picture width. */
+#define MC_TOUCHPAD_ASPECT 0.5f
+static float s_touchPrevX, s_touchPrevY;
+static int   s_touchPrevDown, s_touchPrevClick;
+static float s_touchDx, s_touchDy; /* framebuffer px the finger moved this frame */
+static int   s_touchClickEdge;
 static int   s_wheelStep;    /* +1/-1 on a new wheel notch this frame, else 0 */
 static int   s_wheelNotches; /* every notch this frame, signed */
 static int   s_prevWheelTotal;
@@ -121,7 +138,18 @@ void Pc_MouseCursor_NoteCursorDrawn(int curX, int curY)
 
 void Pc_MouseCursor_PuzzleOverride(int* cursorX, int* cursorY)
 {
-    if (!Mc_Enabled() || !s_puzzleMouseOwns)
+    if (!Mc_Enabled())
+        return;
+
+    if (s_puzzleOwner == MC_OWNER_TOUCH)
+    {
+        /* Relative from where the cursor already is; the puzzle's clamp ran
+         * last frame, so a drag back off an edge moves it at once. */
+        *cursorX += (int)(s_touchDx * 4096.0f);
+        *cursorY += (int)(s_touchDy * 4096.0f);
+        return;
+    }
+    if (s_puzzleOwner != MC_OWNER_MOUSE)
         return;
 
     /* s_gx/s_gy are text-authoring coords; minus the OFFSET reference they are
@@ -217,6 +245,46 @@ int Pc_MouseCursor_PuzzleActive(void)
     return s_puzzleFrames > 0;
 }
 
+static void Mc_PollTouchpad(void)
+{
+    SDL_GameController* gc    = NULL;
+    Uint8               state = 0;
+    float               x = 0.0f, y = 0.0f, pressure = 0.0f;
+    int                 down = 0, click = 0;
+    int                 i;
+
+    /* The pads are already open in PsyX; FromInstanceID borrows its handle. */
+    for (i = 0; i < SDL_NumJoysticks() && gc == NULL; i++)
+    {
+        SDL_GameController* c;
+
+        if (!SDL_IsGameController(i))
+            continue;
+        c = SDL_GameControllerFromInstanceID(SDL_JoystickGetDeviceInstanceID(i));
+        if (c != NULL && SDL_GameControllerGetNumTouchpads(c) > 0)
+            gc = c;
+    }
+
+    if (gc != NULL)
+    {
+        if (SDL_GameControllerGetTouchpadFinger(gc, 0, 0, &state, &x, &y, &pressure) == 0)
+            down = (state != 0);
+        click = SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_TOUCHPAD);
+    }
+
+    s_touchDx = s_touchDy = 0.0f;
+    if (down && s_touchPrevDown)
+    {
+        s_touchDx = (x - s_touchPrevX) * (float)g_GameWork.gsScreenWidth;
+        s_touchDy = (y - s_touchPrevY) * (float)g_GameWork.gsScreenWidth * MC_TOUCHPAD_ASPECT;
+    }
+    s_touchPrevDown  = down;
+    s_touchPrevX     = x;
+    s_touchPrevY     = y;
+    s_touchClickEdge = (click && !s_touchPrevClick);
+    s_touchPrevClick = click;
+}
+
 void Pc_MouseCursor_FrameUpdate(void)
 {
     int    mx, my;
@@ -293,24 +361,28 @@ void Pc_MouseCursor_FrameUpdate(void)
      * by Pc_MouseCursor_PuzzleOverride from inside each puzzle) ---- */
     if (s_puzzleFrames > 0)
     {
+        Mc_PollTouchpad();
+
         if (g_Controller0 != NULL)
         {
             s8* lx = &g_Controller0->sticks_24.sticks_0.leftX;
             s8* ly = &g_Controller0->sticks_24.sticks_0.leftY;
 
             if (*lx <= -STICK_THRESHOLD || *lx >= STICK_THRESHOLD || *ly <= -STICK_THRESHOLD || *ly >= STICK_THRESHOLD)
-                s_puzzleMouseOwns = 0;
+                s_puzzleOwner = MC_OWNER_PAD;
             else if (s_moved)
-                s_puzzleMouseOwns = 1;
+                s_puzzleOwner = MC_OWNER_MOUSE;
+            else if (s_touchDx != 0.0f || s_touchDy != 0.0f)
+                s_puzzleOwner = MC_OWNER_TOUCH;
 
             /* The puzzle still adds the stick after the override has placed the
              * cursor, so a resting pad's drift (under the hand-back threshold)
              * would push it off the pointer. Harry is control-frozen here, so
              * zeroing it can't move him. */
-            if (s_puzzleMouseOwns)
+            if (s_puzzleOwner != MC_OWNER_PAD)
                 *lx = *ly = 0;
 
-            if (s_leftEdge)
+            if (s_leftEdge || s_touchClickEdge)
                 g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.enter;
             if (s_rightEdge)
                 g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.cancel;
@@ -319,7 +391,8 @@ void Pc_MouseCursor_FrameUpdate(void)
     }
     else
     {
-        s_puzzleMouseOwns = 0;
+        s_puzzleOwner   = MC_OWNER_PAD;
+        s_touchPrevDown = 0;
     }
 }
 
