@@ -841,6 +841,17 @@ TPS/OTS/FPS camera captures the pointer). Game-code touch points:
   (`18a49bc42`), which steered the stick proportionally toward the pointer:
   capped at ±127 (~6.8 px per 30 Hz frame) and easing in, so it felt floaty
   and stopped up to 3 px short.
+- **Puzzle touchpad** (2026-10-26): a DualShock 4 / DualSense touchpad drag
+  moves the puzzle cursor relative to where it is (trackpad style, one full
+  swipe = picture width, Y scaled by `MC_TOUCHPAD_ASPECT` 0.5), and a touchpad
+  press confirms. Polled with `SDL_GameControllerGetTouchpadFinger` on every
+  pad PsyX has open (borrowed via `SDL_GameControllerFromInstanceID`, so
+  PsyCross is untouched); the finger already dragging keeps the cursor. Whichever
+  of stick, mouse and touchpad moved last owns the cursor. Over Bluetooth SDL
+  keeps these pads in simple reports (no touchpad, no rumble) unless
+  `SDL_HINT_JOYSTICK_HIDAPI_PS4_RUMBLE` / `_PS5_RUMBLE` are set, so `main_pc.c`
+  sets both before `PsyX_Initialise`; Steam used to be the only thing switching
+  them. Once on, a pad stays in extended reports until power-cycled.
 - **`GameState_MainMenu_Update`** (`events/title.c`): hover selects / click
   confirms on the entry list and difficulty rows (hit-tests the authored row
   bands: y=184+i*20 and y=204+i*20); draws the pointer after the text. The
