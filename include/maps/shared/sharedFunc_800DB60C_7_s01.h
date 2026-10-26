@@ -82,6 +82,9 @@ void sharedFunc_800DB60C_7_s01(void)
         case 4:
             Event_BgTextureCmd(BgTextureCmd_Draw, 0, false);
 
+#ifdef SH_PC_PORT
+            Pc_MouseCursor_PuzzleOverride(&sharedData_800E2CA8_7_s01, &sharedData_800E2CAC_7_s01);
+#endif
             sharedData_800E2CA8_7_s01 += (g_Controller0->sticks_24.sticks_0.leftX << 13) / 75;
             sharedData_800E2CA8_7_s01  = CLAMP_RANGE(sharedData_800E2CA8_7_s01, Q12(-115.0f), Q12(115.0f));
 

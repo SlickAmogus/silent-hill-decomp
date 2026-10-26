@@ -33,16 +33,6 @@ extern GLuint GR_ScreenFBO(void);
 #define MC_OFFSET_X 160 /* SCREEN_POSITION_X(50) — text authoring X reference */
 #define MC_OFFSET_Y 112 /* SCREEN_POSITION_Y(47) — text authoring Y reference */
 
-/* Puzzle cursor servo gain. Each free-cursor puzzle integrates the analog stick
- * as a velocity and clamps its cursor to a fixed range, so a delta-velocity
- * injection only delivered a fraction of that range per full mouse sweep — the
- * cursor stopped ~2/3 of the way down. Instead we deflect the stick proportional
- * to the error between the puzzle's own cursor and the framebuffer point the
- * mouse is over, converging on exactly where the mouse points regardless of the
- * framebuffer height or the stick scale. Gain sets how hard it steers; the
- * mouse-sensitivity slider scales it. */
-#define MC_PUZZLE_SERVO_GAIN 8.0f
-
 /* Per-frame pointer state, in logical 320x240 coords. */
 static float s_gx, s_gy, s_prevGx, s_prevGy;
 static float s_vx, s_vy;   /* normalized 0..1 inside the presented picture */
@@ -54,13 +44,9 @@ static int   s_havePrev;
 static int   s_moved;        /* mouse moved this frame */
 static int   s_prevMx = -1, s_prevMy = -1;
 
-/* Puzzle cursor servo state: the game's own cursor position (framebuffer
- * centre-origin px, captured from Gfx_CursorDraw) and whether a recent mouse
- * move has engaged absolute tracking — released once the cursor reaches the
- * pointer, so a real controller keeps the stick while the mouse sits idle. */
-static float s_gameCurX, s_gameCurY;
-static int   s_haveGameCur;
-static int   s_servoActive;
+/* The mouse owns the puzzle cursor from a mouse move until a real stick deflects,
+ * so an idle mouse never pins the cursor against a pad. */
+static int   s_puzzleMouseOwns;
 static int   s_wheelStep;    /* +1/-1 on a new wheel notch this frame, else 0 */
 static int   s_wheelNotches; /* every notch this frame, signed */
 static int   s_prevWheelTotal;
@@ -88,12 +74,22 @@ static int Mc_Enabled(void)
     return 1;
 }
 
-void Pc_MouseCursor_NoteCursorDrawn(int curX, int curY)
+void Pc_MouseCursor_NoteCursorDrawn(void)
 {
     s_puzzleFrames = 3;
-    s_gameCurX     = (float)curX;
-    s_gameCurY     = (float)curY;
-    s_haveGameCur  = 1;
+}
+
+void Pc_MouseCursor_PuzzleOverride(int* cursorX, int* cursorY)
+{
+    if (!Mc_Enabled() || !s_puzzleMouseOwns)
+        return;
+
+    /* s_gx/s_gy are text-authoring coords; minus the OFFSET reference they are
+     * framebuffer centre-origin px, the space the puzzles keep their cursor in
+     * (the arrow tip sits exactly on FP_FROM(cursor)). Off-picture positions
+     * are passed through so the puzzle's own clamp pins the cursor to its edge. */
+    *cursorX = (int)((s_gx - (float)MC_OFFSET_X) * 4096.0f);
+    *cursorY = (int)((s_gy - (float)MC_OFFSET_Y) * 4096.0f);
 }
 
 int Pc_MouseCursor_Moved(void)
@@ -249,48 +245,26 @@ void Pc_MouseCursor_FrameUpdate(void)
         s_havePrev = 1;
     }
 
-    /* ---- Free-cursor puzzle servo (piano / plate / door / map pan) ---- */
+    /* ---- Free-cursor puzzle: ownership + clicks (the cursor itself is placed
+     * by Pc_MouseCursor_PuzzleOverride from inside each puzzle) ---- */
     if (s_puzzleFrames > 0)
     {
-        float sens = g_PcConfig.mouseSensitivity;
-        int   sx = 0, sy = 0;
-
-        if (sens <= 0.0f)
-            sens = 1.0f;
-
-        /* A mouse move (re)engages absolute tracking; it releases once the cursor
-         * has caught up to the pointer, so an idle mouse won't fight a real pad. */
-        if (s_moved)
-            s_servoActive = 1;
-
-        if (s_servoActive && s_haveGameCur)
-        {
-            /* The mouse target and the puzzle's own cursor are both framebuffer
-             * centre-origin pixels (the MC_OFFSET reference cancels), so steer the
-             * stick by their difference until the cursor reaches the pointer. */
-            float ex = (s_gx - (float)MC_OFFSET_X) - s_gameCurX;
-            float ey = (s_gy - (float)MC_OFFSET_Y) - s_gameCurY;
-
-            if (ex > -3.0f && ex < 3.0f && ey > -3.0f && ey < 3.0f)
-            {
-                s_servoActive = 0; /* arrived — hand the stick back to a real pad */
-            }
-            else
-            {
-                sx = (int)(ex * MC_PUZZLE_SERVO_GAIN * sens);
-                sy = (int)(ey * MC_PUZZLE_SERVO_GAIN * sens);
-                if (sx < -127) sx = -127; else if (sx > 127) sx = 127;
-                if (sy < -127) sy = -127; else if (sy > 127) sy = 127;
-            }
-        }
-
         if (g_Controller0 != NULL)
         {
-            /* Harry is control-frozen during these puzzles, so this can't move the
-             * player. Only overwrite while steering, so an idle mouse leaves a
-             * plugged-in analog stick alone. */
-            if (sx != 0) g_Controller0->sticks_24.sticks_0.leftX = (s8)sx;
-            if (sy != 0) g_Controller0->sticks_24.sticks_0.leftY = (s8)sy;
+            s8* lx = &g_Controller0->sticks_24.sticks_0.leftX;
+            s8* ly = &g_Controller0->sticks_24.sticks_0.leftY;
+
+            if (*lx <= -STICK_THRESHOLD || *lx >= STICK_THRESHOLD || *ly <= -STICK_THRESHOLD || *ly >= STICK_THRESHOLD)
+                s_puzzleMouseOwns = 0;
+            else if (s_moved)
+                s_puzzleMouseOwns = 1;
+
+            /* The puzzle still adds the stick after the override has placed the
+             * cursor, so a resting pad's drift (under the hand-back threshold)
+             * would push it off the pointer. Harry is control-frozen here, so
+             * zeroing it can't move him. */
+            if (s_puzzleMouseOwns)
+                *lx = *ly = 0;
 
             if (s_leftEdge)
                 g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.enter;
@@ -298,6 +272,10 @@ void Pc_MouseCursor_FrameUpdate(void)
                 g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.cancel;
         }
         s_puzzleFrames--;
+    }
+    else
+    {
+        s_puzzleMouseOwns = 0;
     }
 }
 

@@ -821,20 +821,22 @@ QoL feature, not a fix (config `mouse_cursor`, default on; inert while the
 TPS/OTS/FPS camera captures the pointer). Game-code touch points:
 
 - **`Gfx_CursorDraw`** (`bodyprog_800881B8.c`): SH_PC_PORT hook — the shared
-  chokepoint every free-cursor puzzle (piano, plate, door panels, map pan)
-  draws through. Hands `pc_mouse_cursor.c` the puzzle's current cursor position
-  (framebuffer centre-origin px) and left/right click into enter/cancel on
-  `g_Controller0`, so all puzzles gain mouse control with no per-puzzle code.
-  Cursor control is an **absolute servo** (commit `18a49bc42`): the injector
-  deflects the left stick proportional to the error between the puzzle's own
-  cursor and the framebuffer point the mouse is over. The earlier delta-velocity
-  injection lost range to the stick's ±127 clamp and the height scaling — at
-  sensitivity 1 a full mouse sweep only covered ~62% of the puzzle's cursor
-  range (e.g. piano X∈[-89,85]/Y∈[-71,84]px, moved by `leftX*16384/75`), so the
-  cursor stopped ~2/3 down. The servo is closed-loop on the puzzle's own cursor,
-  so it converges on exactly where the mouse points regardless of framebuffer
-  height, stick scale, or the clamp; it engages on a mouse move and releases on
-  arrival so an idle mouse leaves a real pad's stick alone.
+  chokepoint every free-cursor puzzle (piano, plate, elevator, door panels)
+  draws through. Marks a puzzle as on screen, so left/right click land as
+  enter/cancel on `g_Controller0` and the TPS/OTS capture lets the pointer go.
+- **Puzzle cursor placement** (2026-10-26): each puzzle calls
+  `Pc_MouseCursor_PuzzleOverride(&cursorX, &cursorY)` just before it adds the
+  stick to its Q12 cursor (12 sites: `map1_s01` piano, `map3_s03` x2,
+  `map5_s01`, `map7_s01_2` x2, `map7_s02_2` x2, and the shared
+  `sharedFunc_800D15F0_3_s01.h` elevator / `sharedFunc_800DB60C_7_s01.h` 3x3
+  door). While the mouse owns the cursor it is written straight to the point
+  under the pointer, the same absolute mapping the menus use; the puzzle's own
+  clamp still bounds it. A mouse move takes ownership, a stick past
+  `STICK_THRESHOLD` hands it back, and the stick is zeroed while the mouse owns
+  it so pad drift can't offset the cursor. This replaced the absolute servo
+  (`18a49bc42`), which steered the stick proportionally toward the pointer:
+  capped at ±127 (~6.8 px per 30 Hz frame) and easing in, so it felt floaty
+  and stopped up to 3 px short.
 - **`GameState_MainMenu_Update`** (`events/title.c`): hover selects / click
   confirms on the entry list and difficulty rows (hit-tests the authored row
   bands: y=184+i*20 and y=204+i*20); draws the pointer after the text. The

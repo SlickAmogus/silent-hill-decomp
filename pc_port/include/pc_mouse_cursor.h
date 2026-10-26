@@ -10,25 +10,31 @@
  * classic camera, but NOT in TPS/OTS/FPS where the pointer is captured for
  * look. See control_style.c for the capture logic.
  *
- * Puzzles: every free-cursor puzzle (piano, plate, door panels, alert door,
- * map pan) integrates the left analog stick, draws through Gfx_CursorDraw, and
- * confirms with the `enter` bind. We detect one is on screen via Gfx_CursorDraw
- * and inject mouse motion into the stick + a click into the controller, so the
- * puzzle's own cursor follows the mouse with no per-puzzle code.
+ * Puzzles: every free-cursor puzzle (piano, plate, elevator, door panels)
+ * integrates the left analog stick into a cursor position, draws through
+ * Gfx_CursorDraw, and confirms with the `enter` bind. Each one calls
+ * Pc_MouseCursor_PuzzleOverride between its stick integration and its clamp,
+ * which puts the cursor exactly under the mouse pointer like the menus do;
+ * Gfx_CursorDraw tells us one is on screen so clicks land as enter/cancel.
  *
  * Menu: the title menu is discrete row-selection, so we hit-test the mouse
  * against the row bands, drive the selection on hover, and confirm on click. */
 
 /* Once per frame from MainLoop, after the controller is built and after
  * Pc_ControlStyleUpdate. Polls the mouse; if a cursor puzzle is on screen,
- * injects its motion + click into g_Controller0. */
+ * injects its click into g_Controller0. */
 void Pc_MouseCursor_FrameUpdate(void);
 
-/* Called from Gfx_CursorDraw: a cursor-driven puzzle drew its cursor this frame
- * at (curX, curY) in framebuffer centre-origin pixels. Arms the puzzle mouse
- * servo for the next few frames and records the cursor position so the servo can
- * steer it to the mouse pointer. */
-void Pc_MouseCursor_NoteCursorDrawn(int curX, int curY);
+/* Called from Gfx_CursorDraw: a cursor-driven puzzle drew its cursor this frame.
+ * Arms puzzle click injection (and Pc_MouseCursor_PuzzleActive) for the next
+ * few frames. */
+void Pc_MouseCursor_NoteCursorDrawn(void);
+
+/* Called by each cursor puzzle after it adds the stick to its cursor and before
+ * it clamps it. While the mouse owns the cursor, overwrites both Q12 positions
+ * (framebuffer centre-origin px) with the point under the mouse pointer. A mouse
+ * move takes ownership; a real stick deflection hands it back to the pad. */
+void Pc_MouseCursor_PuzzleOverride(int* cursorX, int* cursorY);
 
 /* Hit-test a vertical list of menu rows drawn at y = baseY + i*stepY (top-left
  * 320x240 coords, as Gfx_StringSetPosition uses). Returns the hovered row index

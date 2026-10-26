@@ -16,6 +16,7 @@
 #include "maps/characters/stalker.h"
 #ifdef SH_PC_PORT
 #include "pc_timing.h" /* PC_Tick30HzReady — locker-bang 30 Hz gate */
+#include "pc_mouse_cursor.h"
 #endif
 
 #include "maps/shared/sharedFunc_800D929C_0_s00.h" // 0x800D6F34
@@ -519,6 +520,9 @@ void MapEvent_PianoPuzzle(bool playNote) // 0x800D7F18
         return;
     }
 
+#ifdef SH_PC_PORT
+    Pc_MouseCursor_PuzzleOverride(&g_PianoCursorX, &g_PianoCursorY);
+#endif
     g_PianoCursorX += (g_Controller0->sticks_24.sticks_0.leftX * 16384) / 75;
     g_PianoCursorX  = CLAMP_RANGE(g_PianoCursorX, Q12(-89.0f), Q12(85.0f));
 
