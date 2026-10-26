@@ -3,6 +3,7 @@
 #ifdef SH_PC_PORT
 #include "sh_log.h"
 #include "pc_config.h"
+#include "pc_menu_preview.h"
 #include "xa_player.h"
 #include "pc_msg_voice.h"
 #include "pc_dark_harry.h"
@@ -2352,7 +2353,15 @@ void MainLoop(void) // 0x80032EE0
             static int s_qoPreloaded = 0;
             if (!s_qoPreloaded) { s_qoPreloaded = 1; Pc_QuickOptions_PreloadGL(); }
         }
-        DbgOverlay_Update();
+        if (!Pc_MenuPreview_IsChild()) DbgOverlay_Update();
+        Pc_MenuPreview_Tick();
+        /* Responsive title/options overlays use the whole display; do not
+         * change menu_pillarbox or the selected gameplay aspect mode. */
+        {
+            extern int g_PcOptionsWideScreen;
+            extern int Pc_OptionsOverlay_Active(void);
+            g_PcOptionsWideScreen = Pc_OptionsOverlay_Active();
+        }
 
         /* Randomizer: per-area monster placement, entry-door relock timer.
          * No-op unless a run is live. */
@@ -2376,6 +2385,12 @@ void MainLoop(void) // 0x80032EE0
         }
 #endif
         Joy_ControllerDataUpdate();
+#ifdef SH_PC_PORT
+        if(Pc_MenuPreview_IsChild()) {
+            g_Controller0->heldBtnFlags=0;g_Controller0->clickedBtnFlags=0;
+            g_Controller0->releasedBtnFlags=0;g_Controller0->pulsedBtnFlags=0;
+        }
+#endif
 
 #ifdef SH_PC_PORT
         /* Console input mode: suppress controller input HERE, after the pad
@@ -2440,7 +2455,7 @@ void MainLoop(void) // 0x80032EE0
                 (g_GameWork.gameState != GameState_InGame ||
                  (g_SysWork.sysFlags & SysFlag_DemoActive)))
                 Pc_QuickOptions_Close();
-            if (g_PcQuickOptionsActive) {
+            if (g_PcQuickOptionsActive && !Pc_MenuPreview_IsChild()) {
                 const s_ControllerConfig* cc = &g_GameWorkPtr->config.controllerConfig;
                 /* The panel reads the mouse itself, so a mouse button that is
                  * ALSO bound to a PSX button (key_cross = Mouse1 is common)
@@ -2526,27 +2541,27 @@ void MainLoop(void) // 0x80032EE0
         /* Quick Save (F6) / Quick Load (F8) — always on, not debug-gated. */
         {
             extern void Pc_QuickSaveLoadUpdate(void);
-            Pc_QuickSaveLoadUpdate();
+            if(!Pc_MenuPreview_IsChild())Pc_QuickSaveLoadUpdate();
         }
 
         /* Change Camera (F9 / R3): toggle control style; manages TPS mouse
          * capture. Always on, not debug-gated. */
         {
             extern void Pc_ControlStyleUpdate(void);
-            Pc_ControlStyleUpdate();
+            if(!Pc_MenuPreview_IsChild())Pc_ControlStyleUpdate();
         }
 
         /* Bound PC actions: Cycle Weapons + Quick Heal + Quick Turn request (reload
          * is pulled by the combat FSM). Keyboard + controller, edge-detected. */
         {
             extern void Pc_ExtraActionsUpdate(void);
-            Pc_ExtraActionsUpdate();
+            if(!Pc_MenuPreview_IsChild())Pc_ExtraActionsUpdate();
         }
 
         /* Rear Look (held): set g_PcRearLookActive for the TPS/OTS camera + head. */
         {
             extern void Pc_RearLookUpdate(void);
-            Pc_RearLookUpdate();
+            if(!Pc_MenuPreview_IsChild())Pc_RearLookUpdate();
         }
 
         /* "Disable D-pad for movement" applies ONLY during gameplay, so the D-pad
@@ -3571,7 +3586,8 @@ void MainLoop(void) // 0x80032EE0
              * flag; before that the ending's write never left the DLL.) */
             const int cutsceneLive = ((g_SysWork.sysFlags & SysFlag_CutsceneActive) ||
                                       g_SysWork.cutsceneBorderState != CutsceneBorderState_None) ? 1 : 0;
-            int wantHorPlus = (g_GameWork.gameState == GameState_InGame &&
+            extern int Pc_OptionsScenePreview(void);
+            int wantHorPlus = ((g_GameWork.gameState == GameState_InGame || Pc_OptionsScenePreview()) &&
                                !(g_PsxSkipFramebufferStore && !cutsceneLive) &&
                                !g_PcMapScreenActive &&
                                !bg2dHeld) ? 1 : 0;

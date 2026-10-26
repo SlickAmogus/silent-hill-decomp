@@ -39,6 +39,9 @@ const char* Pc_RuMenuUtf8(const char* us);
  * atlas in font_ru.inc). 0 when that atlas has no cell for the letter. */
 unsigned char Pc_RuPackByte(unsigned int cp);
 
+/* Active disc's own letterform, for native-font PC overlays. */
+unsigned char Pc_RuDiscByte(unsigned int cp);
+
 /* Non-zero when the mounted disc's atlas puts a letter on the control-code
  * byte, so font_region.c has to give that letter a second cell. */
 int Pc_RuDiscNeedsEFix(void);

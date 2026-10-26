@@ -989,6 +989,10 @@ void PcConfig_Load(const char* path)
         {
             g_PcConfig.crossRegionLanguages = (atoi(value) != 0);
         }
+        else if (strcmp(key, "ui_language") == 0)
+        {
+            g_PcConfig.uiLanguage = !strcmp(value,"en") ? 1 : !strcmp(value,"ru") ? 2 : 0;
+        }
         else if (strcmp(key, "language") == 0)
         {
             /* Kept verbatim; Pc_LangInit turns it into an id once the

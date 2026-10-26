@@ -1114,6 +1114,37 @@ if(BUILD_TESTING)
         "${DECOMP_DIR}/include" "${DECOMP_DIR}/include/decomp"
         "${PSYCROSS_DIR}/include/psx" "${PSYCROSS_DIR}/include")
     add_test(NAME pc_big_tmd_test COMMAND pc_big_tmd_test)
+    add_executable(pc_options_help_test tests/pc_options_help_test.c src/pc_options_help.c)
+    target_include_directories(pc_options_help_test PRIVATE include)
+    add_test(NAME pc_options_help_test COMMAND pc_options_help_test)
+    add_executable(pc_preview_mesh_test tests/pc_preview_mesh_test.c src/pc_preview_mesh.c)
+    target_include_directories(pc_preview_mesh_test PRIVATE include)
+    add_test(NAME pc_preview_mesh_test COMMAND pc_preview_mesh_test)
+    add_executable(pc_preview_tim_test tests/pc_preview_tim_test.c src/pc_preview_tim.c)
+    target_include_directories(pc_preview_tim_test PRIVATE include)
+    add_test(NAME pc_preview_tim_test COMMAND pc_preview_tim_test)
+    option(SH_UI_GL_TEST "Build disc-free SDL/OpenGL baked-example validation" OFF)
+    if(SH_UI_GL_TEST AND NOT ANDROID AND NOT IOS)
+        add_executable(pc_baked_preview_gl_test
+            tests/pc_baked_preview_gl_test.c src/pc_baked_preview.c
+            "${PSYCROSS_DIR}/src/render/glad.c")
+        target_include_directories(pc_baked_preview_gl_test PRIVATE
+            include "${PSYCROSS_DIR}/include" ${SDL2_INCLUDE_DIRS})
+        target_link_libraries(pc_baked_preview_gl_test PRIVATE SDL2::SDL2)
+        # The disc-free test must also work when only its target is built; the
+        # normal game's POST_BUILD asset copy has not necessarily run then.
+        add_custom_command(TARGET pc_baked_preview_gl_test POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_CURRENT_SOURCE_DIR}/assets/gamedata/previews"
+                "$<TARGET_FILE_DIR:pc_baked_preview_gl_test>/gamedata/previews")
+        if(UNIX)
+            target_link_libraries(pc_baked_preview_gl_test PRIVATE ${CMAKE_DL_LIBS} m)
+        endif()
+        add_test(NAME pc_baked_preview_gl_test COMMAND pc_baked_preview_gl_test)
+        set_tests_properties(pc_baked_preview_gl_test PROPERTIES
+            TIMEOUT 120
+            WORKING_DIRECTORY "$<TARGET_FILE_DIR:SilentHillPC>")
+    endif()
 
     # Renderer-free native menu core (scroll, text fitting, row page).
     add_executable(pc_native_menu_test

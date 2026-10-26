@@ -38,6 +38,14 @@ namespace SilentHillPC_Launcher
         private const string EuHdFontUrl    = "https://drive.google.com/drive/folders/1mmCRmH3mzuHbUKveDbwHcznsVAybRJcY";
 
         private ListView  _list;
+
+        // Essential QoL Mods: the downloadable catalog listed at the top of the list.
+        private EssentialCatalog _catalog;
+        private bool _catalogLoading = true;
+        private bool _essentialExpanded;
+        private readonly HashSet<string> _toInstall = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private sealed class EssentialHeader { }
+        private sealed class EssentialRow { public EssentialMod Mod; public ModEntry Installed; }
         private CheckBox  _chkLoose;
         private ToolTip   _btnTips;
         private FfmpegStatusRow _ffmpegRow;
@@ -92,6 +100,21 @@ namespace SilentHillPC_Launcher
             Shown -= OnShownInitialLoad;
             ExtractThenScan();
             WarnIfUsHdFontMismatched();
+            LoadCatalogAsync();
+        }
+
+        private async void LoadCatalogAsync()
+        {
+            EssentialCatalog cat = null;
+            try { cat = await EssentialMods.LoadAsync(_mgr.ModsDir, System.Threading.CancellationToken.None); }
+            catch { }
+            if (IsDisposed) return;
+            _catalog = cat;
+            _catalogLoading = false;
+            // Open by default until something is installed, so a fresh install sees it.
+            _essentialExpanded = _mgr.Mods.Count == 0;
+            CommitOrderAndState();
+            Populate();
         }
 
         /// <summary>Ask about any archive lying in the mod folders, unpack what was agreed to
@@ -204,7 +227,7 @@ namespace SilentHillPC_Launcher
                 Location = new Point(12, 10),
                 Size     = new Size(576, 34),
                 Text     = "Drag mod folders or .zip / .rar archives here. Tick to enable, then Apply. " +
-                           "Higher in the list wins conflicts. Right-click to rename, add notes or delete."
+                           "Higher in the list wins conflicts. Right-click to edit the name, author and description, or delete."
             };
             Controls.Add(help);
 
@@ -221,13 +244,16 @@ namespace SilentHillPC_Launcher
                 ShowItemToolTips = true,
                 HeaderStyle   = ColumnHeaderStyle.Nonclickable
             };
-            _list.Columns.Add("Mod", 176);
-            _list.Columns.Add("Type", 120);
-            _list.Columns.Add("State", 78);
-            _list.Columns.Add("Notes", 112);
+            _list.Columns.Add("Mod", 140);
+            _list.Columns.Add("Author", 82);
+            _list.Columns.Add("Type", 96);
+            _list.Columns.Add("State", 62);
+            _list.Columns.Add("Description", 140);
             _list.DragEnter += OnDragEnter;
             _list.DragDrop  += OnDragDrop;
             _list.MouseDown += OnListMouseDown;
+            _list.MouseClick += OnListMouseClick;
+            _list.MouseDoubleClick += OnListDoubleClick;
             _list.ItemCheck += OnItemCheck;
             Controls.Add(_list);
 
@@ -423,7 +449,7 @@ namespace SilentHillPC_Launcher
         private ContextMenuStrip BuildContextMenu()
         {
             var menu = new ContextMenuStrip();
-            menu.Items.Add("Edit name && notes…", null, (s, e) => EditSelected());
+            menu.Items.Add("Edit name, author && description…", null, (s, e) => EditSelected());
             menu.Items.Add("Open containing folder", null, (s, e) =>
             {
                 var m = SelectedMod();
@@ -444,9 +470,11 @@ namespace SilentHillPC_Launcher
         {
             _list.BeginUpdate();
             _list.Items.Clear();
+            AddEssentialRows();
             foreach (var m in _mgr.Mods)
             {
                 var item = new ListViewItem(m.Label) { Checked = m.Enabled, Tag = m };
+                item.SubItems.Add(m.Author ?? "");
                 item.SubItems.Add(Loc.T(m.TypeLabel));
                 item.SubItems.Add(Loc.T(m.StateLabel));
                 item.SubItems.Add(m.Description ?? "");
@@ -454,21 +482,91 @@ namespace SilentHillPC_Launcher
                 if (m.Type == ModType.Unknown) item.ForeColor = Color.Gray;
                 _list.Items.Add(item);
             }
-            _list.EndUpdate();
             if (_mgr.Mods.Count == 0)
             {
                 var hint = new ListViewItem(Loc.T("(no mods yet — drag folders/.zip/.rar here or click Open Folder)"));
-                hint.SubItems.Add(""); hint.SubItems.Add(""); hint.SubItems.Add("");
+                hint.SubItems.Add(""); hint.SubItems.Add(""); hint.SubItems.Add(""); hint.SubItems.Add("");
                 hint.ForeColor = Color.Gray;
                 _list.Items.Add(hint);
             }
+            _list.EndUpdate();
+        }
+
+        /// <summary>The Essential QoL Mods section: a header row that folds open, then one
+        /// row per catalog mod. Ticking a row that is not installed downloads and installs
+        /// it on Apply. Installed ones stay ticked and greyed here; they are managed like
+        /// any other mod in the list below.</summary>
+        private void AddEssentialRows()
+        {
+            bool any = _catalog != null && _catalog.Mods.Count > 0;
+            if (!_catalogLoading && !any) return;
+
+            string title = Loc.T("Essential QoL Mods");
+            if (_catalogLoading) title += " " + Loc.T("(loading…)");
+            var head = new ListViewItem((any && _essentialExpanded ? "▼ " : "▶ ") + title) { Tag = new EssentialHeader() };
+            head.SubItems.Add(""); head.SubItems.Add(""); head.SubItems.Add(""); head.SubItems.Add("");
+            head.Font = new Font(_list.Font, FontStyle.Bold);
+            head.ToolTipText = Loc.T("Click to show or hide. Tick a mod and press Apply to download and install it.");
+            _list.Items.Add(head);
+            if (!any || !_essentialExpanded) return;
+
+            foreach (var em in _catalog.Mods)
+            {
+                var inst = EssentialMods.FindInstalled(em, _mgr.Mods);
+                var row = new ListViewItem("    " + em.Name)
+                {
+                    Tag = new EssentialRow { Mod = em, Installed = inst },
+                    Checked = inst != null || _toInstall.Contains(em.Id),
+                    ToolTipText = em.Description ?? ""
+                };
+                row.SubItems.Add(em.Author ?? "");
+                row.SubItems.Add(inst != null ? Loc.T(inst.TypeLabel) : Loc.F("Download ({0} MB)", Math.Max(1, (em.Size + 524288) / 1048576)));
+                row.SubItems.Add(inst != null ? Loc.T("Installed") : Loc.T("Not installed"));
+                row.SubItems.Add(em.Description ?? "");
+                if (inst != null) row.ForeColor = Color.Gray;
+                _list.Items.Add(row);
+            }
+        }
+
+        private void OnListMouseClick(object sender, MouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Left) return;
+            var hit = _list.HitTest(e.Location);
+            if (hit.Item == null || !(hit.Item.Tag is EssentialHeader)) return;
+            if (_catalog == null || _catalog.Mods.Count == 0) return;
+            _essentialExpanded = !_essentialExpanded;
+            CommitOrderAndState();
+            Populate();
+        }
+
+        /// <summary>Double-clicking a catalog row shows its details in full.</summary>
+        private void OnListDoubleClick(object sender, MouseEventArgs e)
+        {
+            var hit = _list.HitTest(e.Location);
+            var row = hit.Item == null ? null : hit.Item.Tag as EssentialRow;
+            if (row == null) return;
+            var em = row.Mod;
+            MessageBox.Show(this,
+                em.Name + "\n\n" + Loc.F("Author: {0}", em.Author) + "\n\n" + (em.Description ?? "") + "\n\n" +
+                (row.Installed != null ? Loc.T("Installed")
+                                       : Loc.F("Download ({0} MB)", Math.Max(1, (em.Size + 524288) / 1048576))),
+                Loc.T("Essential QoL Mods"), MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         /// <summary>Block toggling the placeholder hint row (no backing mod).</summary>
         private void OnItemCheck(object sender, ItemCheckEventArgs e)
         {
+            var tag = _list.Items[e.Index].Tag;
+            var row = tag as EssentialRow;
+            if (row != null)
+            {
+                if (row.Installed != null) { e.NewValue = CheckState.Checked; return; }
+                if (e.NewValue == CheckState.Checked) _toInstall.Add(row.Mod.Id);
+                else _toInstall.Remove(row.Mod.Id);
+                return;
+            }
             if (e.NewValue != CheckState.Checked) return;
-            if (!(_list.Items[e.Index].Tag is ModEntry)) e.NewValue = CheckState.Unchecked;
+            if (!(tag is ModEntry)) e.NewValue = CheckState.Unchecked;
         }
 
         private ModEntry SelectedMod()
@@ -596,7 +694,8 @@ namespace SilentHillPC_Launcher
                 if (it != null)
                 {
                     it.Text = m.Label;
-                    it.SubItems[3].Text = m.Description ?? "";
+                    it.SubItems[1].Text = m.Author ?? "";
+                    it.SubItems[4].Text = m.Description ?? "";
                     it.ToolTipText = m.Description ?? "";
                 }
             }
@@ -628,7 +727,7 @@ namespace SilentHillPC_Launcher
             using (var dlg = new Form())
             {
                 dlg.Text            = Loc.T("Edit Mod");
-                dlg.ClientSize      = new Size(380, 230);
+                dlg.ClientSize      = new Size(380, 278);
                 dlg.FormBorderStyle = FormBorderStyle.FixedDialog;
                 dlg.StartPosition   = FormStartPosition.CenterParent;
                 dlg.MaximizeBox     = false;
@@ -641,15 +740,20 @@ namespace SilentHillPC_Launcher
                                             Text = m.DisplayName ?? "" };
                 dlg.Controls.Add(txtName);
 
-                dlg.Controls.Add(new Label { Text = Loc.T("Notes / description:"), Location = new Point(12, 84), AutoSize = true });
-                var txtDesc = new TextBox { Location = new Point(12, 102), Size = new Size(356, 78),
+                dlg.Controls.Add(new Label { Text = Loc.T("Author:"), Location = new Point(12, 84), AutoSize = true });
+                var txtAuthor = new TextBox { Location = new Point(12, 102), Size = new Size(356, 22),
+                                              Text = m.Author ?? "" };
+                dlg.Controls.Add(txtAuthor);
+
+                dlg.Controls.Add(new Label { Text = Loc.T("Description:"), Location = new Point(12, 132), AutoSize = true });
+                var txtDesc = new TextBox { Location = new Point(12, 150), Size = new Size(356, 78),
                                             Multiline = true, ScrollBars = ScrollBars.Vertical,
                                             Text = m.Description ?? "" };
                 dlg.Controls.Add(txtDesc);
 
-                var ok     = new Button { Text = Loc.T("OK"),     Location = new Point(196, 192), Size = new Size(80, 28),
+                var ok     = new Button { Text = Loc.T("OK"),     Location = new Point(196, 240), Size = new Size(80, 28),
                                           DialogResult = DialogResult.OK };
-                var cancel = new Button { Text = Loc.T("Cancel"), Location = new Point(288, 192), Size = new Size(80, 28),
+                var cancel = new Button { Text = Loc.T("Cancel"), Location = new Point(288, 240), Size = new Size(80, 28),
                                           DialogResult = DialogResult.Cancel };
                 dlg.Controls.Add(ok);
                 dlg.Controls.Add(cancel);
@@ -658,6 +762,7 @@ namespace SilentHillPC_Launcher
 
                 if (dlg.ShowDialog(this) != DialogResult.OK) return false;
                 m.DisplayName = txtName.Text.Trim();
+                m.Author      = txtAuthor.Text.Trim();
                 m.Description = txtDesc.Text.Trim();
                 return true;
             }
@@ -1701,6 +1806,49 @@ namespace SilentHillPC_Launcher
             ConverterActions.ShowTextDialog(this, title, lines, monospace);
         }
 
+        /// <summary>Download and install the catalog mods ticked in the Essential section,
+        /// enabled, so the Apply that follows deploys them. False if the user cancelled or a
+        /// download failed (Apply then stops, and nothing already installed is lost).</summary>
+        private bool InstallTickedEssentials()
+        {
+            if (_catalog == null || _toInstall.Count == 0) return true;
+            var todo = _catalog.Mods.Where(m => _toInstall.Contains(m.Id) &&
+                                                EssentialMods.FindInstalled(m, _mgr.Mods) == null).ToList();
+            if (todo.Count == 0) { _toInstall.Clear(); return true; }
+
+            _mgr.SaveState();
+            var installed = new List<string>();
+            bool finished;
+            try
+            {
+                finished = ProgressDialog.RunCancellable(this, Loc.T("Downloading mods…"), (r, cancelled) =>
+                {
+                    foreach (var em in todo)
+                    {
+                        if (cancelled()) return;
+                        string name = EssentialMods.Install(em, _mgr, r, cancelled);
+                        if (name != null) installed.Add(name);
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, Loc.F("Failed to download mods:\n\n{0}", ex.Message), Loc.T("Mod Manager"),
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                finished = false;
+            }
+
+            _mgr.Scan();
+            foreach (var m in _mgr.Mods)
+                if (installed.Contains(m.Name, StringComparer.OrdinalIgnoreCase)) m.Enabled = true;
+            foreach (var em in todo)
+                if (EssentialMods.FindInstalled(em, _mgr.Mods) != null) _toInstall.Remove(em.Id);
+            _mgr.SaveState();
+            Populate();
+            WarnIfUsHdFontMismatched();
+            return finished;
+        }
+
         private static void AppendFileList(System.Text.StringBuilder sb, List<string> files, int max)
         {
             for (int i = 0; i < files.Count && i < max; i++) sb.Append("  ").Append(files[i]).Append('\n');
@@ -1710,6 +1858,7 @@ namespace SilentHillPC_Launcher
         private void OnApply(object sender, EventArgs e)
         {
             CommitOrderAndState();
+            if (!InstallTickedEssentials()) return;
             try
             {
                 // Files of the user's own in gamedata/load or gamedata/FMV: ones they

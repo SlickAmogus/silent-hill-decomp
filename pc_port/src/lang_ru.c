@@ -385,6 +385,13 @@ unsigned char Pc_RuPackByte(unsigned int cp)
     return RuEncodeLetterIn(&s_Charset_ConsolGames, idx, isUpper);
 }
 
+unsigned char Pc_RuDiscByte(unsigned int cp)
+{
+    int upper = 0;
+    int idx = RuLetterIndex(cp, &upper);
+    return s_Active && idx >= 0 ? RuEncodeLetter(idx, upper) : 0;
+}
+
 /* Transcode a UTF-8 menu string into the active patch's font bytes. ASCII
  * passes through untouched: '_' is the renderer's space, '\x01'/'\x07' are its
  * kerning and colour codes, and digits/punctuation still occupy their own
@@ -537,7 +544,9 @@ const char* Pc_RuMenuUtf8(const char* us)
 {
     int i;
 
-    if (s_Active == NULL || us == NULL)
+    /* UTF-8 UI translation does not depend on the mounted disc charset.
+     * Encoded game-font text above remains strictly gated on s_Active. */
+    if (us == NULL)
         return NULL;
 
     for (i = 0; i < RU_MENU_COUNT; i++)

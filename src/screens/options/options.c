@@ -47,6 +47,8 @@ extern int Ios_ShowRetroAchievementsLogin(void);
 #include "pc_mouse_cursor.h"
 #include "map_registry.h"
 #include "lang_text.h" /* PAL Language row (title-screen options) */
+#include "lang_ru.h"   /* Repainted Russian fonts cannot show Latin map IDs. */
+#include "pc_quick_options.h"
 #ifdef SH_PC_PORT
 #include "lang_quick.h" /* quick-menu row values */
 #include "pc_pplit.h"
@@ -371,6 +373,10 @@ static const s_PcOpt PCOPT_S[] = {
      * Crosshair rows moved to the HUD page to make room, which is where the
      * quick-options overlay already groups them. */
     { "Weather_Rate",     &g_PcConfig.weatherSimHz,   "weather_sim_hz",   VAL_WHZ,   2, LBL_WHZ,   NULL, 1, PCK_INT  },
+    { "Character_Lighting", &g_PcConfig.charaPerPixelLight, "chara_per_pixel_light", VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    { "Per_Pixel_Lighting", &g_PcConfig.perPixelLighting, "per_pixel_lighting", VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    { "Hero_Light", &g_PcConfig.heroLight, "hero_light", (const int[]){0,1,2,3}, 4,
+      (const char* const[]){"Off","Low","Medium","High"}, NULL, 1, PCK_INT },
     { "Prev_Page",        NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_PREV },
     { "Next_Page",        NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_NEXT },
     { "Back",             NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_BACK },
@@ -683,7 +689,17 @@ static const char* PcOpt_ValueLabel(const s_PcOpt* e, char* buf, int bufsz)
         return buf;
     }
     if (e->kind == PCK_MAP) {
-        return g_PcConfig.mapName[0] ? g_PcConfig.mapName : "map0_s00";
+        const char* map = g_PcConfig.mapName[0] ? g_PcConfig.mapName : "map0_s00";
+
+        /* Keep the actual identifier/config untouched; the repainted atlas
+         * cannot draw its Latin prefix. Show the same map/section as digits. */
+        if (Pc_RuActive() && strlen(map) == 8 && strncmp(map, "map", 3) == 0 &&
+            map[3] >= '0' && map[3] <= '9' && map[4] == '_' && map[5] == 's' &&
+            map[6] >= '0' && map[6] <= '9' && map[7] >= '0' && map[7] <= '9') {
+            snprintf(buf, bufsz, "%c-%c%c", map[3], map[6], map[7]);
+            return buf;
+        }
+        return map;
     }
 #if defined(__ANDROID__)
     if (e->kind == PCK_STORAGE) {
@@ -902,6 +918,9 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
             PsyX_ApplyVsync(g_PcConfig.vsync);
         } else if (e->kind == PCK_FLMODE) {
             Pc_FlashlightModeApply(*e->field, 1);
+        } else if (e->key && (!strcmp(e->key,"per_pixel_lighting") ||
+                              !strcmp(e->key,"hero_light"))) {
+            Pc_PpLit_Apply();
         } else if (e->live) {
             *e->live = *e->field;
         }
@@ -934,6 +953,51 @@ const void* PcOpt_QuickFind(const char* key)
 
 const char* PcOpt_QuickName(const void* h)     { return ((const s_PcOpt*)h)->name; }
 int         PcOpt_QuickRealtime(const void* h) { return ((const s_PcOpt*)h)->realtime; }
+
+/* Opaque access for the responsive screen; all adjustment/save semantics
+ * remain in this file, shared with the original/fallback menu. */
+int PcOpt_ScreenCount(int page)
+{
+    int count;
+    PcOpt_PageByIndex(page, &count);
+    return count;
+}
+
+const void* PcOpt_ScreenEntry(int page, int row)
+{
+    int count;
+    const s_PcOpt* entries = PcOpt_PageByIndex(page, &count);
+    return row >= 0 && row < count ? &entries[row] : NULL;
+}
+
+const char* PcOpt_ScreenKey(const void* h)
+{
+    const s_PcOpt* e = h;
+    if(e->kind==PCK_STORAGE)return "game_data";
+    if(e->kind==PCK_RALOGIN)return "achievements_account";
+    if(e->kind==PCK_TOTITLE)return "return_to_title";
+    if(e->kind==PCK_RESET)return "reset_settings";
+    return e->kind == PCK_RES ? "width" : e->key;
+}
+
+int PcOpt_ScreenAction(const void* h)
+{
+    const s_PcOpt* e = h;
+    return e->kind == PCK_NEXT ? 1 : e->kind == PCK_PREV ? -1 : e->kind == PCK_BACK ? 2 : 0;
+}
+
+/* Read-only numeric value for selecting a pre-rendered example. No adjustment,
+ * live apply or persistence; actions deliberately have no numeric value. */
+float PcOpt_ExampleValue(const void* h)
+{
+    const s_PcOpt* e=h;
+    if(!e)return 0;
+    if(e->kind==PCK_SLIDER && e->ffield)return *e->ffield;
+    if(e->kind==PCK_FILTER)return g_PcConfig.psxDither;
+    if(e->kind==PCK_FLMODE)return g_PcConfig.flashlightMode;
+    return e->field?(float)*e->field:0;
+}
+
 
 const char* PcOpt_QuickLabel(const void* h, char* buf, int bufsz)
 {
@@ -1745,6 +1809,31 @@ static void PcOpt_AskStorageNextLaunch(void)
 }
 #endif
 
+int PcOpt_ScreenActivate(const void* h,int row)
+{
+    const s_PcOpt* e=(const s_PcOpt*)h;
+    if(!e)return 0;
+    g_PcOptionsMenu_SelectedEntry=row;
+#if defined(__ANDROID__)
+    if(e->kind==PCK_STORAGE) {
+        s_confirmAction=PCOPT_CONFIRM_STORAGE;
+        Pc_ConfirmDialog_Open("GAME DATA","Pick a new location next time the game starts? Your files stay where they are.");
+        g_PcOptResetConfirmActive=1;return 1;
+    }
+    if(e->kind==PCK_RALOGIN) {
+        extern void Android_ShowRetroAchievementsLogin(void);
+        if(Pc_Ra_IsSignedIn())Pc_Ra_SignOut();else Android_ShowRetroAchievementsLogin();
+        return 1;
+    }
+    if(e->kind==PCK_TOTITLE) {
+        if(PcOpt_ToTitleArmed(row)) {s_pcOptToTitleRow=-1;g_SysWork.sysFlags|=SysFlag_DoWarmReset;}
+        else {s_pcOptToTitleRow=row;s_pcOptToTitleTick=g_TickCount;}
+        return 1;
+    }
+#endif
+    return 0;
+}
+
 static int PcOpt_ResetConfirm_Run(void)
 {
     const s_ControllerConfig* cfg = &g_GameWorkPtr->config.controllerConfig;
@@ -1824,6 +1913,22 @@ void Options_PcOptionsMenu_Control(void)
 {
     int            count;
     const s_PcOpt* tbl = PcOpt_Page(&count);
+
+#ifdef SH_PC_PORT
+    /* The replacement compositor owns the entire return transition too. The
+     * legacy PC list must not leak through while the stock fade finishes. */
+    if (g_GameWork.gameStateSteps[0] == OptionsMenuState_LeavePcOptions &&
+        Pc_OrdinaryOptions_Active()) return;
+    if (g_GameWork.gameStateSteps[0] == OptionsMenuState_PcOptions) {
+        /* The compositor supplies a black background and its independent school
+         * viewport. Do not redraw or modify the player's paused world here. */
+        if (PcOpt_ResetConfirm_Run()) {
+            /* Keep the responsive screen visible behind the modal dialog. */
+            return;
+        }
+        if (Pc_OptionsScreen_Update()) return;
+    }
+#endif
 
     Options_PcOptionsMenu_EntryStringsDraw();
     Options_PcOptionsMenu_ConfigDraw();
@@ -2788,7 +2893,11 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
     s32 audioType;
     s32 vol;
 
-    // Draw graphics.
+    // Draw graphics. The PC compositor lays out labels and sliders in separate
+    // columns instead of stretching the original overlapping 320px layout.
+#ifdef SH_PC_PORT
+    if (!Pc_OrdinaryOptions_Active()) {
+#endif
     Options_MainOptionsMenu_EntryStringsDraw();
     Options_MainOptionsMenu_ConfigDraw();
     Options_MainOptionsMenu_SelectionHighlightDraw();
@@ -2798,6 +2907,7 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
     Options_MainOptionsMenu_SfxVolumeBarDraw();
 #ifdef SH_PC_PORT
     Options_MainOptionsMenu_FmvVolumeBarDraw();
+    }
     Pc_MouseCursor_Show();
 #endif
 
@@ -2841,11 +2951,17 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
         {
             s32 row = -1;
             s32 i;
+            float fraction=0;
 
             for (i = 0; i < MainOptionsMenuEntry_Count; i++)
             {
                 s32 top = 56 + (i * 16) - 3;
                 if (my >= top && my < top + 16) { row = i; break; }
+            }
+            if(Pc_OrdinaryOptions_Mouse(&row,&fraction)) {
+                /* Map the responsive slider back to the original notch logic. */
+                mx=184+OPT_VOLUME_BAR_DX+(int)(fraction*96)-1;
+                if(row<MainOptionsMenuEntry_BgmVolume)mx=fraction<.5f?210:245;
             }
 
             if (row >= 0 && Pc_MouseCursor_Moved() && row != g_MainOptionsMenu_SelectedEntry)

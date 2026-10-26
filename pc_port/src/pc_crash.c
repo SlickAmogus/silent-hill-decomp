@@ -14,6 +14,10 @@
  *
  * Isolated in its own TU: windows.h defines `byte`, which conflicts with
  * the decomp's typedef in include/decomp/types.h. */
+/* glibc exposes Dl_info/dladdr only with this defined before libc headers. */
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>

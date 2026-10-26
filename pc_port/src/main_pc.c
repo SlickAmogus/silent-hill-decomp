@@ -58,6 +58,7 @@ void        Ios_EnsureModFolders(void);
 #include "sh_log.h"
 #include "psx_memory.h"
 #include "pc_config.h"
+#include "pc_menu_preview.h"
 #include "hires_override.h" /* HiresOverride_ClampBudgetToVram */
 #include "pc_audio_config.h"
 #include "pc_discord.h"
@@ -1213,6 +1214,10 @@ int main(int argc, char* argv[])
 
         snprintf(s_ConfigPathUsed, sizeof(s_ConfigPathUsed), "%s", chosen);
     }
+
+    Pc_MenuPreview_Configure();
+    { extern void (*g_PsyX_MenuPreviewCapture)(void);
+      g_PsyX_MenuPreviewCapture=Pc_MenuPreview_Capture; }
 
     /* After the config load, or the parsed skip_intros would clobber it.
      * map0_s00 is the compiled-in default, so a config still naming it counts as
