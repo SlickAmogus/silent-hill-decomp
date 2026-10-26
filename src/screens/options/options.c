@@ -505,8 +505,8 @@ static const s_PcOpt PCOPT_M[] = {
      * pack. Needs a restart: the pool is sized at startup. */
     { "Resident_Textures", &g_PcConfig.residentTextures,  "resident_textures",   VAL_ONOFF,  2, LBL_ONOFF,  NULL, 0, PCK_INT },
     /* Builds with no launcher have no Mod Manager: this lists the Essential
-     * QoL Mods and installs the ones ticked (pc_qol_mods.c). */
-    { "Install_QoL_Mods",  NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_QOLMODS },
+     * QoL Mods, installs the ones ticked and removes the ones unticked (pc_qol_mods.c). */
+    { "Set_Up_QoL_Mods",   NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_QOLMODS },
     /* Asks before it acts; see PCOPT_TOTITLE_WINDOW_MS. */
     { "Return_to_Title",   NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_TOTITLE },
     { "Prev_Page",         NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_PREV },
