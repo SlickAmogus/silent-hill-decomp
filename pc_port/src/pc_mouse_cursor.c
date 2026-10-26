@@ -47,6 +47,10 @@ static int   s_prevMx = -1, s_prevMy = -1;
 /* The mouse owns the puzzle cursor from a mouse move until a real stick deflects,
  * so an idle mouse never pins the cursor against a pad. */
 static int   s_puzzleMouseOwns;
+/* Where the override put the cursor this frame (framebuffer centre-origin px),
+ * checked against where the puzzle actually drew it after its clamp. */
+static float s_puzzleTargetX, s_puzzleTargetY;
+static int   s_puzzleOverrode;
 static int   s_wheelStep;    /* +1/-1 on a new wheel notch this frame, else 0 */
 static int   s_wheelNotches; /* every notch this frame, signed */
 static int   s_prevWheelTotal;
@@ -74,9 +78,45 @@ static int Mc_Enabled(void)
     return 1;
 }
 
-void Pc_MouseCursor_NoteCursorDrawn(void)
+/* Pulls the OS pointer back onto the puzzle cursor when the puzzle's own clamp
+ * held the cursor short of where the override put it. Otherwise the pointer
+ * wanders past the puzzle's bounds and has to travel all the way back before
+ * the cursor leaves the edge. The puzzle bounds stay the game's; only the
+ * pointer is confined to them. */
+static void Mc_PinPointerToPuzzleCursor(float tipX, float tipY)
+{
+    extern SDL_Window* g_window;
+    float              ex = tipX - s_puzzleTargetX;
+    float              ey = tipY - s_puzzleTargetY;
+    float              fx0, fy0, fx1, fy1;
+
+    if (ex > -1.0f && ex < 1.0f && ey > -1.0f && ey < 1.0f)
+        return;
+    if (g_window == NULL || SDL_GetKeyboardFocus() != g_window)
+        return;
+
+    /* Window px per framebuffer px, sampled from the forward mapping so the
+     * pillarbox / internal-resolution handling there needs no inverse here. */
+    PsyX_MapWindowToViewport(s_prevMx, s_prevMy, &fx0, &fy0);
+    PsyX_MapWindowToViewport(s_prevMx + 1024, s_prevMy + 1024, &fx1, &fy1);
+    if (fx1 <= fx0 || fy1 <= fy0)
+        return;
+
+    SDL_WarpMouseInWindow(g_window,
+                          s_prevMx + (int)(ex / (float)g_GameWork.gsScreenWidth * 1024.0f / (fx1 - fx0)),
+                          s_prevMy + (int)(ey / (float)g_GameWork.gsScreenHeight * 1024.0f / (fy1 - fy0)));
+}
+
+void Pc_MouseCursor_NoteCursorDrawn(int curX, int curY)
 {
     s_puzzleFrames = 3;
+
+    if (s_puzzleOverrode)
+    {
+        s_puzzleOverrode = 0;
+        /* The arrow is drawn centred 8 px right/down of its tip. */
+        Mc_PinPointerToPuzzleCursor((float)(curX - 8), (float)(curY - 8));
+    }
 }
 
 void Pc_MouseCursor_PuzzleOverride(int* cursorX, int* cursorY)
@@ -88,8 +128,11 @@ void Pc_MouseCursor_PuzzleOverride(int* cursorX, int* cursorY)
      * framebuffer centre-origin px, the space the puzzles keep their cursor in
      * (the arrow tip sits exactly on FP_FROM(cursor)). Off-picture positions
      * are passed through so the puzzle's own clamp pins the cursor to its edge. */
-    *cursorX = (int)((s_gx - (float)MC_OFFSET_X) * 4096.0f);
-    *cursorY = (int)((s_gy - (float)MC_OFFSET_Y) * 4096.0f);
+    s_puzzleTargetX  = s_gx - (float)MC_OFFSET_X;
+    s_puzzleTargetY  = s_gy - (float)MC_OFFSET_Y;
+    s_puzzleOverrode = 1;
+    *cursorX = (int)(s_puzzleTargetX * 4096.0f);
+    *cursorY = (int)(s_puzzleTargetY * 4096.0f);
 }
 
 int Pc_MouseCursor_Moved(void)
@@ -181,6 +224,7 @@ void Pc_MouseCursor_FrameUpdate(void)
     float  fx, fy;
 
     s_leftEdge = s_rightEdge = 0;
+    s_puzzleOverrode = 0;
 
     if (!Mc_Enabled())
     {

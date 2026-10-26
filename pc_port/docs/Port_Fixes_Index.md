@@ -833,7 +833,11 @@ TPS/OTS/FPS camera captures the pointer). Game-code touch points:
   under the pointer, the same absolute mapping the menus use; the puzzle's own
   clamp still bounds it. A mouse move takes ownership, a stick past
   `STICK_THRESHOLD` hands it back, and the stick is zeroed while the mouse owns
-  it so pad drift can't offset the cursor. This replaced the absolute servo
+  it so pad drift can't offset the cursor. When the puzzle's clamp holds the
+  cursor short of the pointer, `Gfx_CursorDraw` reports the clamped position
+  and the OS pointer is warped back onto it (`SDL_WarpMouseInWindow`, window
+  focused only), so the pointer can't wander past the original bounds and have
+  to travel back before the cursor leaves the edge. This replaced the absolute servo
   (`18a49bc42`), which steered the stick proportionally toward the pointer:
   capped at ±127 (~6.8 px per 30 Hz frame) and easing in, so it felt floaty
   and stopped up to 3 px short.

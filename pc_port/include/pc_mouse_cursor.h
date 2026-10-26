@@ -25,10 +25,12 @@
  * injects its click into g_Controller0. */
 void Pc_MouseCursor_FrameUpdate(void);
 
-/* Called from Gfx_CursorDraw: a cursor-driven puzzle drew its cursor this frame.
- * Arms puzzle click injection (and Pc_MouseCursor_PuzzleActive) for the next
- * few frames. */
-void Pc_MouseCursor_NoteCursorDrawn(void);
+/* Called from Gfx_CursorDraw: a cursor-driven puzzle drew its cursor this frame
+ * at (curX, curY) in framebuffer centre-origin pixels. Arms puzzle click
+ * injection (and Pc_MouseCursor_PuzzleActive) for the next few frames, and if
+ * the puzzle's clamp held the cursor short of the mouse, warps the OS pointer
+ * back onto it so the pointer can't drift past the puzzle's bounds. */
+void Pc_MouseCursor_NoteCursorDrawn(int curX, int curY);
 
 /* Called by each cursor puzzle after it adds the stick to its cursor and before
  * it clamps it. While the mouse owns the cursor, overwrites both Q12 positions
