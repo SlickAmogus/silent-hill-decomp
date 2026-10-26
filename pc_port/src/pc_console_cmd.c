@@ -519,6 +519,7 @@ static const char* const HELP_LINES[] = {
     " fmv <name|#>   play a movie (also intro1-2, end1-5)",
     " kf [n]         keyframe viewer: toggle, or view frame n",
     " playas [name]  play as another character (bare = list)",
+    " skinini        re-read the character models' .ini files",
     " minimapnomap [0|1]  minimap before the map is found: 0 hide, 1 empty panel",
     " bind <key> <cmd>[;<cmd>...]  run console commands from a key",
     " bind list / unbind <key> / unbindall",
@@ -2398,6 +2399,9 @@ void Pc_ConsoleExec(const char* line)
             cprintf("keyframe viewer %s (keyframe %d / %d)",
                     g_DebugAnimKfView ? "ON" : "OFF", g_DebugAnimKf, maxKf);
         }
+    } else if (strcmp(cmd, "SKININI") == 0) {
+        extern int Pc_SkinChara_ReloadSettings(void);
+        cprintf("re-read %d character .ini file(s)", Pc_SkinChara_ReloadSettings());
     } else if (strcmp(cmd, "PLAYAS") == 0) {
         extern int         Pc_PlayAs_SetByName(const char* name, int save);
         extern int         Pc_PlayAs_Current(void);
