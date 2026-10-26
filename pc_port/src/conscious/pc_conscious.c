@@ -59,6 +59,7 @@
 #include "pc_voice_clip.h"
 #include "pc_conscious.h"
 #include "pc_conscious_hook.h"
+#include "pc_conscious_menu.h"
 #include "sh_log.h"
 
 #define NPC_N       ((int)ARRAY_SIZE(g_SysWork.npcs))
@@ -184,15 +185,19 @@ static unsigned int s_lastMs;
 /* Prompts                                                             */
 /* ------------------------------------------------------------------ */
 
-static const char s_persona[] =
+/* Who they are: the part the menu lets the player rewrite. The scene and the
+ * rules after it stay, or the judge and the speech bubbles stop working. */
+static const char s_gangSelf[] =
     "You are THE GREY CHILDREN: a little pack of grey, child-sized, knife-carrying creatures "
     "who live at the dead end of a dark, bloody alley in the Otherworld of Silent Hill (1999). "
     "You speak together as one gang, through whichever of you is loudest. "
     "Personality: aggressive, territorial, petty, bratty and easily annoyed -- schoolyard bullies "
     "who happen to be monsters. Darkly funny: you bicker, you brag, you call him names "
     "(\"grown-up\", \"big man\", \"stranger\"), you get offended over nothing. You are NOT polite "
-    "and never helpful. You think this alley is YOURS. "
-    "The man in front of you is %s, a writer looking for his missing seven-year-old daughter Cheryl. "
+    "and never helpful. You think this alley is YOURS.";
+
+static const char s_persona[] =
+    " The man in front of you is %s, a writer looking for his missing seven-year-old daughter Cheryl. "
     "He is unarmed and holding nothing but a lighter. "
     "Rules: reply with ONE to THREE short sentences, under 40 words, meant to be spoken out loud. "
     "No stage directions, no asterisks, no emojis, no narration, no quotation marks around your line. "
@@ -284,6 +289,57 @@ static const char* Mon_Self(int charaId)
 }
 
 /* What it looks like from the game camera, so it can find itself in the shot. */
+static int Prof_Of(int charaId)
+{
+    switch (charaId)
+    {
+    case Chara_GreyChild:   return PCCON_PROF_GANG;
+    case Chara_Groaner:     return PCCON_PROF_GROANER;
+    case Chara_Romper:      return PCCON_PROF_ROMPER;
+    case Chara_NightFlutter: return PCCON_PROF_FLUTTER;
+    default:                return PCCON_PROF_SCREAMER;
+    }
+}
+
+static int Prof_Talks(int charaId)
+{
+    return g_PcConProf[Prof_Of(charaId)].talk;
+}
+
+const char* PcCon_DefaultPersona(int prof)
+{
+    switch (prof)
+    {
+    case PCCON_PROF_GANG:    return s_gangSelf;
+    case PCCON_PROF_GROANER: return Mon_Self(Chara_Groaner);
+    case PCCON_PROF_ROMPER:  return Mon_Self(Chara_Romper);
+    case PCCON_PROF_FLUTTER: return Mon_Self(Chara_NightFlutter);
+    default:                 return Mon_Self(Chara_AirScreamer);
+    }
+}
+
+/* Who it is (the player's rewrite, if there is one), its mood, and whatever
+ * the player added. */
+static void Con_Self(int charaId, char* out, int cap)
+{
+    const int           prof = Prof_Of(charaId);
+    const PcConProfile* p    = &g_PcConProf[prof];
+    const char*         mood = PcCon_MoodText(p->mood);
+
+    if (!PcCon_PersonaLoad(prof, out, cap))
+        SDL_strlcpy(out, PcCon_DefaultPersona(prof), (size_t)cap);
+    if (mood)
+    {
+        SDL_strlcat(out, " ", (size_t)cap);
+        SDL_strlcat(out, mood, (size_t)cap);
+    }
+    if (p->extra[0])
+    {
+        SDL_strlcat(out, " More about you: ", (size_t)cap);
+        SDL_strlcat(out, p->extra, (size_t)cap);
+    }
+}
+
 static const char* Mon_Look(int charaId)
 {
     switch (charaId)
@@ -461,7 +517,11 @@ static void Fld_System(char* out, int cap)
         SDL_strlcat(group, s_letGo, sizeof(group));
     }
     snprintf(rules, sizeof(rules), s_fieldRules, g_PcCon.playerName);
-    snprintf(out, cap, "%s%s %s", Mon_Self(Fld_LeaderChara()), group, rules);
+    {
+        char self[2048];
+        Con_Self(Fld_LeaderChara(), self, (int)sizeof(self));
+        snprintf(out, cap, "%s%s %s", self, group, rules);
+    }
 }
 
 /* Whose memory the line being written comes from. */
@@ -479,7 +539,7 @@ static int Con_MemOf(void)
  * half of those lines were the other monster's). */
 static char* Con_BuildArgueMsgs(int spk, int other, const char* instruction)
 {
-    char       sys[2048];
+    char       sys[4096];
     char       label[48];
     char*      user;
     char*      out;
@@ -493,7 +553,7 @@ static char* Con_BuildArgueMsgs(int spk, int other, const char* instruction)
     if (!user)
         return NULL;
     Con_OtherLabel(spk, other, label, sizeof(label));
-    snprintf(sys, sizeof(sys), "%s", Mon_Self(g_SysWork.npcs[spk].model.charaId));
+    Con_Self(g_SysWork.npcs[spk].model.charaId, sys, (int)sizeof(sys));
     snprintf(sys + strlen(sys), sizeof(sys) - strlen(sys), s_argueRules, g_PcCon.playerName, label,
              g_PcCon.playerName, label);
 
@@ -526,7 +586,7 @@ static char* Con_BuildArgueMsgs(int spk, int other, const char* instruction)
 
 static char* Con_BuildMsgs(void)
 {
-    char       sys[sizeof(s_persona) + sizeof(s_fieldRules) + sizeof(s_vision) + 1536];
+    char       sys[sizeof(s_persona) + sizeof(s_fieldRules) + sizeof(s_vision) + 1536 + 2048];
     size_t     cap = sizeof(sys) * 2 + 256;
     char*      out;
     const Mem* m = &s_mem[Con_MemOf()];
@@ -543,7 +603,8 @@ static char* Con_BuildMsgs(void)
     }
     else
     {
-        snprintf(sys, sizeof(sys), s_persona, g_PcCon.playerName);
+        Con_Self(Chara_GreyChild, sys, (int)sizeof(sys));
+        snprintf(sys + strlen(sys), sizeof(sys) - strlen(sys), s_persona, g_PcCon.playerName);
         if (s_angry)
             SDL_strlcat(sys, s_attacking, sizeof(sys));
         else if (s_gangSpared)
@@ -662,12 +723,20 @@ static float Con_Gain(int npc)
 {
     float d;
     if (npc < 0 || npc >= NPC_N || g_SysWork.npcs[npc].model.charaId == Chara_None)
-        return 0.6f;
+        return 0.6f * g_PcCon.voiceVolume;
     d = Con_DistToPlayer(npc);
     if (d <= 3.0f)
-        return 1.0f;
+        return g_PcCon.voiceVolume;
     d = 1.0f - (d - 3.0f) / (g_PcCon.hearRange - 3.0f);
-    return d < 0.0f ? 0.0f : d;
+    return d < 0.0f ? 0.0f : d * g_PcCon.voiceVolume;
+}
+
+/* The profile of whoever the line being written or said is for. */
+static const PcConProfile* Con_SpkProf(int slot)
+{
+    if (s_mode != MODE_FIELD || slot < 0 || slot >= NPC_N)
+        return &g_PcConProf[PCCON_PROF_GANG];
+    return &g_PcConProf[Prof_Of(g_SysWork.npcs[slot].model.charaId)];
 }
 
 /* PsyCross: the world pass's ortho rect in prim coordinates, which maps onto
@@ -791,14 +860,15 @@ static void Fld_PickLeader(void)
 /* Spared ones listen again: they let him go, they did not stop hearing him. */
 static int Fld_Candidate(int i)
 {
-    return Fld_Alive(i) && !s_fld[i].part && !s_fld[i].angered && Con_DistToPlayer(i) <= g_PcCon.monsterHearRange;
+    return Fld_Alive(i) && Prof_Talks(g_SysWork.npcs[i].model.charaId) && !s_fld[i].part && !s_fld[i].angered &&
+           Con_DistToPlayer(i) <= g_PcCon.monsterHearRange;
 }
 
 /* Attacking him, or did once and is still around: answers, never stops. */
 static int Fld_Grudge(int i)
 {
-    return Fld_Alive(i) && s_fld[i].angered && s_fld[i].chara == g_SysWork.npcs[i].model.charaId &&
-           Con_DistToPlayer(i) <= g_PcCon.monsterHearRange;
+    return Fld_Alive(i) && Prof_Talks(g_SysWork.npcs[i].model.charaId) && s_fld[i].angered &&
+           s_fld[i].chara == g_SysWork.npcs[i].model.charaId && Con_DistToPlayer(i) <= g_PcCon.monsterHearRange;
 }
 
 static int Fld_Candidates(void)
@@ -907,6 +977,8 @@ static const char* Fld_Voice(int slot)
     int v;
     if (slot < 0 || slot >= SLOT_N)
         return NULL;
+    if (Con_SpkProf(slot)->voice[0])
+        return Con_SpkProf(slot)->voice;
     if (s_fld[slot].voice == 0)
         s_fld[slot].voice = (s8)(Voices_Pick() + 1);
     v = s_fld[slot].voice - 1;
@@ -1058,11 +1130,16 @@ static void Con_FieldDone(void)
 
 static void Con_Submit(char* msgs, char* judge, int forced, int judgeKind, const char* incite)
 {
-    PcConTurnOpts o;
+    PcConTurnOpts       o;
+    const int           spk = s_turnSpk >= 0 ? s_turnSpk : s_leader;
+    const PcConProfile* p   = Con_SpkProf(spk);
 
     memset(&o, 0, sizeof(o));
     o.shot        = g_PcCon.vision ? PcConHud_Capture(&o.shotW, &o.shotH) : NULL;
-    o.voiceId     = s_mode == MODE_FIELD ? Fld_Voice(s_turnSpk >= 0 ? s_turnSpk : s_leader) : NULL;
+    o.voiceId     = s_mode == MODE_FIELD ? Fld_Voice(spk) : p->voice;
+    o.tune.stability = p->stability;
+    o.tune.style     = p->style;
+    o.tune.speed     = p->speed;
     o.judgeKind   = judgeKind;
     o.incite      = incite;
     /* Rolled here: the worker thread's rand() is never seeded. */
@@ -1427,11 +1504,11 @@ static void Con_Speak(const char* text, const short* pcm, unsigned int samples, 
     s_speaker = s_mode == MODE_FIELD ? (s_turnSpk >= 0 ? s_turnSpk : s_leader) : Con_Nearest(&d);
     PcConChat_Add(PCCHAT_NPC, s_mode == MODE_FIELD ? Con_SlotName(s_speaker) : NPC_NAME, text);
     Pc_VoiceClip_Stop(s_clip);
-    s_clip     = pcm ? Pc_VoiceClip_PlayEx(pcm, samples, rate, 0, Con_Gain(s_speaker), g_PcCon.voicePitch) : 0;
+    s_clip     = pcm ? Pc_VoiceClip_PlayEx(pcm, samples, rate, 0, Con_Gain(s_speaker), Con_SpkProf(s_speaker)->pitch) : 0;
     s_textHold = s_clip ? 0.3f : 1.2f + 0.055f * (float)strlen(text);
     SDL_strlcpy(s_line, text, sizeof(s_line));
     s_lineT   = 0.0f;
-    s_lineDur = s_clip ? (float)samples / ((float)rate * g_PcCon.voicePitch) : s_textHold;
+    s_lineDur = s_clip ? (float)samples / ((float)rate * Con_SpkProf(s_speaker)->pitch) : s_textHold;
     s_bubbleLinger = 1.5f;
     s_pendingDecision = decision;
     s_talking = 1;
@@ -1528,6 +1605,19 @@ static void Con_PlayerSaid(const char* text, int typed)
 
 static void Con_HandleResult(PcConResult* r)
 {
+    /* The menu's own jobs: nothing to do with the conversation's generation. */
+    if (r->kind == PCCON_JOB_VOICES)
+    {
+        if (r->ok && r->text)
+            PcConMenu_Voices(r->text);
+        PcConNet_Free(r);
+        return;
+    }
+    if (r->kind == PCCON_JOB_SAY)
+    {
+        PcConMenu_Said(r);
+        return;
+    }
     /* Counted down even when stale: a timed-out turn bumps s_gen, and a
      * transcript dropped without this would freeze the listen clock. */
     if (r->kind == PCCON_JOB_STT && s_sttPending > 0)
@@ -2019,16 +2109,27 @@ static void Con_Tick(float dt, int live)
     if (s_talking && s_state != CS_HOSTILE)
         s_totalT += dt;
 
+    /* Switched off in the menu mid-conversation: it just ends there. */
     if (s_mode == MODE_ALLEY)
     {
         if (!Con_InScene())
             return;
+        if (!g_PcConProf[PCCON_PROF_GANG].talk)
+        {
+            if (s_state != CS_OFF)
+                Con_Reset();
+            return;
+        }
         Con_TickAlley(dt);
     }
     else
     {
         if (!g_PcCon.monsters)
+        {
+            if (s_state != CS_OFF)
+                Con_Reset();
             return;
+        }
         Con_TickField(dt);
     }
     if (s_state == CS_OFF)
@@ -2172,7 +2273,7 @@ static void Con_Input(void)
     extern int g_PcConsoleInputActive;
     extern int g_PcQuickOptionsActive;
     const unsigned char* ks = SDL_GetKeyboardState(NULL);
-    const int scene = s_iconUp && g_SysWork.sysState == SysState_Gameplay;
+    const int scene = s_iconUp && g_SysWork.sysState == SysState_Gameplay && !Pc_ConsciousMenu_IsOpen();
     int curMic, curChat;
 
     if (!ks)
@@ -2235,6 +2336,13 @@ static unsigned int Con_KeyButtons(const PsyXKeyboardMapping* m, int sc)
 unsigned int Pc_Conscious_PadMask(void)
 {
     const unsigned char* ks;
+    /* The menu reads the keyboard and pad itself; the swallow then outlasts
+     * the Enter or Esc that closed it, so it is not a Start press too. */
+    if (Pc_ConsciousMenu_IsOpen())
+    {
+        s_swallow = 1;
+        return ~0u;
+    }
     if (!g_PcCon.enabled || (!s_iconUp && !PcConChat_IsOpen() && !s_swallow))
         return 0;
     ks = SDL_GetKeyboardState(NULL);
@@ -2356,7 +2464,11 @@ void Pc_Conscious_Frame(void)
         s_lastMs = now;
     }
     if (!g_PcCon.enabled)
+    {
+        if (s_state != CS_OFF)
+            Con_Reset();
         return;
+    }
 
     dt = (float)(now - s_lastMs) / 1000.0f;
     s_lastMs = now;
@@ -2467,6 +2579,13 @@ void Pc_Conscious_Frame(void)
             snprintf(hud.status, sizeof(hud.status), "The grey children mutter among themselves...");
         }
     }
-    if (inGame)
+    /* The menu is drawn by the game under this overlay: nothing on top of it. */
+    if (inGame && !Pc_ConsciousMenu_IsOpen())
+    {
+        if (!g_PcCon.bubbles)
+            hud.bubble = 0;
+        if (!g_PcCon.prompts)
+            hud.status[0] = '\0';
         PcConHud_Draw(&hud);
+    }
 }

@@ -657,7 +657,8 @@ static void Pc_TpsCamera_Apply(void)
          * accumulator (below) so the view doesn't jump when the console closes. */
         extern int g_PcConsoleInputActive;
         extern int g_PcQuickOptionsActive;
-        int frozen = g_PcConsoleInputActive || g_PcQuickOptionsActive;
+        extern int Pc_ConsciousMenu_IsOpen(void);
+        int frozen = g_PcConsoleInputActive || g_PcQuickOptionsActive || Pc_ConsciousMenu_IsOpen();
 
         SDL_GetRelativeMouseState(&mdx, &mdy);
         if (frozen) { mdx = 0; mdy = 0; }
@@ -2383,7 +2384,11 @@ void MainLoop(void) // 0x80032EE0
             /* Talking grey children: typing in the chat drops the pad, and the
              * mic key (V = Circle) must not also press its button. */
             extern unsigned int Pc_Conscious_PadMask(void);
-            unsigned int m = Pc_Conscious_PadMask();
+            extern void         Pc_ConsciousMenu_Update(void);
+            unsigned int m;
+            /* Its menu reads the pad first: the mask below swallows it while open. */
+            Pc_ConsciousMenu_Update();
+            m = Pc_Conscious_PadMask();
             if (m == ~0u) {
                 g_Controller0->heldBtnFlags      = 0;
                 g_Controller0->clickedBtnFlags   = 0;
@@ -2522,6 +2527,11 @@ void MainLoop(void) // 0x80032EE0
         g_GameStateUpdateFuncs[g_GameWork.gameState]();
 #ifdef SH_PC_PORT
         s_sfUpdEnd = (unsigned int)SDL_GetTicks();
+        {
+            /* Into this frame's OT2, after the world and the game's own text. */
+            extern void Pc_ConsciousMenu_Draw(void);
+            Pc_ConsciousMenu_Draw();
+        }
 #endif
 #ifdef SH_PC_PORT
         if (g_GameWork.gameState == GameState_InGame) {
@@ -3123,6 +3133,7 @@ void MainLoop(void) // 0x80032EE0
             extern long long GsGetCumulativeQ12(void);
             extern int g_PcConsoleInputActive;
             extern int g_PcQuickOptionsActive;
+            extern int Pc_ConsciousMenu_IsOpen(void);
 
             #define PC_DT_STEP_30FPS     136 /* (526*1063)>>12: PSX 30fps step in Q12 seconds */
             #define PC_DT_STEP_15FPS     273 /* (1052*1063)>>12: PSX 15fps floor step */
@@ -3137,7 +3148,7 @@ void MainLoop(void) // 0x80032EE0
             s32       dtCapped;
             int       pcInCutscene = (g_SysWork.sysFlags & SysFlag_CutsceneActive) ||
                                      g_SysWork.cutsceneBorderState != CutsceneBorderState_None;
-            int       pcConsoleFrozen = (g_PcConsoleInputActive || g_PcQuickOptionsActive) &&
+            int       pcConsoleFrozen = (g_PcConsoleInputActive || g_PcQuickOptionsActive || Pc_ConsciousMenu_IsOpen()) &&
                                         !(g_SysWork.bgmStatusFlags & BgmStatusFlag_Pause) &&
                                         !g_SysWork.isMgsStringSet;
 
@@ -3218,7 +3229,8 @@ void MainLoop(void) // 0x80032EE0
         {
             extern int g_PcConsoleInputActive;
             extern int g_PcQuickOptionsActive;
-            if ((g_PcConsoleInputActive || g_PcQuickOptionsActive) &&
+            extern int Pc_ConsciousMenu_IsOpen(void);
+            if ((g_PcConsoleInputActive || g_PcQuickOptionsActive || Pc_ConsciousMenu_IsOpen()) &&
                 !(g_SysWork.bgmStatusFlags & BgmStatusFlag_Pause) &&
                 !g_SysWork.isMgsStringSet) {
                 g_DeltaTime    = 0;

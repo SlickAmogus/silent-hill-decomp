@@ -45,11 +45,52 @@ typedef struct
     float vadThreshold;        /* RMS 0..1 that counts as speech */
     float vadHangSec;          /* silence that ends an utterance */
     char  playerName[32];
+    int   chatLog;             /* the chat feed on screen; off = speech bubbles only */
+    int   bubbles;             /* speech bubbles over their heads */
+    int   prompts;             /* the centred "wants an answer..." line */
+    float voiceVolume;         /* 0..1.5 on top of the distance falloff */
+    char  keyMenu[32];         /* opens the conscious menu in game */
 } PcConCfg;
 
 extern PcConCfg g_PcCon;
 
-void PcCon_CfgLoad(void);
+/* One per kind that talks: who it is, how it sounds, what mood it is in. */
+enum
+{
+    PCCON_PROF_GANG = 0,
+    PCCON_PROF_GROANER,
+    PCCON_PROF_ROMPER,
+    PCCON_PROF_SCREAMER,
+    PCCON_PROF_FLUTTER,
+    PCCON_PROF_N
+};
+
+typedef struct
+{
+    int   talk;                /* this kind stops and talks at all */
+    char  voice[64];           /* ElevenLabs voice id; "" = voice_id (gang) or one from monster_voices */
+    int   mood;                /* index into the mood table, 0 = as written */
+    float pitch;               /* playback rate of its voice */
+    float stability, style, speed;
+    char  extra[240];          /* added to who it is */
+} PcConProfile;
+
+extern PcConProfile g_PcConProf[PCCON_PROF_N];
+
+void        PcCon_CfgLoad(void);
+/* Writes back what the menu changes. Every other line of conscious.cfg is
+ * kept as it is, so the API key lines stay whatever the user left there. */
+void        PcCon_CfgSave(void);
+const char* PcCon_ProfName(int prof);     /* "Grey Children" */
+#define PCCON_MOOD_N 10
+const char* PcCon_MoodName(int mood);
+const char* PcCon_MoodText(int mood);     /* NULL for "as written" */
+/* conscious_<kind>_personality.txt beside the exe. */
+void        PcCon_PersonaPath(int prof, char* out, int cap);
+/* Fills out with the custom personality and returns 1, or 0 when there is none. */
+int         PcCon_PersonaLoad(int prof, char* out, int cap);
+/* The personality as written, for seeding that file (pc_conscious.c). */
+const char* PcCon_DefaultPersona(int prof);
 
 /* ---- HTTP (pc_conscious_http.c) ----------------------------------- */
 
@@ -84,8 +125,15 @@ typedef struct
     int          rate;
 } PcConResult;
 
-#define PCCON_JOB_STT  1
-#define PCCON_JOB_TURN 2
+#define PCCON_JOB_STT    1
+#define PCCON_JOB_TURN   2
+#define PCCON_JOB_VOICES 3   /* text: one "id<TAB>name" line per voice on the account */
+#define PCCON_JOB_SAY    4   /* a line read out, no model: a voice preview */
+
+typedef struct
+{
+    float stability, style, speed;
+} PcConVoiceTune;
 
 void PcConNet_Start(void);
 /* Both take ownership of the malloc'd buffer they are given. */
@@ -106,12 +154,15 @@ typedef struct
      * they are told to see through it. */
     const char*    incite;
     int            inciteFalls;
+    PcConVoiceTune tune;        /* all zero = the cfg's voice_* settings */
 } PcConTurnOpts;
 
 /* replyMsgs: a JSON array of chat messages. judgeText: transcript for the
  * judge. forced >= 0 skips the judge and uses that decision. opts may be NULL. */
 void PcConNet_SubmitTurn(unsigned int gen, char* replyMsgs, char* judgeText, int forced, const PcConTurnOpts* opts);
 /* Returns 1 and fills *out when a result is waiting; free with PcConNet_Free. */
+void PcConNet_SubmitVoices(unsigned int gen);
+void PcConNet_SubmitSay(unsigned int gen, const char* text, const char* voiceId, const PcConVoiceTune* tune);
 int  PcConNet_Poll(PcConResult* out);
 void PcConNet_Free(PcConResult* r);
 int  PcConNet_Busy(void);
@@ -154,6 +205,13 @@ float       PcConChat_LineAlpha(int i);
 const char* PcConChat_ComposeText(void);
 int         PcConChat_DisplayActive(void);
 void        PcConChat_Clear(void);
+/* SDL scancode -> the character it types, or 0. */
+char        PcConChat_Glyph(int sc, int shift);
+
+/* ---- menu (pc_conscious_menu.c) ----------------------------------- */
+
+void PcConMenu_Voices(const char* list);   /* a PCCON_JOB_VOICES result */
+void PcConMenu_Said(PcConResult* r);       /* a PCCON_JOB_SAY result: plays it, frees it */
 
 /* ---- HUD (pc_conscious_hud.c) ------------------------------------- */
 

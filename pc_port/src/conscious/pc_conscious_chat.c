@@ -110,7 +110,7 @@ int PcConChat_IsOpen(void)
 
 /* SDL scancode -> the glyph it types, lower and shifted. Spelled out because
  * SDL's scancode order is US-keyboard positional, not ASCII. */
-static char Chat_Glyph(int sc, int shift)
+char PcConChat_Glyph(int sc, int shift)
 {
     if (sc >= SDL_SCANCODE_A && sc <= SDL_SCANCODE_Z)
     {
@@ -181,7 +181,7 @@ int PcConChat_FeedKeys(const unsigned char* ks, char* submitted, int cap)
         {
             if (ks[sc] && !s_prevKeys[sc])
             {
-                char c = Chat_Glyph(sc, shift);
+                char c = PcConChat_Glyph(sc, shift);
                 if (c && s_inputLen < CHAT_INPUT_MAX - 1)
                 {
                     s_input[s_inputLen++] = c;
@@ -221,14 +221,19 @@ int PcConChat_DisplayActive(void)
     int i;
     if (s_open)
         return 1;
+    if (!g_PcCon.chatLog)
+        return 0;
     for (i = Chat_FirstVisible(); i < s_logCount; i++)
         if (Chat_Alpha(&s_log[i]) > 0.0f)
             return 1;
     return 0;
 }
 
+/* With the log off the lines are still kept, so turning it back on shows them. */
 int PcConChat_LineCount(void)
 {
+    if (!g_PcCon.chatLog)
+        return 0;
     return s_logCount - Chat_FirstVisible();
 }
 

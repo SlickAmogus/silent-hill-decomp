@@ -45,6 +45,7 @@ typedef struct
     int            judgeKind;
     char*          incite;
     int            inciteFalls;
+    PcConVoiceTune tune;
 } NetJob;
 
 static SDL_Thread* s_thread;
@@ -387,15 +388,22 @@ static int Net_JudgeSpared(const char* judgeText)
     return d;
 }
 
-static short* Net_Tts(const char* text, const char* voiceId, unsigned int* outSamples)
+static short* Net_Tts(const char* text, const char* voiceId, const PcConVoiceTune* tune, unsigned int* outSamples)
 {
     char   url[256], hdr[320];
     char   body[2048];
     char*  resp = NULL;
     unsigned long respLen = 0;
     int    status;
+    float  stability = g_PcCon.voiceStability, style = g_PcCon.voiceStyle, speed = 1.0f;
 
     *outSamples = 0;
+    if (tune && tune->speed > 0.0f)
+    {
+        stability = tune->stability;
+        style     = tune->style;
+        speed     = tune->speed;
+    }
     if (!g_PcCon.tts || !g_PcCon.elevenKey[0] || !text[0])
         return NULL;
     snprintf(url, sizeof(url), "https://api.elevenlabs.io/v1/text-to-speech/%s?output_format=pcm_%d",
@@ -407,8 +415,8 @@ static short* Net_Tts(const char* text, const char* voiceId, unsigned int* outSa
     PcCon_JsonEscapeCat(body, (int)sizeof(body) - 256, text);
     snprintf(body + strlen(body), sizeof(body) - strlen(body),
              "\",\"model_id\":\"%s\",\"voice_settings\":{\"stability\":%.2f,\"similarity_boost\":%.2f,"
-             "\"style\":%.2f,\"use_speaker_boost\":true}}",
-             g_PcCon.ttsModel, g_PcCon.voiceStability, g_PcCon.voiceSimilarity, g_PcCon.voiceStyle);
+             "\"style\":%.2f,\"speed\":%.2f,\"use_speaker_boost\":true}}",
+             g_PcCon.ttsModel, stability, g_PcCon.voiceSimilarity, style, speed);
 
     status = PcCon_Http("POST", url, hdr, body, (unsigned long)strlen(body), &resp, &respLen);
     if (status != 200 || respLen < 2)
@@ -654,6 +662,50 @@ static char* Msgs_WithNote(const char* msgs, const char* note)
 /* Thread                                                              */
 /* ------------------------------------------------------------------ */
 
+/* The account's voices, for the menu to pick from: "id<TAB>name" lines. */
+static char* Net_VoiceList(void)
+{
+    char          hdr[256];
+    char*         resp = NULL;
+    char*         out;
+    const char*   p;
+    unsigned long respLen = 0;
+    size_t        cap, n = 0;
+    int           status;
+
+    if (!g_PcCon.elevenKey[0])
+        return NULL;
+    snprintf(hdr, sizeof(hdr), "Accept: application/json\r\nxi-api-key: %s\r\n", g_PcCon.elevenKey);
+    status = PcCon_Http("GET", "https://api.elevenlabs.io/v1/voices", hdr, NULL, 0, &resp, &respLen);
+    if (status != 200 || !resp)
+    {
+        SH_DBG("[CONSCIOUS] voice list failed: HTTP %d %.200s", status, resp ? resp : "");
+        free(resp);
+        return NULL;
+    }
+    cap = respLen / 4 + 64;
+    out = (char*)malloc(cap);
+    if (!out)
+    {
+        free(resp);
+        return NULL;
+    }
+    out[0] = '\0';
+    /* Each voice object opens with its id, and its name is the next "name". */
+    for (p = strstr(resp, "\"voice_id\""); p; p = strstr(p + 10, "\"voice_id\""))
+    {
+        char* id   = Json_FindString(resp, p, "voice_id");
+        char* name = Json_FindString(resp, p, "name");
+        if (id && name && n + strlen(id) + strlen(name) + 3 < cap)
+            n += (size_t)snprintf(out + n, cap - n, "%s\t%s\n", id, name);
+        free(id);
+        free(name);
+    }
+    free(resp);
+    SH_DBG("[CONSCIOUS] voice list: %u bytes", (unsigned)n);
+    return out;
+}
+
 static void Net_Run(NetJob* j, PcConResult* r)
 {
     memset(r, 0, sizeof(*r));
@@ -665,6 +717,18 @@ static void Net_Run(NetJob* j, PcConResult* r)
     {
         r->text = Net_Stt(j->wav, j->wavLen);
         r->ok   = (r->text != NULL);
+        return;
+    }
+    if (j->kind == PCCON_JOB_VOICES)
+    {
+        r->text = Net_VoiceList();
+        r->ok   = (r->text != NULL);
+        return;
+    }
+    if (j->kind == PCCON_JOB_SAY)
+    {
+        r->pcm = Net_Tts(j->replyMsgs, j->voiceId, &j->tune, &r->samples);
+        r->ok  = (r->pcm != NULL);
         return;
     }
 
@@ -741,7 +805,7 @@ static void Net_Run(NetJob* j, PcConResult* r)
             free(t);
         }
     }
-    r->pcm = Net_Tts(r->text, j->voiceId, &r->samples);
+    r->pcm = Net_Tts(r->text, j->voiceId, &j->tune, &r->samples);
 }
 
 static int SDLCALL Net_Thread(void* unused)
@@ -840,9 +904,33 @@ void PcConNet_SubmitTurn(unsigned int gen, char* replyMsgs, char* judgeText, int
         j.judgeKind   = opts->judgeKind;
         j.incite      = opts->incite ? SDL_strdup(opts->incite) : NULL;
         j.inciteFalls = opts->inciteFalls;
+        j.tune        = opts->tune;
         if (opts->voiceId)
             SDL_strlcpy(j.voiceId, opts->voiceId, sizeof(j.voiceId));
     }
+    Net_Push(&j);
+}
+
+void PcConNet_SubmitVoices(unsigned int gen)
+{
+    NetJob j;
+    memset(&j, 0, sizeof(j));
+    j.kind = PCCON_JOB_VOICES;
+    j.gen  = gen;
+    Net_Push(&j);
+}
+
+void PcConNet_SubmitSay(unsigned int gen, const char* text, const char* voiceId, const PcConVoiceTune* tune)
+{
+    NetJob j;
+    memset(&j, 0, sizeof(j));
+    j.kind      = PCCON_JOB_SAY;
+    j.gen       = gen;
+    j.replyMsgs = SDL_strdup(text);
+    if (voiceId)
+        SDL_strlcpy(j.voiceId, voiceId, sizeof(j.voiceId));
+    if (tune)
+        j.tune = *tune;
     Net_Push(&j);
 }
 

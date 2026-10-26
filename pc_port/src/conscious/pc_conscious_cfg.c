@@ -20,7 +20,155 @@
 
 #define CFG_PATH "conscious.cfg"
 
-PcConCfg g_PcCon;
+PcConCfg     g_PcCon;
+PcConProfile g_PcConProf[PCCON_PROF_N];
+
+static const char* const s_profSlug[PCCON_PROF_N] = { "grey_children", "groaner", "romper", "air_screamer",
+                                                      "night_flutter" };
+static const char* const s_profName[PCCON_PROF_N] = { "Grey Children", "Groaner", "Romper", "Air Screamer",
+                                                      "Night Flutter" };
+
+static const struct { const char* name; const char* text; } s_moods[PCCON_MOOD_N] = {
+    { "As written", NULL },
+    { "Calm",       "Right now you are calm, slow and quietly menacing; you never raise your voice." },
+    { "Playful",    "Right now you are playful and teasing, enjoying the game of it far too much." },
+    { "Furious",    "Right now you are furious, barely holding yourself back, snapping at every word." },
+    { "Scared",     "Right now you are secretly scared of him and trying hard to hide it behind bluster." },
+    { "Sad",        "Right now you are sad and lonely, a little desperate for someone to talk to." },
+    { "Sarcastic",  "Right now you are dry and sarcastic, unimpressed by everything he says." },
+    { "Sinister",   "Right now you are cold and sinister, speaking softly, enjoying his fear." },
+    { "Friendly",   "Right now you are oddly friendly, almost as if you like him -- but you are still a monster." },
+    { "Unhinged",   "Right now you are unhinged and erratic: you laugh at odd moments and change topic suddenly." },
+};
+
+const char* PcCon_ProfName(int prof)
+{
+    return prof >= 0 && prof < PCCON_PROF_N ? s_profName[prof] : "";
+}
+
+const char* PcCon_MoodName(int mood)
+{
+    return mood >= 0 && mood < PCCON_MOOD_N ? s_moods[mood].name : s_moods[0].name;
+}
+
+const char* PcCon_MoodText(int mood)
+{
+    return mood > 0 && mood < PCCON_MOOD_N ? s_moods[mood].text : NULL;
+}
+
+void PcCon_PersonaPath(int prof, char* out, int cap)
+{
+    snprintf(out, (size_t)cap, "conscious_%s_personality.txt", s_profSlug[prof]);
+}
+
+int PcCon_PersonaLoad(int prof, char* out, int cap)
+{
+    char   path[96];
+    FILE*  f;
+    size_t n;
+
+    out[0] = '\0';
+    PcCon_PersonaPath(prof, path, (int)sizeof(path));
+    f = fopen(path, "rb");
+    if (!f)
+        return 0;
+    n = fread(out, 1, (size_t)cap - 1, f);
+    fclose(f);
+    out[n] = '\0';
+    while (n > 0 && (out[n - 1] == '\n' || out[n - 1] == '\r' || out[n - 1] == ' '))
+        out[--n] = '\0';
+    return n > 0;
+}
+
+/* What the menu edits. The same table reads them and writes them back. */
+enum { CI_INT, CI_FLT, CI_STR, CI_MOOD };
+typedef struct
+{
+    char  name[48];
+    int   type;
+    void* p;
+    int   cap;
+} CfgItem;
+
+#define CFG_ITEMS_MAX 64
+
+static int Cfg_Items(CfgItem* it)
+{
+    int n = 0, i;
+#define ADD(nm, ty, ptr, c) do { SDL_strlcpy(it[n].name, nm, sizeof(it[n].name)); it[n].type = ty; \
+                                 it[n].p = (void*)(ptr); it[n].cap = c; n++; } while (0)
+    ADD("enabled", CI_INT, &g_PcCon.enabled, 0);
+    ADD("monsters", CI_INT, &g_PcCon.monsters, 0);
+    ADD("tts", CI_INT, &g_PcCon.tts, 0);
+    ADD("stt", CI_INT, &g_PcCon.stt, 0);
+    ADD("mic_start_on", CI_INT, &g_PcCon.micStartOn, 0);
+    ADD("vision", CI_INT, &g_PcCon.vision, 0);
+    ADD("chat_log", CI_INT, &g_PcCon.chatLog, 0);
+    ADD("bubbles", CI_INT, &g_PcCon.bubbles, 0);
+    ADD("prompts", CI_INT, &g_PcCon.prompts, 0);
+    ADD("voice_volume", CI_FLT, &g_PcCon.voiceVolume, 0);
+    ADD("monster_incite_chance", CI_FLT, &g_PcCon.monsterInciteChance, 0);
+    ADD("max_turns", CI_INT, &g_PcCon.maxTurns, 0);
+    ADD("monster_max_turns", CI_INT, &g_PcCon.monsterMaxTurns, 0);
+    ADD("listen_seconds", CI_FLT, &g_PcCon.listenSec, 0);
+    ADD("monster_hear_range", CI_FLT, &g_PcCon.monsterHearRange, 0);
+    ADD("llm_temperature", CI_FLT, &g_PcCon.llmTemperature, 0);
+    ADD("player_name", CI_STR, g_PcCon.playerName, (int)sizeof(g_PcCon.playerName));
+    ADD("key_menu", CI_STR, g_PcCon.keyMenu, (int)sizeof(g_PcCon.keyMenu));
+    for (i = 0; i < PCCON_PROF_N; i++)
+    {
+        PcConProfile* p = &g_PcConProf[i];
+        char          k[48];
+#define PADD(suffix, ty, ptr, c) do { snprintf(k, sizeof(k), "%s_%s", s_profSlug[i], suffix); ADD(k, ty, ptr, c); } while (0)
+        PADD("talk", CI_INT, &p->talk, 0);
+        PADD("voice", CI_STR, p->voice, (int)sizeof(p->voice));
+        PADD("mood", CI_MOOD, &p->mood, 0);
+        PADD("pitch", CI_FLT, &p->pitch, 0);
+        PADD("stability", CI_FLT, &p->stability, 0);
+        PADD("style", CI_FLT, &p->style, 0);
+        PADD("speed", CI_FLT, &p->speed, 0);
+        PADD("extra", CI_STR, p->extra, (int)sizeof(p->extra));
+#undef PADD
+    }
+#undef ADD
+    return n;
+}
+
+static int Cfg_ItemSet(const char* k, const char* v)
+{
+    CfgItem it[CFG_ITEMS_MAX];
+    int     n = Cfg_Items(it), i, m;
+
+    for (i = 0; i < n; i++)
+    {
+        if (strcmp(it[i].name, k))
+            continue;
+        switch (it[i].type)
+        {
+        case CI_INT: *(int*)it[i].p = atoi(v); break;
+        case CI_FLT: *(float*)it[i].p = (float)atof(v); break;
+        case CI_STR: SDL_strlcpy((char*)it[i].p, v, (size_t)it[i].cap); break;
+        default:
+            for (m = 0; m < PCCON_MOOD_N; m++)
+                if (!SDL_strcasecmp(v, s_moods[m].name))
+                    *(int*)it[i].p = m;
+            break;
+        }
+        return 1;
+    }
+    return 0;
+}
+
+static void Cfg_ItemFormat(const CfgItem* it, char* out, int cap)
+{
+    switch (it->type)
+    {
+    case CI_INT: snprintf(out, (size_t)cap, "%s = %d\n", it->name, *(const int*)it->p); break;
+    case CI_FLT: snprintf(out, (size_t)cap, "%s = %.2f\n", it->name, *(const float*)it->p); break;
+    case CI_STR: snprintf(out, (size_t)cap, "%s = %s\n", it->name, (const char*)it->p); break;
+    default:     snprintf(out, (size_t)cap, "%s = %s\n", it->name, s_moods[*(const int*)it->p].name); break;
+    }
+}
 
 static const char s_template[] =
     "# Silent Hill: conscious grey children. Read once at startup.\n"
@@ -67,6 +215,14 @@ static const char s_template[] =
     "vad_threshold = 0.02\n"
     "vad_hang_seconds = 1.1\n"
     "player_name = Harry\n"
+    "\n"
+    "# M in game opens a menu for everything below and per-monster voice, mood and personality.\n"
+    "key_menu = M\n"
+    "# 0 = speech bubbles only, no chat feed.\n"
+    "chat_log = 1\n"
+    "bubbles = 1\n"
+    "prompts = 1\n"
+    "voice_volume = 1.0\n"
     "\n"
     "# Groaners, Rompers and Air Screamers stop and talk when Harry speaks near them.\n"
     "monsters = 1\n"
@@ -124,6 +280,26 @@ static void Cfg_Defaults(PcConCfg* c)
     c->vision      = 1;
     c->visionWidth = 640;
     c->visionSave  = 1;
+    c->chatLog     = 1;
+    c->bubbles     = 1;
+    c->prompts     = 1;
+    c->voiceVolume = 1.0f;
+    SDL_strlcpy(c->keyMenu, "M", sizeof(c->keyMenu));
+}
+
+static void Cfg_ProfDefaults(void)
+{
+    int i;
+    memset(g_PcConProf, 0, sizeof(g_PcConProf));
+    for (i = 0; i < PCCON_PROF_N; i++)
+    {
+        /* Negative: not in the file, take voice_pitch / _stability / _style. */
+        g_PcConProf[i].talk      = 1;
+        g_PcConProf[i].pitch     = -1.0f;
+        g_PcConProf[i].stability = -1.0f;
+        g_PcConProf[i].style     = -1.0f;
+        g_PcConProf[i].speed     = 1.0f;
+    }
 }
 
 static char* Cfg_Trim(char* s)
@@ -140,25 +316,23 @@ static void Cfg_Set(PcConCfg* c, const char* k, const char* v)
 #define STR(name, field) if (!strcmp(k, name)) { SDL_strlcpy(c->field, v, sizeof(c->field)); return; }
 #define INT(name, field) if (!strcmp(k, name)) { c->field = atoi(v); return; }
 #define FLT(name, field) if (!strcmp(k, name)) { c->field = (float)atof(v); return; }
-    INT("enabled", enabled)
+    if (Cfg_ItemSet(k, v))
+        return;
     STR("llm_url", llmUrl) STR("llm_model", llmModel) STR("llm_key", llmKey)
-    FLT("llm_temperature", llmTemperature) INT("llm_max_tokens", llmMaxTokens)
+    INT("llm_max_tokens", llmMaxTokens)
     STR("judge_url", judgeUrl) STR("judge_model", judgeModel) STR("judge_key", judgeKey)
-    INT("tts", tts) INT("stt", stt)
     STR("elevenlabs_key", elevenKey) STR("voice_id", voiceId) STR("tts_model", ttsModel)
     FLT("voice_pitch", voicePitch) FLT("voice_stability", voiceStability)
     FLT("voice_similarity", voiceSimilarity) FLT("voice_style", voiceStyle)
     STR("morpheus_dir", morpheusDir)
-    FLT("listen_seconds", listenSec) FLT("patience_seconds", patienceSec)
-    INT("min_words_first", minWordsFirst) INT("min_words", minWords) INT("max_turns", maxTurns)
+    FLT("patience_seconds", patienceSec)
+    INT("min_words_first", minWordsFirst) INT("min_words", minWords)
     FLT("hear_range", hearRange)
-    STR("key_mic", keyMic) STR("key_chat", keyChat) INT("mic_start_on", micStartOn)
+    STR("key_mic", keyMic) STR("key_chat", keyChat)
     FLT("vad_threshold", vadThreshold) FLT("vad_hang_seconds", vadHangSec)
-    STR("player_name", playerName)
-    INT("monsters", monsters) FLT("monster_hear_range", monsterHearRange)
-    FLT("monster_flee_range", monsterFleeRange) INT("monster_max_turns", monsterMaxTurns)
-    STR("monster_voices", monsterVoices) FLT("monster_incite_chance", monsterInciteChance)
-    INT("vision", vision) INT("vision_width", visionWidth) INT("vision_save", visionSave)
+    FLT("monster_flee_range", monsterFleeRange)
+    STR("monster_voices", monsterVoices)
+    INT("vision_width", visionWidth) INT("vision_save", visionSave)
 #undef STR
 #undef INT
 #undef FLT
@@ -223,6 +397,7 @@ void PcCon_CfgLoad(void)
     char  line[512];
 
     Cfg_Defaults(&g_PcCon);
+    Cfg_ProfDefaults();
     f = fopen(CFG_PATH, "rb");
     if (!f)
     {
@@ -258,8 +433,8 @@ void PcCon_CfgLoad(void)
         SDL_strlcpy(g_PcCon.judgeKey, g_PcCon.llmKey, sizeof(g_PcCon.judgeKey));
     if (strstr(g_PcCon.judgeUrl, "deepseek"))
         Cfg_MorpheusKey("keystore-deepseek.local.dat", g_PcCon.judgeKey, (int)sizeof(g_PcCon.judgeKey));
-    if (g_PcCon.tts || g_PcCon.stt)
-        Cfg_MorpheusKey("keystore.local.dat", g_PcCon.elevenKey, (int)sizeof(g_PcCon.elevenKey));
+    /* Read even with both off: the menu can turn them on. */
+    Cfg_MorpheusKey("keystore.local.dat", g_PcCon.elevenKey, (int)sizeof(g_PcCon.elevenKey));
 
     if (g_PcCon.listenSec < 5.0f) g_PcCon.listenSec = 5.0f;
     if (g_PcCon.hearRange < 4.0f) g_PcCon.hearRange = 4.0f;
@@ -272,9 +447,109 @@ void PcCon_CfgLoad(void)
     if (g_PcCon.monsterInciteChance > 1.0f) g_PcCon.monsterInciteChance = 1.0f;
     if (g_PcCon.visionWidth < 160)   g_PcCon.visionWidth = 160;
     if (g_PcCon.visionWidth > 1600)  g_PcCon.visionWidth = 1600;
+    {
+        int i;
+        for (i = 0; i < PCCON_PROF_N; i++)
+        {
+            PcConProfile* p = &g_PcConProf[i];
+            if (p->pitch < 0.0f)     p->pitch = g_PcCon.voicePitch;
+            if (p->stability < 0.0f) p->stability = g_PcCon.voiceStability;
+            if (p->style < 0.0f)     p->style = g_PcCon.voiceStyle;
+        }
+    }
 
     SH_DBG("[CONSCIOUS] enabled=%d llm=%s (%s, key %s) judge=%s tts=%d stt=%d eleven key %s voice=%s",
            g_PcCon.enabled, g_PcCon.llmUrl, g_PcCon.llmModel, g_PcCon.llmKey[0] ? "set" : "none",
            g_PcCon.judgeModel, g_PcCon.tts, g_PcCon.stt, g_PcCon.elevenKey[0] ? "set" : "none",
            g_PcCon.voiceId);
+}
+
+/* Line by line: a line setting something the menu owns gets the current
+ * value, every other line is copied as it was. The keys are loaded into
+ * g_PcCon from Morpheus's keystore, so writing the struct out wholesale would
+ * put them in the file. */
+void PcCon_CfgSave(void)
+{
+    CfgItem it[CFG_ITEMS_MAX];
+    int     done[CFG_ITEMS_MAX];
+    int     n = Cfg_Items(it), i, header = 0;
+    char*   old = NULL;
+    long    len = 0;
+    FILE*   f;
+    char    buf[400];
+
+    memset(done, 0, sizeof(done));
+    f = fopen(CFG_PATH, "rb");
+    if (f)
+    {
+        fseek(f, 0, SEEK_END);
+        len = ftell(f);
+        fseek(f, 0, SEEK_SET);
+        old = (char*)malloc((size_t)len + 1);
+        if (old)
+            len = (long)fread(old, 1, (size_t)len, f);
+        fclose(f);
+        if (old)
+            old[len] = '\0';
+    }
+    f = fopen(CFG_PATH, "wb");
+    if (!f)
+    {
+        SH_DBG("[CONSCIOUS] could not write %s", CFG_PATH);
+        free(old);
+        return;
+    }
+    if (old)
+    {
+        char* line = old;
+        while (*line)
+        {
+            char* nl   = strchr(line, '\n');
+            char* next = nl ? nl + 1 : line + strlen(line);
+            char  copy[512];
+            char* k;
+            char* eq;
+            int   hit = -1;
+
+            SDL_strlcpy(copy, line, (size_t)(next - line + 1) < sizeof(copy) ? (size_t)(next - line + 1) : sizeof(copy));
+            k = Cfg_Trim(copy);
+            eq = strchr(k, '=');
+            if (k[0] && k[0] != '#' && k[0] != ';' && eq)
+            {
+                *eq = '\0';
+                k   = Cfg_Trim(k);
+                for (i = 0; i < n; i++)
+                    if (!strcmp(it[i].name, k))
+                        hit = i;
+            }
+            if (hit >= 0 && !done[hit])
+            {
+                Cfg_ItemFormat(&it[hit], buf, (int)sizeof(buf));
+                fputs(buf, f);
+                done[hit] = 1;
+            }
+            else if (hit < 0)
+            {
+                fwrite(line, 1, (size_t)(next - line), f);
+                if (!nl)
+                    fputc('\n', f);
+            }
+            line = next;
+        }
+    }
+    for (i = 0; i < n; i++)
+    {
+        if (done[i])
+            continue;
+        if (!header)
+        {
+            fputs("\n# Set from the in-game menu (key_menu).\n", f);
+            header = 1;
+        }
+        Cfg_ItemFormat(&it[i], buf, (int)sizeof(buf));
+        fputs(buf, f);
+    }
+    fclose(f);
+    free(old);
+    SH_DBG("[CONSCIOUS] settings saved to %s", CFG_PATH);
 }
