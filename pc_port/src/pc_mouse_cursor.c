@@ -66,6 +66,7 @@ static int   s_puzzleOverrode;
 #define MC_TOUCHPAD_ASPECT 0.5f
 static float s_touchPrevX, s_touchPrevY;
 static int   s_touchPrevDown, s_touchPrevClick;
+static SDL_JoystickID s_touchPrevId = -1;
 static float s_touchDx, s_touchDy; /* framebuffer px the finger moved this frame */
 static int   s_touchClickEdge;
 static int   s_wheelStep;    /* +1/-1 on a new wheel notch this frame, else 0 */
@@ -247,38 +248,48 @@ int Pc_MouseCursor_PuzzleActive(void)
 
 static void Mc_PollTouchpad(void)
 {
-    SDL_GameController* gc    = NULL;
-    Uint8               state = 0;
-    float               x = 0.0f, y = 0.0f, pressure = 0.0f;
-    int                 down = 0, click = 0;
-    int                 i;
+    SDL_JoystickID picked = -1;
+    float          x = 0.0f, y = 0.0f;
+    int            click = 0;
+    int            i;
 
-    /* The pads are already open in PsyX; FromInstanceID borrows its handle. */
-    for (i = 0; i < SDL_NumJoysticks() && gc == NULL; i++)
+    /* Every pad with a touchpad counts, not just the first: with two connected
+     * only the first-connected one was read. The finger that was already
+     * dragging keeps the cursor, so a thumb resting on the other pad can't
+     * snatch it mid-drag. The pads are already open in PsyX; FromInstanceID
+     * borrows their handles. */
+    for (i = 0; i < SDL_NumJoysticks(); i++)
     {
+        SDL_JoystickID      id = SDL_JoystickGetDeviceInstanceID(i);
         SDL_GameController* c;
+        Uint8               state = 0;
+        float               fx, fy, pressure;
 
         if (!SDL_IsGameController(i))
             continue;
-        c = SDL_GameControllerFromInstanceID(SDL_JoystickGetDeviceInstanceID(i));
-        if (c != NULL && SDL_GameControllerGetNumTouchpads(c) > 0)
-            gc = c;
-    }
+        c = SDL_GameControllerFromInstanceID(id);
+        if (c == NULL || SDL_GameControllerGetNumTouchpads(c) <= 0)
+            continue;
 
-    if (gc != NULL)
-    {
-        if (SDL_GameControllerGetTouchpadFinger(gc, 0, 0, &state, &x, &y, &pressure) == 0)
-            down = (state != 0);
-        click = SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_TOUCHPAD);
+        click |= SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_TOUCHPAD);
+        if (SDL_GameControllerGetTouchpadFinger(c, 0, 0, &state, &fx, &fy, &pressure) != 0 || state == 0)
+            continue;
+        if (picked == -1 || id == s_touchPrevId)
+        {
+            picked = id;
+            x      = fx;
+            y      = fy;
+        }
     }
 
     s_touchDx = s_touchDy = 0.0f;
-    if (down && s_touchPrevDown)
+    if (picked != -1 && s_touchPrevDown && picked == s_touchPrevId)
     {
         s_touchDx = (x - s_touchPrevX) * (float)g_GameWork.gsScreenWidth;
         s_touchDy = (y - s_touchPrevY) * (float)g_GameWork.gsScreenWidth * MC_TOUCHPAD_ASPECT;
     }
-    s_touchPrevDown  = down;
+    s_touchPrevDown  = (picked != -1);
+    s_touchPrevId    = picked;
     s_touchPrevX     = x;
     s_touchPrevY     = y;
     s_touchClickEdge = (click && !s_touchPrevClick);
