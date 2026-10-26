@@ -204,6 +204,7 @@ int Pc_RaHttpRequest(const char* url, const char* post, char** out_body, size_t*
 
 static jclass    s_raHttpClass;
 static jmethodID s_raHttpRequest;
+static jmethodID s_raHttpDownload;
 
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved)
 {
@@ -222,6 +223,13 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved)
         s_raHttpRequest = (*env)->GetStaticMethodID(
             env, s_raHttpClass, "request",
             "(Ljava/lang/String;Ljava/lang/String;)[B");
+        /* The QoL mod installer (pc_qol_mods.c) also runs on a worker thread,
+         * so its method is resolved here for the same reason. */
+        s_raHttpDownload = (*env)->GetStaticMethodID(
+            env, s_raHttpClass, "download",
+            "(Ljava/lang/String;Ljava/lang/String;)I");
+        if (s_raHttpDownload == NULL)
+            (*env)->ExceptionClear(env);
         (*env)->DeleteLocalRef(env, local);
     }
     else
@@ -307,6 +315,35 @@ int Pc_RaHttpRequest(const char* url, const char* post, char** out_body, size_t*
 
     (*env)->DeleteLocalRef(env, jResult);
     return status;
+}
+
+/* Streams to a file in Java: a texture pack is far too big to come back as one
+ * byte[] through request() and then be copied again on this side. Progress is
+ * the file's size, which pc_qol_mods.c polls, so got is left alone. */
+int Pc_QolHttpDownload(const char* url, const char* path, volatile long long* got)
+{
+    JNIEnv* env;
+    jstring jUrl, jPath;
+    jint    status;
+
+    (void)got;
+    if (s_raHttpClass == NULL || s_raHttpDownload == NULL)
+        return 0;
+    env = (JNIEnv*)SDL_AndroidGetJNIEnv();
+    if (env == NULL)
+        return 0;
+
+    jUrl   = (*env)->NewStringUTF(env, url);
+    jPath  = (*env)->NewStringUTF(env, path);
+    status = (*env)->CallStaticIntMethod(env, s_raHttpClass, s_raHttpDownload, jUrl, jPath);
+    if ((*env)->ExceptionCheck(env))
+    {
+        (*env)->ExceptionClear(env);
+        status = 0;
+    }
+    if (jUrl  != NULL) (*env)->DeleteLocalRef(env, jUrl);
+    if (jPath != NULL) (*env)->DeleteLocalRef(env, jPath);
+    return (int)status;
 }
 
 /* The options row calls this; it returns at once and the dialog runs on the UI

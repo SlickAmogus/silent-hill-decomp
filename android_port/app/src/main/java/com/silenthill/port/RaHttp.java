@@ -113,4 +113,49 @@ body" as text, which
             }
         }
     }
+    /**
+     * GET {@code url} straight into the file at {@code path}, streamed in
+     * chunks so a large mod never has to fit in memory. Returns the status code
+     * (200 = complete), or 0 when no response arrived. On anything but 200 the
+     * partial file is deleted. Called from pc_qol_mods.c's worker thread.
+     */
+    public static int download(String url, String path) {
+        HttpURLConnection c = null;
+        java.io.File file = new java.io.File(path);
+
+        try {
+            c = (HttpURLConnection) new URL(url).openConnection();
+            c.setConnectTimeout(15000);
+            c.setReadTimeout(60000);
+            c.setRequestProperty("User-Agent", "SilentHillPC/1.0");
+            c.setInstanceFollowRedirects(true);
+
+            int status = c.getResponseCode();
+            if (status != 200) {
+                return status;
+            }
+
+            InputStream in = c.getInputStream();
+            java.io.FileOutputStream out = new java.io.FileOutputStream(file);
+            try {
+                byte[] buf = new byte[65536];
+                int n;
+                while ((n = in.read(buf)) > 0) {
+                    out.write(buf, 0, n);
+                }
+            } finally {
+                out.close();
+                in.close();
+            }
+            return 200;
+        } catch (Throwable t) {
+            Log.w(TAG, "QoL mod download failed: " + t);
+            file.delete();
+            return 0;
+        } finally {
+            if (c != null) {
+                c.disconnect();
+            }
+        }
+    }
 }
