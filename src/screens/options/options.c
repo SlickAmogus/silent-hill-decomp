@@ -341,8 +341,8 @@ static const s_PcOpt PCOPT_G[] = {
      * before the page nav. Opens the page's own sign-in dialog (web_ra.c). */
     { "Achievements",   NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_RALOGIN },
     /* Builds with no launcher have no Mod Manager: this lists the Essential
-     * QoL Mods and installs the ones ticked (pc_qol_mods.c). */
-    { "Install_QoL_Mods",  NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_QOLMODS },
+     * QoL Mods, installs the ones ticked and removes the ones unticked (pc_qol_mods.c). */
+    { "Set_Up_QoL_Mods",   NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_QOLMODS },
 #endif
     /* Always second to last, after every platform's own rows. It used to sit
      * above the mobile-only rows, so on a phone Bullet_Decals, Load_Mods and
