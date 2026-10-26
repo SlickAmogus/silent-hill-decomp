@@ -1059,6 +1059,14 @@ int main(int argc, char* argv[])
 
     SH_LOG("PsyCross initialized. Window: %dx%d", windowWidth, windowHeight);
 
+    /* SDL starts text input with the window, which attaches the OS input
+     * method to it. A CJK IME in native mode then eats every key press (they
+     * arrive as VK_PROCESSKEY), so WASD and the rest never reach the keyboard
+     * state. Stopping it also turns off SDL_TEXTINPUT, which keeps SDL from
+     * re-attaching the IME on focus regain. The console turns text events back
+     * on for itself (dbg_overlay.c). */
+    SDL_StopTextInput();
+
     /* Needs the GL context, so it runs here rather than beside the system-RAM
      * clamp above. Same rule as that one: only ever lowers. */
     HiresOverride_ClampBudgetToVram();
