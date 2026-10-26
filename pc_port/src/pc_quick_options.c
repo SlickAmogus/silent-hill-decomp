@@ -31,6 +31,7 @@
 #include "pc_quick_options.h"
 #include "pc_mouse_click_icons.h"
 #include "pc_dpad_icons.h"
+#include "pc_bind_input.h"
 #include "pc_bind_panel.h"
 #include "pc_mouse_cursor.h"
 #include "pc_config.h"
@@ -2074,17 +2075,17 @@ void Pc_QuickOptions_Draw(void)
      * once only if the wider of them still overflows. */
     if (!s_texHint)
     {
-        char  hint[384], hint2[384];
+        char  hint[384], hint2[384], key[64];
         float avail = panelW - 2.0f * pad;
         int   hpx   = (int)(hintH * 0.30f);
         int   widest;
 
         if (hpx < 7) hpx = 7;
+        BindInput_KeyLabel(g_PcConfig.keyQuickOptions[0] ? g_PcConfig.keyQuickOptions : "F10", key, sizeof(key));
         snprintf(hint, sizeof(hint), "%s    %s    %s", Pc_LangQuick("Up/Down select"),
                  Pc_LangQuick("Left/Right adjust"), Pc_LangQuick("Q/E or PgUp/PgDn page"));
         snprintf(hint2, sizeof(hint2), "%s    %s    %s", Pc_LangQuick("Drag the title to move"),
-                 Pc_LangQuickFill("{key} or Esc close", "{key}",
-                                  g_PcConfig.keyQuickOptions[0] ? g_PcConfig.keyQuickOptions : "F10"),
+                 Pc_LangQuickFill("{key} or Esc close", "{key}", key),
                  Pc_LangQuick("* needs restart"));
         s_texHint  = qo_bake(hint,  (float)hpx, &s_hintW,  &s_hintH);
         s_texHint2 = qo_bake(hint2, (float)hpx, &s_hint2W, &s_hint2H);
