@@ -18,13 +18,24 @@
  * On PSX this wraps around; on PC it would corrupt adjacent memory.
  * Extra 1MB prevents stack/heap corruption from these overflows. */
 #define PSX_RAM_SIZE (3 * 1024 * 1024)
-uint8_t g_PsxRam[PSX_RAM_SIZE];
+
+/* Game structs live inside both buffers at their PSX offsets, and the
+ * compiler accesses them in pairs of words (LDRD/STRD, VLDR). A plain byte
+ * array is only byte-aligned; x86 and arm64 tolerate that, 32-bit ARM
+ * (Fire TV) raises SIGBUS. Same fix as STUB_ALIGN in data_stubs.c. */
+#if defined(__GNUC__) || defined(__clang__)
+#define PSX_MEM_ALIGN __attribute__((aligned(16)))
+#else
+#define PSX_MEM_ALIGN
+#endif
+
+uint8_t g_PsxRam[PSX_RAM_SIZE] PSX_MEM_ALIGN;
 
 /* PSX Scratchpad RAM emulation.
  * Real PSX has 1KB; the PC port widens s_GteScratchData/s_GteScratchData2 to
  * ~2964 bytes (256-slot pools for oversized models) -- 4KB holds it, and the
  * bodyprog.h _Static_asserts pin sizeof <= 4096. */
-uint8_t g_PsxScratchpad[4096];
+uint8_t g_PsxScratchpad[4096] PSX_MEM_ALIGN;
 
 void PsxMemory_Init(void)
 {
