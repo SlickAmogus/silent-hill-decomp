@@ -21,6 +21,7 @@
 #include <string.h>
 
 #include "pc_ra_http.h"
+#include "pc_qol_mods.h"
 
 void* Pc_RaSymbolLookup(const char* name)
 {
@@ -119,5 +120,69 @@ int Pc_RaHttpRequest(const char* url, const char* post, char** out_body, size_t*
             *out_len = bodyLen;
     }
 
+    return status;
+}
+
+/* The Essential QoL Mods installer (pc_qol_mods.c), on its worker thread.
+ * A download task rather than the data task above: it writes to disk as it
+ * goes, so a texture pack never has to fit in memory. The wait is sliced so
+ * the byte count can be published for the progress bar. */
+int Pc_QolHttpDownload(const char* url, const char* path, volatile long long* got)
+{
+    __block int status = 0;
+
+    if (!url || !url[0] || !path || !path[0])
+        return 0;
+
+    @autoreleasepool
+    {
+        NSURL*    nsUrl  = [NSURL URLWithString:[NSString stringWithUTF8String:url]];
+        NSString* dest   = [NSString stringWithUTF8String:path];
+        NSString* destAbs;
+
+        if (!nsUrl || !dest)
+            return 0;
+        /* The game's paths are relative to the working directory (Documents);
+         * NSFileManager wants it spelled out. */
+        destAbs = [dest isAbsolutePath] ? dest
+                : [[[NSFileManager defaultManager] currentDirectoryPath] stringByAppendingPathComponent:dest];
+
+        NSMutableURLRequest* req =
+            [NSMutableURLRequest requestWithURL:nsUrl
+                                    cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
+                                timeoutInterval:60.0];
+        [req setValue:@"SilentHilliOS/1.0" forHTTPHeaderField:@"User-Agent"];
+
+        dispatch_semaphore_t done = dispatch_semaphore_create(0);
+
+        NSURLSessionDownloadTask* task =
+            [[NSURLSession sharedSession] downloadTaskWithRequest:req
+                completionHandler:^(NSURL* location, NSURLResponse* response, NSError* error)
+        {
+            if (!error && [response isKindOfClass:[NSHTTPURLResponse class]])
+                status = (int)((NSHTTPURLResponse*)response).statusCode;
+
+            /* The temporary file is deleted when this handler returns, so it
+             * has to be moved now, not after the wait below. */
+            if (status == 200 && location)
+            {
+                NSFileManager* fm = [NSFileManager defaultManager];
+                [fm removeItemAtPath:destAbs error:nil];
+                if (![fm moveItemAtURL:location toURL:[NSURL fileURLWithPath:destAbs] error:nil])
+                    status = 0;
+            }
+            dispatch_semaphore_signal(done);
+        }];
+
+        [task resume];
+        while (dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW, 100 * NSEC_PER_MSEC)) != 0)
+        {
+            if (got)
+                *got = (long long)task.countOfBytesReceived;
+        }
+#if !__has_feature(objc_arc)
+        dispatch_release(done);
+#endif
+    }
     return status;
 }

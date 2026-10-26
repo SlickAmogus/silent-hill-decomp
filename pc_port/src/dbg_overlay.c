@@ -2114,6 +2114,7 @@ void DbgOverlay_Render(void)
      * under the Yes/No box, which it opens for its reset. */
     { extern void Pc_BindPanel_Draw(void); Pc_BindPanel_Draw(); }
 
+    { extern void Pc_QolMods_Draw(void); Pc_QolMods_Draw(); }
     { extern void Pc_ConfirmDialog_Draw(void); Pc_ConfirmDialog_Draw(); }
 
     /* Mouse pointer above every panel. Before the early-out below, which skips
