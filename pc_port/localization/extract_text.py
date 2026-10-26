@@ -2,7 +2,7 @@
 # Extract every English in-game string (dialogue, prompts, menus, PC menus, items) for translation.
 import os, re, json, sys
 
-ROOT = r"C:\Claude\silenthill\silent-hill-decomp"
+ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 COMMON = os.path.join(ROOT, "include", "maps", "shared", "map_msg_common.h")
 ITEMS  = os.path.join(ROOT, "src", "bodyprog", "items", "item_screens_3.c")
 MENU   = os.path.join(ROOT, "pc_port", "src", "lang_menu.c")
@@ -271,12 +271,12 @@ for lit, budget in pcopt_vals:
 #     builds the same key). {name} placeholders are filled in by the game. ---
 QO_SRC   = os.path.join(ROOT, 'pc_port', 'src', 'pc_quick_options.c')
 CH_SRC   = os.path.join(ROOT, 'pc_port', 'src', 'pc_cheats.c')
-BP_SRC   = os.path.join(ROOT, 'pc_port', 'src', 'pc_bind_panel.c')
+BC_SRC   = os.path.join(ROOT, 'pc_port', 'src', 'pc_bind_core.c')
 CS_SRC   = os.path.join(ROOT, 'pc_port', 'src', 'control_style.c')
 CD_SRC   = os.path.join(ROOT, 'pc_port', 'src', 'pc_confirm_dialog.c')
 qo_src = open(QO_SRC, encoding='utf-8').read()
 ch_src = open(CH_SRC, encoding='utf-8').read()
-bp_src = open(BP_SRC, encoding='utf-8').read()
+bc_src = open(BC_SRC, encoding='utf-8').read()
 cs_src = open(CS_SRC, encoding='utf-8').read()
 
 def quick_key(lit):
@@ -319,7 +319,7 @@ for lit in re.findall(r'\{\s*"([^"]+)",\s*CH_\w+', ch_src):
 add_quick('CHEATS', '(not in this map)', 'after a Spawn name that cannot appear here')
 
 add_quick('CONTROLS', 'CONTROLS', 'panel title')
-for lit in re.findall(r'\{\s*"([^"]+)",\s*\{\s*"key_', bp_src):
+for lit in re.findall(r'\{\s*"([^"]+)",\s*\{\s*"key_', bc_src):
     add_quick('CONTROLS', lit, 'game action')
 for lit in re.findall(r'\{\s*"\w+",\s*"([^"]+)"\s*\}', cs_src):
     add_quick('CONTROLS', lit, 'camera name')
@@ -488,7 +488,57 @@ for _lit, _note in MENU_EXTRA:
     if _k not in {r[1] for r in records}:
         records.append(('MENU', _k, _lit, readable(_lit), _note))
 
+# --- The title menu's ACHIEVEMENTS row and the Achievements and Controls
+#     screens: game-font literals at their draw sites. Budgets are characters
+#     at the font's ~10px per glyph. The Controls action labels are the bind
+#     table's own (pc_bind_core.c), the same words the Controls panel above
+#     takes as QUICK. keys. ---
+NATIVE_MENU = [
+    ('ACHIEVEMENTS', 'title menu row and Achievements screen heading'),
+    ('UNLOCKED', 'Achievements screen, ": <date and time>" follows on the same line; max ~9 characters'),
+    ('LOCKED', 'Achievements screen, an achievement not yet earned'),
+    ('Point', 'Achievements screen, after "1"'),
+    ('Points', 'Achievements screen, after any other number; an abbreviation is fine'),
+    ('points', 'Achievements screen counter "(12/400 points)"; an abbreviation is fine'),
+    ('Gamepad_Icons', 'Controls screen row; its value (Auto / PS Classic / PS Modern / Xbox / Nintendo / Steam) shares the line'),
+    ('Auto', 'Gamepad Icons value: follows the connected controller'),
+    ('PS_Classic', 'Gamepad Icons value (brand name)'),
+    ('PS_Modern', 'Gamepad Icons value (brand name)'),
+    ('Xbox', 'Gamepad Icons value (brand name)'),
+    ('Nintendo', 'Gamepad Icons value (brand name)'),
+    ('Steam', 'Gamepad Icons value (brand name)'),
+    ('Function', 'Controls screen column heading over the action names; max ~12 characters'),
+    ('Keyboard', 'Controls screen column heading; max ~9 characters'),
+    ('Controller', 'Controls screen column heading; max ~8 characters'),
+    ('Reset', 'Controls screen row: reset every bind to its default'),
+    ('Reset_controls?', 'Controls screen confirm question, Yes / No below'),
+    ('Yes', 'confirm answer'),
+    ('No', 'confirm answer'),
+]
+for _lit in re.findall(r'\{\s*"([^"]+)",\s*\{\s*"key_', bc_src):
+    NATIVE_MENU.append((_lit.replace(' ', '_'),
+                        'Controls screen action, a colon follows; max ~12 characters'))
+
+for _lit, _note in NATIVE_MENU:
+    _k = menu_key(_lit)
+    if _k not in {r[1] for r in records}:
+        records.append(('MENU', _k, _lit, readable(_lit), _note))
+
 emit_plain_menu()
+
+# One entry per key, and the first section to claim a key keeps its note, so a
+# key several draw sites share spells out every use here. One translation
+# serves them all.
+SHARED_NOTES = {
+    'MENU.Map': 'used in three places: the inventory screen box that opens the map '
+                '(max ~10 characters); the PC Options Graphics row that picks the '
+                'New Game start map (max ~14 characters); the Controls screen action '
+                'that opens the map, a colon follows (max ~12 characters)',
+    'MENU.Reload': 'used in two places: the inventory command for a weapon '
+                   '(max ~10 characters); the Controls screen action, a colon '
+                   'follows (max ~12 characters)',
+}
+records = [(s, k, raw, rd, SHARED_NOTES.get(k, note)) for (s, k, raw, rd, note) in records]
 
 # ---- write outputs -----------------------------------------------------------
 OUT = os.path.join(ROOT, 'pc_port', 'localization')

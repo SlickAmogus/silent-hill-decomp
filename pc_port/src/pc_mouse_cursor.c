@@ -15,10 +15,15 @@
 #include <SDL.h>
 #include <PsyX/PsyX_public.h>
 #include <PsyX/PsyX_render.h> /* GR_ReadVRAM */
+#include <PsyX/PsyX_backend.h>
+#include <math.h>
+#include "sh_log.h"
 #include "pc_confirm_dialog.h"
 #include "pc_bind_panel.h"
 #include "pc_quick_options.h"
 #include <libgs.h>
+
+extern GLuint GR_ScreenFBO(void);
 
 /* Menu rows are authored via Gfx_StringSetPosition(x, y), a center-origin space
  * whose reference is (OFFSET_X, OFFSET_Y). The overlay OT draw origin is the
@@ -72,6 +77,7 @@ static int   s_rightDown, s_prevRight, s_rightEdge;
 static int   s_puzzleFrames; /* >0 while a free-cursor puzzle is on screen */
 static int   s_havePrev;
 static int   s_moved;        /* mouse moved this frame */
+static int   s_everMoved;    /* ...and whether anything ever has (mobile) */
 static int   s_prevMx = -1, s_prevMy = -1;
 
 /* Puzzle cursor servo state: the game's own cursor position (framebuffer
@@ -85,6 +91,10 @@ static int   s_wheelStep;    /* +1/-1 on a new wheel notch this frame, else 0 */
 static int   s_wheelNotches; /* every notch this frame, signed */
 static int   s_prevWheelTotal;
 static int   s_prevWheelUp, s_prevWheelDown;
+static int   s_showReq;     /* a screen asked for the pointer since the last draw */
+
+static GLuint s_glProg, s_glVao, s_glVbo, s_glTex;
+static int    s_glState; /* 0 untried, 1 ready, -1 failed */
 
 static int Mc_Enabled(void)
 {
@@ -366,6 +376,7 @@ void Pc_MouseCursor_FrameUpdate(void)
      * appears in the top-left corner. No-op everywhere else. */
     PsyX_ScaleWindowToDrawable(&mx, &my);
     s_moved     = (mx != s_prevMx || my != s_prevMy);
+    s_everMoved = s_everMoved || s_moved;
     s_prevMx    = mx;
     s_prevMy    = my;
     s_leftDown  = (btn & SDL_BUTTON(SDL_BUTTON_LEFT))  != 0;
@@ -552,72 +563,21 @@ static int Mc_HiddenForPad(void)
     return g_PsyX_PadInputLast;
 }
 
-void Pc_MouseCursor_Draw(void)
+void Pc_MouseCursor_Show(void)
 {
-    POLY_FT4* poly;
-    s32       cx, cy;
-
-    if (!Mc_Enabled() || !s_inView || Mc_HiddenForPad())
-        return;
-    /* A GL overlay dialog composites above this whole frame, so it draws the
-     * cursor itself (Pc_MouseCursor_SpriteRgba/GlRect); ours would sit under it. */
-    if (Pc_ConfirmDialog_IsOpen() || Pc_QuickOptions_IsOpen() || Pc_BindPanel_IsOpen())
-        return;
-
-    /* Touch drives menus through this same hover/click path (SDL synthesizes
-     * mouse events from taps), but an arrow sprite parked wherever the last tap
-     * landed represents a pointer a touchscreen does not have. Keep the input
-     * behaviour, drop the drawing. Recency-based rather than compile-time so a
-     * device with both a touchscreen and a mouse follows whichever is in use. */
-    {
-        extern int Pc_Touch_UsedRecently(void);
-        if (Pc_Touch_UsedRecently() || Pc_MouseCursor_TouchDriving())
-            return;
-    }
-#if defined(__ANDROID__) || defined(SH_IOS)
-    /* Before the first touch there is nothing to be "recent" yet, and on a
-     * phone the pointer starts parked at 0,0. Nothing here has a mouse unless
-     * one is plugged in, so stay hidden until a real one moves the pointer. */
-    if (!s_moved)
-        return;
-#endif
-
-    cx = (s32)s_gx - MC_OFFSET_X;
-    cy = (s32)s_gy - MC_OFFSET_Y;
-
-    /* The game's own arrow pointer — the 32x32 sprite every cursor puzzle passes
-     * to Gfx_CursorDraw: BG_ETC.TIM atlas UV(0,64), CLUT (192,0), 4bpp tpage at
-     * VRAM (768,0). BG_ETC is uploaded during the boot logos (b_konami.c, or the
-     * skip_intros replication in game_main.c) and no region's title art overlaps
-     * it (US/JPN title lives at (848,0), PAL at (896,0); PAL's resliced BG_ETC
-     * keeps the top half, so the same UVs hold). Drawn at 16x16 like the puzzles
-     * do; the arrow tip sits at the sprite's top-left, so no hotspot offset. */
-    poly = (POLY_FT4*)GsOUT_PACKET_P;
-    setPolyFT4(poly);
-    setXY0Fast(poly, cx,      cy);
-    setXY1Fast(poly, cx + 16, cy);
-    setXY2Fast(poly, cx,      cy + 16);
-    setXY3Fast(poly, cx + 16, cy + 16);
-    /* 31, not 32: the far edge is exclusive on hardware, which never samples
-     * texel 32 -- but the Menus filter's taps are clamped to the prim's UV box,
-     * and a box ending at 32 let them reach the next sprite in BG_ETC, drawing
-     * its green as specks along the arrow's right and bottom edges. */
-    setUVWH(poly, 0, 64, 31, 31);
-    poly->clut  = getClut(192, 0);
-    poly->tpage = getTPage(0, 0, 768, 0);
-    setRGB0(poly, 128, 128, 128);
-    setSemiTrans(poly, false);
-
-    /* The menu text draws into g_OrderingTable2 (g_OtTags0), layer 6; add the
-     * cursor at layer 4 so it sits on top — same overlay the crosshair uses. */
-    AddPrim(&g_OtTags0[g_ActiveBufferIdx][4], poly);
-    GsOUT_PACKET_P = (PACKET*)(poly + 1);
+    s_showReq = 1;
 }
 
-int Pc_MouseCursor_SpriteRgba(unsigned char* out)
+/* The game's own arrow pointer -- the 32x32 sprite every cursor puzzle passes
+ * to Gfx_CursorDraw: BG_ETC.TIM atlas UV(0,64), CLUT (192,0), 4bpp tpage at
+ * VRAM (768,0). BG_ETC is uploaded during the boot logos (b_konami.c, or the
+ * skip_intros replication in game_main.c) and no region's title art overlaps
+ * it (US/JPN title lives at (848,0), PAL at (896,0); PAL's resliced BG_ETC
+ * keeps the top half, so the same UVs hold). The arrow tip sits at the
+ * sprite's top-left, so no hotspot offset. */
+static int Mc_SpriteRgba(unsigned char* out)
 {
-    /* Same sprite as Pc_MouseCursor_Draw: 32x32 4bpp at tpage VRAM (768,0),
-     * UV (0,64) -> halfword column 768, row 64, 8 halfwords per row; 16-entry
+    /* UV (0,64) -> halfword column 768, row 64, 8 halfwords per row; 16-entry
      * CLUT at halfword (192,0). Texel 0x0000 is transparent on the PSX. */
     unsigned short px[32 * 8];
     unsigned short clut[16];
@@ -647,25 +607,201 @@ int Pc_MouseCursor_SpriteRgba(unsigned char* out)
     return 1;
 }
 
-int Pc_MouseCursor_GlRect(float vpW, float vpH, float* outX, float* outY, float* outW, float* outH)
+static GLuint Mc_GlShader(GLenum type, const char* src)
 {
-    float w, h, fbH;
+    GLuint      sh       = glCreateShader(type);
+    GLint       ok       = 0;
+    const char* parts[2] = { PsyX_Shader_Preamble(type == GL_FRAGMENT_SHADER, PSYX_GLSL_LEGACY), src };
 
-    if (!Mc_Enabled() || !s_inView || Mc_HiddenForPad())
+    glShaderSource(sh, 2, parts, NULL);
+    glCompileShader(sh);
+    glGetShaderiv(sh, GL_COMPILE_STATUS, &ok);
+    if (!ok)
+    {
+        char log[512];
+        glGetShaderInfoLog(sh, (GLsizei)sizeof(log), NULL, log);
+        SH_DBG("[MOUSE] cursor shader failed: %s", log);
+        glDeleteShader(sh);
         return 0;
+    }
+    return sh;
+}
 
-    /* The PSX draw is 16x16 framebuffer units; the framebuffer is 320 wide and
-     * gsScreenHeight tall (448 on the interlaced menus, 224 in-game), so the
-     * cursor is the same fraction of the picture here as it is there. */
-    fbH = (float)g_GameWork.gsScreenHeight;
-    if (fbH <= 0.0f)
-        fbH = 240.0f;
-    w = 16.0f / 320.0f * vpW;
-    h = 16.0f / fbH * vpH;
+/* Leaves its program, VAO and buffer bound; Pc_MouseCursor_GlDraw restores them. */
+static void Mc_GlInit(void)
+{
+    static const char* vs_src =
+        "attribute vec2 a_pos;\n"
+        "attribute vec2 a_uv;\n"
+        "varying vec2 v_uv;\n"
+        "void main() { v_uv = a_uv; gl_Position = vec4(a_pos, 0.0, 1.0); }\n";
+    static const char* fs_src =
+        "#ifdef GL_ES\n"
+        "precision mediump float;\n"
+        "#endif\n"
+        "varying vec2 v_uv;\n"
+        "uniform sampler2D u_tex;\n"
+        "void main() { gl_FragColor = texture2D(u_tex, v_uv); }\n";
+    static const float quad[6][4] = {
+        { -1.0f,  1.0f, 0.0f, 0.0f }, { -1.0f, -1.0f, 0.0f, 1.0f }, {  1.0f,  1.0f, 1.0f, 0.0f },
+        {  1.0f,  1.0f, 1.0f, 0.0f }, { -1.0f, -1.0f, 0.0f, 1.0f }, {  1.0f, -1.0f, 1.0f, 1.0f },
+    };
+    GLuint vs, fs;
+    GLint  ok = 0;
 
-    if (outX) *outX = s_vx * vpW;
-    if (outY) *outY = (1.0f - s_vy) * vpH; /* top edge; arrow tip at top-left */
-    if (outW) *outW = w;
-    if (outH) *outH = h;
-    return 1;
+    s_glState = -1;
+    vs = Mc_GlShader(GL_VERTEX_SHADER, vs_src);
+    fs = Mc_GlShader(GL_FRAGMENT_SHADER, fs_src);
+    if (!vs || !fs)
+    {
+        if (vs) glDeleteShader(vs);
+        if (fs) glDeleteShader(fs);
+        return;
+    }
+
+    s_glProg = glCreateProgram();
+    glAttachShader(s_glProg, vs);
+    glAttachShader(s_glProg, fs);
+    glBindAttribLocation(s_glProg, 0, "a_pos");
+    glBindAttribLocation(s_glProg, 1, "a_uv");
+    glLinkProgram(s_glProg);
+    glGetProgramiv(s_glProg, GL_LINK_STATUS, &ok);
+    glDeleteShader(vs);
+    glDeleteShader(fs);
+    if (!ok)
+    {
+        char log[512];
+        glGetProgramInfoLog(s_glProg, (GLsizei)sizeof(log), NULL, log);
+        SH_DBG("[MOUSE] cursor link failed: %s", log);
+        glDeleteProgram(s_glProg);
+        s_glProg = 0;
+        return;
+    }
+    glUseProgram(s_glProg);
+    glUniform1i(glGetUniformLocation(s_glProg, "u_tex"), 0);
+
+    glGenVertexArrays(1, &s_glVao);
+    glBindVertexArray(s_glVao);
+    glGenBuffers(1, &s_glVbo);
+    glBindBuffer(GL_ARRAY_BUFFER, s_glVbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quad), quad, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+    s_glState = 1;
+}
+
+void Pc_MouseCursor_GlDraw(void)
+{
+    GLint     pic[4], prevVp[4];
+    GLint     prevProg = 0, prevVao = 0, prevBuf = 0, prevTex = 0, prevUnit = GL_TEXTURE0, prevAlign = 4;
+    GLint     prevDrawFb = 0, prevReadFb = 0;
+    GLint     prevSrcRgb = GL_ONE, prevDstRgb = GL_ZERO, prevSrcA = GL_ONE, prevDstA = GL_ZERO;
+    GLint     prevEqRgb = GL_FUNC_ADD, prevEqA = GL_FUNC_ADD;
+    GLboolean prevBlend, prevDepth, prevCull, prevScissor;
+    int       show, scale, size, left, top;
+
+    show      = s_showReq || Pc_QuickOptions_IsOpen() || Pc_ConfirmDialog_IsOpen() || Pc_BindPanel_IsOpen();
+    s_showReq = 0;
+    if (!show || !Mc_Enabled() || !s_inView || Mc_HiddenForPad() || s_glState < 0)
+        return;
+#if defined(__ANDROID__) || defined(SH_IOS)
+    /* A phone's pointer starts parked at 0,0 and stays there unless a mouse is
+     * plugged in or a finger takes hold of the cursor (SDL synthesizes mouse
+     * motion from a tap), so nothing is drawn until something has moved it. */
+    if (!s_everMoved)
+        return;
+#endif
+
+    PsyX_GetDisplayViewport(&pic[0], &pic[1], &pic[2], &pic[3]);
+    if (pic[2] <= 0 || pic[3] <= 0)
+        return;
+
+    /* Whole screen pixels per texel, from the picture height alone: the sprite
+     * stays square and evenly sampled in every display mode. Half the PSX's
+     * ~1/15 of the picture height, which read as a 96px arrow at 1440p. */
+    scale = (int)floor((double)pic[3] / 960.0 + 0.5);
+    if (scale < 1)
+        scale = 1;
+    size = 32 * scale;
+    left = (int)floorf((float)pic[0] + s_vx * (float)pic[2]);
+    top  = (int)floorf((float)pic[1] + (1.0f - s_vy) * (float)pic[3]);
+
+    glGetIntegerv(GL_VIEWPORT, prevVp);
+    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &prevDrawFb);
+    glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &prevReadFb);
+    glGetIntegerv(GL_CURRENT_PROGRAM, &prevProg);
+    glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &prevVao);
+    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &prevBuf);
+    glGetIntegerv(GL_ACTIVE_TEXTURE, &prevUnit);
+    glActiveTexture(GL_TEXTURE0);
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &prevTex);
+    glGetIntegerv(GL_UNPACK_ALIGNMENT, &prevAlign);
+    glGetIntegerv(GL_BLEND_SRC_RGB, &prevSrcRgb);
+    glGetIntegerv(GL_BLEND_DST_RGB, &prevDstRgb);
+    glGetIntegerv(GL_BLEND_SRC_ALPHA, &prevSrcA);
+    glGetIntegerv(GL_BLEND_DST_ALPHA, &prevDstA);
+    glGetIntegerv(GL_BLEND_EQUATION_RGB, &prevEqRgb);
+    glGetIntegerv(GL_BLEND_EQUATION_ALPHA, &prevEqA);
+    prevBlend   = glIsEnabled(GL_BLEND);
+    prevDepth   = glIsEnabled(GL_DEPTH_TEST);
+    prevCull    = glIsEnabled(GL_CULL_FACE);
+    prevScissor = glIsEnabled(GL_SCISSOR_TEST);
+
+    if (s_glState == 0)
+        Mc_GlInit();
+    if (s_glState != 1)
+        goto restore;
+
+    /* BG_ETC reaches VRAM during the boot logos, after the first frames. */
+    if (!s_glTex)
+    {
+        unsigned char rgba[32 * 32 * 4];
+
+        if (!Mc_SpriteRgba(rgba))
+            goto restore;
+        glGenTextures(1, &s_glTex);
+        glBindTexture(GL_TEXTURE_2D, s_glTex);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 32, 32, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+    }
+
+    /* Same target as the debug overlay: in borderless, framebuffer 0 is
+     * painted over by the scene target's blit at present. */
+    glBindFramebuffer(GL_FRAMEBUFFER, GR_ScreenFBO());
+    /* The viewport is the sprite rect itself, so the pillarbox never clips it
+     * and every texel covers exactly scale x scale pixels. */
+    glViewport(left, top - size, size, size);
+    glDisable(GL_SCISSOR_TEST);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
+    glEnable(GL_BLEND);
+    glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
+    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+    glUseProgram(s_glProg);
+    glBindVertexArray(s_glVao);
+    glBindTexture(GL_TEXTURE_2D, s_glTex);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+restore:
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, (GLuint)prevDrawFb);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, (GLuint)prevReadFb);
+    glViewport(prevVp[0], prevVp[1], prevVp[2], prevVp[3]);
+    glBindTexture(GL_TEXTURE_2D, (GLuint)prevTex);
+    glActiveTexture((GLenum)prevUnit);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, prevAlign);
+    glBlendEquationSeparate((GLenum)prevEqRgb, (GLenum)prevEqA);
+    glBlendFuncSeparate((GLenum)prevSrcRgb, (GLenum)prevDstRgb, (GLenum)prevSrcA, (GLenum)prevDstA);
+    if (!prevBlend)  glDisable(GL_BLEND);
+    if (prevDepth)   glEnable(GL_DEPTH_TEST);
+    if (prevCull)    glEnable(GL_CULL_FACE);
+    if (prevScissor) glEnable(GL_SCISSOR_TEST);
+    glUseProgram((GLuint)prevProg);
+    glBindVertexArray((GLuint)prevVao);
+    glBindBuffer(GL_ARRAY_BUFFER, (GLuint)prevBuf);
 }

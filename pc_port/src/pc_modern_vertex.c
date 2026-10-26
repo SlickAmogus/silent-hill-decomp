@@ -11,6 +11,7 @@ _Static_assert(PC_MODERN_ATTRIBUTE_COUNT <= 8, "modern layout exceeds GLES2 attr
 
 static GLuint s_modernVertexArray;
 static GLuint s_modernVertexBuffer;
+static GLuint s_modernIndexBuffer;
 
 void Pc_ModernVertex_Upload(const struct GrModernVertex* vertices, int count)
 {
@@ -38,6 +39,14 @@ void Pc_ModernVertex_Upload(const struct GrModernVertex* vertices, int count)
             glVertexAttribPointer(i, sizes[i], types[i], i == a_color ? GL_TRUE : GL_FALSE,
                                   sizeof(GrModernVertex), (const void*)offsets[i]);
         }
+        /* Outside the GLES2 eight: the shaders already declare twelve
+         * attributes, so any context that runs them has these slots too. */
+        glEnableVertexAttribArray(a_skinNormal);
+        glVertexAttribPointer(a_skinNormal, 4, GL_FLOAT, GL_FALSE, sizeof(GrModernVertex),
+                              (const void*)offsetof(GrModernVertex, snx));
+        glEnableVertexAttribArray(a_skinTangent);
+        glVertexAttribPointer(a_skinTangent, 4, GL_FLOAT, GL_FALSE, sizeof(GrModernVertex),
+                              (const void*)offsetof(GrModernVertex, stx));
     }
     else
     {
@@ -45,6 +54,18 @@ void Pc_ModernVertex_Upload(const struct GrModernVertex* vertices, int count)
         glBindBuffer(GL_ARRAY_BUFFER, s_modernVertexBuffer);
     }
     glBufferSubData(GL_ARRAY_BUFFER, 0, count * sizeof(*vertices), vertices);
+}
+
+void Pc_ModernVertex_UploadIndices(const unsigned int* indices, int count)
+{
+    /* The element binding is VAO state, so it lands on the modern VAO that
+     * Pc_ModernVertex_Upload left bound and never on the frame's own. */
+    if (s_modernVertexArray == 0 || indices == NULL || count <= 0)
+        return;
+    if (s_modernIndexBuffer == 0)
+        glGenBuffers(1, &s_modernIndexBuffer);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, s_modernIndexBuffer);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, (GLsizeiptr)count * sizeof(*indices), indices, GL_STREAM_DRAW);
 }
 
 int Pc_ModernVertex_UploadExact(struct GrModernVertex* vertices,

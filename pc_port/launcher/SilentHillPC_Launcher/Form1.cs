@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -105,8 +105,41 @@ public partial class Form1 : Form
             UpdateChecker.CleanupStaleTemp();
             CheckDiscImage();
             FfmpegCheck.WarnIfNeeded(this, AppDomain.CurrentDomain.BaseDirectory);
+            OfferRealtimeUpdatesOnce();
             SilentAutoCheckForUpdates();
         };
+    }
+
+    // One-time offer of realtime updates. The flag is set before asking and never
+    // cleared, so the question is asked once ever, not once per update.
+    private void OfferRealtimeUpdatesOnce()
+    {
+        try
+        {
+            if (config.Get("launcher_realtime_offered", "0").Trim() == "1") return;
+            var settings = LauncherSettings.Load(config);
+            if (!settings.IsDefaultRepo) return;
+
+            config.EnsureLauncherSection();
+            config.Set("launcher_realtime_offered", "1");
+            config.Save();
+            if (settings.Realtime) return;
+
+            var answer = MessageBox.Show(this,
+                Loc.T("Would you like to enable realtime updates?\n\n" +
+                      "With this enabled, you will be able to update any time changes are pushed to the repo. This means you will be able to update to the latest untested versions as I am still working on them. If they break the game, you can rollback by going to build settings and choosing an older build.\n\n" +
+                      "It is recommended that you back up your saves before turning this on. This message will not be shown again, but if you change your mind, the setting can be changed from the Build Settings window."),
+                Loc.T("Realtime updates"), MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+            if (answer != DialogResult.Yes) return;
+
+            settings.Realtime = true;
+            settings.Build    = "latest";
+            settings.Save(config);
+            // Same as ticking the box in Build Settings: the new stream's first
+            // check offers its newest build outright.
+            settings.ClearSeen(config);
+        }
+        catch { /* best effort: never block startup over this */ }
     }
 
 
@@ -576,6 +609,7 @@ public partial class Form1 : Form
             RepoUrl        = s.RepoUrl,
             Branch         = s.Branch,
             Build          = UpdateChecker.CustomFamilyLatestToken(s.Build) ?? "latest",
+            Realtime       = s.Realtime,
             OldBuildWarned = s.OldBuildWarned
         };
 
@@ -1836,6 +1870,7 @@ public partial class Form1 : Form
                 Loc.F("A newer build is available: {0}\nBuilt: {1}\nSource: {2}",
                       plan.RemoteVersion, plan.BuildDate, plan.RepoLabel) + "\n\n" +
                 (plan.IsBeta ? Loc.T("This build is on the BETA branch (newer than the latest alpha/stable build).") + "\n\n" : "") +
+                (plan.IsRealtime ? Loc.T("This is an automatic realtime build, made from the latest changes and not tested first.") + "\n\n" : "") +
                 (plan.IsCustom
                     ? Loc.F("This is the experimental build \"{0}\", not a normal release. " +
                             "You stay on it until you pick another branch in Build Settings.",
@@ -2055,6 +2090,13 @@ public partial class Form1 : Form
     private void btnChangelog_Click(object sender, EventArgs e)
     {
         string changelogPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "CHANGELOG.md");
+        string realtimePath  = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, LauncherSettings.RealtimeChangelogFile);
+        if (LauncherSettings.Load(config).UsesRealtime && File.Exists(realtimePath))
+        {
+            ChangelogViewer.Show(this, Loc.T("Silent Hill PC Port — Realtime builds (installed)"),
+                File.ReadAllText(realtimePath, System.Text.Encoding.UTF8));
+            return;
+        }
         string text = File.Exists(changelogPath)
             ? File.ReadAllText(changelogPath, System.Text.Encoding.UTF8)
             : Loc.T("CHANGELOG.md not found next to the launcher.\n\n" +

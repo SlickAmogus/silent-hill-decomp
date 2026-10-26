@@ -2,8 +2,8 @@
 /*
  * pc_rando_settings.c - in-game randomizer settings panel.
  *
- * A sibling of pc_ra_browser.c and it repeats that file's hard-won GL
- * constraints deliberately rather than sharing code:
+ * Copied from the old GL achievement browser's template (since removed), and
+ * it repeats that template's hard-won GL constraints deliberately:
  *   - its OWN GL program / VAO / textures, with full state save+restore, so it
  *     never clobbers PsyCross's or the console's programs.
  *   - LEGACY GLSL (attribute / varying / gl_FragColor, no #version).
@@ -88,7 +88,7 @@ static int rs_row_count(void)
 }
 
 /* ------------------------------------------------------------------ */
-/* GL primitives (mirrors pc_ra_browser.c)                             */
+/* GL primitives (from the old GL achievement browser)               */
 /* ------------------------------------------------------------------ */
 
 static GLuint rs_make_shader(GLenum type, const char* src)

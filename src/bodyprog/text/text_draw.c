@@ -260,6 +260,61 @@ void Gfx_StringSetPosition(s32 x, s32 y) // 0x8004A87C
     #undef OFFSET_Y
 }
 
+#ifdef SH_PC_PORT
+/* String space, as g_StringPosition; empty when x1 <= x0. */
+static s32 s_PcClipX0;
+static s32 s_PcClipX1;
+
+void Gfx_PcStringSetClipX(s32 x0, s32 x1)
+{
+    s_PcClipX0 = x0 - SCREEN_POSITION_X(50.0f);
+    s_PcClipX1 = x1 - SCREEN_POSITION_X(50.0f);
+}
+
+/* False when the 12 px glyph cell at posX lies wholly outside the window. */
+static bool Pc_GlyphClip(s32 posX, s32* cutL, s32* cutR)
+{
+    *cutL = 0;
+    *cutR = 0;
+    if (s_PcClipX1 <= s_PcClipX0)
+    {
+        return true;
+    }
+    if (posX + FONT_12X16_GLYPH_SIZE_X <= s_PcClipX0 || posX >= s_PcClipX1)
+    {
+        return false;
+    }
+    if (posX < s_PcClipX0)
+    {
+        *cutL = s_PcClipX0 - posX;
+    }
+    if (posX + FONT_12X16_GLYPH_SIZE_X > s_PcClipX1)
+    {
+        *cutR = posX + FONT_12X16_GLYPH_SIZE_X - s_PcClipX1;
+    }
+    return true;
+}
+
+static void Pc_GlyphClipPoly(POLY_FT4* poly, s32 cutL, s32 cutR)
+{
+    poly->x0 += cutL;
+    poly->x1 += cutL;
+    poly->u0 += cutL;
+    poly->u1 += cutL;
+    poly->x2 -= cutR;
+    poly->x3 -= cutR;
+    poly->u2 -= cutR;
+    poly->u3 -= cutR;
+}
+
+static void Pc_GlyphClipSprt(SPRT* sprt, s32 cutL, s32 cutR)
+{
+    sprt->x0 += cutL;
+    sprt->u0 += cutL;
+    sprt->w  -= cutL + cutR;
+}
+#endif
+
 void Gfx_Strings2dLayerIdxSet(s32 idx) // 0x8004A8C0
 {
     g_Strings2dLayerIdx = idx;
@@ -302,13 +357,17 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
     DR_TPAGE* tPage;
     POLY_FT4* glyphPoly;
     SPRT*     glyphSprt;
+#ifdef SH_PC_PORT
+    s32       cutL;
+    s32       cutR;
+#endif
 
     // Create local argument copies.
 #ifdef SH_PC_PORT
     /* Menu-translation chokepoint: every menu/UI string funnels through this
      * function, so a single exact-match lookup localizes them all (misses —
      * item text, digits, US discs — return the input untouched). */
-    strCpy  = (u8*)Pc_LangMenuText(str);
+    strCpy  = g_PcLangMenuVerbatim ? (u8*)str : (u8*)Pc_LangMenuText(str);
 #else
     strCpy  = str;
 #endif
@@ -373,7 +432,8 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
 
             sizeCpy--;
 
-            if (Pc_KanjiCell((u16)(((u32)charCode << 8) | strCpy[1]), &kPage, &kU, &kV, &kClut))
+            if (Pc_GlyphClip(posX, &cutL, &cutR) &&
+                Pc_KanjiCell((u16)(((u32)charCode << 8) | strCpy[1]), &kPage, &kU, &kV, &kClut))
             {
                 if (g_SysWork.enableHighResGlyphs)
                 {
@@ -391,6 +451,7 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
                     *((u32*)&glyphPoly->u1) = (u32)kU + (kPage << 16) + (((u32)kV + 15) << 8);
                     *((u16*)&glyphPoly->u2) = (u16)(kU + FONT_12X16_GLYPH_SIZE_X + (kV << 8));
                     *((u16*)&glyphPoly->u3) = (u16)(kU + FONT_12X16_GLYPH_SIZE_X + ((kV + 15) << 8));
+                    Pc_GlyphClipPoly(glyphPoly, cutL, cutR);
 
                     addPrim(ot, glyphPoly);
                     GsOUT_PACKET_P = (u8*)glyphPoly + sizeof(POLY_FT4);
@@ -406,6 +467,7 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
                     *((u32*)&glyphSprt->r0)   = glyphColor;
                     *((u32*)(&glyphSprt->x0)) = posXCpy + (posY << 16);
                     *((u32*)&glyphSprt->u0)   = (u32)kU + ((u32)kV << 8) + ((u32)kClut << 16);
+                    Pc_GlyphClipSprt(glyphSprt, cutL, cutR);
 
                     packet += sizeof(SPRT);
 
@@ -455,6 +517,12 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
                 page       = g_FontLayout->tpageBase + (row / g_FontLayout->rowsPerPage);
                 u0         = (glyphIdx % FONT_12X16_ATLAS_COLUMN_COUNT) * FONT_12X16_GLYPH_SIZE_X;
 
+                if (!Pc_GlyphClip(posX, &cutL, &cutR))
+                {
+                    posX += glyphWidth;
+                    continue;
+                }
+
                 // Draw glyph sprite.
                 if (g_SysWork.enableHighResGlyphs)
                 {
@@ -472,6 +540,7 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
                     *((u32*)&glyphPoly->u1) = u0 + (page << 16) + ((vTop + 15) << 8);              // `u1`, `v1`, `page`.
                     *((u16*)&glyphPoly->u2) = (u16)(u0 + FONT_12X16_GLYPH_SIZE_X + (vTop << 8));   // `u2`, `v2`.
                     *((u16*)&glyphPoly->u3) = (u16)(u0 + FONT_12X16_GLYPH_SIZE_X + ((vTop + 15) << 8)); // `u3`, `v3`.
+                    Pc_GlyphClipPoly(glyphPoly, cutL, cutR);
 
                     addPrim(ot, glyphPoly);
                     GsOUT_PACKET_P = (u8*)glyphPoly + sizeof(POLY_FT4);
@@ -487,6 +556,7 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
                     *((u32*)&glyphSprt->r0)   = glyphColor;
                     *((u32*)(&glyphSprt->x0)) = posXCpy + (drawY << 16);
                     *((u32*)&glyphSprt->u0)   = u0 + (vTop << 8) + (g_FontLayout->packedClut << 16); // `u0`, `v0`, `clut`.
+                    Pc_GlyphClipSprt(glyphSprt, cutL, cutR);
 
                     packet += sizeof(SPRT);
 

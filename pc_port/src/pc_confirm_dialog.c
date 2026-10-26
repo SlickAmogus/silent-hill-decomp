@@ -71,7 +71,6 @@ static int    s_bakedForPx;
 
 /* The game's arrow pointer, decoded from VRAM once. The overlay composites
  * above the PSX frame, so the PSX-drawn cursor would sit under the dialog. */
-static GLuint s_texCursor;
 
 /* Geometry published by Draw for Update's mouse hit-test (viewport px, y up). */
 static float s_vpW = 1920.0f, s_vpH = 1080.0f;
@@ -635,25 +634,6 @@ void Pc_ConfirmDialog_Draw(void)
         float hx = panelL + (panelW - (float)s_hintW) * 0.5f;
         float hy = panelB + hintH * 0.78f;
         cd_quad(s_texHint, NX(hx), NY(hy), NX(hx + s_hintW), NY(hy - s_hintH), 0.7f, 0.7f, 0.75f, dim);
-    }
-
-    /* Mouse cursor last, so it rides above the panel. Nearest filtering keeps
-     * the PSX pixel look of the sprite. */
-    if (!s_texCursor)
-    {
-        unsigned char rgba[32 * 32 * 4];
-        if (Pc_MouseCursor_SpriteRgba(rgba))
-        {
-            s_texCursor = cd_upload_rgba(rgba, 32, 32);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        }
-    }
-    if (s_texCursor)
-    {
-        float cx, cy, cw, ch;
-        if (Pc_MouseCursor_GlRect(vpW, vpH, &cx, &cy, &cw, &ch))
-            cd_quad(s_texCursor, NX(cx), NY(cy), NX(cx + cw), NY(cy - ch), 1.0f, 1.0f, 1.0f, 1.0f);
     }
 
 #undef NX

@@ -518,20 +518,19 @@ static int Tc_Mode(void)
         g_GameWork.gameState == GameState_LoadSavegameScreen)
         return TC_MODE_BACK_CURSOR;
 
-    /* Only while the browser is actually up, and only as the way OUT of it.
-     * Opening is the tappable "Achievements" line in the corner now
-     * (title.c), so a permanent button here would be a second control for
-     * something already on screen. Closing still needs one: the browser
-     * takes cancel or map to leave, and its own pointer handling uses a
-     * RIGHT click for that, which a finger cannot produce.
+    /* Only while the achievements screen is actually up, and only as the way
+     * OUT of it. Opening is the title menu's own ACHIEVEMENTS row, which is a
+     * tap target like every other row, so a permanent button here would be a
+     * second control for something already on screen. Closing still needs one:
+     * the screen leaves on cancel, which a finger cannot send.
      *
      * Self-gating rather than platform-gated, so this file keeps carrying no
-     * platform conditionals: Pc_RaBrowser_IsOpen is false everywhere the
-     * browser is not compiled in or not open. */
+     * platform conditionals: Pc_AchScreen_IsOpen is false everywhere the
+     * screen is not compiled in or not open. */
     {
-        extern int Pc_RaBrowser_IsOpen(void);
+        extern int Pc_AchScreen_IsOpen(void);
 
-        if (g_GameWork.gameState == GameState_MainMenu && Pc_RaBrowser_IsOpen())
+        if (g_GameWork.gameState == GameState_MainMenu && Pc_AchScreen_IsOpen())
             return TC_MODE_TITLE;
     }
 

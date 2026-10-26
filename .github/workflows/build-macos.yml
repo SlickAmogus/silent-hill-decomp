@@ -13,14 +13,20 @@ on:
   push:
     branches:
       - pc-port
-    paths-ignore:
-      - '**.md'
-      - 'pc_port/launcher/**'
+    # Later patterns win: skip docs and the Windows launcher, but the macOS
+    # launcher is part of this build.
+    paths:
+      - '**'
+      - '!**.md'
+      - '!pc_port/launcher/**'
+      - 'pc_port/launcher/macos/**'
   workflow_dispatch:
 
 jobs:
   build:
     if: github.repository == 'SlickAmogus/silent-hill-decomp'
+    permissions:
+      contents: write
     runs-on: macos-14
 
     steps:
@@ -106,5 +112,47 @@ jobs:
         with:
           name: SHPC-macos-arm64
           path: ${{ runner.temp }}/SHPC-macos-arm64.zip
+          if-no-files-found: error
+          retention-days: 90
+
+      # Newest build on the `realtime` pre-release (one fixed name, replaced every
+      # push) plus a dated copy on `realtime-history`, which keeps this platform's
+      # newest 15. pc-port's tools/realtime_publish.py leaves both alone.
+      - name: Publish to the realtime releases
+        if: github.ref == 'refs/heads/pc-port'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SRC: ${{ runner.temp }}/SHPC-macos-arm64.zip
+          FIXED: SHPC-macos-arm64.zip
+          STEM: SHPC-macos-arm64
+          EXT: .zip
+          KEEP: 15
+        run: |
+          set -euo pipefail
+          R="$GITHUB_REPOSITORY"
+          # Linux/macOS already stage under the fixed name; cp refuses a self-copy.
+          [ "$SRC" -ef "$RUNNER_TEMP/$FIXED" ] || cp "$SRC" "$RUNNER_TEMP/$FIXED"
+          gh release upload realtime "$RUNNER_TEMP/$FIXED" --clobber --repo "$R"
+          gh release view realtime-history --repo "$R" >/dev/null 2>&1 ||
+            gh release create realtime-history --repo "$R" --prerelease --latest=false \
+              --title "Realtime history (older builds)" --notes "Older automatic builds." || true
+          DATED="${STEM}_$(date -u +%Y.%m.%d)-${GITHUB_SHA:0:9}${EXT}"
+          cp "$SRC" "$RUNNER_TEMP/$DATED"
+          gh release upload realtime-history "$RUNNER_TEMP/$DATED" --clobber --repo "$R"
+          gh api "repos/$R/releases/tags/realtime-history" --jq \
+            "[.assets[] | select(.name | startswith(\"${STEM}_\"))] | sort_by(.created_at) | reverse | .[${KEEP}:] | .[].name" |
+            while read -r n; do gh release delete-asset realtime-history "$n" --repo "$R" --yes; done
+
+      # Self-contained "Silent Hill PC.app" (SwiftUI launcher + game + bundled
+      # Homebrew libs) on a drag-to-Applications disk image.
+      - name: Build app bundle (.dmg)
+        run: bash pc_port/launcher/macos/make_app.sh --dmg
+
+      - name: Upload app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SHPC-macos-arm64-app
+          path: pc_port/build/macos/Silent Hill PC.dmg
           if-no-files-found: error
           retention-days: 90

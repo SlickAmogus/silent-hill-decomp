@@ -28,6 +28,8 @@ typedef void (*PcVertexBatchFlush)(PcVertexStream stream,
                                    void* userData);
 
 void Pc_ModernVertex_Upload(const struct GrModernVertex* vertices, int count);
+/* After Pc_ModernVertex_Upload: triangle indices into what it uploaded. */
+void Pc_ModernVertex_UploadIndices(const unsigned int* indices, int count);
 int Pc_ModernVertex_UploadExact(struct GrModernVertex* vertices,
                                 const unsigned short* sz,
                                 int count);

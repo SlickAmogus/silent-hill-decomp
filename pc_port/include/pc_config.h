@@ -211,6 +211,8 @@ typedef struct {
     int bulletDecals;     /* 1 = bullet-hole decals where player gunfire hits world geometry
                            * (gamedata/decal.png; up to 64 FIFO, cleared on map load)
                            * (config key: bullet_decals) */
+    int gamepadIcons;     /* e_GlyphSet: 0 Auto, 1 PS Classic, 2 PS Modern, 3 Xbox, 4 Nintendo, 5 Steam
+                           * (gamedata/icons/input_glyphs.png; config key: gamepad_icons) */
     int globalCharaPool;  /* 1 = global chara/asset pool: every monster's model+anim+texture stays
                            * resident PC-side (virtual GL texture slots) and chara_global.dll backfills
                            * AI update funcs, so console SPAWN works for every type in any map. Native
@@ -570,6 +572,22 @@ typedef struct {
      * worth more than a rebuild. (config key: dream_blur; console: dreamblur) */
     int  dreamBlur;
 
+    /* Skinned replacement characters: 1 = lit per pixel (the game's own
+     * lights evaluated per fragment, plus the model's normal map), 0 = per
+     * vertex like the stock characters. Applies live.
+     * (config key: chara_per_pixel_light) */
+    int  charaPerPixelLight;
+
+    /* Stock world and characters lit per pixel: the GTE light sum the PSX runs
+     * per vertex, run per fragment instead. Off by default; applies live.
+     * (config key: per_pixel_lighting) */
+    int  perPixelLighting;
+
+    /* Fill light on characters lit per pixel, so their shape and normal maps
+     * read in flat daylight and dim rooms: 0 off, 1 low, 2 medium, 3 high.
+     * (config key: hero_light) */
+    int  heroLight;
+
     /* Strength of that blur: the gain of its feedback loop, 0 to 1. 1.0 is
      * hardware, where the overlay's own 50/50 composite is the only decay.
      * Lower fades the ghost faster. (config key: dream_blur_strength) */
@@ -580,6 +598,17 @@ typedef struct {
      * itself is never slowed, the new area just waits. 0 = no minimum.
      * (config key: load_screen_min; console: loadmin) */
     float loadScreenMin;
+
+    /* 1 = in FPS, show the crosshair only while aiming (weapon raised), like
+     * TPS/OTS. 0 = always shown in FPS (default, the previous behaviour).
+     * Appended last so plugins built against the earlier layout still read the
+     * fields above. (config key: crosshair_fps_aim_only) */
+    int crosshairFpsAimOnly;
+
+    /* 1 = a skinned glTF replacement of Harry falls as a ragdoll when he dies,
+     * pushed along the last hit. Stock models are never affected.
+     * (config key: ragdoll) */
+    int ragdoll;
 } s_PcConfig;
 
 extern s_PcConfig g_PcConfig;

@@ -48,8 +48,8 @@
 # Linux + macOS builds are included BY DEFAULT and are VERIFIED BEFORE anything
 # is published: the release is NOT created until the build-linux.yml /
 # build-macos.yml CI runs for THIS EXACT commit have finished successfully on the
-# source repo. Their artifacts are attached as standalone zips, kept OUT of
-# version.json so the Windows launcher ignores them. Pass -SkipCrossPlatform for
+# source repo. Their artifacts are attached as standalone zips (plus the macOS
+# app as a .dmg), kept OUT of version.json so the Windows launcher ignores them. Pass -SkipCrossPlatform for
 # a deliberate Windows-only release.
 #
 # Cross-platform gate (runs BEFORE the release is created -- so a not-ready build
@@ -256,6 +256,27 @@ function Invoke-CrossPlatformDownload {
     return @(Get-ChildItem -Recurse -File $outDir -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
 }
 
+# Download every artifact of one platform's run. Returns empty if any is missing,
+# unless -AllowPartial (an older run predating an artifact still yields the rest).
+function Invoke-TargetDownload {
+    param([string]$SourceSlug, [string]$RunId, $Target, [string]$DlRoot, [switch]$AllowPartial)
+    $all = @()
+    foreach ($a in $Target.Artifacts) {
+        $f = @(Invoke-CrossPlatformDownload -SourceSlug $SourceSlug -RunId $RunId -Artifact $a -DlRoot $DlRoot)
+        if ($f.Count -eq 0) {
+            Write-Host "  ! Download of $a (run $RunId) failed." -ForegroundColor Red
+            if (-not $AllowPartial) { return @() }
+            continue
+        }
+        $all += $f
+    }
+    # GitHub turns the spaces in "Silent Hill PC.dmg" into dots; give it the
+    # platform's artifact name instead.
+    return @($all | ForEach-Object {
+        if ($_ -like '*.dmg') { (Rename-Item -LiteralPath $_ -NewName "$($Target.Artifacts[0]).dmg" -PassThru).FullName } else { $_ }
+    })
+}
+
 # Resolve the Linux + macOS builds for THIS commit BEFORE the release is created.
 # Waits for in-progress builds; on failure/missing/not-pushed it STOPS and asks
 # (or aborts unattended). Returns @{ Proceed=$bool; Assets=@(paths); DlRoot=path }.
@@ -272,8 +293,8 @@ function Resolve-CrossPlatformArtifacts {
     $sourceSlug  = $SourceRepoUrl -replace '^https?://github\.com/', '' -replace '/$', ''
     $shortCommit = if ($SourceCommit) { $SourceCommit.Substring(0, [Math]::Min(9, $SourceCommit.Length)) } else { '(none)' }
     $targets = @(
-        @{ Name = 'Linux'; Workflow = 'build-linux.yml'; Artifact = 'SHPC-linux-x64' },
-        @{ Name = 'macOS'; Workflow = 'build-macos.yml'; Artifact = 'SHPC-macos-arm64' }
+        @{ Name = 'Linux'; Workflow = 'build-linux.yml'; Artifacts = @('SHPC-linux-x64') },
+        @{ Name = 'macOS'; Workflow = 'build-macos.yml'; Artifacts = @('SHPC-macos-arm64', 'SHPC-macos-arm64-app') }
     )
 
     # gh run download creates the dir tree; only made when we actually download,
@@ -376,9 +397,8 @@ function Resolve-CrossPlatformArtifacts {
             $assets = @()
             $allDownloaded = $true
             foreach ($e in $status) {
-                $files = @(Invoke-CrossPlatformDownload -SourceSlug $sourceSlug -RunId $e.RunId -Artifact $e.Target.Artifact -DlRoot $dlRoot)
+                $files = @(Invoke-TargetDownload -SourceSlug $sourceSlug -RunId $e.RunId -Target $e.Target -DlRoot $dlRoot)
                 if ($files.Count -eq 0) {
-                    Write-Host "  ! Download of $($e.Target.Artifact) (run $($e.RunId)) failed." -ForegroundColor Red
                     $allDownloaded = $false
                 } else {
                     $files | ForEach-Object { $assets += $_; Write-Host "  + $([IO.Path]::GetFileName($_)) (run $($e.RunId))" -ForegroundColor Gray }
@@ -461,17 +481,16 @@ function Resolve-CrossPlatformArtifacts {
                         Get-NewestSuccessfulRun -SourceSlug $sourceSlug -Workflow $e.Target.Workflow -Branch $CrossPlatformBranch
                     }
                     if (-not $useRun) {
-                        Write-Host "  ! No successful $($e.Target.Workflow) build exists at all -- skipping $($e.Target.Artifact)." -ForegroundColor Red
+                        Write-Host "  ! No successful $($e.Target.Workflow) build exists at all -- skipping $($e.Target.Name)." -ForegroundColor Red
                         continue
                     }
                     $rid = "$($useRun.databaseId)".Trim()
                     $sha = "$($useRun.headSha)".Trim()
                     if ($SourceCommit -and $sha -ne $SourceCommit) {
-                        Write-Host "  Attaching $($e.Target.Artifact) from OLDER commit $($sha.Substring(0, [Math]::Min(9, $sha.Length)))." -ForegroundColor Yellow
+                        Write-Host "  Attaching $($e.Target.Name) from OLDER commit $($sha.Substring(0, [Math]::Min(9, $sha.Length)))." -ForegroundColor Yellow
                     }
-                    $files = @(Invoke-CrossPlatformDownload -SourceSlug $sourceSlug -RunId $rid -Artifact $e.Target.Artifact -DlRoot $dlRoot)
-                    if ($files.Count -eq 0) { Write-Host "  ! Download of $($e.Target.Artifact) failed." -ForegroundColor Red }
-                    else { $files | ForEach-Object { $assets += $_ } }
+                    $files = @(Invoke-TargetDownload -SourceSlug $sourceSlug -RunId $rid -Target $e.Target -DlRoot $dlRoot -AllowPartial)
+                    $files | ForEach-Object { $assets += $_ }
                 }
                 $result.Assets = $assets
                 return $result

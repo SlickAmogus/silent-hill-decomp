@@ -1954,10 +1954,16 @@ void DbgOverlay_Update(void)
         /* The quick options overlay closes on Escape, the default exit bind:
          * without this gate closing it also warm-reset the game to the title. */
         extern int g_PcQuickOptionsActive;
-        /* The controls panel uses Escape to back out and to cancel a rebind. */
+        /* The controls panel and screen use Escape to back out and to cancel a
+         * rebind; the Achievements screen uses it to back out, and stays open
+         * through its fade out, so no Escape during it quits from the main menu. */
         extern int Pc_BindPanel_IsOpen(void);
+        extern int Pc_ControlsScreen_IsOpen(void);
+        extern int Pc_AchScreen_IsOpen(void);
+        extern int Pc_TitleAchievementsActive(void);
         if (cur_exit && !s_prev_exit && !g_PcConsoleInputActive && !g_PcQuickOptionsActive &&
-            !Pc_BindPanel_IsOpen()) {
+            !Pc_BindPanel_IsOpen() && !Pc_ControlsScreen_IsOpen() && !Pc_AchScreen_IsOpen() &&
+            !Pc_TitleAchievementsActive()) {
             /* The brightness screen owns the whole display (its calibration bar is
              * drawn outside the normal menu path), so warm-resetting out of it left
              * the bar on screen over the title. Back out to the options list the
@@ -2094,10 +2100,6 @@ void DbgOverlay_Render(void)
      * drawn before the quick menu so the menu stays on top. */
     { extern void Pc_FpsHud_Draw(void); Pc_FpsHud_Draw(); }
 
-    /* Main-menu achievement browser — same self-contained-GL arrangement as the
-     * toast above, and drawn after it so an unlock popup stays on top. */
-    { extern void Pc_RaBrowser_Draw(void); Pc_RaBrowser_Draw(); }
-
     /* In-game randomizer settings panel — same self-contained-GL arrangement,
      * opened by tapping the Map button during a run. */
     { extern void Pc_RandoSettings_Draw(void); Pc_RandoSettings_Draw(); }
@@ -2113,6 +2115,10 @@ void DbgOverlay_Render(void)
     { extern void Pc_BindPanel_Draw(void); Pc_BindPanel_Draw(); }
 
     { extern void Pc_ConfirmDialog_Draw(void); Pc_ConfirmDialog_Draw(); }
+
+    /* Mouse pointer above every panel. Before the early-out below, which skips
+     * the rest of this function on nearly every frame. */
+    { extern void Pc_MouseCursor_GlDraw(void); Pc_MouseCursor_GlDraw(); }
 
     /* Console is hidden once fully slid off-screen (toggled by `~`); the ring
      * buffer keeps filling while hidden. The collision panel draws whenever it's

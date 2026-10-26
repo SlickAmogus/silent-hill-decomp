@@ -105,18 +105,13 @@ int Pc_MouseCursor_PuzzleActive(void);
  * and a double tap at the cursor are the only ways to act there. */
 void Pc_MouseCursor_PuzzleClickRequest(void);
 
-/* Draw the mouse cursor sprite at the current pointer position. Call during a
- * menu's render (needs the 2D packet buffer + ordering table set up). */
-void Pc_MouseCursor_Draw(void);
+/* A screen that wants the pointer calls this during its render, every frame it
+ * should show. The GL panels (Quick Options, bind panel, Yes/No box) show it
+ * while open without asking. */
+void Pc_MouseCursor_Show(void);
 
-/* The arrow sprite as 32x32 RGBA (alpha 0 where the PSX texel is transparent),
- * decoded from VRAM. For overlays that composite ABOVE the PSX frame and so must
- * draw the cursor themselves. Returns 0 if BG_ETC is not in VRAM yet. */
-int  Pc_MouseCursor_SpriteRgba(unsigned char* outRgba32x32);
-
-/* Where that sprite goes for a GL overlay: the cursor rect in viewport pixels
- * (origin bottom-left, y up) for a viewport of vpW x vpH, sized to match the
- * PSX-drawn cursor. Returns 0 when the cursor is hidden / off-picture. */
-int  Pc_MouseCursor_GlRect(float vpW, float vpH, float* outX, float* outY, float* outW, float* outH);
+/* Draws the pointer, if shown this frame, above the game picture and every PC
+ * panel. Once per frame, last, from the post-capture overlay hook. */
+void Pc_MouseCursor_GlDraw(void);
 
 #endif /* PC_MOUSE_CURSOR_H */

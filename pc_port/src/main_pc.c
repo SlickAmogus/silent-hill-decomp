@@ -1783,6 +1783,11 @@ int main(int argc, char* argv[])
         SH_LOG("Flashlight mode: %s", Pc_FlashlightModeLabel(g_PcConfig.flashlightMode));
     }
 
+    {
+        extern void Pc_PpLit_Apply(void);
+        Pc_PpLit_Apply();
+    }
+
     /* Select the backend before applying backend-specific controls. */
     {
         extern void PsyX_SPUAL_ConfigureOutput(int backend, int mode, int rate, int bitPerfect);

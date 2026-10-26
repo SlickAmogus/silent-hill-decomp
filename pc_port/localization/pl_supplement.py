@@ -30,6 +30,7 @@ SAME = {
     'MENU.Aniso_16x', 'MENU.30_Hz', 'MENU.60_Hz',
     'QUICK.FOV', 'QUICK.Stereo', 'QUICK.HRTF', 'QUICK.Noclip',
     'ITEM_NAME.68', 'ITEM_NAME.93', 'ITEM_NAME.102', 'ITEM_NAME.131',
+    'MENU.PS_Classic', 'MENU.PS_Modern', 'MENU.Xbox', 'MENU.Nintendo', 'MENU.Steam',
     # The translator typed these out as the English rather than leaving them
     # blank, so it is their decision and not an oversight -- and the right one:
     # these are the words Polish software uses. Not overridden here.
@@ -78,6 +79,45 @@ MENU = {
     'Chinese':      'Chiński',
     'EXIT':         'WYJŚCIE',
     'OTS_FOV':      'FOV_OTS',
+
+    # Title menu ACHIEVEMENTS row, Achievements and Controls screens. The
+    # Controls action labels have the 129 px before their colon.
+    'ACHIEVEMENTS':    'OSIĄGNIĘCIA',
+    'UNLOCKED':        'ZDOBYTE',
+    'LOCKED':          'ZABLOKOWANE',
+    'Point':           'Punkt',
+    'Points':          'pkt',
+    'points':          'pkt',
+    'Gamepad_Icons':   'Ikony_kontrolera',
+    'Auto':            'Automatyczne',
+    'Function':        'Funkcja',
+    'Keyboard':        'Klawiatura',
+    'Controller':      'Kontroler',
+    'Reset':           'Resetuj',
+    'Reset_controls?': 'Zresetować_sterowanie?',
+    'Yes':             'Tak',
+    'No':              'Nie',
+    'Move_Up':         'Do_Przodu',
+    'Move_Down':       'Do_Tyłu',
+    'Turn_Left':       'Obrót_w_Lewo',
+    'Turn_Right':      'Obrót_w_Prawo',
+    'Action_/_Shoot':  'Akcja/Strzał',
+    'Run':             'Sprint',
+    'Sidestep_Left':   'Krok_w_Lewo',
+    'Sidestep_Right':  'Krok_w_Prawo',
+    'View':            'Widok',
+    'Aim':             'Celowanie',
+    'Pause':           'Pauza',
+    'Inventory':       'Ekwipunek',
+    'Cycle_Weapons':   'Zmiana_Broni',
+    'Quick_Heal':      'Szybkie_Lecz.',
+    'Quick_Turn':      'Szybki_Zwrot',
+    'Rear_Look':       'Patrz_w_Tył',
+    'Change_Camera':   'Zmiana_Kamery',
+    'Swap_Shoulder':   'Zmiana_Barku',
+    'Quick_Options':   'Szybkie_Opcje',
+    'Quick_Save':      'Szybki_Zapis',
+    'Quick_Load':      'Szybki_Odczyt',
 }
 
 # --- F10 overlay (TrueType, so any letter is fine) ------------------------

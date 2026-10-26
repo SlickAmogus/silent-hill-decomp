@@ -89,6 +89,12 @@ Drop the new model at `gamedata/load/CHARA/NAME.ILM` and set `allow_loose_files 
 
 ## Replacing Harry with a completely different model
 
+> **Use the skinned format instead.** A rigged glTF dropped in as
+> `gamedata/load/CHARA/HERO.glb` bends smoothly, keeps full-resolution textures and needs
+> no cutting into parts. See
+> [Skinned_Character_Replacement_Guide.md](Skinned_Character_Replacement_Guide.md). The
+> rigid-part route below remains for models without a skeleton.
+
 Putting a foreign model (e.g. a GTA character) on the skeleton is a full **rig**, not an
 edit. The **geometry** work is yours in Blender; the **texture + format** work is the
 button's. What does what:

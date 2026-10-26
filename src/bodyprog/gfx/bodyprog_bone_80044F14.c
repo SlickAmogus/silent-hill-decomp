@@ -6,6 +6,9 @@
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/screen/screen_draw.h"
 #include "main/fsqueue.h"
+#ifdef SH_PC_PORT
+#include "pc_skin_chara.h"
+#endif
 
 s8* D_800C15B0;
 
@@ -404,6 +407,19 @@ void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* boneCoor
 
     if (drawScale != Q12(1.0f))
         Vw_CoordToWorldAndViewMatrices(&boneCoords[0], &rootWorld, &rootView);
+
+    /* A skinned glTF replacement draws the whole character once, from every
+     * bone's matrices, instead of the rigid parts. */
+    void* skinChara = Pc_SkinChara_Begin(skel, boneCoords);
+    int   skinKeepsStock = 0;
+
+    if (skinChara != NULL)
+    {
+        for (curBone = skel->bones_4; curBone != NULL; curBone = curBone->next)
+            if (curBone->bone.modelInfo.modelHdr != NULL &&
+                Pc_SkinChara_KeepsStockPart(curBone->bone.modelInfo.modelHdr->name.str))
+                skinKeepsStock = 1;
+    }
 #endif
 
     for (curBone = skel->bones_4; curBone != NULL; curBone = curBone->next)
@@ -437,9 +453,30 @@ void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* boneCoor
              * head) — hide them with it or the hair floats in front of the eye. */
             {
                 int _hb = (u8)curBone->bone.idx;
-                if (!(g_PcHideHarryFpsBody && (_hb == 2 || _hb >= 18)))
+                if (skinChara != NULL)
                 {
+                    Pc_SkinChara_Bone(skinChara, _hb, &worldMat, &viewMat);
+                    if (!Pc_SkinChara_KeepsStockPart(curBone->bone.modelInfo.modelHdr->name.str))
+                    {
+                        if (skinKeepsStock)
+                            Pc_PartFillScratch(&curBone->bone.modelInfo, &viewMat);
+                    }
+                    else
+                    {
+                        extern int g_PsxActorDepth;
+
+                        g_PsxActorDepth = 1;
+                        func_80057090(&curBone->bone.modelInfo, ot, arg2, &viewMat, &worldMat, arg5);
+                        g_PsxActorDepth = 0;
+                    }
+                }
+                else if (!(g_PcHideHarryFpsBody && (_hb == 2 || _hb >= 18)))
+                {
+                    extern int g_PsxActorDepth;
+
+                    g_PsxActorDepth = 1;
                     func_80057090(&curBone->bone.modelInfo, ot, arg2, &viewMat, &worldMat, arg5);
+                    g_PsxActorDepth = 0;
                 }
             }
 #else
@@ -488,6 +525,11 @@ void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* boneCoor
             }
         }
     }
+
+#ifdef SH_PC_PORT
+    if (skinChara != NULL)
+        Pc_SkinChara_End(skinChara, ot, arg2, g_PcHideHarryFpsBody);
+#endif
 
     if (g_WorldEnvWork.isFogEnabled)
     {

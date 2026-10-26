@@ -432,7 +432,7 @@ void GameState_ItemScreens_Update(void) // 0x8004C9B0
         Gfx_Inventory_ScrollArrowsDraw(&g_Inventory_SelectionId);
 
 #ifdef SH_PC_PORT
-        Pc_MouseCursor_Draw();
+        Pc_MouseCursor_Show();
 #endif
     }
 

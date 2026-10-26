@@ -403,7 +403,51 @@ static const s_MenuTranslation s_MenuTr[] = {
         { "TYP_2", "TYPE_2", "TIPO_2", "TIPO_2" } },
     { "TYPE_3",
         { "TYP_3", "TYPE_3", "TIPO_3", "TIPO_3" } },
+
+    /* --- Title menu ACHIEVEMENTS row, Achievements and Controls screens. The
+     * Controls action labels are right-aligned into the 129 px before their
+     * colon ("Change_Camera"); wider ones pan through that space. "_Map" is that
+     * screen's Map row: bare "Map" is also the PC Options start-map row. --- */
+    { "ACHIEVEMENTS",    { "ERRUNGENSCHAFTEN",              "SUCCES",                           "LOGROS",                     "OBIETTIVI"               } },
+    { "UNLOCKED",        { "ERREICHT",                      "OBTENU",                           "LOGRADO",                    "OTTENUTO"                } },
+    { "LOCKED",          { "GESPERRT",                      "VERROUILLE",                       "BLOQUEADO",                  "BLOCCATO"                } },
+    { "Point",           { "Punkt",                         NULL,                               "Punto",                      "Punto"                   } },
+    { "Points",          { "Punkte",                        NULL,                               "Puntos",                     "Punti"                   } },
+    { "points",          { "Punkte",                        NULL,                               "puntos",                     "punti"                   } },
+    { "Gamepad_Icons",   { "Gamepad-Symbole",               "Ic\xF4nes_manette",                "Iconos_del_mando",           "Icone_controller"        } },
+    { "Auto",            { NULL,                            NULL,                               "Auto.",                      NULL                      } },
+    { "Function",        { "Funktion",                      "Fonction",                         "Funci\xF3n",                 "Funzione"                } },
+    { "Keyboard",        { "Tastatur",                      "Clavier",                          "Teclado",                    "Tastiera"                } },
+    { "Controller",      { NULL,                            "Manette",                          "Mando",                      NULL                      } },
+    { "Reset",           { "Zur\xFC" "cksetzen",            "R\xE9initialiser",                 "Restablecer",                "Ripristina"              } },
+    { "Reset_controls?", { "Steuerung_zur\xFC" "cksetzen?", "R\xE9initialiser_les_commandes_?", "\xBFRestablecer_controles?", "Ripristinare_i_comandi?" } },
+    { "Yes",             { "Ja",                            "Oui",                              "S\xED",                      "S\xEC"                   } },
+    { "No",              { "Nein",                          "Non",                              NULL,                         NULL                      } },
+    { "_Map",            { "Karte",                         "Carte",                            "Mapa",                       "Mappa"                   } },
+    { "Move_Up",         { "Vorw\xE4rts",                   "Avancer",                          "Avanzar",                    "Avanti"                  } },
+    { "Move_Down",       { "R\xFC" "ckw\xE4rts",            "Reculer",                          "Retroceder",                 "Indietro"                } },
+    { "Turn_Left",       { "Links_drehen",                  "Gauche",                           "Girar_izq.",                 "Gira_a_sin."             } },
+    { "Turn_Right",      { "Rechts_drehen",                 "Droite",                           "Girar_der.",                 "Gira_a_des."             } },
+    { "Action_/_Shoot",  { "Aktion/Schuss",                 "Action/Tirer",                     "Acci\xF3n/Disparo",          "Azione/Spara"            } },
+    { "Run",             { "Laufen",                        "Courir",                           "Correr",                     "Corri"                   } },
+    { "Sidestep_Left",   { "Schritt_links",                 "Pas_\xE0_gauche",                  "Paso_lat._izq.",             "Passo_a_sin."            } },
+    { "Sidestep_Right",  { "Schritt_rechts",                "Pas_\xE0_droite",                  "Paso_lat._der.",             "Passo_a_des."            } },
+    { "View",            { "Ansicht",                       "Vue",                              "Vista",                      "Visuale"                 } },
+    { "Aim",             { "Zielen",                        "Viser",                            "Apuntar",                    "Mira"                    } },
+    { "Pause",           { NULL,                            NULL,                               "Pausa",                      "Pausa"                   } },
+    { "Inventory",       { "Inventar",                      "Inventaire",                       "Inventario",                 "Inventario"              } },
+    { "Cycle_Weapons",   { "Waffe_wechseln",                "Changer_d'arme",                   "Cambiar_arma",               "Cambia_arma"             } },
+    { "Quick_Heal",      { "Schnellheilung",                "Soin_rapide",                      "Cura_r\xE1pida",             "Cura_rapida"             } },
+    { "Quick_Turn",      { "Schnellwende",                  "Demi-tour",                        "Giro_r\xE1pido",             "Giro_rapido"             } },
+    { "Rear_Look",       { "Blick_zur\xFC" "ck",            "Regard_arri\xE8re",                "Mirar_atr\xE1s",             "Guarda_dietro"           } },
+    { "Change_Camera",   { "Kamerawechsel",                 "Changer_cam.",                     "Cambio_c\xE1mara",           "Cambia_camera"           } },
+    { "Swap_Shoulder",   { "Seitenwechsel",                 "Changer_c\xF4t\xE9",               "Cambio_hombro",              "Cambia_spalla"           } },
+    { "Quick_Options",   { "Schnellmen\xFC",                "Menu_rapide",                      "Opc._r\xE1pidas",            "Opzioni_rapide"          } },
+    { "Quick_Save",      { "Schnellspeich.",                "Sauv._rapide",                     "Guardado_r\xE1p.",           "Salv._rapido"            } },
+    { "Quick_Load",      { "Schnellladen",                  "Charg._rapide",                    "Carga_r\xE1pida",            "Caric._rapido"           } },
 };
+
+int g_PcLangMenuVerbatim = 0;
 
 const char* Pc_LangMenuText(const char* str)
 {

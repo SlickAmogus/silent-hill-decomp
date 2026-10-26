@@ -4,6 +4,7 @@
 #include "pc_title_style.h"
 #include "lang_text.h"
 #include "pc_binds.h"
+#include "pc_input_glyphs.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -79,6 +80,7 @@ s_PcConfig g_PcConfig = {
                          * 240Hz menu moved them four times too fast (reported). */
     .lowHealthGlow = 0, /* 1=pulsing red edge glow below 20 hp (SH2 remake style); off by default */
     .bulletDecals = 0, /* 1=bullet-hole decals at player gunshot impacts (gamedata/decal.png); off by default */
+    .gamepadIcons = GLYPH_SET_AUTO,
     .globalCharaPool = 1, /* 1=all chara assets resident PC-side + chara_global.dll AI backfill (SPAWN anything anywhere) */
     .wholeMapExteriors = 2, /* auto: whole town drawn while fog_strength < 1.0, the only time it can be seen */
     .usePgxp        = 0, /* 0=affine textures (PSX look), 1=PGXP perspective correct (WIP) */
@@ -128,6 +130,8 @@ s_PcConfig g_PcConfig = {
     .crosshair           = 0, /* draw a center crosshair while aiming in TPS/OTS */
     .crosshairStyle      = 0, /* 0 = cross (+), 1 = dot, 2 = circle, 3 = dashes/gap */
     .crosshairSize       = 100.0f,
+    .crosshairFpsAimOnly = 0, /* FPS crosshair: 0 = always shown, 1 = only while aiming */
+    .ragdoll             = 0,
     .textSize            = 100.0f,
     .aimAssist           = 1, /* OTS/TPS free-aim aim assist (mouse body-coverage + controller auto-aim) */
     .mouseCursor         = 1, /* mouse controls cursor puzzles + clickable main menu */
@@ -159,6 +163,9 @@ s_PcConfig g_PcConfig = {
     .minimapRequireMap       = 1, /* the map only appears once Harry has found it */
     .minimapShowWithoutMap   = 0, /* no map found: no minimap (1 = empty panel + arrow) */
     .dreamBlur               = 1, /* dream/ghosting screen blur (0 = loading trail only) */
+    .charaPerPixelLight      = 1,
+    .perPixelLighting        = 0,
+    .heroLight               = 2,
     .dreamBlurStrength       = 1.0f, /* feedback gain of that blur; 1.0 = hardware */
     .loadScreenMin           = 3.0f, /* seconds the Harry loading screen stays up at least */
     .minimapOpacity          = 100.0f,
@@ -800,6 +807,10 @@ void PcConfig_Load(const char* path)
         {
             g_PcConfig.bulletDecals = (atoi(value) != 0);
         }
+        else if (strcmp(key, "gamepad_icons") == 0)
+        {
+            g_PcConfig.gamepadIcons = InputGlyphs_ClampSet(atoi(value));
+        }
         else if (strcmp(key, "whole_map_exteriors") == 0)
         {
             int v = atoi(value);
@@ -1159,6 +1170,14 @@ void PcConfig_Load(const char* path)
             if (v > 125.0f) v = 125.0f;
             g_PcConfig.crosshairSize = v;
         }
+        else if (strcmp(key, "crosshair_fps_aim_only") == 0)
+        {
+            g_PcConfig.crosshairFpsAimOnly = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "ragdoll") == 0)
+        {
+            g_PcConfig.ragdoll = (atoi(value) != 0);
+        }
         else if (strcmp(key, "text_size") == 0)
         {
             float v = (float)atof(value);
@@ -1228,6 +1247,11 @@ void PcConfig_Load(const char* path)
             if (v < 0.1f) v = 0.1f;
             if (v > 4.0f) v = 4.0f;
             g_PcConfig.touchLookSensitivity = v;
+        }
+        else if (strcmp(key, "quick_weapon_switch") == 0)
+        {
+            extern int g_PcQuickWeaponsEnabled;
+            g_PcQuickWeaponsEnabled = (atoi(value) != 0);
         }
         else if (strcmp(key, "aim_assist") == 0)
         {
@@ -1342,6 +1366,20 @@ else if (strcmp(key, "enable_plugins") == 0)
             extern int g_cfg_dreamFeedback;
             g_PcConfig.dreamBlur = (atoi(value) != 0);
             g_cfg_dreamFeedback  = g_PcConfig.dreamBlur;
+        }
+        else if (strcmp(key, "chara_per_pixel_light") == 0)
+        {
+            g_PcConfig.charaPerPixelLight = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "per_pixel_lighting") == 0)
+        {
+            g_PcConfig.perPixelLighting = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "hero_light") == 0)
+        {
+            g_PcConfig.heroLight = atoi(value);
+            if (g_PcConfig.heroLight < 0) g_PcConfig.heroLight = 0;
+            if (g_PcConfig.heroLight > 3) g_PcConfig.heroLight = 3;
         }
         else if (strcmp(key, "dream_blur_strength") == 0)
         {

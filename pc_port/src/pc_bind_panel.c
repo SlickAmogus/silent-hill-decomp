@@ -196,7 +196,7 @@ static int s_drain;
 static GLuint s_prog, s_vao, s_vbo;
 static GLint  s_locColor;
 static int    s_glReady;
-static GLuint s_texWhite, s_texCursor;
+static GLuint s_texWhite;
 static GLuint s_garbage[BP_GARBAGE];
 static int    s_garbageCount;
 
@@ -1770,27 +1770,8 @@ void Pc_BindPanel_Draw(void)
     s_geoListR = listR;
     s_geoValid = (s_phase == BP_SHOWN);
 
-    /* Mouse cursor last, so it rides above the panel. */
-    if (!s_texCursor)
-    {
-        unsigned char rgba[32 * 32 * 4];
-        if (Pc_MouseCursor_SpriteRgba(rgba))
-        {
-            s_texCursor = bp_upload_rgba(rgba, 32, 32);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        }
-    }
-    if (s_texCursor && !Pc_ConfirmDialog_IsOpen()
-#if defined(BP_MOBILE)
-        && !Pc_MouseCursor_TouchDriving()
-#endif
-       )
-    {
-        float cx, cy, cw, ch;
-        if (Pc_MouseCursor_GlRect(vpW, vpH, &cx, &cy, &cw, &ch))
-            bp_quad(s_texCursor, NX(cx), NY(cy), NX(cx + cw), NY(cy - ch), 1.0f, 1.0f, 1.0f, 1.0f);
-    }
+    /* The pointer is not drawn here any more: Pc_MouseCursor_GlDraw runs last
+     * in the overlay hook and rides above this panel on its own. */
 
 #undef TEXT_AT
 #undef NX

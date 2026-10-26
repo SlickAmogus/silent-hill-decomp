@@ -8,7 +8,10 @@
 #include "map_registry.h"
 #include "lang_text.h" /* menu translations + width for recentred entries */
 #include "pc_title_style.h"
-#include "main/fileinfo.h" /* g_GameRegion: PAL repositions the achievements hint */
+#include "pc_ach_screen.h"
+#include "pc_mouse_cursor.h"
+#include "pc_native_menu_draw.h"
+#include "pc_retroachievements.h"
 #endif
 
 #include <psyq/libetc.h>
@@ -35,7 +38,6 @@ void MainMenu_FogUpdate(void);
 #ifdef SH_PC_PORT
 /* Forward declarations for static functions used before definition */
 static void MainMenu_MainTextDraw(void);
-static void MainMenu_AchievementHintDraw(void);
 static void MainMenu_DifficultyTextDraw(s32 idx);
 static void MainMenu_BackgroundDraw(void);
 static void func_8003BCF4(void);
@@ -71,6 +73,58 @@ static s32 g_MainMenu_SelectedEntry     = MainMenuEntry_Start;
 
 static u32 g_MainMenu_VisibleEntryFlags = MAINMENU_BASE_ENTRY_FLAGS;
 
+#ifdef SH_PC_PORT
+/* Every row fits, so the window never scrolls and the arrows stay hidden. The
+ * scroll path is kept for when rows outgrow the screen: set this back to 5 to
+ * bring it back (the arrow positions below are tuned for 5). */
+#define MAINMENU_WINDOW_SLOTS MainMenuEntry_Count
+#define MAINMENU_ROW_PITCH    20
+/* Rows are bottom-aligned in the window, so the last one always lands on
+ * y 264, above the US copyright (~y 286), however many slots there are. */
+#define MAINMENU_LAST_ROW_Y   264
+#define MAINMENU_ROW_Y        (MAINMENU_LAST_ROW_Y - (MAINMENU_WINDOW_SLOTS - 1) * MAINMENU_ROW_PITCH)
+/* Scroll mode only: the column moves up one row so the down arrow ends above
+ * the copyright; the arrows sit 4 px clear of the glyphs. */
+#define MAINMENU_SCROLL_ROW_Y (MAINMENU_ROW_Y - MAINMENU_ROW_PITCH)
+#define MAINMENU_ARROW_NM_X   160
+#define MAINMENU_ARROW_UP_NM_Y   132
+#define MAINMENU_ARROW_DOWN_NM_Y 191
+
+static NmScroll s_MainMenu_Scroll;
+static s32      s_MainMenu_Order[MainMenuEntry_Count];
+static s32      s_MainMenu_RowCount;
+
+static void MainMenu_LayoutSync(void)
+{
+    s32 i;
+
+    s_MainMenu_RowCount = Nm_CompactRows(g_MainMenu_VisibleEntryFlags, MainMenuEntry_Count, s_MainMenu_Order);
+    s_MainMenu_Scroll.visible = (s_MainMenu_RowCount < MAINMENU_WINDOW_SLOTS) ? s_MainMenu_RowCount : MAINMENU_WINDOW_SLOTS;
+    NmScroll_SetCount(&s_MainMenu_Scroll, s_MainMenu_RowCount);
+
+    for (i = 0; i < s_MainMenu_RowCount; i++)
+    {
+        if (s_MainMenu_Order[i] == (s32)g_MainMenu_SelectedEntry)
+        {
+            NmScroll_Select(&s_MainMenu_Scroll, i);
+            break;
+        }
+    }
+}
+
+static s32 MainMenu_RowY(void)
+{
+    return (s_MainMenu_RowCount > MAINMENU_WINDOW_SLOTS) ? MAINMENU_SCROLL_ROW_Y : MAINMENU_ROW_Y;
+}
+
+/* True from the Achievements pick through both fades, which the screen's own
+ * open state does not cover: it opens only once the title has faded out. */
+int Pc_TitleAchievementsActive(void)
+{
+    return g_GameWork.gameState == GameState_MainMenu && g_MainMenuState == MenuState_Achievements;
+}
+#endif
+
 // ========================================
 // GLOBAL VARIABLES
 // ========================================
@@ -94,7 +148,11 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
      * map must have NO effect until New Game selects it (title.c New Game
      * path below). */
 #endif
+#ifdef SH_PC_PORT
+    #define MAIN_MENU_GAME_STATE_COUNT MainMenuEntry_Count
+#else
     #define MAIN_MENU_GAME_STATE_COUNT 5
+#endif
 
     s32 NEXT_GAME_STATES[MAIN_MENU_GAME_STATE_COUNT] =
     {
@@ -102,6 +160,9 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
         GameState_AutoLoadSavegame,
         GameState_MovieOpening,
         GameState_OptionScreen,
+#ifdef SH_PC_PORT
+        GameState_MainMenu, /* Achievements: handled in MenuState_Achievements, never handed off. */
+#endif
         GameState_MovieIntro
     };
 
@@ -112,8 +173,8 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
     static s32  newGameSelectedDifficultyIdx = 1;
     static s32  prevSavegameCount            = 0;
 #ifdef SH_PC_PORT
-    extern int  Pc_RaBrowser_IsOpen(void);
-    bool        browserOpen                  = false;
+    static s32  achStep                      = 0;
+    static bool achUnavailableLogged         = false;
 #endif
 #ifdef SH_PC_PORT
     /* skip_intros=2 drives the stock New Game path rather than duplicating it:
@@ -141,14 +202,9 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
      * PsyCross reports idle pads as 0xFFFF so the any-button exit works. Left
      * off historically because it had never been exercised; config-gated so it
      * can be turned off without a rebuild. */
-    /* Read before playInGameDemo so the achievement panel suppresses the whole
-     * attract pipeline: reflects last frame's state, which is enough because the
-     * idle counter is also pinned below. */
-    browserOpen = Pc_RaBrowser_IsOpen();
-
     /* Neither the gameplay demo nor the intro FMV may take the screen while the
-     * achievement panel is up -- the player is reading, not idle. */
-    playInGameDemo = g_PcConfig.attractDemos && !browserOpen &&
+     * achievements screen is up -- the player is reading, not idle. */
+    playInGameDemo = g_PcConfig.attractDemos && g_MainMenuState != MenuState_Achievements &&
                      (((g_Demo_ReproducedCount + 1) % 3) != 0);
 #else
     playInGameDemo = ((g_Demo_ReproducedCount + 1) % 3) != 0;
@@ -224,6 +280,43 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 }
             }
 
+#ifdef SH_PC_PORT
+#ifdef SH_RETROACHIEVEMENTS
+            /* Hidden like CONTINUE without a save; re-evaluated every frame so the
+             * row appears once a set finishes loading. */
+            if (Pc_Ra_SetLoaded())
+            {
+                g_MainMenu_VisibleEntryFlags |= 1 << MainMenuEntry_Achievements;
+            }
+            else if (!achUnavailableLogged && g_PcConfig.retroAchievements && !Pc_Ra_IsPending())
+            {
+                SH_DBG("[RA] ACHIEVEMENTS row hidden: %s", Pc_Ra_UnavailableReason());
+                achUnavailableLogged = true;
+            }
+#endif
+            /* A set that unloads under the cursor. Upward, so the cursor lands on
+             * Option rather than on Exit, where the next confirm quits. */
+            {
+                s32 entry = g_MainMenu_SelectedEntry;
+
+                while (entry >= 0 && !(g_MainMenu_VisibleEntryFlags & (1 << entry)))
+                {
+                    entry--;
+                }
+
+                if (entry < 0)
+                {
+                    entry = g_MainMenu_SelectedEntry;
+                    while (!(g_MainMenu_VisibleEntryFlags & (1 << entry)))
+                    {
+                        entry++;
+                    }
+                }
+
+                g_MainMenu_SelectedEntry = entry;
+            }
+#endif
+
             g_MainMenu_VisibleEntryFlags |= g_MainMenu_VisibleEntryFlags << MainMenuEntry_Count;
 
             if (g_Controller0->pulsedBtnFlags & (ControllerFlag_LStickUp | ControllerFlag_LStickDown))
@@ -237,88 +330,6 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                     Fs_QueueReset();
                 }
             }
-
-#ifdef SH_PC_PORT
-            /* Achievement browser: the Map button has no meaning on the title
-             * screen, so it opens the list here. While the panel is up it owns
-             * the pad -- the flags are cleared so the menu underneath does not
-             * also move its selection or start a game.
-             *
-             * Deliberately does NOT return: the menu's own drawing (background,
-             * entry text and the mouse cursor) lives past the end of this
-             * switch, and returning here left the whole screen black behind the
-             * panel with no cursor. Everything below reads the flags this just
-             * zeroed, so falling through is inert. */
-            {
-                extern void Pc_RaBrowser_Open(void);
-                extern int  Pc_RaBrowser_IsOpen(void);
-                extern void Pc_RaBrowser_Update(int closeRequested, int up, int down, int confirm);
-
-                if (Pc_RaBrowser_IsOpen())
-                {
-                    /* Resolved here, against the player's own bindings, so the
-                     * browser needs no knowledge of the controller config. */
-                    u16 closeBtns = g_GameWorkPtr->config.controllerConfig.cancel |
-                                    g_GameWorkPtr->config.controllerConfig.map;
-                    Pc_RaBrowser_Update(
-                        (g_Controller0->clickedBtnFlags & closeBtns) != 0,
-                        (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickUp) != 0,
-                        (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickDown) != 0,
-                        (g_Controller0->clickedBtnFlags &
-                         (g_GameWorkPtr->config.controllerConfig.enter |
-                          g_GameWorkPtr->config.controllerConfig.action)) != 0);
-                    browserOpen = true;
-                }
-                else if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.map)
-                {
-                    Pc_RaBrowser_Open();
-                    browserOpen = true;
-                }
-#if defined(SH_IOS) || defined(__ANDROID__)
-                /* Tap the hint to open it. The zone is the bottom-left corner
-                 * rather than the text's own rectangle: the string layer works
-                 * in its own coordinate space (Gfx_StringSetPosition subtracts
-                 * a 50%/47% origin and the title screen's Y runs past the 240
-                 * the touch overlay uses), so reconstructing the glyph bounds
-                 * here would be a guess dressed up as a measurement.
-                 *
-                 * Being larger than the words is the right error anyway -- it is
-                 * a fingertip target, and nothing else on the title screen lives
-                 * in this corner. The menu column is centred. */
-                else if (g_PcConfig.retroAchievements)
-                {
-                    extern int Pc_MouseCursor_LeftClicked(void);
-                    extern int Pc_MouseCursor_ViewportPos(float*, float*);
-
-                    float tapX = 0.0f, tapY = 0.0f;
-
-                    if (Pc_MouseCursor_LeftClicked() &&
-                        Pc_MouseCursor_ViewportPos(&tapX, &tapY) &&
-                        tapX < 0.34f && tapY > 0.80f)
-                    {
-                        Pc_RaBrowser_Open();
-                        browserOpen = true;
-                    }
-                }
-#endif
-                if (browserOpen)
-                {
-                    /* Clear the DERIVED per-frame events only.
-                     *
-                     * heldBtnFlags must NOT be cleared: Joy_ControllerDataUpdate
-                     * keeps last frame's value as prevBtnsHeld and derives
-                     * clicked = ~prev & held from it. Zeroing it made every
-                     * frame look like a fresh press, so a held button "clicked"
-                     * continuously (Enter flickering a detail card open and
-                     * shut) and pulseTicks reset every frame, which pinned
-                     * pulsed to clicked and raced the list past at frame rate. */
-                    g_Controller0->clickedBtnFlags   = 0;
-                    g_Controller0->pulsedBtnFlags    = 0;
-                    g_Controller0->releasedBtnFlags  = 0;
-                    g_Controller0->pulsedGuiBtnFlags = 0;
-                }
-            }
-#endif
 
             if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickUp)
             {
@@ -335,31 +346,61 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             g_MainMenu_SelectedEntry %= MainMenuEntry_Count;
 
 #ifdef SH_PC_PORT
-            /* Mouse: hover a visible row to select it, left-click to confirm.
-             * Suppressed while the achievement panel is up — it reads the mouse
-             * directly, and this block would otherwise keep re-selecting menu
-             * rows (and synthesising Enter) under the panel. */
-            if (!browserOpen)
+            /* Mouse: hover a drawn row to select it, left-click to confirm, wheel
+             * to scroll. Rows are hit-tested where MainMenu_MainTextDraw puts them
+             * after scrolling, so slot -> compact index -> entry id. */
+            MainMenu_LayoutSync();
             {
-                extern int Pc_MouseCursor_MenuRowHover(int, int, int, unsigned int, int*);
-                extern int Pc_MouseCursor_Moved(void);
-                int mcClicked = 0;
-                int mcRow     = Pc_MouseCursor_MenuRowHover(184, 20, MainMenuEntry_Count,
-                                                            g_MainMenu_VisibleEntryFlags, &mcClicked);
-                if (mcRow >= 0)
+                s32 mx, my;
+                s32 rowY  = MainMenu_RowY();
+                s32 base  = Nm_SlotBase(s_MainMenu_RowCount, MAINMENU_WINDOW_SLOTS);
+                s32 slot;
+                s32 notches;
+
+                if (Pc_MouseCursor_UiPos(&mx, &my))
                 {
-                    if (mcClicked)
+                    for (slot = base; slot < base + s_MainMenu_Scroll.visible; slot++)
                     {
-                        g_MainMenu_SelectedEntry = mcRow;
-                        g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.enter;
+                        /* Same 3 px lead-in above the glyph top as Pc_MouseCursor_MenuRowHover. */
+                        s32 top = rowY + (slot * MAINMENU_ROW_PITCH) - 3;
+                        s32 idx = Nm_SlotToIndex(slot, base, s_MainMenu_Scroll.top, s_MainMenu_RowCount);
+                        s32 row;
+
+                        if (idx < 0 || my < top || my >= top + MAINMENU_ROW_PITCH)
+                        {
+                            continue;
+                        }
+
+                        row = s_MainMenu_Order[idx];
+                        if (Pc_MouseCursor_LeftClicked())
+                        {
+                            g_MainMenu_SelectedEntry        = row;
+                            g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.enter;
+                        }
+                        else if (Pc_MouseCursor_Moved() && (s32)g_MainMenu_SelectedEntry != row)
+                        {
+                            g_MainMenu_SelectedEntry = row;
+                            SD_Call(Sfx_MenuMove);
+                        }
+                        break;
                     }
-                    else if (Pc_MouseCursor_Moved() && (s32)g_MainMenu_SelectedEntry != mcRow)
+                }
+
+                /* A wheel bound to a pad direction already moved the selection
+                 * through the up/down code above. */
+                notches = Pc_MouseCursor_WheelNotches();
+                if (notches != 0 && !(Pc_MouseCursor_BoundPadBits() & (ControllerFlag_LStickUp | ControllerFlag_LStickDown)))
+                {
+                    MainMenu_LayoutSync();
+                    NmScroll_Wheel(&s_MainMenu_Scroll, notches);
+                    if (s_MainMenu_Order[s_MainMenu_Scroll.sel] != (s32)g_MainMenu_SelectedEntry)
                     {
-                        g_MainMenu_SelectedEntry = mcRow;
+                        g_MainMenu_SelectedEntry = s_MainMenu_Order[s_MainMenu_Scroll.sel];
                         SD_Call(Sfx_MenuMove);
                     }
                 }
             }
+            MainMenu_LayoutSync();
 #endif
 
 #ifdef SH_PC_PORT
@@ -424,8 +465,13 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                         break;
 
 #ifdef SH_PC_PORT
-                    /* Retail leaves this slot dead (never made visible, empty
-                     * handler). The port shows it as Exit and quits here, the
+                    case MainMenuEntry_Achievements:
+                        g_MainMenuState = MenuState_Achievements;
+                        achStep         = 0;
+                        break;
+
+                    /* Retail leaves the Extra slot dead (never made visible,
+                     * empty handler). The port shows Exit and quits here, the
                      * same way the console QUIT command and the debug overlay
                      * close the game — exit() runs the registered teardown. */
                     case MainMenuEntry_Exit:
@@ -609,6 +655,44 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             }
             break;
 
+#ifdef SH_PC_PORT
+        case MenuState_Achievements:
+            switch (achStep)
+            {
+                case 0:
+                    if (ScreenFade_IsFinished())
+                    {
+                        Pc_AchScreen_Open();
+                        ScreenFade_Start(true, true, false);
+                        achStep = 1;
+                    }
+                    break;
+
+                case 1:
+                    {
+                        NmInput in;
+
+                        NmInput_FromGame(&in);
+                        if (!Pc_AchScreen_Update(&in))
+                        {
+                            ScreenFade_Start(true, false, false);
+                            achStep = 2;
+                        }
+                    }
+                    break;
+
+                default:
+                    if (ScreenFade_IsFinished())
+                    {
+                        Pc_AchScreen_Close();
+                        g_MainMenuState = MenuState_Main;
+                        ScreenFade_Start(true, true, false);
+                    }
+                    break;
+            }
+            break;
+#endif
+
         case MenuState_LoadGame:
         case MenuState_NewGameStart:
             if (ScreenFade_IsFinished())
@@ -668,9 +752,10 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
     }
 
 #ifdef SH_PC_PORT
-    /* Hold the idle timer at zero while the panel is up. Scrolling a list is not
-     * idling, and at 1740 this loads STREAM.BIN and cuts to the intro movie. */
-    if (browserOpen)
+    /* Hold the idle timer at zero while the achievements screen is up. Scrolling
+     * a list is not idling, and at 1740 this loads STREAM.BIN and cuts to the
+     * intro movie. */
+    if (g_MainMenuState == MenuState_Achievements)
     {
         g_SysWork.counters_1C[1] = 0;
     }
@@ -715,27 +800,34 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
         }
 #endif
 
+#ifdef SH_PC_PORT
+        if (g_MainMenuState == MenuState_Achievements && achStep != 0)
+        {
+            Pc_AchScreen_Draw();
+            Pc_MouseCursor_Show();
+            return;
+        }
+#endif
+
         MainMenu_BackgroundDraw();
         func_8003B560();
 
+#ifdef SH_PC_PORT
+        if (g_MainMenuState < 3 || g_MainMenuState == MenuState_Achievements)
+#else
         if (g_MainMenuState < 3)
+#endif
         {
             MainMenu_MainTextDraw();
 #ifdef SH_PC_PORT
-            MainMenu_AchievementHintDraw();
-            /* The achievement panel draws its own pointer over the top, so the
-             * game's would just be a second cursor tracking the same mouse
-             * underneath it. */
-            if (!browserOpen)
-            { extern void Pc_MouseCursor_Draw(void); Pc_MouseCursor_Draw(); }
+            Pc_MouseCursor_Show();
 #endif
             return;
         }
 
         MainMenu_DifficultyTextDraw(newGameSelectedDifficultyIdx);
 #ifdef SH_PC_PORT
-        if (!browserOpen)
-        { extern void Pc_MouseCursor_Draw(void); Pc_MouseCursor_Draw(); }
+        Pc_MouseCursor_Show();
 #endif
         return;
     }
@@ -767,96 +859,6 @@ void MainMenu_SelectedOptionIdxReset(void) // 0x8003B550
 
 void func_8003B560(void) {} // 0x8003B560
 
-#ifdef SH_PC_PORT
-/* Bottom-left hint naming the button that opens the achievement browser.
- *
- * Drawn through the game's own text system rather than a GL overlay, which buys
- * three things: the game's glyphs, and a coordinate space that is already mapped
- * into the picture area -- so pillarboxing and widescreen are handled by the
- * same path every other menu string goes through, with nothing to get wrong
- * here. */
-static void MainMenu_AchievementHintDraw(void)
-{
-    /* Authoring space on this screen runs y -112 (top) .. 336 (bottom), x 0 ..
-     * 320; the menu column sits at x158, y184..264.
-     *
-     * Y sits BELOW the copyright line baked into the title art, which lands
-     * around y286 -- drawing there put the hint straight through it. The band
-     * under it is empty, so this is the one clean strip left at the bottom.
-     *
-     * EUR's copyright comes from Pc_TitleLogoDrawEur's strips instead and lands
-     * at ~y306-318, straight through the US position. 320 is as low as the band
-     * allows -- the glyphs end at the y336 bottom edge. */
-    #define ACH_HINT_POS_X 18
-    #define ACH_HINT_POS_Y ((g_GameRegion == Region_EUR) ? 320 : 310)
-
-    extern const char* PcConfig_BindName(unsigned short, int, int, int);
-    extern int         Pc_ControllerAttached(void);
-
-    char        line[64];
-    char        bind[40];
-    const char* key;
-    const char* pad;
-    s32         i;
-    u16         mapBtn;
-
-    if (!g_PcConfig.retroAchievements)
-    {
-        return;
-    }
-
-    /* Whatever the player bound Map to -- the browser opens on that, so the
-     * hint has to read it rather than assume a key. Scheme 0 (classic): the
-     * title screen has no camera mode to disagree about. */
-#if defined(SH_IOS) || defined(__ANDROID__)
-    /* No bind prefix on a touch build. "[M] Achievements" names a key this
-     * device does not have, and the line is the label of something you tap --
-     * so it should read as one. Opened by the tap zone in
-     * GameState_MainMenu_Update, which covers this corner. */
-    (void)key; (void)pad; (void)bind; (void)i; (void)mapBtn;
-    Gfx_StringSetPosition(ACH_HINT_POS_X, ACH_HINT_POS_Y);
-    Gfx_StringDraw("Achievements", DEFAULT_MAP_MESSAGE_LENGTH);
-    return;
-#else
-    mapBtn = g_GameWorkPtr->config.controllerConfig.map;
-    key    = PcConfig_BindName(mapBtn, 0, 0, 0);
-    pad    = PcConfig_BindName(mapBtn, 1, 0, 0);
-
-    if (Pc_ControllerAttached() && pad[0] != '\0' && key[0] != '\0')
-    {
-        snprintf(bind, sizeof(bind), "%s/%s", key, pad);
-    }
-    else if (Pc_ControllerAttached() && pad[0] != '\0')
-    {
-        snprintf(bind, sizeof(bind), "%s", pad);
-    }
-    else if (key[0] != '\0')
-    {
-        snprintf(bind, sizeof(bind), "%s", key);
-    }
-    else
-    {
-        return; /* unbound — a hint naming no button helps nobody */
-    }
-
-    snprintf(line, sizeof(line), "[%s]_Achievements", bind);
-
-    /* The renderer prints '_' as a space, so a bind whose own name contains a
-     * real space ("Left Shift") has to be converted or the words run together. */
-    for (i = 0; line[i] != '\0'; i++)
-    {
-        if (line[i] == ' ')
-        {
-            line[i] = '_';
-        }
-    }
-
-    Gfx_StringSetPosition(ACH_HINT_POS_X, ACH_HINT_POS_Y);
-    Gfx_StringDraw(line, DEFAULT_MAP_MESSAGE_LENGTH);
-#endif
-}
-#endif
-
 static void MainMenu_MainTextDraw(void) // 0x8003B568
 {
     #define COLUMN_POS_X 158
@@ -869,7 +871,8 @@ static void MainMenu_MainTextDraw(void) // 0x8003B568
         "START",
         "OPTION",
 #ifdef SH_PC_PORT
-        "EXIT" /* PC port: quits the game. Reuses the unused Extra slot. */
+        "ACHIEVEMENTS",
+        "EXIT" /* PC port: quits the game. */
 #else
         "EXTRA" /** @unused See `e_MainMenuEntry`. */
 #endif
@@ -878,6 +881,67 @@ static void MainMenu_MainTextDraw(void) // 0x8003B568
 
     s32 i;
 
+#ifdef SH_PC_PORT
+    s32 base;
+    s32 rowY;
+    s32 slot;
+
+    MainMenu_LayoutSync();
+    base = Nm_SlotBase(s_MainMenu_RowCount, MAINMENU_WINDOW_SLOTS);
+    rowY = MainMenu_RowY();
+
+    for (slot = base; slot < base + s_MainMenu_Scroll.visible; slot++)
+    {
+        s32 id;
+
+        i = Nm_SlotToIndex(slot, base, s_MainMenu_Scroll.top, s_MainMenu_RowCount);
+        if (i < 0)
+        {
+            continue;
+        }
+        id = s_MainMenu_Order[i];
+
+        /* Translated entries and patch-specific selection markers can have
+         * different widths; untranslated retail rows keep their constants. */
+        {
+            const char* tr   = Pc_LangMenuText(MAIN_MENU_ENTRY_STRINGS[id]);
+            /* STR_OFFSETS_X holds hand-measured centres for the retail rows, so
+             * keep using them when the text is untranslated. The port's rows
+             * have no authored offset (index 4's was for "EXTRA"), so centre
+             * them from the measured width in every language, English included. */
+            s32         offX = (tr == MAIN_MENU_ENTRY_STRINGS[id] && id < MainMenuEntry_Achievements)
+                                   ? STR_OFFSETS_X[id]
+                                   : ((Pc_LangMenuTextWidth(tr) +
+                                       Pc_LangMenuTextWidth(Pc_LangMenuText("["))) >> 1);
+            Gfx_StringSetPosition(COLUMN_POS_X - offX, rowY + (slot * MAINMENU_ROW_PITCH));
+        }
+        Gfx_StringSetColor(StringColorId_White);
+
+        if (id == g_MainMenu_SelectedEntry)
+        {
+            Gfx_StringDraw("[", DEFAULT_MAP_MESSAGE_LENGTH);
+        }
+        else
+        {
+            Gfx_StringDraw("_", DEFAULT_MAP_MESSAGE_LENGTH);
+        }
+
+        Gfx_StringDraw(MAIN_MENU_ENTRY_STRINGS[id], DEFAULT_MAP_MESSAGE_LENGTH);
+
+        if (id == g_MainMenu_SelectedEntry)
+        {
+            Gfx_StringDraw("]", DEFAULT_MAP_MESSAGE_LENGTH);
+        }
+
+        Gfx_StringDraw("\n", DEFAULT_MAP_MESSAGE_LENGTH);
+    }
+
+    if (s_MainMenu_RowCount > MAINMENU_WINDOW_SLOTS)
+    {
+        Nm_ScrollArrowDraw(MAINMENU_ARROW_NM_X, MAINMENU_ARROW_UP_NM_Y, 1, NmScroll_CanUp(&s_MainMenu_Scroll));
+        Nm_ScrollArrowDraw(MAINMENU_ARROW_NM_X, MAINMENU_ARROW_DOWN_NM_Y, 0, NmScroll_CanDown(&s_MainMenu_Scroll));
+    }
+#else
     // Draw selection strings.
     for (i = 0; i < MainMenuEntry_Count; i++)
     {
@@ -887,23 +951,7 @@ static void MainMenu_MainTextDraw(void) // 0x8003B568
             continue;
         }
 
-#ifdef SH_PC_PORT
-        /* Translated entries have different widths — recentre from the
-         * actual string ('[' is 6px wide); untranslated keeps the constant. */
-        {
-            const char* tr   = Pc_LangMenuText(MAIN_MENU_ENTRY_STRINGS[i]);
-            /* STR_OFFSETS_X holds hand-measured centres for the retail rows, so
-             * keep using them when the text is untranslated. The port's Exit row
-             * has no authored offset (index 4's was for "EXTRA"), so centre it
-             * from the measured width in every language, English included. */
-            s32         offX = (tr == MAIN_MENU_ENTRY_STRINGS[i] && i != MainMenuEntry_Exit)
-                                   ? STR_OFFSETS_X[i]
-                                   : ((Pc_LangMenuTextWidth(tr) + 6) >> 1);
-            Gfx_StringSetPosition(COLUMN_POS_X - offX, COLUMN_POS_Y + (i * STR_OFFSET_Y));
-        }
-#else
         Gfx_StringSetPosition(COLUMN_POS_X - STR_OFFSETS_X[i], COLUMN_POS_Y + (i * STR_OFFSET_Y));
-#endif
         Gfx_StringSetColor(StringColorId_White);
 
         if (i == g_MainMenu_SelectedEntry)
@@ -924,6 +972,7 @@ static void MainMenu_MainTextDraw(void) // 0x8003B568
 
         Gfx_StringDraw("\n", DEFAULT_MAP_MESSAGE_LENGTH);
     }
+#endif
 }
 
 static void MainMenu_DifficultyTextDraw(s32 idx) // 0x8003B678
@@ -950,7 +999,8 @@ static void MainMenu_DifficultyTextDraw(s32 idx) // 0x8003B678
             const char* tr   = Pc_LangMenuText(DIFFICULTY_MENU_ENTRY_STRINGS[i]);
             s32         offX = (tr == DIFFICULTY_MENU_ENTRY_STRINGS[i])
                                    ? STR_OFFSETS_X[i]
-                                   : ((Pc_LangMenuTextWidth(tr) + 6) >> 1);
+                                   : ((Pc_LangMenuTextWidth(tr) +
+                                       Pc_LangMenuTextWidth(Pc_LangMenuText("["))) >> 1);
             Gfx_StringSetPosition(COLUMN_POS_X - offX, COLUMN_POS_Y + (i * STR_OFFSET_Y));
         }
 #else
