@@ -754,10 +754,14 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 #ifdef SH_PC_PORT
     /* Hold the idle timer at zero while the achievements screen is up. Scrolling
      * a list is not idling, and at 1740 this loads STREAM.BIN and cuts to the
-     * intro movie. */
-    if (g_MainMenuState == MenuState_Achievements)
+     * intro movie. The QoL mods window too: it swallows the pad, so the
+     * held-button reset above never sees the player using it. */
     {
-        g_SysWork.counters_1C[1] = 0;
+        extern int Pc_QolMods_IsOpen(void);
+        if (g_MainMenuState == MenuState_Achievements || Pc_QolMods_IsOpen())
+        {
+            g_SysWork.counters_1C[1] = 0;
+        }
     }
 #endif
 

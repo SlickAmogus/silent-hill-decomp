@@ -11,7 +11,10 @@
  *   - everything else is a load/ overlay, extracted into gamedata/load/
  *     (fsqueue reads loose files only, never from a zip), and loose-file
  *     support is switched on, which the web build defaults off.
- * Installed ids are kept in gamedata/qol_installed.txt.
+ * Installed ids are kept in gamedata/qol_installed.txt. Unticking an
+ * installed mod removes it: the catalog lists, per mod, the files it puts
+ * under gamedata/, so removal needs neither the zip nor a record made at
+ * install time (mods installed before removal existed have none).
  *
  * GL constraints are pc_rando_settings.c's: own program/VAO/textures with full
  * state save+restore, legacy GLSL, all GL work in Draw.
@@ -92,8 +95,9 @@ typedef struct
     char      file[96];
     char      url[256];
     long long size;
+    char*     files;     /* '\n'-separated paths under gamedata/, from the catalog */
     int       installed;
-    int       ticked;
+    int       want;      /* the ticked state: differs from installed = a pending change */
 } s_QmMod;
 
 static s_QmMod s_mods[QM_MAX_MODS];
@@ -115,7 +119,7 @@ static char   s_message[512]; /* QM_ERROR / QM_DONE body */
 
 /* Busy sequence: the ticked mods, installed one after another. */
 static int    s_queue[QM_MAX_MODS];
-static int    s_queueLen, s_queuePos, s_installedNow, s_failedNow;
+static int    s_queueLen, s_queuePos, s_installedNow, s_failedNow, s_removedNow;
 static char   s_failNames[256];
 
 /* ------------------------------------------------------------------ */
@@ -182,6 +186,8 @@ static void qm_load_installed(void)
         }
         fclose(f);
     }
+    for (i = 0; i < s_modCount; i++)
+        s_mods[i].want = s_mods[i].installed;
 }
 
 static void qm_mark_installed(const s_QmMod* m)
@@ -190,6 +196,36 @@ static void qm_mark_installed(const s_QmMod* m)
     if (f)
     {
         fprintf(f, "%s\n", m->id);
+        fclose(f);
+    }
+}
+
+static void qm_unmark_installed(const s_QmMod* m)
+{
+    char  line[128], keep[2048];
+    size_t used = 0;
+    FILE* f = fopen(QM_INSTALLED, "rb");
+    keep[0] = '\0';
+    if (!f)
+        return;
+    while (fgets(line, sizeof(line), f))
+    {
+        size_t n = strlen(line);
+        while (n && (line[n - 1] == '\n' || line[n - 1] == '\r' || line[n - 1] == ' '))
+            line[--n] = '\0';
+        if (n && strcmp(line, m->id) != 0 && used + n + 2 < sizeof(keep))
+        {
+            memcpy(keep + used, line, n);
+            used += n;
+            keep[used++] = '\n';
+            keep[used] = '\0';
+        }
+    }
+    fclose(f);
+    f = fopen(QM_INSTALLED, "wb");
+    if (f)
+    {
+        fwrite(keep, 1, used, f);
         fclose(f);
     }
 }
@@ -253,6 +289,14 @@ static int qm_parse_catalog(const char* json)
     if (!p)
         return 0;
     p++;
+    {
+        int k;
+        for (k = 0; k < s_modCount; k++)
+        {
+            free(s_mods[k].files);
+            s_mods[k].files = NULL;
+        }
+    }
     s_modCount = 0;
     for (;;)
     {
@@ -276,6 +320,16 @@ static int qm_parse_catalog(const char* json)
                 return s_modCount;
             p = js_ws(p + 1);
             val[0] = '\0';
+            /* One '\n'-separated string, too long for val. */
+            if (*p == '"' && !strcmp(key, "files"))
+            {
+                size_t cap = strlen(p) + 1;
+                free(m.files);
+                m.files = (char*)malloc(cap);
+                if (!m.files || !(p = js_str(p, m.files, cap)))
+                    return s_modCount;
+                continue;
+            }
             if (*p == '"')
             {
                 if (!(p = js_str(p, val, sizeof(val))))
@@ -303,6 +357,8 @@ static int qm_parse_catalog(const char* json)
         if (m.id[0] && m.file[0] && m.url[0] && !strchr(m.file, '/') && !strchr(m.file, '\\') &&
             !strstr(m.file, "..") && s_modCount < QM_MAX_MODS)
             s_mods[s_modCount++] = m;
+        else
+            free(m.files);
     }
     return s_modCount;
 }
@@ -407,6 +463,37 @@ static int qm_install_zip(const char* zipPath, const s_QmMod* m, char* err, size
         PcConfig_SaveKeyValue("allow_loose_files", "1");
     }
     return ok;
+}
+
+/* Delete what the catalog says the mod put under gamedata/. Each path is
+ * checked to stay inside load/ or texturemods/, since it comes off the net. */
+static void qm_remove_mod(const s_QmMod* m)
+{
+    const char* p = m->files;
+    while (p && *p)
+    {
+        const char* e = strchr(p, '\n');
+        size_t n = e ? (size_t)(e - p) : strlen(p);
+        char rel[512], path[600];
+        if (n > 0 && n < sizeof(rel))
+        {
+            memcpy(rel, p, n);
+            rel[n] = '\0';
+            if (!strstr(rel, "..") && rel[0] != '/' && rel[0] != '\\' &&
+                (qm_has_prefix_ci(rel, "load/") || qm_has_prefix_ci(rel, "texturemods/")))
+            {
+                snprintf(path, sizeof(path), "gamedata/%s", rel);
+                remove(path);
+                if (qm_has_prefix_ci(rel, "texturemods/"))
+                {
+                    snprintf(path, sizeof(path), "gamedata/%s.disabled", rel);
+                    remove(path);
+                }
+            }
+        }
+        p = e ? e + 1 : p + n;
+    }
+    qm_unmark_installed(m);
 }
 
 /* ------------------------------------------------------------------ */
@@ -627,28 +714,63 @@ void Pc_QolMods_OpenList(void)
     qm_open_list_now();
 }
 
-static int qm_ticked_count(void)
+static int qm_change_count(void)
 {
     int i, n = 0;
     for (i = 0; i < s_modCount; i++)
-        if (s_mods[i].ticked && !s_mods[i].installed)
+        if (s_mods[i].want != s_mods[i].installed)
             n++;
     return n;
 }
 
-static void qm_begin_install(void)
+static void qm_finish_message(void)
+{
+    char done[96];
+    if (s_installedNow && s_removedNow)
+        snprintf(done, sizeof(done), "Installed %d and removed %d mod%s.", s_installedNow, s_removedNow,
+                 s_removedNow == 1 ? "" : "s");
+    else if (s_removedNow)
+        snprintf(done, sizeof(done), "Removed %d mod%s.", s_removedNow, s_removedNow == 1 ? "" : "s");
+    else
+        snprintf(done, sizeof(done), "Installed %d mod%s.", s_installedNow, s_installedNow == 1 ? "" : "s");
+
+    if (s_failedNow == 0)
+        snprintf(s_message, sizeof(s_message), "%s %s", done, QM_RESTART_TEXT);
+    else if (s_installedNow + s_removedNow > 0)
+        snprintf(s_message, sizeof(s_message), "%s %s Could not install: %s", done, QM_RESTART_TEXT, s_failNames);
+    else
+        snprintf(s_message, sizeof(s_message), "Could not install: %s", s_failNames);
+}
+
+/* Removals are a few deletes, done at once; installs download one by one. */
+static void qm_begin_apply(void)
 {
     int i;
-    s_queueLen = 0;
-    for (i = 0; i < s_modCount; i++)
-        if (s_mods[i].ticked && !s_mods[i].installed)
-            s_queue[s_queueLen++] = i;
-    if (s_queueLen == 0)
+    if (qm_change_count() == 0)
         return;
+    s_queueLen = 0;
     s_queuePos = 0;
     s_installedNow = 0;
+    s_removedNow = 0;
     s_failedNow = 0;
     s_failNames[0] = '\0';
+    for (i = 0; i < s_modCount; i++)
+    {
+        if (s_mods[i].installed && !s_mods[i].want)
+        {
+            qm_remove_mod(&s_mods[i]);
+            s_mods[i].installed = 0;
+            s_removedNow++;
+        }
+        else if (!s_mods[i].installed && s_mods[i].want)
+            s_queue[s_queueLen++] = i;
+    }
+    if (s_queueLen == 0)
+    {
+        qm_finish_message();
+        qm_set_mode(QM_DONE);
+        return;
+    }
     qm_set_mode(QM_BUSY);
     qm_task_start(s_queue[0]);
 }
@@ -664,11 +786,16 @@ static int qm_buttons(const char* labels[3])
         case QM_LOADING: labels[0] = "Close"; return 1;
         case QM_ERROR:  labels[0] = "Retry"; labels[1] = "Close"; return 2;
         case QM_LIST:
-            snprintf(installLbl, sizeof(installLbl), "Install (%d)", qm_ticked_count());
+            snprintf(installLbl, sizeof(installLbl), "Apply (%d)", qm_change_count());
             labels[0] = installLbl; labels[1] = "Close"; return 2;
         case QM_INFO:
-            if (s_mods[s_infoIdx].installed) { labels[0] = "Back"; return 1; }
-            labels[0] = s_mods[s_infoIdx].ticked ? "Unselect" : "Select"; labels[1] = "Back"; return 2;
+        {
+            const s_QmMod* m = &s_mods[s_infoIdx];
+            if (m->installed) labels[0] = m->want ? "Remove" : "Keep";
+            else              labels[0] = m->want ? "Unselect" : "Select";
+            labels[1] = "Back";
+            return 2;
+        }
         case QM_DONE:   labels[0] = "OK"; return 1;
         default: return 0;
     }
@@ -691,12 +818,12 @@ static void qm_press_button(int b)
             else        qm_close();
             break;
         case QM_LIST:
-            if (b == 0) qm_begin_install();
+            if (b == 0) qm_begin_apply();
             else        qm_close();
             break;
         case QM_INFO:
-            if (!s_mods[s_infoIdx].installed && b == 0)
-                s_mods[s_infoIdx].ticked = !s_mods[s_infoIdx].ticked;
+            if (b == 0)
+                s_mods[s_infoIdx].want = !s_mods[s_infoIdx].want;
             else
             {
                 s_sel = s_infoIdx;
@@ -753,7 +880,6 @@ static void qm_step(void)
     if (s_taskOk)
     {
         s_mods[s_taskMod].installed = 1;
-        s_mods[s_taskMod].ticked = 0;
         s_installedNow++;
     }
     else
@@ -771,14 +897,7 @@ static void qm_step(void)
         return;
     }
 
-    if (s_failedNow == 0)
-        snprintf(s_message, sizeof(s_message), "Installed %d mod%s. %s",
-                 s_installedNow, s_installedNow == 1 ? "" : "s", QM_RESTART_TEXT);
-    else if (s_installedNow > 0)
-        snprintf(s_message, sizeof(s_message), "Installed %d mod%s. %s Could not install: %s",
-                 s_installedNow, s_installedNow == 1 ? "" : "s", QM_RESTART_TEXT, s_failNames);
-    else
-        snprintf(s_message, sizeof(s_message), "Could not install: %s", s_failNames);
+    qm_finish_message();
     if (s_mode == QM_BUSY)
         qm_set_mode(QM_DONE);
 }
@@ -844,7 +963,7 @@ int Pc_QolMods_Frame(int atTitle, int up, int down, int left, int right, int con
         if (s_sel < s_modCount)
         {
             if (right) { s_infoIdx = s_sel; qm_set_mode(QM_INFO); return 1; }
-            if (confirm && !s_mods[s_sel].installed) s_mods[s_sel].ticked = !s_mods[s_sel].ticked;
+            if (confirm) s_mods[s_sel].want = !s_mods[s_sel].want;
             confirm = 0;
         }
         else
@@ -886,9 +1005,7 @@ int Pc_QolMods_Frame(int atTitle, int up, int down, int left, int right, int con
                 {
                     s_sel = row;
                     if (mpx <= s_geoCheckR)
-                    {
-                        if (!s_mods[row].installed) s_mods[row].ticked = !s_mods[row].ticked;
-                    }
+                        s_mods[row].want = !s_mods[row].want;
                     else
                     {
                         s_infoIdx = row;
@@ -1419,7 +1536,7 @@ void Pc_QolMods_Draw(void)
                               px, panelL + pad, bodyT, panelW - 2.0f * pad, lineH, 0.92f, 0.92f, 0.95f);
             break;
         case QM_NOTICE:
-            qm_draw_paragraph("You can install them any time from " QM_PLATFORM_OPTIONS " > Install QoL Mods.",
+            qm_draw_paragraph("You can install or remove them any time from " QM_PLATFORM_OPTIONS " > Set Up QoL Mods.",
                               px, panelL + pad, bodyT, panelW - 2.0f * pad, lineH, 0.92f, 0.92f, 0.95f);
             break;
         case QM_LOADING:
@@ -1465,7 +1582,8 @@ void Pc_QolMods_Draw(void)
             qm_draw_paragraph(m->desc, px, panelL + pad, y, panelW - 2.0f * pad, lineH, 0.92f, 0.92f, 0.95f);
             qm_format_mb(sz, sizeof(sz), m->size);
             snprintf(line, sizeof(line), "%s   %s", sz,
-                     m->installed ? "Installed" : (m->ticked ? "Selected for install" : "Not installed"));
+                     m->installed ? (m->want ? "Installed" : "Will be removed on Apply")
+                                  : (m->want ? "Will be installed on Apply" : "Not installed"));
             qm_draw_text(line, px, panelL + pad, bodyB + lineH * 1.2f, 0.70f, 0.70f, 0.75f);
             break;
         }
@@ -1490,12 +1608,10 @@ void Pc_QolMods_Draw(void)
                     qm_rect(panelL + 4.0f, top, panelR - 4.0f, top - rowH, 0.42f, 0.16f, 0.12f, 0.55f);
                 qm_rect(bx, by, bx + box, by - box, 0.70f, 0.70f, 0.75f, 1.0f);
                 qm_rect(bx + 2.0f, by - 2.0f, bx + box - 2.0f, by - box + 2.0f, 0.08f, 0.07f, 0.09f, 1.0f);
-                if (m->installed || m->ticked)
+                if (m->want)
                     qm_rect(bx + box * 0.25f, by - box * 0.25f, bx + box * 0.75f, by - box * 0.75f,
-                            m->installed ? 0.45f : 0.85f, m->installed ? 0.45f : 0.25f,
-                            m->installed ? 0.48f : 0.18f, 1.0f);
-                qm_draw_text(m->name, px, tx, mid + lineH * 0.95f,
-                             m->installed ? 0.6f : 0.95f, m->installed ? 0.6f : 0.95f, m->installed ? 0.62f : 0.97f);
+                            0.85f, 0.25f, 0.18f, 1.0f);
+                qm_draw_text(m->name, px, tx, mid + lineH * 0.95f, 0.95f, 0.95f, 0.97f);
                 {
                     char by_[200];
                     snprintf(by_, sizeof(by_), "by %s", m->author);
@@ -1505,11 +1621,12 @@ void Pc_QolMods_Draw(void)
                     qm_draw_text(by_, (int)(px * 0.8f), tx, mid - lineH * 0.05f, 0.62f, 0.62f, 0.68f);
                 }
                 qm_format_mb(sz, sizeof(sz), m->size);
-                snprintf(right, sizeof(right), "%s", m->installed ? "Installed" : sz);
+                snprintf(right, sizeof(right), "%s",
+                         m->installed ? (m->want ? "Installed" : "Remove") : (m->want ? "Install" : sz));
                 qm_text(right, px, &w, &h);
                 qm_draw_text(right, px, panelR - pad - (float)w, mid + (float)h * 0.5f, 0.75f, 0.75f, 0.80f);
             }
-            qm_draw_paragraph("Tick the mods you want, then Install. Tap a name for details.",
+            qm_draw_paragraph("Tick to install, untick to remove, then Apply. Tap a name for details.",
                               (int)(px * 0.85f), panelL + pad, hintY, panelW - 2.0f * pad, lineH, 0.6f, 0.6f, 0.65f);
             break;
         }
