@@ -3282,3 +3282,42 @@ keyframes), which is why sideways sprint always worked. Clamp dropped so forward
 matches, and the aim-run states joined the exhaustion group so sprinting with a
 weapon up tires him at the usual rate.
 
+
+## Keyboard layouts and IMEs (2026-10-26, launcher 2026.10.26.2)
+
+**A CJK IME ate the keyboard.** SDL2 starts text input when it creates the
+window, which attaches the OS input method to it. With Microsoft Pinyin in
+Chinese mode every key press reaches the window as `VK_PROCESSKEY`, and SDL's
+IME handler swallows those, so `SDL_GetKeyboardState` never saw WASD, Shift or
+the console key: no movement, no run, a console that would not close, and F10
+blocked behind it (`g_PcConsoleInputActive`). `main_pc.c` now calls
+`SDL_StopTextInput()` right after `PsyX_Initialise`. That detaches the IME and
+also turns `SDL_TEXTINPUT` off, which matters: with text events on, SDL
+re-attaches the IME every time the window regains focus.
+
+**The console typed US positions.** It built characters from scancodes
+(`'A' + (sc - SDL_SCANCODE_A)` plus a punctuation table), so QWERTZ typed Z for
+Y and AltGr symbols were unreachable. It now takes characters from
+`SDL_TEXTINPUT` (Windows' own `WM_CHAR`) through PsyCross's
+`g_cfg_gameOnTextInput`. `Console_SyncTextInput` enables only the event state,
+never `SDL_StartTextInput`, so the IME stays detached while the console is open,
+and redoes that after a focus regain. AltGr (Left Ctrl + Right Alt on Windows)
+no longer counts as Ctrl for Ctrl+C / Ctrl+V.
+
+**Key names showed US positions.** Saved binds stay SDL scancode names (US
+positions), so a config means the same physical keys on any layout. Only the
+display changed: `BindInput_KeyLabel` (`pc_bind_input.c`) maps a saved name to
+its label on the active layout, used by the native Controls screen (glyph and
+text), the F10 bind panel and the F10 footer. Console `bind` / `unbind` resolve
+the typed name by label (`BindInput_ScancodeFromLabel`); config binds are
+parsed before SDL knows the layout, so `PcBinds_Update` re-resolves them once.
+Console binds made on a non-US layout before this were saved under the US
+letter and now point at the other key.
+
+**The launcher captured labels but saved positions.** `ControlsForm` mapped the
+WinForms `Keys` value, which follows the key's label, straight to an SDL
+scancode name, so binding the key labelled Y on QWERTZ bound the key labelled
+Z in game. Letters, top-row digits and OEM punctuation are now captured by PC
+scancode (`MapVirtualKey`, gated by `IsLayoutKey` because keypad `/` shares
+scancode 0x35 with `/`), and each box shows its key's label on the active
+layout. The saved name lives in the box's `Tag`; its text is display only.
