@@ -27,6 +27,8 @@ static char* Png_Inflate(const char* buf, int len, int initialSize, int* outLen,
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
+/* Shared stb decoder also serves compact, baked JPEG menu examples. */
+#define STBI_ONLY_JPEG
 #define STBI_NO_STDIO
 #include "stb_image.h"
 

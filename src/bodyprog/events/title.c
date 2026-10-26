@@ -12,6 +12,7 @@
 #include "pc_mouse_cursor.h"
 #include "pc_native_menu_draw.h"
 #include "pc_retroachievements.h"
+#include "pc_title_screen.h"
 #endif
 
 #include <psyq/libetc.h>
@@ -93,6 +94,30 @@ static u32 g_MainMenu_VisibleEntryFlags = MAINMENU_BASE_ENTRY_FLAGS;
 static NmScroll s_MainMenu_Scroll;
 static s32      s_MainMenu_Order[MainMenuEntry_Count];
 static s32      s_MainMenu_RowCount;
+static s32      s_TitleDifficulty;
+static u32 func_8003B7FC(s32 idx);
+
+int Pc_TitleMenu_Rows(int* ids,int* selected,int* difficulty)
+{
+    int i,n=0;
+    if(g_GameWork.gameState!=GameState_MainMenu ||
+       g_MainMenuState==MenuState_Achievements || g_PcConfig.skipIntros>=2)return 0;
+    *difficulty=g_MainMenuState==MenuState_DifficultySelector;
+    *selected=*difficulty?s_TitleDifficulty:g_MainMenu_SelectedEntry;
+    if(*difficulty){for(i=0;i<3;i++)ids[n++]=i;return n;}
+    for(i=0;i<MainMenuEntry_Count;i++)
+        if(g_MainMenu_VisibleEntryFlags&(1<<i))ids[n++]=i;
+    return n;
+}
+
+void Pc_TitleFogRgb(unsigned char* rgb)
+{
+    int i;
+    for(i=0;i<441;i++) {
+        u32 c=D_800BCDE0?func_8003B7FC(i):0;
+        rgb[i*3]=c&255;rgb[i*3+1]=(c>>8)&255;rgb[i*3+2]=(c>>16)&255;
+    }
+}
 
 static void MainMenu_LayoutSync(void)
 {
@@ -239,6 +264,14 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             g_MainMenuState++;
 
         case MenuState_Main:
+#ifdef SH_PC_PORT
+            if(Pc_TitleScreen_LanguageUpdate(
+                (g_Controller0->clickedBtnFlags&ControllerFlag_LStickRight)!=0)) {
+                SD_Call(Sfx_MenuMove);
+                g_Controller0->clickedBtnFlags=0;
+                g_Controller0->pulsedBtnFlags=0;
+            }
+#endif
             if (playInGameDemo)
             {
                 GameBoot_GameStartup();
@@ -357,7 +390,21 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 s32 slot;
                 s32 notches;
 
-                if (Pc_MouseCursor_UiPos(&mx, &my))
+                if (Pc_TitleMenu_Active()) {
+                    int ids[6],selected,difficulty;
+                    int count=Pc_TitleMenu_Rows(ids,&selected,&difficulty);
+                    int hit=Pc_TitleMenu_MouseRow(count);
+                    if(hit>=0) {
+                        int row=ids[hit];
+                        if(Pc_MouseCursor_LeftClicked()) {
+                            g_MainMenu_SelectedEntry=row;
+                            g_Controller0->clickedBtnFlags|=g_GameWorkPtr->config.controllerConfig.enter;
+                        } else if(Pc_MouseCursor_Moved() && g_MainMenu_SelectedEntry!=row) {
+                            g_MainMenu_SelectedEntry=row;
+                            SD_Call(Sfx_MenuMove);
+                        }
+                    }
+                } else if (Pc_MouseCursor_UiPos(&mx, &my))
                 {
                     for (slot = base; slot < base + s_MainMenu_Scroll.visible; slot++)
                     {
@@ -517,7 +564,9 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 extern int Pc_MouseCursor_Moved(void);
                 extern int Pc_MouseCursor_RightClicked(void);
                 int mcClicked = 0;
-                int mcRow     = Pc_MouseCursor_MenuRowHover(204, 20, 3, ~0u, &mcClicked);
+                int mcRow     = Pc_TitleMenu_Active()?Pc_TitleMenu_MouseRow(3):
+                    Pc_MouseCursor_MenuRowHover(204, 20, 3, ~0u, &mcClicked);
+                if(Pc_TitleMenu_Active())mcClicked=Pc_MouseCursor_LeftClicked();
                 if (mcRow >= 0)
                 {
                     if (mcClicked)
@@ -887,6 +936,7 @@ static void MainMenu_MainTextDraw(void) // 0x8003B568
     s32 slot;
 
     MainMenu_LayoutSync();
+    if(Pc_TitleMenu_Active())return;
     base = Nm_SlotBase(s_MainMenu_RowCount, MAINMENU_WINDOW_SLOTS);
     rowY = MainMenu_RowY();
 
@@ -977,6 +1027,10 @@ static void MainMenu_MainTextDraw(void) // 0x8003B568
 
 static void MainMenu_DifficultyTextDraw(s32 idx) // 0x8003B678
 {
+#ifdef SH_PC_PORT
+    s_TitleDifficulty=idx;
+    if(Pc_TitleMenu_Active())return;
+#endif
     #define DIFFICULTY_MENU_SELECTION_COUNT 3
     #define COLUMN_POS_X                    158
     #define COLUMN_POS_Y                    204

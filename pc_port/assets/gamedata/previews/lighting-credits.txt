@@ -1,0 +1,2 @@
+CesiumMan ©2017 Cesium, CC BY 4.0; Cesium logo ©2015 Cesium. https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/CesiumMan ; https://creativecommons.org/licenses/by/4.0/ . Adaptations: bone naming/identity clavicle anchors and coordinate transform. Original game imagery retains original rights.
+Only derived test-model screenshots are included; the model itself is not bundled or installed.

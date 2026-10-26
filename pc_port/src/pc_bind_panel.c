@@ -33,6 +33,7 @@
 #include "pc_config.h"
 #include "control_style.h"
 #include "lang_quick.h"
+#include "pc_menu_font.h"
 #include "sh_log.h"
 #include "game.h"
 #include "bodyprog/sound/sfx_id_enum.h"
@@ -1277,6 +1278,16 @@ static GLuint bp_bake(const char* text, float px, int* outW, int* outH)
     int   asc, desc, gap, W, H, i, pad = 1, prev = 0;
     unsigned char *cov, *rgba, *scratch;
     GLuint tex;
+
+    if (text && text[0] && px>=4 && Pc_LangQuickScript()==LANG_QUICK_SCRIPT_LATIN) {
+        unsigned char* native=Pc_MenuFontRaster(text,px,&W,&H);
+        if (native) {
+            tex=bp_upload_rgba(native,W,H);free(native);
+            if (outW) *outW=W;
+            if (outH) *outH=H;
+            return tex;
+        }
+    }
 
     if (!s_fontOk || !text || !text[0] || px < 4.0f)
         return 0;

@@ -27,6 +27,7 @@ extern s_WorldEnvWork g_WorldEnvWork;
 #ifdef SH_PC_PORT
 #include "pc_pick.h"
 #include "pc_dark_harry.h"
+#include "bodyprog/game_boot/fs_chara_anim.h"
 #endif
 #include "bodyprog/events/radio.h"
 #include "bodyprog/demo.h"
@@ -111,9 +112,55 @@ static s_MapPoint2d s_PC_D_800BCDB0_Backup;
 static int s_PC_D_800BCDB0_Saved = 0;
 #endif
 
+#ifdef SH_PC_PORT
+void Pc_OptionsPreviewDraw(void)
+{
+    /* Options preview is render-only: no events, AI, combat, timers, pickups,
+     * saves or world-object update callbacks are dispatched. */
+    s32 i;
+    extern int g_PcQuickOptionsActive;
+    s32 frozen=g_PcQuickOptionsActive;
+    s32 dt=g_DeltaTime,raw=g_DeltaTimeRaw;
+    s32 state=g_SysWork.sysState;
+    g_SysWork.sysState=SysState_Gameplay;
+    g_PcQuickOptionsActive=1;
+    g_DeltaTime=g_DeltaTimeRaw=0;
+    DebugCamera_Update();
+    Gfx_FlashlightUpdate();
+    { extern void Pc_MenuPreview_WeatherDraw(void); Pc_MenuPreview_WeatherDraw(); }
+    if (g_SysWork.playerWork.player.model.anim.flags & AnimFlag_Visible)
+        func_8003DA9C(Chara_Harry,g_SysWork.playerBoneCoords,1,g_SysWork.playerWork.player.timer_C6,0);
+    for (i=0;i<ARRAY_SIZE(g_SysWork.npcs);i++) {
+        s_SubCharacter* npc=&g_SysWork.npcs[i];
+        s32 idx;
+        if (npc->model.charaId<=Chara_None || npc->model.charaId>=ARRAY_SIZE(g_CharaAnimDataIdxs)) continue;
+        idx=g_CharaAnimDataIdxs[npc->model.charaId];
+        if (idx>=0 && (s8)idx!=(s8)0xff && idx<ARRAY_SIZE(g_CharaModelAnimsData) &&
+            g_CharaModelAnimsData[idx].boneCoords!=NULL &&
+            (npc->model.anim.flags & AnimFlag_Visible))
+            func_8003DA9C(npc->model.charaId,g_CharaModelAnimsData[idx].boneCoords,1,npc->timer_C6,(s8)npc->model.paletteIdx);
+    }
+    Gfx_InGameDraw(true);
+    { extern int g_PcWorldDrawnThisFrame; g_PcWorldDrawnThisFrame=1; }
+    g_DeltaTime=dt;g_DeltaTimeRaw=raw;
+    g_PcQuickOptionsActive=frozen;
+    g_SysWork.sysState=state;
+}
+#endif
+
 void GameState_InGame_Update(void) // 0x80038BD4
 {
     s_SubCharacter* player;
+#ifdef SH_PC_PORT
+    {
+        extern int Pc_OptionsScenePreview(void);
+        if (Pc_OptionsScenePreview()) {
+            extern int Pc_MenuPreview_IsChild(void);
+            if(Pc_MenuPreview_IsChild())Pc_OptionsPreviewDraw();
+            return;
+        }
+    }
+#endif
 
     Demo_DemoRandSeedBackup();
 

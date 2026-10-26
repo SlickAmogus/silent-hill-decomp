@@ -123,6 +123,11 @@ void Game_TimerUpdate(void) // 0x8004C8DC
 
 void GameState_ItemScreens_Update(void) // 0x8004C9B0
 {
+#ifdef SH_PC_PORT
+    /* Collect wheel/finger motion even while the carousel is animating. It
+     * queues input and injects only when the original one-slot loader is ready. */
+    Pc_Inventory_MouseUpdate();
+#endif
     Gfx_StringSetColor(StringColorId_White);
     func_800363D0();
 
@@ -592,11 +597,6 @@ void Inventory_Logic(void) // 0x8004D518
     s32 cmdCountMax = 0;
     s32 temp;
     s32 curItemIdx;
-
-#ifdef SH_PC_PORT
-    /* Must run before the directional flags are derived from g_Controller0. */
-    Pc_Inventory_MouseUpdate();
-#endif
 
     Inventory_DirectionalInputSet();
 
@@ -1306,7 +1306,7 @@ void Inventory_ItemUse(s32 inventoryItemIdx) // 0x8004E6D4
     #undef playerExtra
 }
 
-void Gfx_Inventory_CmdOptionsDraw(void) // 0x8004E864
+static void Inventory_CmdOptionsOriginal(void) // 0x8004E864
 {
     s32      i;
     s32      idx;
@@ -1413,6 +1413,10 @@ void Gfx_Inventory_CmdOptionsDraw(void) // 0x8004E864
             break;
     }
 
+#ifdef SH_PC_PORT
+    /* Native compositor owns both command text and its selection highlight. */
+    if(Pc_InventoryAdapted())return;
+#endif
     if (g_Inventory_SelectionId >= InventorySelectionId_ItemCmd &&
         g_Inventory_SelectionId <= InventorySelectionId_EquippedItemCmd)
     {
@@ -1463,6 +1467,17 @@ void Gfx_Inventory_CmdOptionsDraw(void) // 0x8004E864
             GsOUT_PACKET_P = (PACKET*)poly + sizeof(POLY_G4);
         }
     }
+}
+
+void Gfx_Inventory_CmdOptionsDraw(void)
+{
+#ifdef SH_PC_PORT
+    Pc_InventoryTextBegin(1);
+#endif
+    Inventory_CmdOptionsOriginal();
+#ifdef SH_PC_PORT
+    Pc_InventoryTextEnd();
+#endif
 }
 
 void Gfx_Inventory_ScrollArrowsDraw(s32* invSelectionId) // 0x8004EC7C

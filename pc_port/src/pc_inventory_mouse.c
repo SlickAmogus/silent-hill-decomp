@@ -31,8 +31,13 @@
 #include "pc_config.h"
 #include "pc_inventory_mouse.h"
 #include "pc_mouse_cursor.h"
+#include "pc_inventory_layout.h"
+#include "bodyprog/screen/screen_fade.h"
+#include "bodyprog/sound/sound_system.h"
 
 #include <PsyX/PsyX_public.h>
+#include <math.h>
+#include <stdlib.h>
 
 /* Text-authoring reference (Gfx_StringSetPosition's origin). Pc_MouseCursor_UiPos
  * reports in that space; every table below is in the game's centre-origin prim
@@ -89,6 +94,11 @@ static const s16 INV_SLOT_BAND_MAX[7] = { -101, -80, -31, 31, 80, 101, 160 };
  * that fell 7 places off the far edge), so invItemSelectedIdx must never jump by
  * more than one — a multi-slot click is walked out one stock step at a time. */
 static s32 s_scrollTarget = -1;
+static int s_scrollQueue;
+static int s_fastScroll;
+int Pc_Inventory_ScrollAdvance(void) {return s_fastScroll?4:1;}
+static int s_touchStarted,s_touchMoved;
+static float s_touchY,s_touchLastX;
 
 static int Inv_InBox(const s_InvBox* b, s32 x, s32 y)
 {
@@ -151,6 +161,7 @@ static void Inv_SnapSelection(u32 id)
  * with it. Returns 1.0 in the default pillarboxed 4:3 case. */
 static float Inv_CarouselXScale(void)
 {
+    if(Pc_InventoryAdapted())return 1.0f;
     extern int g_PcHorPlusEnabled;
     extern int g_PcMenuPillarbox;
     extern int g_PcWidescreenMode;
@@ -161,7 +172,7 @@ static float Inv_CarouselXScale(void)
     float psxAspect = 320.0f / 240.0f;
 
     stretched = (g_PcHorPlusEnabled && g_PcWidescreenMode == 2) ||
-                (!g_PcHorPlusEnabled && !g_PcMenuPillarbox);
+                 (!g_PcHorPlusEnabled && (!g_PcMenuPillarbox || Pc_InventoryAdapted()));
     if (!stretched)
         return 1.0f;
 
@@ -201,8 +212,9 @@ void Pc_Inventory_MouseUpdate(void)
     s32 clicked, rightClicked, wheel;
     s32 slotCount;
 
-    if (!g_PcConfig.mouseCursor)
+    if (!g_PcConfig.mouseCursor && !Pc_MouseCursor_TouchDriving())
         return;
+    if(!ScreenFade_IsNone())return;
 
     /* Only the live inventory. Everything else gameStateSteps[1] runs (option
      * hand-off, results/save screen, the fade out) reuses these globals for
@@ -210,8 +222,103 @@ void Pc_Inventory_MouseUpdate(void)
     if (g_GameWork.gameStateSteps[1] != 1)
     {
         s_scrollTarget = NO_VALUE;
+        s_scrollQueue=0;s_touchStarted=0;s_fastScroll=0;
         return;
     }
+
+    slotCount=g_SavegamePtr->inventorySlotCount;
+    if(slotCount<=0)return;
+    int modal=g_Inventory_SelectionId==InventorySelectionId_ItemCmd ||
+        g_Inventory_SelectionId==InventorySelectionId_EquippedItemCmd;
+    /* Read every wheel event before advancing the pending queue. Otherwise a
+     * fast second rotation could be discarded while the first one animates. */
+    if(!modal && !Pc_MouseCursor_TouchDriving()) {
+        int notches=Pc_MouseCursor_WheelNotches();
+        s32 px,py;
+        if(notches && Pc_MouseCursor_UiPos(&px,&py)) {
+            int inside=1;
+            if(Pc_InventoryAdapted()) {
+                float vx,vy,ox,oy;int sw,sh;PsyX_GetScreenSize(&sw,&sh);
+                inside=Pc_MouseCursor_ViewportPos(&vx,&vy) &&
+                    Pc_InventoryPointer(vx*sw,vy*sh,sw,sh,&ox,&oy);
+                if(inside) {px=(int)(ox*g_GameWork.gsScreenWidth);
+                    py=(int)(oy*g_GameWork.gsScreenHeight-g_GameWork.gsScreenHeight/2+112);}
+            }
+            if(inside && Inv_CarouselSlotAt(px-INV_ORIGIN_X,py-INV_ORIGIN_Y)!=INV_SLOT_NONE) {
+                s_scrollTarget=NO_VALUE;
+                s_scrollQueue-=notches;
+                if(s_scrollQueue>20)s_scrollQueue=20;
+                if(s_scrollQueue< -20)s_scrollQueue=-20;
+                Inv_SnapSelection(InventorySelectionId_Item);
+            }
+        }
+    }
+    if(Pc_MouseCursor_TouchDriving()) {
+        u32 bound=Pc_MouseCursor_BoundPadBits();
+        g_Controller0->clickedBtnFlags&=~bound;
+        g_Controller0->heldBtnFlags&=~bound;
+        g_Controller0->pulsedBtnFlags&=~bound;
+        float tx,ty,ox,oy;int sw,sh;
+        PsyX_GetScreenSize(&sw,&sh);
+        if(Pc_MouseCursor_TouchPressed() && Pc_MouseCursor_TouchViewportPos(&tx,&ty)) {
+            s_touchLastX=tx;s_touchY=ty;s_touchMoved=0;
+            s_touchStarted=!modal && ty>=.40f && ty<=.685f;
+        }
+        if(s_touchStarted && Pc_MouseCursor_TouchViewportPos(&tx,&ty)) {
+            if(fabsf(ty-s_touchY)>.10f && !s_touchMoved){s_touchStarted=0;s_touchMoved=1;}
+            float dx=tx-s_touchLastX;
+            if(s_touchStarted && fabsf(dx)>=.075f) {
+                int steps=(int)(fabsf(dx)/.075f);
+                s_scrollQueue+=dx<0?steps:-steps;
+                if(s_scrollQueue>20)s_scrollQueue=20;
+                if(s_scrollQueue< -20)s_scrollQueue=-20;
+                s_touchLastX+=dx<0?-steps*.075f:steps*.075f;s_touchMoved=1;
+                Inv_SnapSelection(InventorySelectionId_Item);
+            }
+        }
+        if(Pc_MouseCursor_TouchReleased(NULL,NULL)) {
+            int moved=s_touchMoved;
+            s_touchStarted=0;s_touchMoved=0;
+            if(!moved && Pc_MouseCursor_TouchViewportPos(&tx,&ty)) {
+                if(Pc_InventoryAdapted()) {
+                    if(!Pc_InventoryPointer(tx*sw,ty*sh,sw,sh,&ox,&oy))return;
+                }else {ox=tx;oy=ty;}
+                mx=(int)(ox*g_GameWork.gsScreenWidth);
+                my=(int)(oy*g_GameWork.gsScreenHeight-g_GameWork.gsScreenHeight/2+112);
+                /* Reuse command/region hit tests below, but only on release. */
+                clicked=1;rightClicked=0;wheel=0;
+                goto pointer_ready;
+            }
+        }
+        if(s_scrollQueue==0)return;
+    }
+
+    if(modal)s_scrollQueue=0;
+
+    if(!modal && s_scrollQueue) {
+        Inv_SnapSelection(InventorySelectionId_Item);
+        /* Resolve the new target immediately, recycling every intervening model
+         * through the original one-slot loader. Do not make the user wait for
+         * eight animation frames per queued notch. Only the final short visual
+         * transition remains, and a new wheel event can retarget it immediately. */
+        int direction=s_scrollQueue>0?1:-1;
+        int steps=abs(s_scrollQueue);s_scrollQueue=0;
+        for(int i=0;i<steps;i++) {
+            g_Inventory_SelectedItemIdx=g_SysWork.invItemSelectedIdx;
+            g_SysWork.invItemSelectedIdx=(g_SysWork.invItemSelectedIdx+direction+slotCount)%slotCount;
+            int load=(g_SysWork.invItemSelectedIdx+(direction>0?3:-3)+slotCount*3)%slotCount;
+            func_800539A4(direction>0,load);
+        }
+        g_Inventory_ScrollTransitionTimer=0;
+        D_800AE178=1;
+        g_Inventory_SelectionBordersDraw=2;g_Inventory_CmdSelectedIdx=0;
+        g_Inventory_IsScrolling=false;
+        s_fastScroll=1;
+        Sd_PlaySfx(Sfx_MenuMove,direction*64,64);
+        return;
+    }
+    if(g_SysWork.invItemSelectedIdx==g_Inventory_SelectedItemIdx)s_fastScroll=0;
+    if(Pc_MouseCursor_TouchDriving())return;
 
     if (!Pc_MouseCursor_UiPos(&mx, &my))
     {
@@ -219,8 +326,13 @@ void Pc_Inventory_MouseUpdate(void)
         return;
     }
 
-    x = mx - INV_ORIGIN_X;
-    y = my - INV_ORIGIN_Y;
+    if(Pc_InventoryAdapted()) {
+        float vx,vy,ox,oy;int sw,sh;PsyX_GetScreenSize(&sw,&sh);
+        if(!Pc_MouseCursor_ViewportPos(&vx,&vy) ||
+           !Pc_InventoryPointer(vx*sw,vy*sh,sw,sh,&ox,&oy))return;
+        mx=(int)(ox*g_GameWork.gsScreenWidth);
+        my=(int)(oy*g_GameWork.gsScreenHeight-g_GameWork.gsScreenHeight/2+112);
+    }
 
     slotCount = g_SavegamePtr->inventorySlotCount;
     if (slotCount <= 0)
@@ -248,7 +360,11 @@ void Pc_Inventory_MouseUpdate(void)
 
     clicked      = Pc_MouseCursor_LeftClicked();
     rightClicked = Pc_MouseCursor_RightClicked();
-    wheel        = Pc_MouseCursor_WheelStep();
+    wheel        = 0; /* Already collected above, including during animations. */
+
+pointer_ready:
+    x = mx - INV_ORIGIN_X;
+    y = my - INV_ORIGIN_Y;
 
     /* An open command submenu is modal: it owns the pointer. Hovering back over
      * the carousel must NOT silently yank the selection out from under it. */
@@ -262,6 +378,15 @@ void Pc_Inventory_MouseUpdate(void)
         s32 rowY0   = (count >= 2) ? INV_CMD_Y0_DOUBLE : INV_CMD_Y0_SINGLE;
         s32 row     = NO_VALUE;
         s32 i;
+
+        if(Pc_InventoryAdapted()) {
+            float vx,vy;int sw,sh;PsyX_GetScreenSize(&sw,&sh);
+            int valid=Pc_MouseCursor_TouchDriving()?Pc_MouseCursor_TouchViewportPos(&vx,&vy):
+                Pc_MouseCursor_ViewportPos(&vx,&vy);
+            int adaptedRow=valid?Pc_InventoryCommandRow(vx*sw,vy*sh,sw,sh,count):-1;
+            x=adaptedRow>=0?INV_CMD_X0+4:-999;
+            y=adaptedRow>=0?rowY0+adaptedRow*INV_CMD_STEP+4:-999;
+        }
 
         if (rightClicked || (clicked && !Inv_InBox(&INV_BOX_CMD, x, y)))
         {
@@ -300,7 +425,8 @@ void Pc_Inventory_MouseUpdate(void)
     }
 
     /* Carousel. The scroll arrows (x +-44..60, y 4..20) fall inside the -1/+1
-     * bands and resolve to the same one-step scroll, so they need no case. */
+     * bands. Touch taps must use the same immediate queue as swipes: a pending
+     * mouse click target is deliberately not walked while touch owns input. */
     {
         s32 slot = Inv_CarouselSlotAt(x, y);
         if (slot != INV_SLOT_NONE)
@@ -308,18 +434,14 @@ void Pc_Inventory_MouseUpdate(void)
             if (Pc_MouseCursor_Moved() || clicked || wheel)
                 Inv_SnapSelection(InventorySelectionId_Item);
 
-            if (wheel != 0)
-            {
-                Inv_Press((wheel > 0) ? ControllerFlag_LStickLeft : ControllerFlag_LStickRight);
-                return;
-            }
-
             if (clicked)
             {
                 if (slot == 0)
                     Inv_Press(g_GameWorkPtr->config.controllerConfig.enter);
-                else
-                    s_scrollTarget = ((g_SysWork.invItemSelectedIdx + slot) + slotCount) % slotCount;
+                else {
+                    s_scrollTarget=NO_VALUE;
+                    s_scrollQueue=slot;
+                }
             }
             return;
         }

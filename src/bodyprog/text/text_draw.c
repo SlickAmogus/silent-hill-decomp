@@ -332,6 +332,11 @@ void Gfx_StringSetColor(s16 colorId) // 0x8004A8DC
 
 bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
 {
+#ifdef SH_PC_PORT
+    extern int Pc_InventoryTextCapture(const char*,int,int,int,int*);
+    int complete;
+    if(Pc_InventoryTextCapture(str,strLength,g_StringPosition.vx,g_StringPosition.vy,&complete))return complete;
+#endif
     #define WIDE_SPACE_SIZE 10
     #define ATLAS_BASE_Y    240
 

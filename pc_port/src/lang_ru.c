@@ -248,6 +248,30 @@ static const s_RuCharset* const s_Charsets[] = {
 };
 
 static const s_RuCharset* s_Active;
+
+void Pc_RuDiscTextUtf8(const char* text,char* out,unsigned capacity)
+{
+    unsigned used=0;
+    if(!capacity)return;
+    for(const unsigned char* p=(const unsigned char*)text;*p && used+4<capacity;p++) {
+        unsigned cp=*p;
+        if(cp=='_' || cp=='\t' || cp=='\v')cp=' ';
+        else if(s_Active) {
+            for(int lower=0,found=0;lower<2 && !found;lower++)for(int i=0;i<RU_LETTER_COUNT;i++) {
+                unsigned char b=lower?s_Active->lo[i]:s_Active->up[i];
+                if(b && b==*p) {
+                    cp=i==6?(lower?0x451:0x401):(lower?0x430:0x410)+i-(i>6);
+                    found=1;break;
+                }
+            }
+        }
+        if(cp<32 && cp!='\n')continue;
+        if(cp<128)out[used++]=(char)cp;
+        else if(cp<2048){out[used++]=(char)(0xc0|(cp>>6));out[used++]=(char)(0x80|(cp&63));}
+        else {out[used++]=(char)(0xe0|(cp>>12));out[used++]=(char)(0x80|((cp>>6)&63));out[used++]=(char)(0x80|(cp&63));}
+    }
+    out[used]=0;
+}
 static char*              s_Arena;
 
 typedef struct {
@@ -383,6 +407,13 @@ unsigned char Pc_RuPackByte(unsigned int cp)
     if (idx < 0)
         return 0;
     return RuEncodeLetterIn(&s_Charset_ConsolGames, idx, isUpper);
+}
+
+unsigned char Pc_RuDiscByte(unsigned int cp)
+{
+    int upper = 0;
+    int idx = RuLetterIndex(cp, &upper);
+    return s_Active && idx >= 0 ? RuEncodeLetter(idx, upper) : 0;
 }
 
 /* Transcode a UTF-8 menu string into the active patch's font bytes. ASCII
@@ -537,7 +568,9 @@ const char* Pc_RuMenuUtf8(const char* us)
 {
     int i;
 
-    if (s_Active == NULL || us == NULL)
+    /* UTF-8 UI translation does not depend on the mounted disc charset.
+     * Encoded game-font text above remains strictly gated on s_Active. */
+    if (us == NULL)
         return NULL;
 
     for (i = 0; i < RU_MENU_COUNT; i++)

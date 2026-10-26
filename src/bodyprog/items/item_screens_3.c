@@ -1,4 +1,12 @@
 #include "game.h"
+#ifdef SH_PC_PORT
+#include "pc_inventory_mouse.h"
+#endif
+#ifdef SH_PC_PORT
+#include "pc_inventory_layout.h"
+#else
+#define Pc_InventoryAdapted() 0
+#endif
 
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/gfx/map_effects.h"
@@ -1190,6 +1198,9 @@ void Gfx_ItemScreens_DrawInit(u32* selectedItemId) // 0x8004F764
         for (i = 0; i < ARRAY_SIZE(LABEL_STR_POS_TABLE); i++)
         {
 #ifdef SH_PC_PORT
+            if(Pc_InventoryAdapted())continue;
+#endif
+#ifdef SH_PC_PORT
             /* "Exit" and "Map" are also PC Options / Options row keys with
              * different meanings, so on NTSC-J these labels take their own
              * inventory-only lookup. The six box labels stay centred on the
@@ -1386,6 +1397,11 @@ void Gfx_Inventory_2dBackgroundDraw(s32* arg0) // 0x8004FBCC
     }
 
     Gfx_Inventory_HealthStatusDraw();
+#ifdef SH_PC_PORT
+    /* One native-resolution outline is drawn after panel composition. Legacy
+     * animated/trailing lines cross those panel boundaries and cannot be copied. */
+    if(Pc_InventoryAdapted())return;
+#endif
     if (g_Inventory_SelectionBordersDraw == 8)
     {
         switch (*arg0)
@@ -2050,13 +2066,16 @@ void Gfx_Inventory_HealthStatusDraw(void) // 0x80051020
 #if VERSION_REGION_IS(NTSCJ)
 INCLUDE_ASM("bodyprog/nonmatchings/items/item_screens_3", Gfx_Inventory_ItemDescriptionDraw);
 #else
-void Gfx_Inventory_ItemDescriptionDraw(s32* selectedItemId) // 0x8005192C
+static void Inventory_ItemDescriptionOriginal(s32* selectedItemId) // 0x8005192C
 {
     s32 temp;
     s32 i;
     s32 idx;
 
     DVECTOR stringPos = { 208, 200 };
+#ifdef SH_PC_PORT
+    if(Pc_InventoryAdapted()){stringPos.vy=176;stringPos.vx=216;}
+#endif
 
     char* D_80027F14[] = {
         "Can't_use_it_here.",
@@ -2229,11 +2248,29 @@ void Gfx_Inventory_ItemDescriptionDraw(s32* selectedItemId) // 0x8005192C
     D_800AE185 = INV_ITEM_GROUP(g_SavegamePtr->items[idx].id_0) - 1;
     D_800AE186 = INV_ITEM_GROUP_ID(g_SavegamePtr->items[idx].id_0);
 
+#ifdef SH_PC_PORT
+    if (Pc_InventoryAdapted())
+    {
+        /* Native inventory text is laid out as a complete centred block. Keep
+         * special item messages, but do not run the retail typewriter phases. */
+        Gfx_StringSetPosition(68, 208);
+        Gfx_StringDraw(s_ItemName(g_SavegamePtr->items[idx].id_0), DEFAULT_MAP_MESSAGE_LENGTH);
+        Gfx_StringSetPosition(30, 232);
+        if (g_SysWork.sysStateSteps[1] == 3)
+            Gfx_StringDraw(D_80027F14[0], DEFAULT_MAP_MESSAGE_LENGTH);
+        else if (g_SysWork.sysStateSteps[1] == 4)
+            Gfx_StringDraw(D_80027F14[1], DEFAULT_MAP_MESSAGE_LENGTH);
+        else
+            Gfx_StringDraw(s_ItemDesc(g_SavegamePtr->items[idx].id_0), DEFAULT_MAP_MESSAGE_LENGTH);
+        return;
+    }
+#endif
+
     switch (g_SysWork.sysStateSteps[1])
     {
         case 0:
             g_Inventory_ItemNameTimer++;
-            Gfx_StringSetPosition(68, 200);
+            Gfx_StringSetPosition(68, Pc_InventoryAdapted()?208:200);
             if (Gfx_StringDraw(s_ItemName(g_SavegamePtr->items[idx].id_0), g_Inventory_ItemNameTimer) == true)
             {
                 g_Inventory_ItemNameTimer   = 100;
@@ -2243,7 +2280,7 @@ void Gfx_Inventory_ItemDescriptionDraw(s32* selectedItemId) // 0x8005192C
 
         case 1:
             g_Inventory_DescriptionRollTimer += 2;
-            Gfx_StringSetPosition(68, 200);
+            Gfx_StringSetPosition(68, Pc_InventoryAdapted()?208:200);
             Gfx_StringDraw(s_ItemName(g_SavegamePtr->items[idx].id_0), 100);
 
             if (idx == g_Inventory_SelectedItemIdx)
@@ -2263,7 +2300,7 @@ void Gfx_Inventory_ItemDescriptionDraw(s32* selectedItemId) // 0x8005192C
         case 2:
         case 3:
         case 4:
-            Gfx_StringSetPosition(68, 200);
+            Gfx_StringSetPosition(68, Pc_InventoryAdapted()?208:200);
             Gfx_StringDraw(s_ItemName(g_SavegamePtr->items[idx].id_0), 100);
             Gfx_StringSetPosition(30, 232);
 
@@ -2288,6 +2325,16 @@ void Gfx_Inventory_ItemDescriptionDraw(s32* selectedItemId) // 0x8005192C
             }
             break;
     }
+}
+void Gfx_Inventory_ItemDescriptionDraw(s32* selectedItemId)
+{
+#ifdef SH_PC_PORT
+    Pc_InventoryTextBegin(0);
+#endif
+    Inventory_ItemDescriptionOriginal(selectedItemId);
+#ifdef SH_PC_PORT
+    Pc_InventoryTextEnd();
+#endif
 }
 #endif
 
@@ -2546,7 +2593,11 @@ void Inventory_PlayerItemScroll(u32* selectedItemId) // 0x800523D8
             }
             else
             {
+#ifdef SH_PC_PORT
+                g_Inventory_ScrollTransitionTimer=MIN(8,g_Inventory_ScrollTransitionTimer+Pc_Inventory_ScrollAdvance());
+#else
                 g_Inventory_ScrollTransitionTimer++;
+#endif
 
                 if ((g_SysWork.invItemSelectedIdx == (g_Inventory_SelectedItemIdx + 1)) ||
                     ((g_Inventory_SelectedItemIdx - g_SysWork.invItemSelectedIdx) == (g_SavegamePtr->inventorySlotCount - 1)))

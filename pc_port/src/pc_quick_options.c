@@ -29,6 +29,9 @@
 #include "stb_truetype.h"
 
 #include "pc_quick_options.h"
+#include "pc_menu_font.h"
+#include "pc_title_screen.h"
+#include "pc_inventory_layout.h"
 #include "pc_bind_panel.h"
 #include "pc_confirm_dialog.h"
 #include "pc_mouse_cursor.h"
@@ -37,8 +40,15 @@
 #include "pc_cheats.h"
 #include "control_style.h"
 #include "lang_quick.h"
+#include "pc_options_help.h"
+#include "pc_menu_preview.h"
+#include "pc_baked_preview.h"
 #include "sh_log.h"
 #include "game.h"
+#include "bodyprog/bodyprog.h"
+#include "bodyprog/screen/screen_data.h"
+#include "screens/options.h"
+#include "bodyprog/screen/screen_draw.h"
 #include "bodyprog/sound/sfx_id_enum.h"
 #include "bodyprog/sound/sound_system.h"
 
@@ -56,6 +66,12 @@ extern const char* PcOpt_QuickName(const void* h);
 extern const char* PcOpt_QuickLabel(const void* h, char* buf, int bufsz);
 extern void        PcOpt_QuickAdjust(const void* h, int dir);
 extern int         PcOpt_QuickRealtime(const void* h);
+extern int         PcOpt_ScreenCount(int page);
+extern const void* PcOpt_ScreenEntry(int page, int row);
+extern const char* PcOpt_ScreenKey(const void* h);
+extern int         PcOpt_ScreenAction(const void* h);
+extern int         PcOpt_ScreenActivate(const void* h, int row);
+extern s32 g_MainOptionsMenu_SelectedEntry;
 /* options.c: rows that are not in that table. Keep in step with the identical
  * enum there -- these are indices into its switch, nothing more. */
 /* Must stay in step with the copy in options.c, which owns the label and
@@ -90,6 +106,11 @@ extern const char* const PC_PGXP_FOG_MSG;
  * page (X)" label baked into each table -- stays where it was. Its rows differ
  * by platform (s_page5 / s_pageControls). */
 #define QO_PAGES    6
+#if defined(__ANDROID__) || defined(SH_IOS)
+#define QO_NATIVE_PAGES 6
+#else
+#define QO_NATIVE_PAGES 5
+#endif
 #define QO_DD_MAX     64  /* dropdown entries cached */
 #define QO_DD_VISIBLE 8
 
@@ -149,6 +170,11 @@ typedef struct
 
 #define QO_IS_VALUE_ROW(k) ((k) == ROW_OPT || (k) == ROW_EXTRA || (k) == ROW_CHEAT)
 
+static int s_native;
+static int s_nativeTop;
+static float s_mobileScroll,s_mobileVelocity;
+static int s_mobileHelpSkip;
+static int s_previewOnly;
 /* ROW_PAGE reuses `extra` as its step. A row that names one is a labelled
  * button: it goes where it says however it is activated, and Left/Right pass
  * over it, which is what lets Previous and Next sit on the panel together. The
@@ -600,6 +626,33 @@ static void qo_chunk_span(int content, int chunks, int chunk, int* base, int* le
 
 static const QoRowDef* qo_page_rows(int page, int* count)
 {
+    if(s_native) {
+        static QoRowDef rows[QO_MAX_ROWS];int i;
+#if defined(QO_MOBILE)
+        int n=PcOpt_ScreenCount(page),content[QO_MAX_ROWS],total=0,k=0;
+        for(i=0;i<n && total<QO_MAX_ROWS;i++)
+            if(!PcOpt_ScreenAction(PcOpt_ScreenEntry(page,i)))content[total++]=i;
+        int maxTop=total>5?total-5:0;
+        if(s_nativeTop>maxTop)s_nativeTop=maxTop;
+        if(s_nativeTop<0)s_nativeTop=0;
+        for(i=s_nativeTop;i<total && i<s_nativeTop+6;i++) {
+            int original=content[i];const void* h=PcOpt_ScreenEntry(page,original);
+            rows[k++]=(QoRowDef){ROW_OPT,PcOpt_ScreenKey(h),original,PcOpt_QuickName(h),0};
+        }
+        rows[k++]=(QoRowDef){ROW_PAGE,NULL,0,"Prev_Page",-1};
+        rows[k++]=(QoRowDef){ROW_PAGE,NULL,0,"Next_Page",1};
+        rows[k++]=(QoRowDef){ROW_CLOSE,NULL,0,"Back",0};
+        *count=k;return rows;
+#else
+        *count=PcOpt_ScreenCount(page);if(*count>QO_MAX_ROWS)*count=QO_MAX_ROWS;
+        for(i=0;i<*count;i++) {
+            const void* h=PcOpt_ScreenEntry(page,i);int action=PcOpt_ScreenAction(h);
+            rows[i]=(QoRowDef){action==2?ROW_CLOSE:action?ROW_PAGE:ROW_OPT,PcOpt_ScreenKey(h),i,PcOpt_QuickName(h),action};
+        }
+        return rows;
+#endif
+    }
+
     const QoRowDef* src;
     int n, sec, chunk, chunks, base, len, i, k = 0;
 
@@ -650,7 +703,20 @@ static const char* qo_page_title(int page)
 #else /* desktop: the sections ARE the pages */
 
 #define qo_page_count()   QO_PAGES
-#define qo_page_rows      qo_section_rows
+static const QoRowDef* qo_page_rows(int page,int* count)
+{
+    if(!s_native)return qo_section_rows(page,count);
+    static QoRowDef rows[QO_MAX_ROWS];int i;
+    *count=PcOpt_ScreenCount(page);
+    if(*count>QO_MAX_ROWS)*count=QO_MAX_ROWS;
+    for(i=0;i<*count;i++) {
+        const void* h=PcOpt_ScreenEntry(page,i);
+        int action=PcOpt_ScreenAction(h);
+        rows[i]=(QoRowDef){action==2?ROW_CLOSE:action?ROW_PAGE:ROW_OPT,
+            PcOpt_ScreenKey(h),i,PcOpt_QuickName(h),action};
+    }
+    return rows;
+}
 #define qo_page_title(p)  (s_pageTitles[p])
 
 #endif
@@ -669,6 +735,36 @@ int g_PcQuickOptionsActive = 0;
 
 static int s_page;
 static int s_sel;
+/* Separate from the gameplay freeze flag: the original options state already
+ * owns input/timing. The quick menu retains its own page and selection. */
+static int s_quickPage, s_quickSel;
+static int s_cachedRu = -1, s_cachedW, s_cachedH;
+static GLuint s_nativeText[96];
+static int s_nativeW[96], s_nativeH[96], s_nativePx[96];
+static char s_nativeStrings[96][512];
+static GLuint qo_upload_rgba(const unsigned char* rgba,int w,int h,int special);
+static GLuint qo_disc_bake(const char* text,float px,int* outW,int* outH)
+{
+    unsigned char* rgba=Pc_MenuFontRaster(text,px,outW,outH);
+    GLuint result=rgba?qo_upload_rgba(rgba,*outW,*outH,0):0;
+    free(rgba);
+    return result;
+}
+static const char* const s_nativeNames[6][2] = {
+    { "Graphics", "Графика" }, { "Lighting & System", "Освещение и система" },
+    { "Controls", "Управление" }, { "Camera", "Камера" }, { "HUD", "Интерфейс" },
+    { "Device", "Устройство" }
+};
+
+static const char* qo_local(const char* en, const char* ru)
+{
+    return Pc_MenuLanguageRussian() ? ru : en;
+}
+
+static const void* qo_handle(const QoRowDef* r)
+{
+    return s_native ? PcOpt_ScreenEntry(s_page, r->extra) : PcOpt_QuickFind(r->key);
+}
 
 /* GL */
 static GLuint s_prog, s_vao, s_vbo;
@@ -1213,6 +1309,12 @@ static void qo_fonts_init(void)
             continue;
         if (stbtt_InitFont(&s_font, data, stbtt_GetFontOffsetForIndex(data, 0)))
         {
+            /* Do not silently select a Latin-only fallback on a Russian disc. */
+            if (Pc_MenuLanguageRussian() && (!stbtt_FindGlyphIndex(&s_font, 0x042F) ||
+                                !stbtt_FindGlyphIndex(&s_font, 0x044F))) {
+                free(data);
+                continue;
+            }
             s_fontData = data; /* stbtt keeps pointers into this - never free */
             s_fontOk   = 1;
             s_fontPath = paths[i];
@@ -1235,13 +1337,30 @@ static GLuint qo_bake_once(const char* text, float px, int* outW, int* outH, int
     unsigned char *cov, *rgba, *scratch;
     GLuint tex;
 
+    if (!s_native && Pc_MenuLanguageSupported() && text && text[0] && px>=4 &&
+        Pc_LangQuickScript()==LANG_QUICK_SCRIPT_LATIN && Pc_MenuFontReady()) {
+        if (outInk) *outInk=0;
+        return qo_disc_bake(text,px,outW,outH);
+    }
+
     if (!s_fontOk || !text || !text[0] || px < 4.0f)
         return 0;
 
     scale = stbtt_ScaleForPixelHeight(&s_font, px);
     stbtt_GetFontVMetrics(&s_font, &asc, &desc, &gap);
 
-    W = (int)(px * 0.62f * (float)strlen(text)) + 8 * pad;
+    /* UTF-8 byte count can overestimate Cyrillic text by several times and
+     * reject valid ultrawide help lines at the 4096px allocation guard. */
+    penX = 0;
+    p = text;
+    while (*p) {
+        int cp = (int)Pc_LangUtf8Next(&p), advance, bearing;
+        stbtt_GetCodepointHMetrics(&s_font, cp, &advance, &bearing);
+        penX += (advance + (prev ? stbtt_GetCodepointKernAdvance(&s_font, prev, cp) : 0)) * scale;
+        prev = cp;
+    }
+    prev = 0;
+    W = (int)ceilf(penX + px) + 8 * pad;
     H = (int)ceilf(px * 1.4f) + 2 * pad;
     if (W <= 0 || H <= 0 || W > 4096 || H > 512)
         return 0;
@@ -1382,6 +1501,7 @@ static void qo_free_text(void)
      * image. Only slot 0, the white texel, survives a reset, because
      * qo_atlas_reset re-claims it in place. */
     qo_atlas_reset();
+    memset(s_nativeText, 0, sizeof(s_nativeText));
     qo_retire(s_texTitle); s_texTitle = 0;
     qo_retire(s_texHint);  s_texHint  = 0;
 #if defined(QO_MOBILE)
@@ -1519,12 +1639,18 @@ static void qo_row_name(const QoRowDef* r, char* out, int n)
 
     if (r->kind == ROW_OPT)
     {
-        const void* h = PcOpt_QuickFind(r->key);
+        const void* h = qo_handle(r);
         /* A table row may carry its own wording: the options screen's names
          * are cut to fit a 320px value column, and this panel has the room. */
-        src = (r->label != NULL) ? Pc_LangQuickMenu(r->label)
+        const PcOptionHelp* help=Pc_OptionsHelp(r->key);
+        src = s_native && help ? help->name[Pc_MenuLanguageRussian()] : (r->label != NULL) ? Pc_LangQuickMenu(r->label)
                                  : (h ? Pc_LangQuickMenu(PcOpt_QuickName(h)) : r->key);
     }
+    else if(s_native && r->kind==ROW_PAGE)
+        src=r->cpage<0?qo_local("Previous category","Предыдущий раздел"):
+                       qo_local("Next category","Следующий раздел");
+    else if(s_native && r->kind==ROW_CLOSE)
+        src=qo_local("Back","Назад");
     else if (r->kind == ROW_CHEAT)
         src = Pc_LangQuick(Pc_Cheats_Name(r->cpage, r->extra));
     else if (r->kind == ROW_ACTION && r->extra == QO_A_TOTITLE && qo_totitle_live())
@@ -1548,13 +1674,14 @@ static void qo_row_value(const QoRowDef* r, char* out, int n)
     out[0] = 0;
     if (r->kind == ROW_OPT)
     {
-        const void* h = PcOpt_QuickFind(r->key);
-        const char* v = h ? Pc_LangQuickMenu(PcOpt_QuickLabel(h, buf, (int)sizeof(buf))) : "?";
+        const void* h = qo_handle(r);
+        const char* raw = h ? PcOpt_QuickLabel(h, buf, (int)sizeof(buf)) : "?";
+        const char* v = Pc_LangQuickMenu(raw);
         int i;
         for (i = 0; i < n - 1 && v[i]; i++)
             out[i] = (v[i] == '_') ? ' ' : v[i];
         out[i] = 0;
-        if (h && !PcOpt_QuickRealtime(h) && i < n - 3)
+        if (!s_native && h && !PcOpt_QuickRealtime(h) && i < n - 3)
         {
             out[i++] = ' '; out[i++] = '*'; out[i] = 0;
         }
@@ -1579,7 +1706,7 @@ static void qo_row_value(const QoRowDef* r, char* out, int n)
 
 int Pc_QuickOptions_IsOpen(void)
 {
-    return s_phase != QO_CLOSED;
+    return (!s_native || s_previewOnly) && s_phase != QO_CLOSED;
 }
 
 int Pc_QuickOptions_ShowsMinimapRows(void)
@@ -1587,7 +1714,7 @@ int Pc_QuickOptions_ShowsMinimapRows(void)
     const QoRowDef* rows;
     int             n, i;
 
-    if (s_phase == QO_CLOSED)
+    if ((s_native && !Pc_OptionsScenePreview()) || s_phase == QO_CLOSED)
     {
         return 0;
     }
@@ -1615,6 +1742,21 @@ static void qo_open(void)
 
 void Pc_QuickOptions_Close(void)
 {
+    if (s_native) {
+        if (s_previewOnly) {
+            s_previewOnly=0; s_native=0; s_phase=QO_CLOSED;
+            s_page=s_quickPage; s_sel=s_quickSel;
+            g_PcQuickOptionsActive=0;
+            return;
+        }
+        g_GameWork.gameStateSteps[0] = OptionsMenuState_LeavePcOptions;
+        g_GameWork.gameStateSteps[1] = 0;
+        g_GameWork.gameStateSteps[2] = 0;
+        g_SysWork.counters_1C[1] = 0;
+        g_PcQuickOptionsActive = 0;
+        ScreenFade_Start(true, false, false);
+        return;
+    }
     s_ddRow = -1;
     if (s_phase == QO_CLOSED || s_phase == QO_CLOSING)
         return;
@@ -1636,12 +1778,25 @@ void Pc_QuickOptions_Close(void)
 
 void Pc_QuickOptions_Toggle(void)
 {
+    if (s_native) { Pc_QuickOptions_Close(); return; }
     /* The panel owns input while it is up -- the bind being captured may be
      * the very button that opens this menu -- so the toggle waits for it. */
     if (Pc_BindPanel_IsOpen())
         return;
     if (s_phase == QO_CLOSED || s_phase == QO_CLOSING)
-        qo_open();
+    {
+        /* The same five pages in gameplay, with an isolated showcase instead
+         * of rendering or advancing the player's paused world. Other languages
+         * retain their existing translated quick menu. */
+        if (Pc_MenuLanguageSupported() &&
+            g_GameWork.gameState==GameState_InGame && g_SysWork.sysState==SysState_Gameplay &&
+            !(g_SysWork.sysFlags & (SysFlag_CutsceneActive|SysFlag_DemoActive))) {
+            s_quickPage=s_page; s_quickSel=s_sel;
+            s_native=1; s_previewOnly=1; s_page=s_sel=0;s_nativeTop=0;s_mobileScroll=s_mobileVelocity=0;
+            s_phase=QO_SHOWN; g_PcQuickOptionsActive=1; s_viewRowsDirty=1;
+            /* Baked examples need no background game/scene startup. */
+        } else qo_open();
+    }
     else
     {
         qo_beep(Sfx_MenuCancel);
@@ -1697,15 +1852,35 @@ static int qo_key_edge(int sc)
 static void qo_set_page(int page)
 {
     int n;
+    if(s_native){s_nativeTop=0;s_mobileScroll=s_mobileVelocity=0;}
     s_ddRow = -1;
     {
-        const int nPages = qo_page_count();
+        const int nPages = s_native?QO_NATIVE_PAGES:qo_page_count();
         s_page = ((page % nPages) + nPages) % nPages;
     }
     qo_page_rows(s_page, &n);
     if (s_sel >= n) s_sel = n - 1;
     if (s_sel < 0)  s_sel = 0;
 }
+
+#if defined(QO_MOBILE)
+static int qo_mobile_total(void)
+{
+    int i,n=PcOpt_ScreenCount(s_page),total=0;
+    for(i=0;i<n;i++)if(!PcOpt_ScreenAction(PcOpt_ScreenEntry(s_page,i)))total++;
+    return total;
+}
+
+static void qo_mobile_scroll(float top)
+{
+    int maxTop=qo_mobile_total()-5;
+    if(maxTop<0)maxTop=0;
+    if(top<0)top=0;if(top>maxTop)top=maxTop;
+    s_mobileScroll=top;
+    int first=(int)floorf(top);
+    if(first!=s_nativeTop){s_nativeTop=first;s_sel=0;}
+}
+#endif
 
 /* Confirm / click: cheat rows have their own confirm (the Spawn row fires
  * its browsed entry); everything else steps up. */
@@ -1717,7 +1892,7 @@ static void qo_activate(const QoRowDef* r, int dir)
     {
         case ROW_OPT:
         {
-            const void* h = PcOpt_QuickFind(r->key);
+            const void* h = qo_handle(r);
             if (h) PcOpt_QuickAdjust(h, dir);
             break;
         }
@@ -1791,6 +1966,13 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
 
     /* Keyboard extras (arrows arrive through the pad emulation already). */
     if (qo_key_edge(SDL_SCANCODE_ESCAPE))   close    = 1;
+    /* Keep the pre-existing ten-page quick menu (audio, bindings, mods and
+     * cheats) reachable; the scene preview must not remove those features. */
+    if (qo_key_edge(SDL_SCANCODE_TAB) && s_previewOnly) {
+        s_previewOnly=0; s_native=0; s_page=s_quickPage; s_sel=s_quickSel;
+        s_viewRowsDirty=1;
+        return;
+    }
     if (qo_key_edge(SDL_SCANCODE_PAGEDOWN) || qo_key_edge(SDL_SCANCODE_E)) pageNext = 1;
     if (qo_key_edge(SDL_SCANCODE_PAGEUP)   || qo_key_edge(SDL_SCANCODE_Q)) pagePrev = 1;
 
@@ -1806,6 +1988,117 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
 
     if (s_phase != QO_SHOWN) /* ignore input while animating in/out */
         return;
+
+#if defined(QO_MOBILE)
+    if(s_native && !Pc_ConfirmDialog_IsOpen()) {
+        static int gesture,dragged;
+        static float startX,startY,originScroll,lastScroll;
+        static Uint32 lastTick;
+        float x=0,y=0;int content=nRows-3,tap=0;
+        Uint32 now=SDL_GetTicks();
+        float dt=lastTick?fminf((now-lastTick)/1000.f,.05f):0;
+        lastTick=now;
+        if(!gesture && !Pc_MouseCursor_TouchPressed() && !close && !pageNext && !pagePrev &&
+           !up && !down && fabsf(s_mobileVelocity)>.01f) {
+            float next=s_mobileScroll+s_mobileVelocity*dt;
+            qo_mobile_scroll(next);
+            if(fabsf(s_mobileScroll-next)>.001f)s_mobileVelocity=0;
+            else s_mobileVelocity*=expf(-6.f*dt);
+            return; /* Hit-testing uses the newly positioned rows next frame. */
+        }
+        if(close){Pc_QuickOptions_Close();return;}
+        if(up){if(s_sel==0 && s_nativeTop>0){qo_mobile_scroll(s_nativeTop-1);return;}s_sel=(s_sel+nRows-1)%nRows;}
+        if(down){if(s_sel==content-1 && s_nativeTop+content<qo_mobile_total()){qo_mobile_scroll(s_nativeTop+1);s_sel=content-1;return;}s_sel=(s_sel+1)%nRows;}
+        /* Touch commits on release. A swipe must never toggle the setting
+         * under the finger before its intent can be distinguished from a tap. */
+        if(Pc_MouseCursor_TouchPressed() && Pc_MouseCursor_TouchViewportPos(&x,&y)) {
+            gesture=1;dragged=0;startX=x;startY=y;originScroll=s_mobileScroll;
+            lastScroll=s_mobileScroll;s_mobileVelocity=0;
+        }
+        if(gesture && Pc_MouseCursor_TouchViewportPos(&x,&y)) {
+            float dx=x-startX,dy=y-startY;
+            if(fabsf(dx)>.035f || fabsf(dy)>.045f)dragged=1;
+            if(dragged && startX<.62f && startY>=.18f && startY<.82f &&
+               fabsf(dy)>fabsf(dx)*2.2f) {
+                qo_mobile_scroll(originScroll-dy/.125f);
+                if(dt>.001f) {
+                    float speed=(s_mobileScroll-lastScroll)/dt;
+                    float blend=1-expf(-18.f*dt);
+                    s_mobileVelocity+=(speed-s_mobileVelocity)*blend;
+                    s_mobileVelocity=fminf(18,fmaxf(-18,s_mobileVelocity));
+                }
+                lastScroll=s_mobileScroll;
+            }
+            if(Pc_MouseCursor_TouchReleased(NULL,NULL)) {
+                gesture=0;
+                if(dragged) {
+                    if(fabsf(dx)>.07f && fabsf(dx)*2.2f>fabsf(dy)) {
+                        qo_set_page(s_page+(dx<0?1:-1));s_sel=0;s_viewRowsDirty=1;
+                    }else if(startX>=.65f && startY>.28f && startY<.58f) {
+                        s_mobileHelpSkip+=dy<0?3:-3;if(s_mobileHelpSkip<0)s_mobileHelpSkip=0;
+                    }
+                    return;
+                }
+                tap=1;
+            }
+        }else if(!Pc_MouseCursor_TouchDriving()) {
+            gesture=0;
+            tap=Pc_MouseCursor_LeftClicked() && Pc_MouseCursor_ViewportPos(&x,&y);
+        }
+        if(tap) {
+            if(y>=.025f && y<.14f) {
+                if(x>=.025f && x<.135f){Pc_QuickOptions_Close();return;}
+                int tab=(int)((x-.15f)/.14f);
+                if(x>=.15f && x<.99f && tab>=0 && tab<QO_NATIVE_PAGES) {
+                    qo_set_page(tab);s_sel=0;s_viewRowsDirty=1;return;
+                }
+            }
+            if(y>=.86f) {
+                if(x<.32f){Pc_QuickOptions_Close();return;}
+                s_sel=x<.65f?content:content+1;
+                qo_confirm(&rows[s_sel]);return;
+            }
+            if(x>=.65f && y>=.28f && y<.58f)s_mobileHelpSkip+=3;
+            int row=(int)floorf((y-.18f)/.125f+s_mobileScroll-s_nativeTop);
+            if(x>=.025f && x<.62f && y>=.18f && row>=0 && row<content &&
+               y<.805f && y<.18f+(row-s_mobileScroll+s_nativeTop)*.125f+.112f) {
+                s_sel=row;
+                if(x>=.43f) {
+                    if(!PcOpt_ScreenActivate(qo_handle(&rows[row]),rows[row].extra))
+                        qo_activate(&rows[row],x<.525f?-1:1);
+                }
+            }
+        }
+        if(pageNext)qo_confirm(&rows[content+1]);
+        else if(pagePrev)qo_confirm(&rows[content]);
+        else if(confirm)qo_confirm(&rows[s_sel]);
+        else if(left && rows[s_sel].kind==ROW_OPT)qo_activate(&rows[s_sel],-1);
+        else if(right && rows[s_sel].kind==ROW_OPT)qo_activate(&rows[s_sel],1);
+        return;
+    }
+#endif
+
+#if !defined(QO_MOBILE)
+    /* Desktop native tabs use the same layout coordinates as their painter.
+     * Handle the press before list hit-testing so it cannot edit a setting. */
+    if (s_native && s_vpW>0 && s_vpH>0 &&
+        !Pc_ConfirmDialog_IsOpen() && Pc_MouseCursor_LeftClicked()) {
+        float x,y;
+        if (Pc_MouseCursor_ViewportPos(&x,&y)) {
+            PcOptionsLayout layout=Pc_OptionsLayout(s_vpW,s_vpH);
+            float py=y*s_vpH,px=x*s_vpW;
+            float tabTop=layout.top+layout.font*2.2f;
+            float tabWidth=layout.width/QO_NATIVE_PAGES;
+            int tab=(int)floorf((px-layout.left)/tabWidth);
+            if(py>=tabTop && py<tabTop+layout.font*1.7f &&
+               px>=layout.left && px<layout.left+layout.width &&
+               tab>=0 && tab<QO_NATIVE_PAGES) {
+                qo_set_page(tab);s_sel=0;s_viewRowsDirty=1;
+                qo_beep(Sfx_MenuMove);return;
+            }
+        }
+    }
+#endif
 
 #if defined(QO_MOBILE)
     /* The fog row's PGXP offer (see PcOpt_PgxpFogCheck). The dialog reads the
@@ -1905,7 +2198,7 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
     {
         float ox, oy;
 
-        if (Pc_MouseCursor_LeftClicked() && Pc_MouseCursor_ViewportPos(&ox, &oy))
+        if (!s_native && Pc_MouseCursor_LeftClicked() && Pc_MouseCursor_ViewportPos(&ox, &oy))
         {
             const float px_ = ox * s_vpW;
             const float py_ = (1.0f - oy) * s_vpH;
@@ -2041,7 +2334,7 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
         float mpx = mx * s_vpW;
         int   row = (int)((s_geoListT - py) / s_geoRowPitch);
         int   inX = mpx >= s_geoPanelL && mpx <= s_geoPanelR;
-        if (inX && row >= 0 && row < nRows)
+        if (inX && py <= s_geoListT && row >= 0 && row < nRows)
         {
             if (mMoved) s_sel = row;
             if (mClick)
@@ -2120,6 +2413,18 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
 
 static void qo_confirm(const QoRowDef* r)
 {
+    if(s_native && r->kind==ROW_OPT && PcOpt_ScreenActivate(qo_handle(r),r->extra))return;
+    if (s_native && r->kind == ROW_PAGE) {
+        qo_beep(Sfx_MenuMove);
+#if defined(QO_MOBILE)
+        qo_set_page(s_page+r->cpage);
+        s_viewRowsDirty=1;
+#else
+        qo_set_page(s_page + r->cpage);
+#endif
+        s_sel = 0;
+        return;
+    }
     if (r->kind == ROW_CHEAT)
         Pc_Cheats_Confirm(r->cpage, r->extra);
     else if (r->kind == ROW_ACTION)
@@ -2159,6 +2464,104 @@ static void qo_confirm(const QoRowDef* r)
         qo_activate(r, +1);
 }
 
+int Pc_OptionsScreen_Update(void)
+{
+    const s_ControllerConfig* cc = &g_GameWorkPtr->config.controllerConfig;
+    extern unsigned int Pc_MouseCursor_BoundPadBits(void);
+    u32 mouseBits = Pc_MouseCursor_BoundPadBits();
+    u32 held = g_Controller0->heldBtnFlags & ~mouseBits;
+    u32 clicked = g_Controller0->clickedBtnFlags & ~mouseBits;
+
+    /* Draw initializes GL in its own context; allow the legacy screen for the
+     * first frame, and permanently if initialization fails. */
+    if (!Pc_MenuLanguageSupported() ||
+        s_glReady < 0 || (s_fontsTried && !s_fontOk && !Pc_MenuFontReady())) {
+        extern int g_PcOptionsWideScreen;
+        g_PcOptionsWideScreen = 0;
+        if (s_native) {
+            s_native = 0;
+            s_phase = QO_CLOSED;
+            s_page = s_quickPage;
+            s_sel = s_quickSel;
+        }
+        return 0;
+    }
+    if (!s_native) {
+        s_quickPage = s_page;
+        s_quickSel = s_sel;
+        s_native = 1;
+        s_nativeTop=0;s_mobileScroll=s_mobileVelocity=0;
+        s_page = 0;
+        s_sel = 0;
+        s_ddRow = -1;
+        s_phase = QO_SHOWN;
+        g_PcQuickOptionsActive = 0;
+        s_viewRowsDirty = 1;
+        /* Examples are packaged images; no hidden game process is started. */
+    }
+    Pc_MouseCursor_Show();
+    Pc_QuickOptions_Update(
+        (held & (ControllerFlag_LStickUp | ControllerFlag_DpadUp)) != 0,
+        (held & (ControllerFlag_LStickDown | ControllerFlag_DpadDown)) != 0,
+        (held & (ControllerFlag_LStickLeft | ControllerFlag_DpadLeft)) != 0,
+        (held & (ControllerFlag_LStickRight | ControllerFlag_DpadRight)) != 0,
+        (clicked & (cc->enter | cc->action)) != 0,
+        (clicked & (cc->cancel | cc->option)) != 0,
+        (clicked & ControllerFlag_R1) != 0,
+        (clicked & ControllerFlag_L1) != 0);
+    return s_glReady == 1;
+}
+
+int Pc_OptionsScenePreview(void)
+{
+    /* Freeze the player's game without rendering it. The isolated child alone
+     * redraws the showcase; game_sys_states distinguishes the two owners. */
+    return (Pc_MenuPreview_IsChild() && g_PcQuickOptionsActive) ||
+        (s_native && s_previewOnly) ||
+        (g_GameWork.gameState==GameState_OptionScreen &&
+         g_GameWork.gameStatePrev==GameState_InGame &&
+         g_GameWork.gameStateSteps[0]==OptionsMenuState_PcOptions);
+}
+
+int Pc_OrdinaryOptions_Active(void)
+{
+    int step=g_GameWork.gameStateSteps[0];
+    return g_GameWork.gameState==GameState_OptionScreen && s_glReady==1 &&
+        Pc_MenuLanguageSupported() &&
+        Pc_MenuFontReady() && (step==OptionsMenuState_MainOptions ||
+        step==OptionsMenuState_EnterMainOptions || step==OptionsMenuState_LeavePcOptions ||
+        step==OptionsMenuState_Leave || step==OptionsMenuState_LeaveMainOptions ||
+        step==OptionsMenuState_EnterScreenPos || step==OptionsMenuState_EnterBrightness ||
+        step==OptionsMenuState_EnterController || step==OptionsMenuState_EnterExtraOptions ||
+        step==OptionsMenuState_EnterPcOptions);
+}
+
+int Pc_OptionsOverlay_Active(void)
+{
+    return s_native || Pc_OrdinaryOptions_Active() || Pc_TitleMenu_Active() || Pc_InventoryAdapted();
+}
+
+int Pc_TitleMenu_Active(void) {return s_glReady==1 && Pc_TitleScreen_Available();}
+
+int Pc_OrdinaryOptions_Mouse(int* row,float* valueFraction)
+{
+    float x,y;
+    if(!Pc_OrdinaryOptions_Active() || !Pc_MouseCursor_ViewportPos(&x,&y))return 0;
+#if defined(QO_MOBILE)
+    /* Two five-row columns: actual settings retain their original row IDs. */
+    int col=x>=.51f,local=(int)((y-.19f)/.14f);
+    *row=(y>=.19f && local>=0 && local<5 && x>=.025f && x<.975f)?col*5+local:-1;
+    float left=col?.51f:.025f;
+    *valueFraction=(x-(left+.235f))/.205f;
+    return 1;
+#endif
+    /* Fractions are shared by drawing and hit-testing at every aspect ratio. */
+    *row=(y>=.18f && y<.18f+.058f*MainOptionsMenuEntry_Count)?
+        (int)((y-.18f)/.058f):-1;
+    *valueFraction=(x-.59f)/.31f;
+    return 1;
+}
+
 /* ------------------------------------------------------------------ */
 /* Draw                                                                */
 /* ------------------------------------------------------------------ */
@@ -2188,22 +2591,487 @@ void Pc_QuickOptions_PreloadGL(void)
     qo_atlas_ensure();
     qo_build_white();
 }
+
+/* Full-width PC options shares the GL compositor and the game's FONT16 shapes.
+ * Per-setting examples are baked assets, not a second live game world. */
+static float qo_text_width(const char* text, float px)
+{
+    if (s_native && Pc_MenuFontReady()) return Pc_MenuFontWidth(text,px);
+    const char* p = text;
+    float width = 0, scale = stbtt_ScaleForPixelHeight(&s_font, px);
+    int previous = 0;
+    while (*p) {
+        int advance, bearing;
+        int cp = (int)Pc_LangUtf8Next(&p);
+        stbtt_GetCodepointHMetrics(&s_font, cp, &advance, &bearing);
+        width += scale * (advance + stbtt_GetCodepointKernAdvance(&s_font, previous, cp));
+        previous = cp;
+    }
+    return width;
+}
+
+static void qo_native_text(int slot, const char* text, float px, float x, float y,
+                           float maxWidth, float vpW, float vpH, float r, float g, float b)
+{
+    int fit = (int)px;
+    float width;
+    if (!text || !*text || maxWidth <= 0 || slot < 0 || slot >= 96) return;
+    width = qo_text_width(text, px);
+    if (width > maxWidth) fit = (int)(px * maxWidth / width);
+    if (fit < 6) fit = 6;
+    if (!s_nativeText[slot] || s_nativePx[slot] != fit || strcmp(text, s_nativeStrings[slot])) {
+        qo_retire(s_nativeText[slot]);
+        snprintf(s_nativeStrings[slot], sizeof(s_nativeStrings[slot]), "%s", text);
+        s_nativePx[slot] = fit;
+        s_nativeText[slot] = Pc_MenuFontReady() ?
+            qo_disc_bake(text,(float)fit,&s_nativeW[slot],&s_nativeH[slot]) :
+            qo_bake(text, (float)fit, &s_nativeW[slot], &s_nativeH[slot]);
+    }
+    qo_quad(s_nativeText[slot], -1 + 2*x/vpW, 1 - 2*y/vpH,
+        -1 + 2*(x+s_nativeW[slot])/vpW, 1 - 2*(y+s_nativeH[slot])/vpH, r,g,b,1);
+}
+
+static void qo_native_rect(float x, float y, float w, float h, float vpW, float vpH,
+                            float r, float g, float b, float a)
+{
+    qo_quad(s_texWhite, -1+2*x/vpW, 1-2*y/vpH, -1+2*(x+w)/vpW, 1-2*(y+h)/vpH, r,g,b,a);
+}
+
+#if defined(QO_MOBILE)
+/* Fixed-size mobile typography. Wrap by glyph advance, then centre the actual
+ * ink bounds, not the rasterizer's transparent ascender/advance padding. */
+static void qo_mobile_box(int slot,const char* text,float px,float x,float y,
+                          float width,float height,float vpW,float vpH,
+                          float r,float g,float b,int centred)
+{
+    char wrapped[512];int len=0;
+    const char* p=text;px=floorf(px);
+    if(!text || !*text || !Pc_MenuFontReady() || slot<0 || slot>=64)return;
+    while(*p && len<(int)sizeof(wrapped)-2) {
+        const char *end=p,*space=NULL,*next;
+        char line[512];
+        while(*end) {
+            next=end;Pc_LangUtf8Next(&next);
+            size_t n=next-p;if(n>=sizeof(line))break;
+            memcpy(line,p,n);line[n]=0;
+            if(qo_text_width(line,px)>width)break;
+            if(*end==' ')space=end;
+            end=next;
+        }
+        if(*end && space && space>p)end=space;
+        if(end==p){end=p;Pc_LangUtf8Next(&end);}
+        size_t n=end-p;if(len+(int)n>=(int)sizeof(wrapped)-2)break;
+        memcpy(wrapped+len,p,n);len+=(int)n;p=end;
+        while(*p==' ')p++;
+        if(*p)wrapped[len++]='\n';
+    }
+    wrapped[len]=0;
+    if(!s_nativeText[slot] || s_nativePx[slot]!=(int)px || strcmp(wrapped,s_nativeStrings[slot])) {
+        int w,h;unsigned char* rgba=Pc_MenuFontRaster(wrapped,px,&w,&h);
+        if(!rgba)return;
+        int l=w,t=h,right=-1,bottom=-1;
+        for(int j=0;j<h;j++)for(int i=0;i<w;i++)if(rgba[(j*w+i)*4+3]) {
+            if(i<l)l=i;if(i>right)right=i;if(j<t)t=j;if(j>bottom)bottom=j;
+        }
+        if(right<l){free(rgba);return;}
+        int cw=right-l+1,ch=bottom-t+1;
+        /* Remove the rasterizer padding; the atlas supplies its own border. */
+        for(int j=0;j<ch;j++)memmove(rgba+j*cw*4,rgba+((t+j)*w+l)*4,(size_t)cw*4);
+        qo_retire(s_nativeText[slot]);
+        s_nativeText[slot]=qo_upload_rgba(rgba,cw,ch,0);free(rgba);
+        s_nativeW[slot]=cw;s_nativeH[slot]=ch;s_nativePx[slot]=(int)px;
+        snprintf(s_nativeStrings[slot],sizeof(s_nativeStrings[slot]),"%s",wrapped);
+    }
+    float left=x+(centred?(width-s_nativeW[slot])*.5f:0);
+    float top=y+(height-s_nativeH[slot])*.5f;
+    qo_quad(s_nativeText[slot],-1+2*left/vpW,1-2*top/vpH,
+        -1+2*(left+s_nativeW[slot])/vpW,1-2*(top+s_nativeH[slot])/vpH,r,g,b,1);
+}
+#endif
+
+static float qo_native_paragraph(const char* text, int slot, float px, float x, float y,
+                                 float width, float bottom, float vpW, float vpH)
+{
+    const char* p = text;
+    /* Each line lives in the shared 2048px atlas. Ultrawide displays must wrap
+     * before that limit, not ask the atlas for an impossible texture. */
+    if (width > QO_ATLAS_W - 32) width = QO_ATLAS_W - 32;
+    while (*p && y + px < bottom && slot < 46) {
+        char line[512];
+        const char *end = p, *space = NULL, *next;
+        size_t n = 0;
+        while (*end) {
+            next = end;
+            Pc_LangUtf8Next(&next);
+            n = (size_t)(next - p);
+            if (n >= sizeof(line)-1) break;
+            memcpy(line,p,n); line[n]=0;
+            if (qo_text_width(line,px) > width) break;
+            if (*end == ' ') space = end;
+            end = next;
+        }
+        if (*end && space && space > p) end = space;
+        if (end == p) { end = p; Pc_LangUtf8Next(&end); }
+        n = (size_t)(end-p);
+        if (n >= sizeof(line)) n=sizeof(line)-1;
+        memcpy(line,p,n); line[n]=0;
+        qo_native_text(slot++,line,px,x,y,width,vpW,vpH,.80f,.83f,.86f);
+        y += px * 1.45f;
+        p = end; while (*p==' ') p++;
+    }
+    return y;
+}
+
+#if defined(QO_MOBILE)
+/* Paginate descriptions instead of silently clipping them into the preview. */
+static void qo_mobile_help(const char* text,float px,float x,float y,float width,
+                           float bottom,float w,float h)
+{
+    const char* p=text;int lineNo=0,slot=31,shown=0;
+    while(*p) {
+        char line[512];const char *end=p,*space=NULL;
+        while(*end) {
+            const char* next=end;Pc_LangUtf8Next(&next);
+            size_t n=(size_t)(next-p);if(n>=sizeof(line)-1)break;
+            memcpy(line,p,n);line[n]=0;
+            if(qo_text_width(line,px)>width)break;
+            if(*end==' ')space=end;
+            end=next;
+        }
+        if(*end && space && space>p)end=space;
+        if(end==p){end=p;Pc_LangUtf8Next(&end);}
+        size_t n=(size_t)(end-p);memcpy(line,p,n);line[n]=0;
+        if(lineNo++>=s_mobileHelpSkip) {
+            if(y+px>=bottom)break;
+            qo_native_text(slot++,line,px,x,y,width,w,h,.76f,.79f,.76f);
+            y+=px*1.30f;shown++;
+        }
+        p=end;while(*p==' ')p++;
+    }
+    if(!shown && s_mobileHelpSkip){s_mobileHelpSkip=0;qo_mobile_help(text,px,x,y,width,bottom,w,h);return;}
+    if(*p || s_mobileHelpSkip)qo_native_text(59,qo_local("Tap description: more / start","Касание текста: далее / начало"),h*.026f,x,bottom,width,w,h,.5f,.7f,.55f);
+}
+#endif
+
+static void qo_title_image_tint(GLuint texture,float x,float y,float w,float h,
+                                float vpW,float vpH,float r,float g,float b,float opacity);
+
+static float qo_baked_value(const char* key)
+{
+    extern float PcOpt_ExampleValue(const void*);
+    return key?PcOpt_ExampleValue(PcOpt_QuickFind(key)):0;
+}
+
+static const char* qo_baked_status(const char* key)
+{
+    static const char* visual[]={"texture_filter","use_pgxp","msaa","post_process",
+        "tonemap","flashlight_mode","flashlight_intensity","flashlight_size",
+        "fog_strength","disable_culling","weather_sim_hz","fps_fov","tps_fov",
+        "ots_fov","tps_aim_zoom_amount","ots_aim_zoom_amount","tps_ots_aim",
+        "tps_camera_collision","minimap","minimap_scale","minimap_corner",
+        "minimap_opacity","minimap_require_map","low_health_glow","crosshair",
+        "crosshair_size","text_size","render_scale","bullet_decals","touch_style",
+        "touch_controls","touch_quicksave_buttons",NULL};
+    int i;
+    if(key)for(i=0;visual[i];i++)if(!strcmp(key,visual[i]))return qo_local(
+        "No verified example for this effect yet","Наглядный пример эффекта ещё не подготовлен");
+    return qo_local("See description; no visual comparison","См. описание — без визуального сравнения");
+}
+
+static void qo_native_draw(float vpW, float vpH, const QoRowDef* rows, int count)
+{
+#if defined(QO_MOBILE)
+    {
+    int ru=Pc_MenuLanguageRussian(),i,content=count-3;
+    float px=vpH*.050f;
+    qo_native_rect(0,0,vpW,vpH,vpW,vpH,0,0,0,1);
+    qo_native_rect(vpW*.025f,vpH*.025f,vpW*.11f,vpH*.11f,vpW,vpH,.08f,.14f,.09f,1);
+    qo_mobile_box(0,qo_local("Back","Назад"),vpH*.040f,vpW*.025f,vpH*.025f,vpW*.11f,vpH*.11f,vpW,vpH,.65f,.95f,.7f,1);
+    static const char* const tabs[6][2]={{"Graphics","Графика"},{"Lighting","Освещение"},
+        {"Controls","Управление"},{"Camera","Камера"},{"HUD","Интерфейс"},{"Device","Устройство"}};
+    for(i=0;i<QO_NATIVE_PAGES;i++) {
+        int active=i==s_page;float x=vpW*(.15f+i*.14f);
+        qo_native_rect(x,vpH*.025f,vpW*.134f,vpH*.11f,vpW,vpH,active?.07f:.025f,active?.16f:.055f,.04f,1);
+        qo_mobile_box(46+i,tabs[i][ru],vpH*.040f,x+vpW*.005f,vpH*.025f,vpW*.124f,vpH*.11f,vpW,vpH,
+            active?48/255.f:.75f,active?1:.82f,active?80/255.f:.75f,1);
+    }
+    GLint oldScissor[4],viewport[4];GLboolean scissor=glIsEnabled(GL_SCISSOR_TEST);
+    glGetIntegerv(GL_SCISSOR_BOX,oldScissor);glGetIntegerv(GL_VIEWPORT,viewport);
+    glEnable(GL_SCISSOR_TEST);
+    int clipBottom=(int)ceilf(vpH*(1-.805f)),clipTop=(int)floorf(vpH*(1-.18f));
+    glScissor(viewport[0],viewport[1]+clipBottom,(int)(vpW*.625f),clipTop-clipBottom);
+    for(i=0;i<content;i++) {
+        char label[192],value[128];float y=vpH*(.18f+(i-s_mobileScroll+s_nativeTop)*.125f);
+        int active=i==s_sel;float r=active?48/255.f:.82f,g=active?1:.85f,b=active?80/255.f:.82f;
+        qo_row_name(&rows[i],label,sizeof(label));qo_row_value(&rows[i],value,sizeof(value));
+        qo_native_rect(vpW*.025f,y,vpW*.59f,vpH*.112f,vpW,vpH,active?.045f:.018f,active?.09f:.025f,.025f,1);
+        qo_mobile_box(3+i*2,label,px,vpW*.04f,y,vpW*.37f,vpH*.112f,vpW,vpH,r,g,b,0);
+        qo_mobile_box(4+i*2,value,vpH*.040f,vpW*.46f,y,vpW*.115f,vpH*.112f,vpW,vpH,r,g,b,1);
+        qo_mobile_box(15+i*2,"-",vpH*.040f,vpW*.425f,y,vpW*.035f,vpH*.112f,vpW,vpH,.65f,.9f,.7f,1);
+        qo_mobile_box(16+i*2,"+",vpH*.040f,vpW*.58f,y,vpW*.035f,vpH*.112f,vpW,vpH,.65f,.9f,.7f,1);
+    }
+    glScissor(oldScissor[0],oldScissor[1],oldScissor[2],oldScissor[3]);
+    if(!scissor)glDisable(GL_SCISSOR_TEST);
+    int total=qo_mobile_total();
+    if(total>5) {
+        char position[64];snprintf(position,sizeof(position),"%d-%d / %d",s_nativeTop+1,s_nativeTop+5,total);
+        qo_native_text(52,position,px*.66f,vpW*.04f,vpH*.815f,vpW*.18f,vpW,vpH,.6f,.75f,.62f);
+        qo_native_text(53,qo_local("Swipe up/down: more settings","Свайп вверх/вниз: остальные пункты"),px*.58f,vpW*.22f,vpH*.815f,vpW*.39f,vpW,vpH,.6f,.75f,.62f);
+        qo_native_rect(vpW*.618f,vpH*.18f,vpW*.003f,vpH*.612f,vpW,vpH,.08f,.14f,.09f,1);
+        qo_native_rect(vpW*.618f,vpH*(.18f+.612f*s_mobileScroll/total),vpW*.003f,vpH*.612f*5/total,vpW,vpH,.25f,.7f,.3f,1);
+    }
+    int sel=s_sel<content?s_sel:0;
+    static const char* previousKey;
+    if(previousKey!=rows[sel].key){previousKey=rows[sel].key;s_mobileHelpSkip=0;}
+    const PcOptionHelp* help=Pc_OptionsHelp(rows[sel].key);
+    char title[192];qo_row_name(&rows[sel],title,sizeof(title));
+    qo_mobile_box(30,help?help->name[ru]:title,px,vpW*.65f,vpH*.16f,vpW*.32f,vpH*.12f,vpW,vpH,.4f,.85f,.48f,0);
+    /* Mobile examples replace the paragraph, rather than competing with it for
+     * the same small corner. Settings without a verified asset retain help. */
+    PcBakedPreview baked;
+    float exampleValue=qo_baked_value(rows[sel].key);
+    if(Pc_BakedPreview_Get(rows[sel].key,exampleValue,&baked)) {
+        float left=vpW*.64f,top=vpH*.30f,width=vpW*.34f,height=vpH*.45f;
+        float imageH=fminf(height,width*baked.height/baked.width);
+        float imageW=imageH*baked.width/baked.height;
+        /* Only the actual aspect-correct image: no coloured letterbox backing. */
+        qo_title_image_tint(baked.texture,left+(width-imageW)*.5f,
+            top+(height-imageH)*.5f,imageW,imageH,vpW,vpH,1,1,1,1);
+        char caption[192];snprintf(caption,sizeof(caption),qo_local("Example %.3g; other settings fixed%s",
+            "Пример %.3g; остальные параметры фиксированы%s"),baked.value,
+            baked.approximate?qo_local(" (nearest)"," (ближайший)"):"");
+        qo_native_text(60,caption,px*.48f,left,vpH*.78f,width,vpW,vpH,.5f,.7f,.55f);
+    } else {
+        qo_mobile_help(help?help->description[ru]:qo_local("Tap a setting to select it. Use the - and + sides of its value to adjust.","Коснитесь настройки для выбора. Меняйте значение кнопками - и +."),px*.80f,vpW*.65f,vpH*.30f,vpW*.32f,vpH*.70f,vpW,vpH);
+        qo_native_text(60,qo_baked_status(rows[sel].key),px*.56f,vpW*.65f,
+            vpH*.76f,vpW*.32f,vpW,vpH,.5f,.65f,.53f);
+    }
+    for(i=0;i<3;i++) {
+        float x=vpW*(.025f+i*.325f);
+        qo_native_rect(x,vpH*.86f,vpW*.30f,vpH*.12f,vpW,vpH,.065f,.12f,.075f,1);
+        qo_mobile_box(27+i,i==0?qo_local("Back","Назад"):i==1?qo_local("Previous","Предыдущая"):qo_local("Next","Следующая"),vpH*.040f,x,vpH*.86f,vpW*.30f,vpH*.12f,vpW,vpH,.7f,.95f,.75f,1);
+    }
+    return;
+    }
+#endif
+    PcOptionsLayout l = Pc_OptionsLayout(vpW,vpH);
+    float header = l.font*4.5f, footer = l.font*3.2f;
+    float listT = l.top+header;
+    float listH = l.height-header-footer;
+    float rowPitch, helpX, helpY, helpW, bottom = l.top+l.height-footer;
+    int i, ru=Pc_MenuLanguageRussian();
+    if (l.stacked) listH *= .58f;
+    rowPitch = listH / (count>0?count:1);
+    helpX = l.stacked ? l.left : l.left+l.listWidth+l.gap;
+    helpY = l.stacked ? listT+listH+l.gap : listT;
+    helpW = l.stacked ? l.width : l.width-l.listWidth-l.gap;
+
+    qo_native_rect(0,0,vpW,vpH,vpW,vpH,0,0,0,1);
+    qo_native_text(0,qo_local("PC OPTIONS", "НАСТРОЙКИ ПК"),l.font*1.2f,l.left+l.padding,l.top+l.font*.6f,l.width*.30f,vpW,vpH,.78f,.82f,.78f);
+    qo_native_text(2,s_previewOnly?qo_local("Esc: Back","Esc: Назад"):qo_local("R: Reset", "R: Сброс"),l.font*.8f,l.left+l.width*.84f,l.top+l.font*.8f,l.width*.15f,vpW,vpH,.75f,.78f,.8f);
+    {
+        static const char* const tabs[5][2]={{"Graphics","Графика"},{"Lighting","Освещение"},
+            {"Controls","Управление"},{"Camera","Камера"},{"HUD","Интерфейс"}};
+        float tabWidth=l.width/QO_NATIVE_PAGES,tabTop=l.top+l.font*2.2f;
+        for(i=0;i<QO_NATIVE_PAGES;i++) {
+            float x=l.left+i*tabWidth;int active=i==s_page;
+            qo_native_rect(x,tabTop,tabWidth-l.padding*.35f,l.font*1.7f,vpW,vpH,
+                active?.06f:.025f,active?.16f:.055f,.04f,1);
+            float px=l.font*.85f,tw=qo_text_width(tabs[i][ru],px);
+            qo_native_text(46+i,tabs[i][ru],px,x+(tabWidth-tw)*.5f,tabTop+l.font*.34f,
+                tabWidth-l.padding*.5f,vpW,vpH,active?48/255.f:.75f,active?1:.82f,active?80/255.f:.75f);
+        }
+    }
+
+    s_vpW=vpW; s_vpH=vpH;
+    s_geoPanelL=l.left; s_geoPanelR=l.left+l.listWidth;
+    s_geoListT=vpH-listT; s_geoRowPitch=rowPitch; s_geoRowH=rowPitch;
+    s_geoRows=count; s_geoTitleB=s_geoTitleT=-1; /* fixed responsive screen, no drag */
+
+    for(i=0;i<count;i++) {
+        char label[192], value[128];
+        float y=listT+i*rowPitch;
+        qo_row_name(&rows[i],label,sizeof(label));
+        if(i==s_sel) {
+            float pulse=.45f+.18f*sinf(SDL_GetTicks()*.004f);
+            qo_native_rect(l.left,y+rowPitch*.88f,l.listWidth,1,vpW,vpH,48/255.f,1,80/255.f,pulse);
+            qo_native_text(62,">",l.font*.65f,l.left-l.padding*.7f,y+rowPitch*.35f,l.padding,vpW,vpH,48/255.f,1,80/255.f);
+        }
+        qo_native_text(64+i*2,label,fminf(l.font,rowPitch*.63f),l.left+l.padding,y+rowPitch*.25f,l.listWidth*.70f-l.padding*2,vpW,vpH,i==s_sel?48/255.f:.82f,i==s_sel?1:.84f,i==s_sel?80/255.f:.82f);
+        value[0] = 0;
+        if (rows[i].kind == ROW_OPT) qo_row_value(&rows[i],value,sizeof(value));
+        qo_native_text(65+i*2,value,fminf(l.font*.9f,rowPitch*.60f),l.left+l.listWidth*.72f,y+rowPitch*.27f,l.listWidth*.28f-l.padding,vpW,vpH,i==s_sel?48/255.f:.82f,i==s_sel?1:.84f,i==s_sel?80/255.f:.82f);
+    }
+    {
+        const PcOptionHelp* help=Pc_OptionsHelp(rows[s_sel].key);
+        const char* heading=help ? help->name[ru] : qo_local("Navigation", "Навигация");
+        const char* description=help ? help->description[ru] : qo_local(
+            "Choose a category with Q/E, PgUp/PgDn or the shoulder buttons. Back returns to the original options menu.",
+            "Выберите раздел клавишами Q/E, PgUp/PgDn или верхними кнопками геймпада. «Назад» возвращает в исходное меню настроек.");
+        qo_native_text(30,heading,l.font*1.1f,helpX,helpY,helpW,vpW,vpH,.4f,.85f,.48f);
+        const char* key=rows[s_sel].key;
+        PcBakedPreview baked;
+        float contentY=helpY+l.font*2;
+        if(Pc_BakedPreview_Get(key,qo_baked_value(key),&baked)) {
+            /* Give the example its own guaranteed area, never the few pixels
+             * left over after wrapping an arbitrarily long description. */
+            float imageH=fminf(helpW*baked.height/baked.width,
+                fmaxf(0,(bottom-contentY)*.70f));
+            float imageW=imageH*baked.width/baked.height;
+            qo_title_image_tint(baked.texture,helpX+(helpW-imageW)*.5f,contentY,
+                imageW,imageH,vpW,vpH,1,1,1,1);
+            char caption[192];snprintf(caption,sizeof(caption),qo_local(
+                "Example %.3g; other settings fixed%s","Пример %.3g; остальные параметры фиксированы%s"),
+                baked.value,baked.approximate?qo_local(" (nearest)"," (ближайший)"):"");
+            float captionY=contentY+imageH+l.font*.4f;
+            qo_native_text(61,caption,l.font*.65f,helpX,captionY,helpW,vpW,vpH,.5f,.7f,.55f);
+            qo_native_paragraph(description,31,l.font*.72f,helpX,captionY+l.font*1.3f,
+                helpW,bottom-l.font*.3f,vpW,vpH);
+        } else {
+            qo_native_paragraph(description,31,l.font*.9f,helpX,contentY,helpW,
+                bottom-l.font*2,vpW,vpH);
+            qo_native_text(61,qo_baked_status(key),l.font*.7f,helpX,bottom-l.font,
+                helpW,vpW,vpH,.7f,.73f,.7f);
+        }
+    }
+    qo_native_text(27,qo_local("Up/Down: select    Left/Right: adjust    Q/E or LB/RB: category", "Вверх/вниз: выбор    Влево/вправо: значение    Q/E или LB/RB: раздел"),l.font*.75f,l.left,bottom+l.font*.7f,l.width,vpW,vpH,.72f,.75f,.78f);
+    qo_native_text(28,s_previewOnly ? qo_local("Mouse: click / wheel    Esc: return    Tab: extended quick menu", "Мышь: щелчок / колесо    Esc: назад    Tab: расширенное быстрое меню") : qo_local("Mouse: hover and click / wheel    Esc / Back: return    Restart-only: resolution / MSAA", "Мышь: наведение, щелчок / колесо    Esc: назад    Перезапуск: разрешение / MSAA"),l.font*.70f,l.left,bottom+l.font*1.9f,l.width,vpW,vpH,.62f,.65f,.68f);
+}
+
+static void qo_title_image_tint(GLuint texture,float x,float y,float w,float h,
+                                float vpW,float vpH,float r,float g,float b,float opacity)
+{
+    float v[6][4]={{-1+2*x/vpW,1-2*y/vpH,0,0},
+        {-1+2*x/vpW,1-2*(y+h)/vpH,0,1},
+        {-1+2*(x+w)/vpW,1-2*y/vpH,1,0},
+        {-1+2*(x+w)/vpW,1-2*y/vpH,1,0},
+        {-1+2*x/vpW,1-2*(y+h)/vpH,0,1},
+        {-1+2*(x+w)/vpW,1-2*(y+h)/vpH,1,1}};
+    glBindTexture(GL_TEXTURE_2D,texture);glUniform4f(s_locColor,r,g,b,opacity);
+    glBufferSubData(GL_ARRAY_BUFFER,0,sizeof(v),v);glDrawArrays(GL_TRIANGLES,0,6);
+}
+
+static void qo_ordinary_draw(float w,float h)
+{
+    static const char* const names[][2]={
+        {"Back","Назад"},{"Brightness","Яркость"},
+        {"Controller configuration","Настройка управления"},{"PC options","Настройки ПК"},
+        {"Vibration","Вибрация"},{"Auto load","Автозагрузка"},
+        {"Sound output","Вывод звука"},{"Music volume","Громкость музыки"},
+        {"Effects volume","Громкость эффектов"},{"Voice volume","Громкость речи"}};
+    const char* sound[]={"Auto","Stereo","Quad","5.1","7.1","HRTF"};
+    const char* soundRu[]={"Авто","Стерео","Квадро","5.1","7.1","HRTF"};
+    int i,ru=Pc_MenuLanguageRussian();float px=fminf(h/900*28,48);
+#if defined(QO_MOBILE)
+    px=h*.052f;
+    qo_native_rect(0,0,w,h,w,h,0,0,0,1);
+    qo_native_text(0,qo_local("OPTIONS","ОПЦИИ"),px*1.2f,w*.05f,h*.055f,w*.85f,w,h,.83f,.9f,.83f);
+    for(i=0;i<MainOptionsMenuEntry_Count;i++) {
+        int local=i%5,col=i/5,active=i==g_MainOptionsMenu_SelectedEntry;
+        float left=col?.51f:.025f,y=h*(.19f+local*.14f);
+        float r=active?48/255.f:.82f,g=active?1:.85f,b=active?80/255.f:.82f;
+        char buffer[64];const char* value="";const char* label=names[i][ru];
+        if(i==MainOptionsMenuEntry_AutoLoad && Pc_ExitToMenuRowActive())label=qo_local("Return to title","В главное меню");
+        else if(i==MainOptionsMenuEntry_AutoLoad && Pc_LangMenuRowActive()) {
+            label=qo_local("Language","Язык");value=Pc_LangIdForSlot(Pc_LangSlotCurrent());
+        }else if(i==MainOptionsMenuEntry_Vibration)value=g_GameWork.config.vibrationEnabled?qo_local("On","Вкл."):qo_local("Off","Выкл.");
+        else if(i==MainOptionsMenuEntry_AutoLoad)value=g_GameWork.config.autoLoad?qo_local("On","Вкл."):qo_local("Off","Выкл.");
+        else if(i==MainOptionsMenuEntry_Sound){int m=g_PcConfig.audioOutput;if(m<0||m>5)m=0;value=ru?soundRu[m]:sound[m];}
+        qo_native_rect(w*left,y,w*.465f,h*.125f,w,h,active?.045f:.018f,active?.09f:.025f,.025f,1);
+        /* Submenu links have no value: use their whole card, not the narrow
+         * label column reserved for sliders and switches. */
+        float labelWidth=i<=MainOptionsMenuEntry_ScreenPosition?.425f:.205f;
+        qo_mobile_box(3+i*2,label,px,w*(left+.02f),y,w*labelWidth,h*.125f,w,h,r,g,b,i<=MainOptionsMenuEntry_ScreenPosition);
+        if(i>=MainOptionsMenuEntry_BgmVolume) {
+            extern float g_PcXaVolume;
+            float volume=i==MainOptionsMenuEntry_BgmVolume?g_GameWork.config.volumeBgm/128.f:
+                i==MainOptionsMenuEntry_SfxVolume?g_GameWork.config.volumeSe/128.f:g_PcXaVolume;
+            int j,lit=(int)(volume*16+.5f);
+            for(j=0;j<16;j++)qo_native_rect(w*(left+.235f+j*.012f),y+h*.073f,w*.008f,h*.024f,w,h,j<lit?r:.13f,j<lit?g:.18f,j<lit?b:.14f,1);
+            snprintf(buffer,sizeof(buffer),"%d%%",(int)(volume*100+.5f));value=buffer;
+        }
+        qo_mobile_box(4+i*2,value?value:"",h*.040f,w*(left+.24f),y,w*.20f,
+            h*(i>=MainOptionsMenuEntry_BgmVolume?.065f:.125f),w,h,r,g,b,1);
+    }
+    qo_native_text(27,qo_local("Tap to open; tap a value to change; drag volume bars.","Коснитесь пункта или значения. Громкость меняется движением по шкале."),px*.70f,w*.05f,h*.92f,w*.90f,w,h,.65f,.8f,.65f);
+    return;
+#endif
+    qo_native_rect(0,0,w,h,w,h,0,0,0,1);
+    qo_native_text(0,qo_local("OPTIONS","ОПЦИИ"),px*1.3f,w*.10f,h*.075f,w*.6f,w,h,.83f,.85f,.83f);
+    for(i=0;i<MainOptionsMenuEntry_Count;i++) {
+        char buffer[64];const char* value="";const char* label=names[i][ru];
+        float y=h*(.18f+i*.058f),r=.82f,g=.84f,b=.82f;
+        if(i==g_MainOptionsMenu_SelectedEntry){r=48/255.f;g=1;b=80/255.f;
+            qo_native_text(62,">",px*.65f,w*.075f,y+px*.2f,w*.02f,w,h,r,g,b);
+            qo_native_rect(w*.10f,y+px*1.1f,w*.80f,1,w,h,r,g,b,.7f);}
+        if(i==MainOptionsMenuEntry_AutoLoad && Pc_LangMenuRowActive()) {
+            label=qo_local("Language","Язык");
+            /* The original slot label remains owned by the language system;
+             * avoid reinterpreting its FONT16 bytes as UTF-8. */
+            const char* code=Pc_LangIdForSlot(Pc_LangSlotCurrent());
+            snprintf(buffer,sizeof(buffer),"%s",code?code:"?");value=buffer;
+        } else if(i==MainOptionsMenuEntry_Vibration)value=g_GameWork.config.vibrationEnabled?qo_local("On","Вкл."):qo_local("Off","Выкл.");
+        else if(i==MainOptionsMenuEntry_AutoLoad)value=g_GameWork.config.autoLoad?qo_local("On","Вкл."):qo_local("Off","Выкл.");
+        else if(i==MainOptionsMenuEntry_Sound){int m=g_PcConfig.audioOutput;if(m<0||m>5)m=0;value=ru?soundRu[m]:sound[m];}
+        qo_native_text(3+i*2,label,px,w*.10f,y,w*.45f,w,h,r,g,b);
+        if(i>=MainOptionsMenuEntry_BgmVolume) {
+            extern float g_PcXaVolume;
+            float volume=i==MainOptionsMenuEntry_BgmVolume?g_GameWork.config.volumeBgm/128.f:
+                i==MainOptionsMenuEntry_SfxVolume?g_GameWork.config.volumeSe/128.f:g_PcXaVolume;
+            int j,lit=(int)(volume*16+.5f);
+            for(j=0;j<16;j++)qo_native_rect(w*(.59f+j*.018f),y+px*.22f,w*.012f,px*.65f,w,h,
+                j<lit?r:.13f,j<lit?g:.18f,j<lit?b:.14f,1);
+            snprintf(buffer,sizeof(buffer),"%d",(int)(volume*100+.5f));value=buffer;
+            qo_native_text(4+i*2,value,px*.85f,w*.90f,y,w*.08f,w,h,r,g,b);
+        }else qo_native_text(4+i*2,value,px,w*.59f,y,w*.31f,w,h,r,g,b);
+    }
+    qo_native_text(27,qo_local("Arrows: select / adjust    Enter: open    Esc: back",
+        "Стрелки: выбор и значение    Enter: открыть    Esc: назад"),px*.75f,w*.10f,h*.87f,w*.80f,w,h,.65f,.7f,.65f);
+    qo_native_text(28,qo_local("Mouse: select, click, drag volume    LB/RB: extra options",
+        "Мышь: выбор, щелчок, громкость    LB/RB: дополнительные опции"),px*.7f,w*.10f,h*.92f,w*.80f,w,h,.65f,.7f,.65f);
+}
+
 void Pc_QuickOptions_Draw(void)
 {
     GLint vp[4];
     float vpW, vpH, panelW, panelH, panelL, panelR, panelT, panelB;
     float titleH, hintH, listT, listB, listH, rowPitch, rowH, pad, dim = 1.0f;
     int   nRows;
-    const QoRowDef* rows = qo_page_rows(s_page, &nRows);
+    const QoRowDef* rows;
     int   px, i;
 
     GLint  prevProg = 0, prevVao = 0, prevBuf = 0, prevTex = 0, prevUnit = GL_TEXTURE0, prevAlign = 4;
     GLint  prevSrcRgb = GL_ONE, prevDstRgb = GL_ZERO, prevSrcA = GL_ONE, prevDstA = GL_ZERO;
     GLint  prevEqRgb = GL_FUNC_ADD, prevEqA = GL_FUNC_ADD;
     GLboolean prevBlend, prevDepth, prevCull;
+    int ordinary=Pc_OrdinaryOptions_Active();
+    int title=Pc_TitleMenu_Active();
+    static int previewWasOpen;
 
-    if (s_phase == QO_CLOSED)
+    if (s_native && !(s_previewOnly && g_GameWork.gameState==GameState_InGame) &&
+        (g_GameWork.gameState != GameState_OptionScreen ||
+        g_GameWork.gameStateSteps[0] != OptionsMenuState_PcOptions)) {
+        s_previewOnly=0;
+        s_native = 0;
+        s_phase = QO_CLOSED;
+        s_page = s_quickPage;
+        s_sel = s_quickSel;
+        s_viewRowsDirty = 1;
+    }
+    if(previewWasOpen && !s_native) {
+        Pc_MenuPreview_Stop();
+        Pc_BakedPreview_Close();
+#if defined(QO_MOBILE)
+#endif
+    }
+    previewWasOpen=s_native;
+    {static int inventoryWasOpen;
+     int inventoryOpen=Pc_InventoryAdapted();
+     if(inventoryWasOpen && !inventoryOpen)Pc_InventoryClose();
+     inventoryWasOpen=inventoryOpen;}
+    if (s_phase == QO_CLOSED && !ordinary && !title && !Pc_InventoryAdapted())
         return;
+    rows = qo_page_rows(s_page, &nRows);
     /* The keybind panel stands in for this menu while it is open. */
     if (Pc_BindPanel_IsOpen())
         return;
@@ -2291,6 +3159,34 @@ void Pc_QuickOptions_Draw(void)
 
     qo_gl_pump();
     qo_validate_cache();
+
+    if (s_cachedRu != Pc_MenuLanguageRussian() || s_cachedW != (int)vpW || s_cachedH != (int)vpH) {
+        qo_free_text();
+        s_cachedRu = Pc_MenuLanguageRussian();
+        s_cachedW = (int)vpW;
+        s_cachedH = (int)vpH;
+    }
+
+    if (s_native || ordinary || title || Pc_InventoryAdapted()) {
+        qo_build_white();
+        glUseProgram(s_prog);
+        glBindVertexArray(s_vao);
+        glBindBuffer(GL_ARRAY_BUFFER,s_vbo);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0,2,GL_FLOAT,GL_FALSE,4*sizeof(float),(void*)0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1,2,GL_FLOAT,GL_FALSE,4*sizeof(float),(void*)(2*sizeof(float)));
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+        glBlendEquation(GL_FUNC_ADD);
+        glDisable(GL_DEPTH_TEST);
+        glDisable(GL_CULL_FACE);
+        if(Pc_InventoryAdapted()) {const PcTitlePainter painter={vpW,vpH,qo_title_image_tint,qo_native_rect,qo_native_text};int wasNative=s_native;s_native=1;Pc_InventoryDraw(&painter);s_native=wasNative;}
+        else if(title) {const PcTitlePainter painter={vpW,vpH,qo_title_image_tint,qo_native_rect,qo_native_text};int wasNative=s_native;s_native=1;Pc_TitleScreen_Draw(&painter);s_native=wasNative;}
+        else if(ordinary) {int wasNative=s_native;s_native=1;qo_ordinary_draw(vpW,vpH);s_native=wasNative;}
+        else qo_native_draw(vpW,vpH,rows,nRows);
+        goto restore;
+    }
 
     /* Fade only; the phase itself advances in Update (game thread). */
     {

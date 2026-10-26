@@ -12,6 +12,7 @@
 #include "pc_modern_mesh.h"
 #include "sh_log.h"
 #include <PsyX/PsyX_public.h>
+#include <math.h>
 /* Inventory item-preview aspect: 0 = off (raw), 1 = apply the vertical aspect
  * correction (default). Toggled by `invaspect`; g_PcInvAspectPct scales it live
  * (`invscale`; 100 = the geometric factor exactly).
@@ -257,13 +258,16 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
         extern int g_PcHorPlusEnabled;
         extern int g_PcMenuPillarbox;
         extern int g_PcWidescreenMode;
+        extern int Pc_InventoryAdapted(void);
         int _stretched = (g_PcHorPlusEnabled && g_PcWidescreenMode == 2) ||
-                         (!g_PcHorPlusEnabled && !g_PcMenuPillarbox);
+                         (!g_PcHorPlusEnabled && (!g_PcMenuPillarbox || Pc_InventoryAdapted()));
         int _sw, _sh;
         PsyX_GetScreenSize(&_sw, &_sh);
         float _dispAspect = (float)_sw / (float)_sh;
         float _psxAspect = 320.0f / 240.0f;
-        if (_stretched && _dispAspect > _psxAspect) {
+        /* The adapted inventory later reconstructs each panel at its original
+         * display aspect. A second correction here would narrow items twice. */
+        if (_stretched && _dispAspect > _psxAspect && !Pc_InventoryAdapted()) {
             float _corr = _psxAspect / _dispAspect;
             int _j;
             for (_j = 0; _j < 3; _j++)
@@ -315,6 +319,73 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
             else if (displayItemIdx < 7)
                 localToScreenMat.t[1] += (g_PcInvCarouselYOff * frameH) / INV_Y_OFF_REF_H;
         }
+    }
+#endif
+#ifdef SH_PC_PORT
+    /* A full-turn bound determines one stable scale: fitting the current
+     * silhouette made long items visibly breathe every turn. */
+    if(Pc_InventoryAdapted() && displayItemIdx<=7) {
+        /* Centre the equipped preview inside its own panel, not the legacy
+         * portrait-height rectangle: otherwise tall weapons cross its top edge. */
+        if(displayItemIdx==7)localToScreenMat.t[1]=-140*localToScreenMat.t[2]/1000;
+        struct TMD_STRUCT* t=(struct TMD_STRUCT*)arg1->tmd;
+        SVECTOR* vertices=(SVECTOR*)t->vertop;
+        /* The inventory spins around Y, not every possible axis. A full sphere
+         * is needlessly tiny for swords: cache a full-turn envelope at the fixed
+         * authored X/Z tilt instead. The 1% margin covers angular sampling and
+         * fixed-point rounding. Cache keys include the vertex allocation/shape. */
+        typedef struct {const void* vertices;unsigned count;int item,x,z,sy,pct,square,height;double fit,centre[3];} ItemFit;
+        static ItemFit cache[32];static unsigned cursor;
+        int itemIndex=displayItemIdx==7?g_SysWork.playerCombat.weaponInventoryIdx:D_800C3E18[displayItemIdx];
+        int id=itemIndex>=0 && itemIndex<g_SavegamePtr->inventorySlotCount?
+            g_SavegamePtr->items[itemIndex].id_0:-1;
+        int tiltX=g_Items_Transforms[displayItemIdx].rotate.vx,tiltZ=g_Items_Transforms[displayItemIdx].rotate.vz;
+        int weapon=(id>=InvItemId_KitchenKnife && id<=InvItemId_Axe) ||
+            (id>=InvItemId_Handgun && id<=InvItemId_HyperBlaster);
+        int fitRegion=displayItemIdx==7?1:(itemIndex==g_SysWork.invItemSelectedIdx?2:0);
+        double fit=weapon?2.:1.,centre[3]={0};ItemFit* found=NULL;
+        for(unsigned c=0;c<32;c++)if(cache[c].vertices==vertices && cache[c].count==t->vern &&
+            cache[c].item==id && cache[c].x==tiltX && cache[c].z==tiltZ &&
+            cache[c].sy==fitRegion && cache[c].pct==g_PcInvAspectPct &&
+            cache[c].square==g_PcInvAspectSquare && cache[c].height==g_GameWork.gsScreenHeight) {found=&cache[c];break;}
+        if(found){fit=found->fit;for(int a=0;a<3;a++)centre[a]=found->centre[a];}
+        else {
+            if(weapon) {
+                double lo[3]={32767,32767,32767},hi[3]={-32768,-32768,-32768};
+                for(unsigned v=0;v<t->vern;v++) {
+                    double p[3]={vertices[v].vx,vertices[v].vy,vertices[v].vz};
+                    for(int a=0;a<3;a++){if(p[a]<lo[a])lo[a]=p[a];if(p[a]>hi[a])hi[a]=p[a];}
+                }
+                for(int a=0;a<3;a++)centre[a]=(lo[a]+hi[a])*.5;
+            }
+            double extent[2]={displayItemIdx==7?42.:(fitRegion==2?32.:26.),displayItemIdx==7?36.:49.};
+            double depth=localToScreenMat.t[2]-(displayItemIdx<7?
+                g_Items_Coords[displayItemIdx].coord.t[2]+1024:0);
+            double yScale=g_PcInvAspectSquare?(4./3.)*g_GameWork.gsScreenHeight/g_GameWork.gsScreenWidth*g_PcInvAspectPct/100.:1;
+            for(int angle=0;angle<4096;angle+=32) {
+                SVECTOR rotation={(s16)tiltX,(s16)angle,(s16)tiltZ,0};MATRIX rotationMatrix;
+                Math_RotMatrixZxyNegGte(&rotation,&rotationMatrix);
+                for(unsigned v=0;v<t->vern;v++) {
+                    double vertex[3]={vertices[v].vx-centre[0],vertices[v].vy-centre[1],vertices[v].vz-centre[2]},view[3]={0};
+                    for(int a=0;a<3;a++)for(int b=0;b<3;b++)view[a]+=rotationMatrix.m[a][b]*vertex[b]/4096.;
+                    view[1]*=yScale;
+                    for(int a=0;a<2;a++) {
+                        double denom=(1000.*fabs(view[a])+extent[a]*fabs(view[2]))*1.01;
+                        if(denom>0 && depth>0){double f=extent[a]*depth/denom;if(f<fit)fit=f;}
+                    }
+                }
+            }
+            ItemFit* entry=&cache[cursor++%32];
+            *entry=(ItemFit){vertices,t->vern,id,tiltX,tiltZ,fitRegion,g_PcInvAspectPct,g_PcInvAspectSquare,g_GameWork.gsScreenHeight,fit,{0}};
+            for(int a=0;a<3;a++)entry->centre[a]=centre[a];
+        }
+        for(int a=0;a<3;a++)for(int b=0;b<3;b++)localToScreenMat.m[a][b]=(s16)(localToScreenMat.m[a][b]*fit);
+        /* Centre the geometry rather than its sometimes distant authored pivot.
+         * A single fixed scale then uses the available frame, even for the pipe
+         * and chainsaw, without pumping as the object rotates. */
+        if(displayItemIdx<7)localToScreenMat.t[1]-=6*localToScreenMat.t[2]/1000;
+        if(weapon)for(int a=0;a<3;a++)for(int b=0;b<3;b++)
+            localToScreenMat.t[a]-=(s32)(localToScreenMat.m[a][b]*centre[b]/4096.);
     }
 #endif
     GsSetLsMatrix(&localToScreenMat);

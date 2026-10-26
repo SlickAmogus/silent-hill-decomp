@@ -1,0 +1,174 @@
+name: UI cross-platform validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      windows_only:
+        type: boolean
+        default: false
+        description: Run only the Windows diagnostic
+  push:
+    branches: [test/ui-crossplatform-validation, pr/crossplatform-baked-menus, pr/integrated-crossplatform-menus, pr/adapted-inventory]
+
+permissions:
+  contents: read
+
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(inputs.windows_only && '["windows-2022"]' || '["ubuntu-22.04","windows-2022","macos-14"]') }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build cmake pkg-config libsdl2-dev libopenal-dev libjpeg-dev libgl1-mesa-dev libglu1-mesa-dev xvfb
+      - name: macOS dependencies
+        if: runner.os == 'macOS'
+        run: brew install gcc cmake ninja pkg-config sdl2 openal-soft jpeg-turbo
+      - uses: msys2/setup-msys2@v2
+        if: runner.os == 'Windows'
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-gdb
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-pkgconf
+            mingw-w64-x86_64-SDL2
+            mingw-w64-x86_64-openal
+            mingw-w64-x86_64-libjpeg-turbo
+            mingw-w64-x86_64-mesa
+      - name: Build and test Windows
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          cmake -S pc_port -B build-ui -G Ninja -DSH_BUILD_MAP_DLLS=ON -DBUILD_TESTING=ON -DSH_FMV_FFMPEG=OFF -DSH_UI_GL_TEST=ON
+          cmake --build build-ui --target SilentHillPC pc_inventory_layout_test pc_gte_math_test pc_native_menu_test pc_ach_model_test pc_bind_core_test pc_input_glyphs_test pc_options_help_test pc_big_tmd_test pc_preview_mesh_test pc_preview_tim_test pc_baked_preview_gl_test -j 3
+          # Hosted Windows runners have no guaranteed modern hardware ICD.
+          # Exercise real GL calls through Mesa softpipe, not a skipped/mock test.
+          # llvmpipe passed all preview checks but hung in SDL_DestroyWindow on
+          # this hosted runner; test the non-JIT driver with full cleanup too.
+          cp /mingw64/bin/opengl32.dll /mingw64/bin/libgallium_wgl.dll build-ui/
+          export SDL_OPENGL_LIBRARY="$(cygpath -w "$PWD/build-ui/opengl32.dll")"
+          export GALLIUM_DRIVER=softpipe
+          export LIBGL_ALWAYS_SOFTWARE=1
+          export LP_NUM_THREADS=2
+          export SH_PREVIEW_TRACE=1
+          ctest --test-dir build-ui -R '^pc_' --verbose --timeout 120
+      - name: Build and test Unix desktop
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          args=()
+          if [ "$RUNNER_OS" = macOS ]; then
+            gcc=$(find /opt/homebrew/bin -name 'gcc-[0-9]*' -type f -o -name 'gcc-[0-9]*' -type l | sort -V | tail -1)
+            args+=(-DCMAKE_C_COMPILER="$gcc" -DOPENAL_LIBRARY="$(brew --prefix openal-soft)/lib/libopenal.dylib" -DOPENAL_INCLUDE_DIR="$(brew --prefix openal-soft)/include" -DJPEG_LIBRARY="$(brew --prefix jpeg-turbo)/lib/libjpeg.dylib" -DJPEG_INCLUDE_DIR="$(brew --prefix jpeg-turbo)/include")
+          fi
+          cmake -S pc_port -B build-ui -G Ninja -DSH_BUILD_MAP_DLLS=ON -DBUILD_TESTING=ON -DSH_FMV_FFMPEG=OFF -DSH_UI_GL_TEST=ON "${args[@]}"
+          cmake --build build-ui --target SilentHillPC pc_inventory_layout_test pc_gte_math_test pc_native_menu_test pc_ach_model_test pc_bind_core_test pc_input_glyphs_test pc_options_help_test pc_big_tmd_test pc_preview_mesh_test pc_preview_tim_test pc_baked_preview_gl_test -j 3
+          if [ "$RUNNER_OS" = Linux ]; then
+            LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a ctest --test-dir build-ui -R '^pc_' --output-on-failure
+          else
+            ctest --test-dir build-ui -R '^pc_' --output-on-failure
+          fi
+      - name: Validate packaged examples
+        run: python pc_port/tests/validate_preview_assets.py build-ui/gamedata/previews
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: UI-validation-${{ runner.os }}
+          path: |
+            build-ui/Testing/Temporary/LastTest.log
+            build-ui/SilentHillPC*
+          if-no-files-found: ignore
+
+  ios:
+    if: ${{ !inputs.windows_only }}
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - run: brew install cmake ninja llvm
+      - run: echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
+      - name: Build unsigned device IPA
+        run: CMAKE_BUILD_PARALLEL_LEVEL=3 bash ios_port/build_ios.sh
+      - name: Check bundle assets and device platform
+        run: |
+          APP=$(find build-ios -maxdepth 4 -name 'SilentHill.app' -type d | head -1)
+          test -f "$APP/gamedata/previews/manifest.tsv"
+          test -f "$APP/gamedata/menu-hd/title-us-ultrawide.png"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleSupportedPlatforms:0' "$APP/Info.plist")" = iPhoneOS
+          file "$APP/SilentHill"
+          python3 pc_port/tests/validate_preview_assets.py "$APP/gamedata/previews"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: UI-validation-iOS-unsigned
+          path: build-ios/SilentHill-unsigned.ipa
+          if-no-files-found: error
+
+  android:
+    if: ${{ !inputs.windows_only }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+          validate-wrappers: false
+      - name: Android SDK components
+        run: |
+          SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          "$SDK/cmdline-tools/latest/bin/sdkmanager" "platforms;android-34" "build-tools;34.0.0" "ndk;27.3.13750724" "cmake;3.22.1"
+          echo "sdk.dir=$SDK" > android_port/local.properties
+      - name: Build both ARM ABIs
+        env:
+          JAVA_HOME_ANDROID: ${{ env.JAVA_HOME }}
+          GRADLE_BIN: gradle
+          CMAKE_BUILD_PARALLEL_LEVEL: '3'
+        run: bash android_port/build_android.sh
+      - name: Validate APK resources and ABIs
+        run: |
+          python3 - <<'PY'
+          import zipfile, tempfile, sys
+          from pathlib import Path
+          sys.path.insert(0, 'pc_port/tests')
+          from validate_preview_assets import validate
+          with zipfile.ZipFile('android_port/app/build/outputs/apk/debug/app-debug.apk') as apk:
+              for abi in ['arm64-v8a','armeabi-v7a']:
+                  for so in ['libmain.so','libSDL2.so']:
+                      assert f'lib/{abi}/{so}' in apk.namelist()
+              prefix=next(n[:-len('manifest.tsv')] for n in apk.namelist() if n.endswith('gamedata/previews/manifest.tsv'))
+              with tempfile.TemporaryDirectory() as folder:
+                  root=Path(folder)
+                  for name in apk.namelist():
+                      if name.startswith(prefix) and not name.endswith('/'):
+                          relative=Path(name[len(prefix):]); assert '..' not in relative.parts
+                          target=root/relative; target.parent.mkdir(parents=True,exist_ok=True)
+                          target.write_bytes(apk.read(name))
+                  validate(root)
+          print('PASS: both ARM ABIs and identical packaged examples')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: UI-validation-Android-debug
+          path: android_port/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error

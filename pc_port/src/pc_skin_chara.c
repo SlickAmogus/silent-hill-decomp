@@ -240,6 +240,7 @@ typedef struct
 {
     char        name[16]; /* the model it replaces: HERO, SIBYL */
     char        file[32]; /* the glTF it came from: HERO, HERO_CJ */
+    char        base[96]; /* its path without the extension, for the ini */
     const PcSkinRestDef* def;
     int         state; /* 0 untried, 1 ready, -1 none */
     const void* instKey[PC_SKIN_INST]; /* the instance's bone coords */
@@ -278,7 +279,8 @@ typedef struct
     float       grip[2];
     float       gunOff[3]; /* right-hand bone frame */
     int         lightLogged;
-    int         gunRaise, gunOut, gunTwist; /* ini: mm, mm, degrees */
+    int         gunRaise, gunOut, gunFwd;    /* ini: mm */
+    int         gunTwist, gunPitch, gunYaw; /* ini: degrees */
     int         female;
     int         brightness; /* percent of the lit vertex colour */
     int         fogPct;     /* percent of the game's fog amount */
@@ -532,7 +534,9 @@ static int Skin_JointIndex(const cgltf_skin* skin, const cgltf_node* node)
 /* For each hand (0 = game hand 6), the hand joint and three joints of one
  * finger, for the grip. A finger named "index" wins; otherwise the thumb (by
  * name, or the chain rooted nearest the wrist) is skipped and the middle-most
- * of the rest is used: any long finger gives the curl direction. */
+ * of the rest is used: any long finger gives the curl direction. Slots 3 and 4
+ * are the finger root farthest from it and the thumb tip, for a rig modelled
+ * with dead-straight fingers. */
 /* Horizontal toe direction of the model's foot: the long axis of the
  * sole (the lowest 15 units of the geometry the foot owns), signed away
  * from the ankle. A boot's shaft would pull a plain centroid upward. */
@@ -575,7 +579,7 @@ static int Skin_ToeDir(const PcSkinChara* ch, const float* gpos, int bone, const
     return 1;
 }
 
-static void Skin_FindGrip(const cgltf_skin* skin, float jointPos[][3], int handJoint[2], int fingerJoint[2][3])
+static void Skin_FindGrip(const cgltf_skin* skin, float jointPos[][3], int handJoint[2], int fingerJoint[2][5])
 {
     int side;
 
@@ -647,10 +651,28 @@ static void Skin_FindGrip(const cgltf_skin* skin, float jointPos[][3], int handJ
             continue;
         {
             const cgltf_node* n = skin->joints[roots[named]];
+            float farD = 0.0f;
             for (f = 0; f < 3 && n != NULL; f++)
             {
                 fingerJoint[side][f] = Skin_JointIndex(skin, n);
                 n = n->children_count ? n->children[0] : NULL;
+            }
+            for (i = 0; i < rootCount; i++)
+            {
+                float d = 0.0f;
+                if (i == named || i == thumb)
+                    continue;
+                for (f = 0; f < 3; f++)
+                    d += (jointPos[roots[i]][f] - jointPos[roots[named]][f]) * (jointPos[roots[i]][f] - jointPos[roots[named]][f]);
+                if (d > farD)
+                    farD = d, fingerJoint[side][3] = roots[i];
+            }
+            if (thumb >= 0)
+            {
+                n = skin->joints[roots[thumb]];
+                while (n->children_count && Skin_JointIndex(skin, n->children[0]) >= 0)
+                    n = n->children[0];
+                fingerJoint[side][4] = Skin_JointIndex(skin, n);
             }
         }
     }
@@ -952,21 +974,28 @@ static void Skin_BuildBreath(PcSkinChara* ch, const float* gpos, const float* wa
 }
 
 static void Skin_BuildGrip(PcSkinChara* ch, const float* gpos, float jointPos[][3], const int* handJoint,
-                           int indexJoint[][3], float scale, float offX, float offY, float offZ)
+                           int indexJoint[][5], float scale, float offX, float offY, float offZ)
 {
     int side;
 
     for (side = 0; side < 2; side++)
     {
         int bone = side ? 10 : 6, f, i, n = 0;
-        float P[4][3], a[3], c[3], q[3], d1[3], d2[3], len, ca, L = 0.0f, kap, rad;
+        float P[6][3], a[3], c[3], q[3], d1[3], d2[3], len, ca, L = 0.0f, kap, rad;
         PcSkinMorph* m = &ch->morph[PC_SKIN_MORPH_GRIP_L + side];
 
         if (handJoint[side] < 0 || indexJoint[side][0] < 0 || indexJoint[side][1] < 0 || indexJoint[side][2] < 0)
             continue;
-        for (f = 0; f < 4; f++)
+        for (f = 0; f < 6; f++)
         {
-            const float* src = jointPos[f ? indexJoint[side][f - 1] : handJoint[side]];
+            int jt = f ? indexJoint[side][f - 1] : handJoint[side];
+            const float* src;
+            if (jt < 0)
+            {
+                P[f][0] = P[f][1] = P[f][2] = 0.0f;
+                continue;
+            }
+            src = jointPos[jt];
             P[f][0] = src[0] * scale + offX;
             P[f][1] = -src[1] * scale + offY;
             P[f][2] = src[2] * scale + offZ;
@@ -987,10 +1016,32 @@ static void Skin_BuildGrip(PcSkinChara* ch, const float* gpos, float jointPos[][
         ca = c[0] * a[0] + c[1] * a[1] + c[2] * a[2];
         for (i = 0; i < 3; i++) c[i] -= ca * a[i];
         len = V3_Len(c);
-        /* A dead-straight index finger gives no curl direction. */
-        if (len < 1e-4f)
-            continue;
-        for (i = 0; i < 3; i++) c[i] /= len;
+        /* A dead-straight index finger gives no curl direction. The knuckle
+         * row still gives the bend axis, and the thumb tip rests on the palm
+         * side of it, which picks the way the fingers fold. */
+        if (len < 0.05f * V3_Len(d1) * V3_Len(d2))
+        {
+            float t;
+            if (indexJoint[side][3] < 0 || indexJoint[side][4] < 0)
+                continue;
+            for (i = 0; i < 3; i++)
+                c[i] = P[4][i] - P[1][i];
+            ca = c[0] * a[0] + c[1] * a[1] + c[2] * a[2];
+            for (i = 0; i < 3; i++) c[i] -= ca * a[i];
+            len = V3_Len(c);
+            if (len < 1e-4f)
+                continue;
+            for (i = 0; i < 3; i++) c[i] /= len;
+            q[0] = c[1] * a[2] - c[2] * a[1];
+            q[1] = c[2] * a[0] - c[0] * a[2];
+            q[2] = c[0] * a[1] - c[1] * a[0];
+            t = (P[5][0] - P[1][0]) * q[0] + (P[5][1] - P[1][1]) * q[1] + (P[5][2] - P[1][2]) * q[2];
+            if (t < 0.0f)
+                for (i = 0; i < 3; i++) c[i] = -c[i];
+            SH_DBG("[SKIN] game hand %d: straight fingers, curl taken from the knuckles and thumb", bone);
+        }
+        else
+            for (i = 0; i < 3; i++) c[i] /= len;
         q[0] = c[1] * a[2] - c[2] * a[1];
         q[1] = c[2] * a[0] - c[0] * a[2];
         q[2] = c[0] * a[1] - c[1] * a[0];
@@ -1180,7 +1231,7 @@ static int Skin_Load(PcSkinChara* ch, const char* path)
     float* gpos = NULL;
     float* gnrm = NULL;
     float* gtan = NULL;
-    int handJoint[2] = { -1, -1 }, indexJoint[2][3] = { { -1, -1, -1 }, { -1, -1, -1 } };
+    int handJoint[2] = { -1, -1 }, indexJoint[2][5] = { { -1, -1, -1, -1, -1 }, { -1, -1, -1, -1, -1 } };
     int b;
 
     memset(&opt, 0, sizeof(opt));
@@ -1807,7 +1858,8 @@ static void Skin_LoadSettings(PcSkinChara* ch, const char* base)
     ch->fogPct = 100;
     ch->beamPct = 100;
     memset(ch->lightOff, 0, sizeof(ch->lightOff));
-    ch->gunRaise = ch->gunOut = ch->gunTwist = 0;
+    ch->gunRaise = ch->gunOut = ch->gunFwd = 0;
+    ch->gunTwist = ch->gunPitch = ch->gunYaw = 0;
     snprintf(path, sizeof(path), "%s.ini", base);
     f = fopen(path, "r");
     if (f == NULL)
@@ -1836,12 +1888,33 @@ static void Skin_LoadSettings(PcSkinChara* ch, const char* base)
             ch->gunRaise = val;
         else if (strcmp(key, "gun_out") == 0)
             ch->gunOut = val;
+        else if (strcmp(key, "gun_forward") == 0)
+            ch->gunFwd = val;
         else if (strcmp(key, "gun_twist") == 0)
             ch->gunTwist = val;
+        else if (strcmp(key, "gun_pitch") == 0)
+            ch->gunPitch = val;
+        else if (strcmp(key, "gun_yaw") == 0)
+            ch->gunYaw = val;
     }
     fclose(f);
     SH_DBG("[SKIN] %s: female=%d brightness=%d fog=%d flashlight=%d at (%d %d %d)", path, ch->female,
            ch->brightness, ch->fogPct, ch->beamPct, ch->lightOff[0], ch->lightOff[1], ch->lightOff[2]);
+    SH_DBG("[SKIN] %s: gun raise=%d out=%d forward=%d twist=%d pitch=%d yaw=%d", path, ch->gunRaise, ch->gunOut,
+           ch->gunFwd, ch->gunTwist, ch->gunPitch, ch->gunYaw);
+}
+
+int Pc_SkinChara_ReloadSettings(void)
+{
+    int i, n = 0;
+
+    for (i = 0; i < s_charaCount; i++)
+        if (s_chara[i].state == 1)
+        {
+            Skin_LoadSettings(&s_chara[i], s_chara[i].base);
+            n++;
+        }
+    return n;
 }
 
 /* The HERO entry Begin would draw: the selected swap when it loaded, else
@@ -1882,19 +1955,35 @@ int Pc_SkinChara_HeroGunAdjust(MATRIX* adj)
      * away from the body; 2.55 units to the centimetre at Harry's height. */
     static const float pivot[3] = { 3.5f, 4.0f, 29.0f };
     const PcSkinChara* hero = g_PcConfig.allowLooseFiles ? Skin_CurrentHero() : NULL;
-    float a, c, sn, o[3], r[3][3] = { { 0 } };
+    float o[3], r[3][3], rz[3][3], ry[3][3], rx[3][3], t2[3][3];
+    float tw, pt, yw;
     int i, k;
 
     if (hero == NULL)
         return 0;
-    a = (float)hero->gunTwist * 3.14159265f / 180.0f;
-    c = cosf(a);
-    sn = sinf(a);
-    r[0][0] = c;  r[0][1] = -sn;
-    r[1][0] = sn; r[1][1] = c;
-    r[2][2] = 1.0f;
+    tw = (float)hero->gunTwist * 3.14159265f / 180.0f;
+    pt = (float)hero->gunPitch * 3.14159265f / 180.0f;
+    yw = (float)hero->gunYaw * 3.14159265f / 180.0f;
+    memset(rz, 0, sizeof(rz));
+    memset(ry, 0, sizeof(ry));
+    memset(rx, 0, sizeof(rx));
+    rz[0][0] = cosf(tw); rz[0][1] = -sinf(tw);
+    rz[1][0] = sinf(tw); rz[1][1] = cosf(tw);
+    rz[2][2] = 1.0f;
+    ry[0][0] = cosf(yw);  ry[0][2] = sinf(yw);
+    ry[1][1] = 1.0f;
+    ry[2][0] = -sinf(yw); ry[2][2] = cosf(yw);
+    rx[0][0] = 1.0f;
+    rx[1][1] = cosf(pt); rx[1][2] = -sinf(pt);
+    rx[2][1] = sinf(pt); rx[2][2] = cosf(pt);
+    for (i = 0; i < 3; i++)
+        for (k = 0; k < 3; k++)
+            t2[i][k] = ry[i][0] * rx[0][k] + ry[i][1] * rx[1][k] + ry[i][2] * rx[2][k];
+    for (i = 0; i < 3; i++)
+        for (k = 0; k < 3; k++)
+            r[i][k] = rz[i][0] * t2[0][k] + rz[i][1] * t2[1][k] + rz[i][2] * t2[2][k];
     o[0] = hero->gunOff[0] + (float)hero->gunOut * 0.255f;
-    o[1] = hero->gunOff[1];
+    o[1] = hero->gunOff[1] + (float)hero->gunFwd * 0.255f;
     o[2] = hero->gunOff[2] - (float)hero->gunRaise * 0.255f;
     for (i = 0; i < 3; i++)
     {
@@ -1906,7 +1995,8 @@ int Pc_SkinChara_HeroGunAdjust(MATRIX* adj)
         }
         adj->t[i] = (s32)(t + (t < 0.0f ? -0.5f : 0.5f));
     }
-    return hero->gunTwist != 0 || adj->t[0] != 0 || adj->t[1] != 0 || adj->t[2] != 0;
+    return hero->gunTwist != 0 || hero->gunPitch != 0 || hero->gunYaw != 0 || adj->t[0] != 0 || adj->t[1] != 0 ||
+           adj->t[2] != 0;
 }
 
 int Pc_SkinChara_HeroFemale(void)
@@ -1999,6 +2089,7 @@ static PcSkinChara* Skin_Entry(const char* name, const char* file, const char* b
         memset(ch, 0, sizeof(*ch));
         snprintf(ch->name, sizeof(ch->name), "%s", name);
         snprintf(ch->file, sizeof(ch->file), "%s", file);
+        snprintf(ch->base, sizeof(ch->base), "%s", base);
         ch->def = def;
     }
     if (ch->state == 0)

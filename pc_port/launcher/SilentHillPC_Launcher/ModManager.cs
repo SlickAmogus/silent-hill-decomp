@@ -19,7 +19,9 @@ namespace SilentHillPC_Launcher
         public ModSource  Source;
         public bool       Enabled;     // Library: deploy?  TextureMods: active?
         public string     DisplayName;
+        public string     Author;
         public string     Description;
+        public string     ModInfoId;   // "id" from the mod's modinfo.txt, if it ships one
         public string     LibraryPath; // current on-disk path (folder / .zip / .rar / .7z; may be *.disabled)
         public bool       IsArchive;   // texture mod backed by a .zip/.rar/.7z (vs a loose folder)
         public bool       IsRar;       // .rar: extracted via UnRAR.dll
@@ -67,6 +69,7 @@ namespace SilentHillPC_Launcher
         [DataMember] public string Name;
         [DataMember] public bool   Enabled;
         [DataMember] public string DisplayName;
+        [DataMember] public string Author;
         [DataMember] public string Description;
     }
 
@@ -344,7 +347,113 @@ namespace SilentHillPC_Launcher
                 else if (lookup.ContainsKey(keyL)) { ordered.Add(lookup[keyL]); lookup.Remove(keyL); }
             }
             ordered.AddRange(found.Where(m => lookup.ContainsKey(m.Source + "/" + m.Name)));
+            foreach (var m in ordered) ApplyModInfo(m);
             Mods = ordered;
+        }
+
+        // --- modinfo.txt ------------------------------------------------------
+
+        public const string ModInfoFile = "modinfo.txt";
+
+        /// <summary>Fill the name / author / description a mod ships in its modinfo.txt.
+        /// Only empty fields are filled, so whatever the user typed in "Edit" wins.</summary>
+        private void ApplyModInfo(ModEntry m)
+        {
+            Dictionary<string, string> info;
+            try { info = ReadModInfo(m); } catch { info = null; }
+            if (info == null) return;
+            string v;
+            if (info.TryGetValue("id", out v)) m.ModInfoId = v;
+            if (string.IsNullOrEmpty(m.DisplayName) && info.TryGetValue("name", out v))        m.DisplayName = v;
+            if (string.IsNullOrEmpty(m.Author)      && info.TryGetValue("author", out v))      m.Author = v;
+            if (string.IsNullOrEmpty(m.Description) && info.TryGetValue("description", out v)) m.Description = v;
+        }
+
+        /// <summary>modinfo.txt at the mod's root, or one folder down (a zip that wraps
+        /// everything in a folder named after the mod). Read where the mod really is: an
+        /// archive's extracted folder once it has one, else the archive itself.</summary>
+        private static Dictionary<string, string> ReadModInfo(ModEntry m)
+        {
+            string path = m.LibraryPath;
+            if (m.IsExtractedArchive)
+            {
+                string act = ArchiveActiveFolder(path), off = ArchiveDisabledFolder(path);
+                path = Directory.Exists(act) ? act : Directory.Exists(off) ? off : path;
+            }
+
+            if (Directory.Exists(path))
+            {
+                string f = Directory.EnumerateFiles(path, ModInfoFile, SearchOption.TopDirectoryOnly).FirstOrDefault();
+                if (f == null)
+                    foreach (var d in Directory.EnumerateDirectories(path))
+                        if ((f = Directory.EnumerateFiles(d, ModInfoFile, SearchOption.TopDirectoryOnly).FirstOrDefault()) != null)
+                            break;
+                return f == null ? null : ParseModInfo(File.ReadAllText(f));
+            }
+
+            if (File.Exists(path) && IsZip(path))
+            {
+                using (var za = ZipFile.OpenRead(path))
+                {
+                    var en = za.Entries.FirstOrDefault(e =>
+                        string.Equals(e.Name, ModInfoFile, StringComparison.OrdinalIgnoreCase) &&
+                        e.FullName.Replace('\\', '/').Count(c => c == '/') <= 1);
+                    if (en == null) return null;
+                    using (var r = new StreamReader(en.Open(), Encoding.UTF8))
+                        return ParseModInfo(r.ReadToEnd());
+                }
+            }
+            return null;
+        }
+
+        /// <summary>"key = value" lines; '#' starts a comment. Keys: id, name, author, description.</summary>
+        public static Dictionary<string, string> ParseModInfo(string text)
+        {
+            var d = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var raw in text.Split('\n'))
+            {
+                string line = raw.Trim();
+                if (line.Length == 0 || line.StartsWith("#")) continue;
+                int eq = line.IndexOf('=');
+                if (eq <= 0) continue;
+                string k = line.Substring(0, eq).Trim(), v = line.Substring(eq + 1).Trim();
+                if (v.Length > 0) d[k] = v;
+            }
+            return d;
+        }
+
+        // --- downloaded mods (Essential QoL) ----------------------------------
+
+        /// <summary>Put a downloaded mod .zip where it belongs and return the name it will
+        /// be listed under. Load/FMV mods are unpacked into the mods/ library right away
+        /// (no copy of the zip is kept); a texture pack goes to texturemods/ as is, and
+        /// Apply unpacks it when it is enabled. Null if cancelled or unrecognised.</summary>
+        public string InstallDownloadedZip(string zipPath, string fileName, Action<int, int, string> report,
+                                           Func<bool> cancelled)
+        {
+            ModType t = DetectDroppedType(zipPath);
+            if (t == ModType.Unknown) return null;
+            if (t == ModType.Texturemods)
+            {
+                Directory.CreateDirectory(TexturemodsDir);
+                string dest = Path.Combine(TexturemodsDir, fileName);
+                if (File.Exists(dest)) File.Delete(dest);
+                File.Copy(zipPath, dest);
+                return fileName;
+            }
+
+            string folder = LibraryZipFolder(fileName);
+            string dir = Path.Combine(ModsDir, folder);
+            if (Directory.Exists(dir)) Directory.Delete(dir, true);
+            bool ok;
+            try { ok = ExtractZip(zipPath, dir, report, cancelled); }
+            catch { ok = false; }
+            if (!ok)
+            {
+                try { Directory.Delete(dir, true); } catch { }
+                return null;
+            }
+            return folder;
         }
 
         private IEnumerable<ModEntry> ScanTextureMods(Dictionary<string, ModStateDto> saved)
@@ -411,7 +520,7 @@ namespace SilentHillPC_Launcher
                 Enabled      = enabled
             };
             ModStateDto s;
-            if (saved.TryGetValue(name, out s)) { e.DisplayName = s.DisplayName; e.Description = s.Description; }
+            if (saved.TryGetValue(name, out s)) { e.DisplayName = s.DisplayName; e.Author = s.Author; e.Description = s.Description; }
             return e;
         }
 
@@ -443,7 +552,7 @@ namespace SilentHillPC_Launcher
             ModStateDto s;
             if (saved.TryGetValue(name, out s))
             {
-                e.Enabled = s.Enabled; e.DisplayName = s.DisplayName; e.Description = s.Description;
+                e.Enabled = s.Enabled; e.DisplayName = s.DisplayName; e.Author = s.Author; e.Description = s.Description;
             }
             return e;
         }
@@ -472,7 +581,8 @@ namespace SilentHillPC_Launcher
             {
                 Mods = Mods.Select(m => new ModStateDto
                 {
-                    Name = m.Name, Enabled = m.Enabled, DisplayName = m.DisplayName, Description = m.Description
+                    Name = m.Name, Enabled = m.Enabled, DisplayName = m.DisplayName, Author = m.Author,
+                    Description = m.Description
                 }).ToList(),
                 DllWarningAck = DllWarningAck
             };

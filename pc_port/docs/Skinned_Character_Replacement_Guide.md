@@ -338,12 +338,19 @@ flashlight_x=16
 | `flashlight_z` | Moves it forward or back, in cm. Positive is forward. |
 | `gun_raise` | Moves a held weapon along the forearm, in mm. Positive is up toward the wrist. |
 | `gun_out` | Moves it sideways, in mm. Positive is away from the leg. |
+| `gun_forward` | Moves it across the palm, in mm, at right angles to the other two. |
 | `gun_twist` | Turns it about the forearm, in degrees, round the middle of the grip. Positive is clockwise seen from the shoulder. |
+| `gun_pitch` | Tips the barrel toward the front or back of the hand, in degrees, round the middle of the grip. |
+| `gun_yaw` | Swings the barrel toward or away from the leg, in degrees, round the middle of the grip. |
 
 The game already moves weapons into the model's own closed fist (the log's
-`right fist offset` line); these settings fine-tune that.
+`right fist offset` line); these settings fine-tune that. Rotations apply
+pitch first, then yaw, then twist. Try a small value such as 10 first to see
+which way each one goes on your model.
 
-The game reads `HERO.ini` when it loads the model, so restart after changing it.
+The game reads `HERO.ini` when it loads the model. To tune without restarting,
+edit the file, open the console and type `skinini`: every loaded model's ini
+is read again and the change shows on the next frame.
 
 ## Troubleshooting
 

@@ -27,6 +27,8 @@ void Pc_RuInit(void);
 
 /* 1 once a Russian patch has been detected and its menu table encoded. */
 int Pc_RuActive(void);
+/* Decode mounted-disc glyph bytes for a separate native-resolution UI. */
+void Pc_RuDiscTextUtf8(const char* text,char* out,unsigned capacity);
 
 /* Russian for one compiled US menu literal, or NULL to keep the original. */
 const char* Pc_RuMenuText(const char* us);
@@ -38,6 +40,9 @@ const char* Pc_RuMenuUtf8(const char* us);
 /* Cyrillic codepoint -> font byte for the PC Russian PACK (the consolgames
  * atlas in font_ru.inc). 0 when that atlas has no cell for the letter. */
 unsigned char Pc_RuPackByte(unsigned int cp);
+
+/* Active disc's own letterform, for native-font PC overlays. */
+unsigned char Pc_RuDiscByte(unsigned int cp);
 
 /* Non-zero when the mounted disc's atlas puts a letter on the control-code
  * byte, so font_region.c has to give that letter a second cell. */
