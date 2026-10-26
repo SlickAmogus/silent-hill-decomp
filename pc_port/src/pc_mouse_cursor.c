@@ -490,9 +490,9 @@ void Pc_MouseCursor_GlDraw(void)
         return;
 
     /* Whole screen pixels per texel, from the picture height alone: the sprite
-     * stays square and evenly sampled in every display mode, at the PSX's
-     * ~1/15 of the picture height. */
-    scale = (int)floor((double)pic[3] / 480.0 + 0.5);
+     * stays square and evenly sampled in every display mode. Half the PSX's
+     * ~1/15 of the picture height, which read as a 96px arrow at 1440p. */
+    scale = (int)floor((double)pic[3] / 960.0 + 0.5);
     if (scale < 1)
         scale = 1;
     size = 32 * scale;

@@ -29,6 +29,10 @@
 
 #include "pc_config.h"
 #include "pc_wide_lm.h"
+
+extern int  g_PsxActorDepth;
+extern void PsyX_SetNextPrimSzActor(unsigned short s0, unsigned short s1, unsigned short s2,
+                                    unsigned short s3, int n);
 #include "sh_log.h"
 
 /* Writable view of g_WorldEnvWork. The drawer sets field_14C exactly as the
@@ -331,6 +335,8 @@ static int Pc_WideLm_Emit(const s_WideMesh* mesh, s_GteScratchData2* env, GsOT_T
 
             setlen(poly.gt3, 9);
             WIDE_CLAMP_OT_DEPTH(depth, arg2);
+            if (g_PsxActorDepth)
+                PsyX_SetNextPrimSzActor(z[c0], z[c1], z[c2], z[c2], 3);
             addPrim(&ot[(depth >> arg2) >> 2], poly.gt3); /* :4177 */
             poly.gt3++;
         }
@@ -399,6 +405,8 @@ static int Pc_WideLm_Emit(const s_WideMesh* mesh, s_GteScratchData2* env, GsOT_T
 
             setlen(poly.gt4, 12);
             WIDE_CLAMP_OT_DEPTH(depth, arg2);
+            if (g_PsxActorDepth)
+                PsyX_SetNextPrimSzActor(z[c0], z[c1], z[c2], z[c3], 4);
             addPrim(&ot[(depth >> arg2) >> 2], poly.gt4); /* :4280 */
             poly.gt4++;
         }

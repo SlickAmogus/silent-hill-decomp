@@ -67,12 +67,18 @@ static s32 g_MainMenu_SelectedEntry     = MainMenuEntry_Start;
 static u32 g_MainMenu_VisibleEntryFlags = MAINMENU_BASE_ENTRY_FLAGS;
 
 #ifdef SH_PC_PORT
-#define MAINMENU_WINDOW_SLOTS 5
-#define MAINMENU_ROW_Y        184
+/* Every row fits, so the window never scrolls and the arrows stay hidden. The
+ * scroll path is kept for when rows outgrow the screen: set this back to 5 to
+ * bring it back (the arrow positions below are tuned for 5). */
+#define MAINMENU_WINDOW_SLOTS MainMenuEntry_Count
 #define MAINMENU_ROW_PITCH    20
+/* Rows are bottom-aligned in the window, so the last one always lands on
+ * y 264, above the US copyright (~y 286), however many slots there are. */
+#define MAINMENU_LAST_ROW_Y   264
+#define MAINMENU_ROW_Y        (MAINMENU_LAST_ROW_Y - (MAINMENU_WINDOW_SLOTS - 1) * MAINMENU_ROW_PITCH)
 /* Scroll mode only: the column moves up one row so the down arrow ends above
- * the US copyright (~y 286); the arrows sit 4 px clear of the glyphs. */
-#define MAINMENU_SCROLL_ROW_Y 164
+ * the copyright; the arrows sit 4 px clear of the glyphs. */
+#define MAINMENU_SCROLL_ROW_Y (MAINMENU_ROW_Y - MAINMENU_ROW_PITCH)
 #define MAINMENU_ARROW_NM_X   160
 #define MAINMENU_ARROW_UP_NM_Y   132
 #define MAINMENU_ARROW_DOWN_NM_Y 191
@@ -879,8 +885,8 @@ static void MainMenu_MainTextDraw(void) // 0x8003B568
         }
         id = s_MainMenu_Order[i];
 
-        /* Translated entries have different widths — recentre from the
-         * actual string ('[' is 6px wide); untranslated keeps the constant. */
+        /* Translated entries and patch-specific selection markers can have
+         * different widths; untranslated retail rows keep their constants. */
         {
             const char* tr   = Pc_LangMenuText(MAIN_MENU_ENTRY_STRINGS[id]);
             /* STR_OFFSETS_X holds hand-measured centres for the retail rows, so
@@ -889,7 +895,8 @@ static void MainMenu_MainTextDraw(void) // 0x8003B568
              * them from the measured width in every language, English included. */
             s32         offX = (tr == MAIN_MENU_ENTRY_STRINGS[id] && id < MainMenuEntry_Achievements)
                                    ? STR_OFFSETS_X[id]
-                                   : ((Pc_LangMenuTextWidth(tr) + 6) >> 1);
+                                   : ((Pc_LangMenuTextWidth(tr) +
+                                       Pc_LangMenuTextWidth(Pc_LangMenuText("["))) >> 1);
             Gfx_StringSetPosition(COLUMN_POS_X - offX, rowY + (slot * MAINMENU_ROW_PITCH));
         }
         Gfx_StringSetColor(StringColorId_White);
@@ -976,7 +983,8 @@ static void MainMenu_DifficultyTextDraw(s32 idx) // 0x8003B678
             const char* tr   = Pc_LangMenuText(DIFFICULTY_MENU_ENTRY_STRINGS[i]);
             s32         offX = (tr == DIFFICULTY_MENU_ENTRY_STRINGS[i])
                                    ? STR_OFFSETS_X[i]
-                                   : ((Pc_LangMenuTextWidth(tr) + 6) >> 1);
+                                   : ((Pc_LangMenuTextWidth(tr) +
+                                       Pc_LangMenuTextWidth(Pc_LangMenuText("["))) >> 1);
             Gfx_StringSetPosition(COLUMN_POS_X - offX, COLUMN_POS_Y + (i * STR_OFFSET_Y));
         }
 #else

@@ -16,15 +16,28 @@ namespace SilentHillPC_Launcher
     ///                       stream (loose per-file releases). "beta" = the
     ///                       zip-release stream.
     ///   launcher_build    - "latest" (track the newest release on the branch)
-    ///                       or a specific release tag (pinned build).
+    ///                       or a specific release tag (pinned build). With
+    ///                       realtime on, "latest" or a realtime build id.
+    ///   launcher_realtime - "1" = follow the automatic per-push builds on the
+    ///                       source repo's rolling `realtime` release instead of
+    ///                       the scripted releases. Official repo only.
     /// </summary>
     public class LauncherSettings
     {
         public const string DefaultRepoUrl = "https://github.com/SlickAmogus/silent-hill-pc-nightly";
 
+        // The realtime stream deliberately lives on the SOURCE repo, not the nightly
+        // repo: launchers that predate it only read the nightly repo, so they can
+        // never pick these untested builds up as an update.
+        public const string RealtimeReleaseBase = "https://github.com/SlickAmogus/silent-hill-decomp/releases/download/realtime/";
+        public const string RealtimeIndexUrl     = RealtimeReleaseBase + "realtime.json";
+        public const string RealtimeChangelogUrl = RealtimeReleaseBase + "CHANGELOG_REALTIME.md";
+        public const string RealtimeChangelogFile = "CHANGELOG_REALTIME.md";
+
         public string RepoUrl = DefaultRepoUrl;
         public string Branch  = "";        // "" = alpha (repo default / non-prerelease stream)
         public string Build   = "latest";  // "latest" or a specific release tag
+        public bool   Realtime = false;
 
         // One-time acknowledgement: shown the first time the user pins an older
         // build (bugs / save-corruption / back-up-your-saves warning).
@@ -39,6 +52,10 @@ namespace SilentHillPC_Launcher
             string.IsNullOrWhiteSpace(Build) || Build.Equals("latest", StringComparison.OrdinalIgnoreCase);
 
         public bool IsDefaultBranch => string.IsNullOrWhiteSpace(Branch);
+
+        /// <summary>Realtime only applies to the official repo; a third-party repo
+        /// keeps its own releases even if the flag is left on.</summary>
+        public bool UsesRealtime => Realtime && IsDefaultRepo;
 
         /// <summary>
         /// True when the configured repo resolves to the same owner/repo as the
@@ -67,6 +84,7 @@ namespace SilentHillPC_Launcher
             var build = cfg.Get("launcher_build", "latest");
             s.Build = string.IsNullOrWhiteSpace(build) ? "latest" : build.Trim();
             s.OldBuildWarned = cfg.Get("launcher_old_build_warned", "0").Trim() == "1";
+            s.Realtime = cfg.Get("launcher_realtime", "0").Trim() == "1";
             s.Language = Loc.FromCode(cfg.Get("launcher_language", "en"));
             return s;
         }
@@ -78,6 +96,7 @@ namespace SilentHillPC_Launcher
             cfg.Set("launcher_branch", Branch ?? "");
             cfg.Set("launcher_build", IsLatestBuild ? "latest" : Build.Trim());
             cfg.Set("launcher_old_build_warned", OldBuildWarned ? "1" : "0");
+            cfg.Set("launcher_realtime", Realtime ? "1" : "0");
             cfg.Set("launcher_language", Loc.Code(Language));
             cfg.Save();
         }
@@ -143,7 +162,9 @@ namespace SilentHillPC_Launcher
         {
             string owner, repo;
             if (!TryGetOwnerRepo(out owner, out repo)) { owner = "unknown"; repo = "repo"; }
-            string br = string.IsNullOrWhiteSpace(Branch) ? "alpha" : Branch;
+            // Realtime and release versions share the yyyy.MM.dd.N shape but not a
+            // sequence, so each keeps its own highest-installed marker.
+            string br = UsesRealtime ? "realtime" : string.IsNullOrWhiteSpace(Branch) ? "alpha" : Branch;
             return Sanitize(owner) + "_" + Sanitize(repo) + "_" + Sanitize(br);
         }
 
@@ -176,6 +197,17 @@ namespace SilentHillPC_Launcher
                 cfg.Set(SeenKey(), version ?? "");
                 cfg.Save();
             }
+        }
+
+        /// <summary>Forget the highest-installed marker for the current stream, so the
+        /// first check after switching streams offers that stream's build even when
+        /// its version is lower than what is on disk.</summary>
+        public void ClearSeen(ConfigManager cfg)
+        {
+            cfg.EnsureLauncherSection();
+            cfg.Set(SeenKey(), "");
+            cfg.Set(DismissedKey(), "");
+            cfg.Save();
         }
 
         public void SetDismissed(ConfigManager cfg, string version)

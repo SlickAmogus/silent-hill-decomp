@@ -6,6 +6,7 @@
 #include "pc_config.h"
 #include "pc_big_lm.h"
 #include "pc_playas.h"
+#include "pc_skin_chara.h"
 #ifdef SH_PC_PORT
 #include "main/fileinfo.h" /* g_GameRegion — PAL BG_ETC material-UV relocation */
 #endif
@@ -1127,7 +1128,39 @@ void WorldGfx_HeldItemDraw(void) // 0x8003D058
         }
 
         Vw_CoordToWorldAndViewMatrices(coord, &worldMat, &viewMat);
+#ifdef SH_PC_PORT
+        if (heldItem->itemId != InvItemId_CutscenePhone)
+        {
+            MATRIX adj;
+            if (Pc_SkinChara_HeroGunAdjust(&adj))
+            {
+                MATRIX* mats[2] = { &worldMat, &viewMat };
+                s32 n, r, c;
+                for (n = 0; n < 2; n++)
+                {
+                    MATRIX src = *mats[n];
+                    for (r = 0; r < 3; r++)
+                    {
+                        for (c = 0; c < 3; c++)
+                            mats[n]->m[r][c] = (src.m[r][0] * adj.m[0][c] + src.m[r][1] * adj.m[1][c] + src.m[r][2] * adj.m[2][c]) >> 12;
+                        mats[n]->t[r] += (src.m[r][0] * adj.t[0] + src.m[r][1] * adj.t[1] + src.m[r][2] * adj.t[2]) >> 12;
+                    }
+                }
+            }
+        }
+#endif
+#ifdef SH_PC_PORT
+        /* Depth-tested like the hand holding it: as world geometry the weapon
+         * took the world's far-push and lost to a leg passing in front. */
+        {
+            extern int g_PsxActorDepth;
+            g_PsxActorDepth = 1;
+            func_80057090(&heldItem->bone.modelInfo, &g_OrderingTable0[g_ActiveBufferIdx], 1, &viewMat, &worldMat, 0);
+            g_PsxActorDepth = 0;
+        }
+#else
         func_80057090(&heldItem->bone.modelInfo, &g_OrderingTable0[g_ActiveBufferIdx], 1, &viewMat, &worldMat, 0);
+#endif
     }
 }
 

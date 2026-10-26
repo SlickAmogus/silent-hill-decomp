@@ -1961,6 +1961,13 @@ void Pc_ConsoleExec(const char* line)
         else if (arg[0] == '0') g_PsxPgxpWorldDepth = 0;
         else g_PsxPgxpWorldDepth = !g_PsxPgxpWorldDepth;
         cprintf("PGXP world depth channel: %s", g_PsxPgxpWorldDepth ? "ON" : "OFF");
+    } else if (strcmp(cmd, "PGXPACTORDEPTH") == 0) {
+        /* OFF gives each character prim one flat depth again. */
+        extern int g_PsxPgxpActorDepth;
+        if (arg[0] == '1') g_PsxPgxpActorDepth = 1;
+        else if (arg[0] == '0') g_PsxPgxpActorDepth = 0;
+        else g_PsxPgxpActorDepth = !g_PsxPgxpActorDepth;
+        cprintf("PGXP character depth: %s", g_PsxPgxpActorDepth ? "ON" : "OFF");
     } else if (strcmp(cmd, "PGXPWALLBIAS") == 0) {
         /* Writer-side far-push margin M (SZ units) on world geometry. */
         extern int g_PsxPgxpWorldFarBias;

@@ -15,6 +15,9 @@ void Pc_ModernShader_Initialise(const char* source4,
 ShaderID Pc_ModernShader_Get(TexFormat format);
 const char* Pc_ModernShader_GetSource(TexFormat format);
 
+/* 1 once the RGBA variant carries the per-pixel character lighting patch. */
+int Pc_ModernShader_SkinLit(void);
+
 #ifdef __cplusplus
 }
 #endif

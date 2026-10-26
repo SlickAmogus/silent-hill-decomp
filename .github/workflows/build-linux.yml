@@ -25,6 +25,8 @@ jobs:
   build:
     # Only on our fork — never on Vatuu upstream (which has no PC port branch).
     if: github.repository == 'SlickAmogus/silent-hill-decomp'
+    permissions:
+      contents: write
     # 22.04 links against an older glibc than ubuntu-latest (24.04), so the binary
     # runs on a wider range of distros.
     runs-on: ubuntu-22.04
@@ -143,3 +145,32 @@ jobs:
           path: ${{ runner.temp }}/SHPC-linux-x64.tar.gz
           if-no-files-found: error
           retention-days: 90
+
+      # Newest build on the `realtime` pre-release (one fixed name, replaced every
+      # push) plus a dated copy on `realtime-history`, which keeps this platform's
+      # newest 15. pc-port's tools/realtime_publish.py leaves both alone.
+      - name: Publish to the realtime releases
+        if: github.ref == 'refs/heads/pc-port'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SRC: ${{ runner.temp }}/SHPC-linux-x64.tar.gz
+          FIXED: SHPC-linux-x64.tar.gz
+          STEM: SHPC-linux-x64
+          EXT: .tar.gz
+          KEEP: 15
+        run: |
+          set -euo pipefail
+          R="$GITHUB_REPOSITORY"
+          # Linux/macOS already stage under the fixed name; cp refuses a self-copy.
+          [ "$SRC" -ef "$RUNNER_TEMP/$FIXED" ] || cp "$SRC" "$RUNNER_TEMP/$FIXED"
+          gh release upload realtime "$RUNNER_TEMP/$FIXED" --clobber --repo "$R"
+          gh release view realtime-history --repo "$R" >/dev/null 2>&1 ||
+            gh release create realtime-history --repo "$R" --prerelease --latest=false \
+              --title "Realtime history (older builds)" --notes "Older automatic builds." || true
+          DATED="${STEM}_$(date -u +%Y.%m.%d)-${GITHUB_SHA:0:9}${EXT}"
+          cp "$SRC" "$RUNNER_TEMP/$DATED"
+          gh release upload realtime-history "$RUNNER_TEMP/$DATED" --clobber --repo "$R"
+          gh api "repos/$R/releases/tags/realtime-history" --jq \
+            "[.assets[] | select(.name | startswith(\"${STEM}_\"))] | sort_by(.created_at) | reverse | .[${KEEP}:] | .[].name" |
+            while read -r n; do gh release delete-asset realtime-history "$n" --repo "$R" --yes; done

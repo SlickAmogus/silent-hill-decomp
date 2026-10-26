@@ -51,6 +51,7 @@
 #include "pc_modern_mesh.h"
 #include "pc_modern_shader.h"
 #include "pc_modern_vertex.h"
+#include "pc_skin_chara.h"
 #include "sh_log.h"
 
 /* The header mirrors MAX_VERTEX_BUFFER_SIZE to derive the geometry caps without
@@ -1172,6 +1173,11 @@ int Pc_ModernMesh_Emit(void* object, void* orderingTable, int shift)
     return 1;
 }
 
+void Pc_ModernMesh_ApplyLighting(u32 meshHandle, unsigned int program)
+{
+    Pc_SkinChara_ApplyLighting(meshHandle, program);
+}
+
 int Pc_ModernMesh_PrepareDraw(u32 meshHandle, PcModernDrawBinding* binding)
 {
     PcModernMeshEntry* entry = NULL;
@@ -1183,6 +1189,8 @@ int Pc_ModernMesh_PrepareDraw(u32 meshHandle, PcModernDrawBinding* binding)
     binding->texFormat = -1;
     if (meshHandle == 0)
         return 0;
+    if (meshHandle & PC_SKIN_HANDLE_FLAG)
+        return Pc_SkinChara_PrepareDraw(meshHandle, binding);
     /* Resolve the item from the handle the emitted packet carries, NOT from a
      * single global "active" record. The carousel emits several items per
      * frame; by the time the renderer drains the ordering table the global

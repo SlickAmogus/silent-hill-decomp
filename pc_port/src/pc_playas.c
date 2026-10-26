@@ -23,6 +23,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <dirent.h>
 
 #include "game.h"
 #include "bodyprog/bodyprog.h"
@@ -34,6 +35,7 @@
 #include "pc_playas.h"
 #include "pc_big_lm.h"
 #include "pc_config.h"
+#include "pc_skin_chara.h"
 #include "hires_override.h"
 #include "sh_log.h"
 
@@ -54,6 +56,7 @@ typedef struct
      * terminator nowhere to go and the lookup would walk off the end. */
     const char* hideParts[8];
     u8          female; /* drives the optional voice-pitch shift (SFX only) */
+    const char* skinFile; /* HERO_* skinned swap file base, or NULL */
 } PcPlayAsChara;
 
 /* Every rig here shares Harry's bone 0..17 parent chain and binds its parts to
@@ -62,7 +65,7 @@ typedef struct
  * address (18 bones + the 5 spares). Rigs that fail either test — every monster,
  * the Incubus boss, the cat, the dogs — are a different skeleton entirely and
  * cannot be posed by Harry's keyframes at all. */
-static const PcPlayAsChara s_playable[] = {
+static const PcPlayAsChara s_builtin[] = {
     { "harry",       "HARRY",       Chara_Harry,      { NULL }, 0 },
     { "lisa",        "LISA",        Chara_Lisa,       { NULL }, 1 },
     { "cybil",       "CYBIL",       Chara_Cybil,      { "06LGUN", "10RGUN", NULL }, 1 },
@@ -88,7 +91,86 @@ static const PcPlayAsChara s_playable[] = {
      * left pair with them, keeping her symmetrical. */
     { "incubator",   "INCUBATOR",   Chara_Incubator,  { "20LSODE1", "21LSODE2", "22RSODE1", "23RSODE2", NULL }, 1 },
 };
-#define PLAYAS_COUNT ((int)(sizeof(s_playable) / sizeof(s_playable[0])))
+#define PLAYAS_BUILTIN ((int)(sizeof(s_builtin) / sizeof(s_builtin[0])))
+
+/* Skinned swaps for Harry found in gamedata/load/CHARA (HERO_CJ.glb or
+ * HEROCJ.glb -> "CJ"), each its own row after the built-ins. They play on
+ * Harry's own row and rig; only the glTF the skin loader reads changes. */
+#define PLAYAS_SWAP_MAX 32
+typedef struct
+{
+    char name[24];
+    char label[24];
+    char file[32];
+} PcPlayAsSwap;
+
+static PcPlayAsChara s_playable[PLAYAS_BUILTIN + PLAYAS_SWAP_MAX];
+static PcPlayAsSwap  s_swaps[PLAYAS_SWAP_MAX];
+static int           s_playCount;
+#define PLAYAS_COUNT (PlayAs_Roster())
+
+static int PlayAs_NameTaken(const char* name)
+{
+    int i;
+    for (i = 0; i < s_playCount; i++)
+        if (strcmp(s_playable[i].name, name) == 0)
+            return 1;
+    return 0;
+}
+
+static int PlayAs_Roster(void)
+{
+    DIR* d;
+    struct dirent* e;
+    int i;
+
+    if (s_playCount > 0)
+        return s_playCount;
+    for (i = 0; i < PLAYAS_BUILTIN; i++)
+        s_playable[s_playCount++] = s_builtin[i];
+    if (!g_PcConfig.allowLooseFiles || (d = opendir("gamedata/load/CHARA")) == NULL)
+        return s_playCount;
+    while ((e = readdir(d)) != NULL && s_playCount < PLAYAS_BUILTIN + PLAYAS_SWAP_MAX)
+    {
+        PcPlayAsSwap* sw = &s_swaps[s_playCount - PLAYAS_BUILTIN];
+        const char* n = e->d_name;
+        const char* dot = strrchr(n, '.');
+        size_t len, k;
+
+        if (dot == NULL || (strcasecmp(dot, ".glb") != 0 && strcasecmp(dot, ".gltf") != 0) ||
+            strncasecmp(n, "HERO", 4) != 0)
+            continue;
+        len = (size_t)(dot - n);
+        k = 4;
+        if (k < len && (n[k] == '_' || n[k] == '-' || n[k] == ' '))
+            k++;
+        if (k >= len || len - k >= sizeof(sw->name) || len >= sizeof(sw->file))
+            continue;
+        for (i = 0; i < (int)(len - k); i++)
+        {
+            char c = n[k + i];
+            sw->label[i] = (char)((c >= 'a' && c <= 'z') ? c - 32 : c);
+            sw->name[i] = (char)((c >= 'A' && c <= 'Z') ? c + 32 : c);
+        }
+        sw->label[len - k] = sw->name[len - k] = '\0';
+        memcpy(sw->file, n, len);
+        sw->file[len] = '\0';
+        if (PlayAs_NameTaken(sw->name))
+        {
+            SH_DBG("[PLAYAS] %s: the name \"%s\" is already taken, skipped", n, sw->name);
+            continue;
+        }
+        memset(&s_playable[s_playCount], 0, sizeof(s_playable[0]));
+        s_playable[s_playCount].name = sw->name;
+        s_playable[s_playCount].label = sw->label;
+        s_playable[s_playCount].charaId = Chara_Harry;
+        s_playable[s_playCount].skinFile = sw->file;
+        s_playCount++;
+        SH_DBG("[PLAYAS] Harry swap %s -> PLAYAS %s", n, sw->name);
+    }
+    closedir(d);
+    return s_playCount;
+}
 
 static int s_current = 0;
 
@@ -148,6 +230,8 @@ int Pc_PlayAs_SkinCharaId(void)
 
 int Pc_PlayAs_IsFemale(void)
 {
+    if (PlayAs_Cur()->charaId == Chara_Harry)
+        return Pc_SkinChara_HeroFemale();
     return PlayAs_Cur()->female != 0;
 }
 
@@ -160,6 +244,7 @@ static void PlayAs_RowApply(int idx)
 {
     const PcPlayAsChara* p = &s_playable[idx];
 
+    Pc_SkinChara_SetHeroFile(p->skinFile);
     if (p->charaId == Chara_Harry)
     {
         CHARA_FILE_INFOS[Chara_Harry].modelFileIdx   = FILE_CHARA_HERO_ILM;

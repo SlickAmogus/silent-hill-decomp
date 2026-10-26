@@ -9,15 +9,17 @@
   Project Website: https://sh1pc.com/ <br/>
   Discord: https://discord.gg/JWuNzVsQbr
 
-## Licensing at a glance
+  Play on the web: https://sh1pc.com/play/
 
-**The PC port is GPL-3.0.** That covers `pc_port/` (engine, launcher, tooling, docs) and every `SH_PC_PORT` addition to the decompiled sources. Files carrying an `SPDX-License-Identifier: GPL-3.0-or-later` header are the ones being licensed here.
+## Latest Features
 
-**The decompilation is not licensed by this project.** `src/`, `include/`, `configs/`, `asm/`, `lib/` and `rom/` are a decompilation of Konami's Silent Hill, and remain the work of the [silent-hill-decomp](https://github.com/shdecompilations/silent-hill-decomp) contributors. This project asserts no copyright over that material and grants no rights to it. The GitHub license badge above refers to the port only.
-
-**No game data is included.** Silent Hill is © Konami. A legally obtained copy of the PlayStation disc is required to play; nothing from it ships here or in any release.
-
-Full breakdown, including bundled third-party components: [COPYRIGHT.md](COPYRIGHT.md).
+- **See the whole town.** Turn the fog/visibility slider in the launcher below 1.0 and the outdoor maps render all the way out instead of fading into fog. It needs PGXP, and the launcher offers to turn that on for you.
+- **High-poly character swaps.** Replace Harry or Cybil with a skinned glTF model: full skeletal animation, lip sync driven by the voice lines, blinking, shape keys, optional ragdoll deaths, and per-model tuning in an ini. Extra `HERO_*` models show up as playable characters in Play As.
+- **Realtime updates.** Every change is built automatically for Windows, Linux, macOS, iOS and Android as soon as it lands. Grab the newest build from the [Realtime builds](https://github.com/SlickAmogus/silent-hill-decomp/releases/tag/realtime) page, or, from the next release on, tick **Realtime updates** in the launcher's Build Settings to follow them and roll back to any of the last 30.
+- **Native menus.** A new Controls screen and an in-game Achievements screen, with button prompts that match the controller you are using.
+- **Natural diagonal movement.** In the alternate cameras, Harry's legs now turn to follow the direction he is walking or running.
+- **Quick weapon switching.** Optional, including the mouse wheel.
+- **Play in your browser.** Try it without installing anything at https://sh1pc.com/play/.
 
 ## Features
 
@@ -226,10 +228,20 @@ A controller drives the free camera too: left stick moves, right stick looks, R1
 
 With the free camera **off**, the numpad keys nudge the normal game camera, a live camera-tuning aid. (Camera *styles*, meaning third-person, OTS, and first-person, are cycled with the Change Camera key, `F9` by default. The **F10 quick-options overlay** exposes most of the graphics/debug toggles below without memorizing keys.)
 
+## Licensing at a glance
+
+**The PC port is GPL-3.0.** That covers `pc_port/` (engine, launcher, tooling, docs) and every `SH_PC_PORT` addition to the decompiled sources. Files carrying an `SPDX-License-Identifier: GPL-3.0-or-later` header are the ones being licensed here.
+
+**The decompilation is not licensed by this project.** `src/`, `include/`, `configs/`, `asm/`, `lib/` and `rom/` are a decompilation of Konami's Silent Hill, and remain the work of the [silent-hill-decomp](https://github.com/shdecompilations/silent-hill-decomp) contributors. This project asserts no copyright over that material and grants no rights to it. The GitHub license badge above refers to the port only.
+
+**No game data is included.** Silent Hill is © Konami. A legally obtained copy of the PlayStation disc is required to play; nothing from it ships here or in any release.
+
+Full breakdown, including bundled third-party components: [COPYRIGHT.md](COPYRIGHT.md).
+
 ## Support
 
 I'm on Discord as **@KushAstronaut**, and the project has a Discord server: https://discord.gg/JWuNzVsQbr
 
-<br/>
+This is a 100% free project funded from my own pocket. If you'd like to support me, it is greatly appreciated, and you can do so on Ko-fi:<br/> [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/F1F3K8V3B)
 
 Silent Hill is © Konami and this does not contain any game assets. You must provide a legally obtained dump of Silent Hill for PSX to use.
