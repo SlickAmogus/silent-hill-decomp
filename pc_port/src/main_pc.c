@@ -1053,6 +1053,14 @@ int main(int argc, char* argv[])
             SH_LOG("Render: native PSX resolution, %dx%d window", windowWidth, windowHeight);
     }
 
+    /* Before the pads open: over Bluetooth, SDL keeps DualShock 4 / DualSense in
+     * simple reports unless told otherwise, and those carry no touchpad (the
+     * puzzle cursor's trackpad) and no rumble. Steam flips them itself, which is
+     * why the touchpad only worked under Steam. Once on, the pad stays in this
+     * mode until power-cycled, which non-SDL DirectInput apps can't read. */
+    SDL_SetHint(SDL_HINT_JOYSTICK_HIDAPI_PS4_RUMBLE, "1");
+    SDL_SetHint(SDL_HINT_JOYSTICK_HIDAPI_PS5_RUMBLE, "1");
+
     /* Initialize PsyCross (creates SDL2 window + OpenGL context) */
     SH_LOG("Initializing PsyCross (SDL2 + OpenGL)...");
     PsyX_Initialise("Silent Hill", windowWidth, windowHeight, g_PcConfig.fullscreen);
