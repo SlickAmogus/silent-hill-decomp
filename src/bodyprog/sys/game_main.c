@@ -2480,7 +2480,10 @@ void MainLoop(void) // 0x80032EE0
             extern unsigned int Pc_MouseCursor_BoundPadBits(void);
             const s_ControllerConfig* cc = &g_GameWorkPtr->config.controllerConfig;
             const u32 pcQmMouse   = Pc_MouseCursor_BoundPadBits();
-            const u32 pcQmPulsed  = g_Controller0->pulsedBtnFlags  & ~pcQmMouse;
+            /* Press edges, not the auto-repeat pulse: with a few rows the
+             * repeat (and a stick resting just past its deadzone) skipped
+             * several entries per push. */
+            const u32 pcQmPulsed  = g_Controller0->clickedBtnFlags & ~pcQmMouse;
             const u32 pcQmClicked = g_Controller0->clickedBtnFlags & ~pcQmMouse;
             if (Pc_QolMods_Frame(
                     g_GameWork.gameState == GameState_MainMenu && !(g_SysWork.sysFlags & SysFlag_DemoActive),
