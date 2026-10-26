@@ -2472,6 +2472,31 @@ void MainLoop(void) // 0x80032EE0
                 g_Controller0->pulsedGuiBtnFlags = 0;
             }
         }
+        {
+            /* Essential QoL Mods (pc_qol_mods.c): the first-boot offer on the
+             * title, and the mod list opened from the platform options. While
+             * it is up it owns the pad, like the quick options above. */
+            extern int Pc_QolMods_Frame(int, int, int, int, int, int, int);
+            extern unsigned int Pc_MouseCursor_BoundPadBits(void);
+            const s_ControllerConfig* cc = &g_GameWorkPtr->config.controllerConfig;
+            const u32 pcQmMouse   = Pc_MouseCursor_BoundPadBits();
+            const u32 pcQmPulsed  = g_Controller0->pulsedBtnFlags  & ~pcQmMouse;
+            const u32 pcQmClicked = g_Controller0->clickedBtnFlags & ~pcQmMouse;
+            if (Pc_QolMods_Frame(
+                    g_GameWork.gameState == GameState_MainMenu && !(g_SysWork.sysFlags & SysFlag_DemoActive),
+                    (pcQmPulsed  & (ControllerFlag_LStickUp    | ControllerFlag_DpadUp))    != 0,
+                    (pcQmPulsed  & (ControllerFlag_LStickDown  | ControllerFlag_DpadDown))  != 0,
+                    (pcQmPulsed  & (ControllerFlag_LStickLeft  | ControllerFlag_DpadLeft))  != 0,
+                    (pcQmPulsed  & (ControllerFlag_LStickRight | ControllerFlag_DpadRight)) != 0,
+                    (pcQmClicked & (cc->enter | cc->action)) != 0,
+                    (pcQmClicked & cc->cancel) != 0)) {
+                g_Controller0->heldBtnFlags      = 0;
+                g_Controller0->clickedBtnFlags   = 0;
+                g_Controller0->releasedBtnFlags  = 0;
+                g_Controller0->pulsedBtnFlags    = 0;
+                g_Controller0->pulsedGuiBtnFlags = 0;
+            }
+        }
         /* Free camera: Harry is frozen in place and W/A/S/D fly the camera
          * (the alt-cam scheme walks with the same keys), so none of his pad
          * input may reach the game. */

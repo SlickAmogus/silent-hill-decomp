@@ -183,7 +183,7 @@ int Pc_ExitToMenuRowActive(void)
 }
 
 
-enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_PAD, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_RESET, PCK_STORAGE, PCK_RALOGIN, PCK_TOTITLE };
+enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_PAD, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_RESET, PCK_STORAGE, PCK_RALOGIN, PCK_TOTITLE, PCK_QOLMODS };
 
 #if defined(SH_IOS) || defined(__ANDROID__)
 /* Return to the title, armed by one confirm and done by a second.
@@ -340,6 +340,9 @@ static const s_PcOpt PCOPT_G[] = {
     /* The browser has no launcher either, so the account lives here, last
      * before the page nav. Opens the page's own sign-in dialog (web_ra.c). */
     { "Achievements",   NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_RALOGIN },
+    /* Builds with no launcher have no Mod Manager: this lists the Essential
+     * QoL Mods and installs the ones ticked (pc_qol_mods.c). */
+    { "Install_QoL_Mods",  NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_QOLMODS },
 #endif
     /* Always second to last, after every platform's own rows. It used to sit
      * above the mobile-only rows, so on a phone Bullet_Decals, Load_Mods and
@@ -1817,6 +1820,11 @@ void Options_PcOptionsMenu_Control(void)
 #ifdef SH_PC_PORT
     if (PcOpt_ResetConfirm_Run())
         return; /* dialog owns input this frame */
+    {
+        extern int Pc_QolMods_IsOpen(void);
+        if (Pc_QolMods_IsOpen())
+            return; /* the QoL mods window owns input (fed from MainLoop) */
+    }
 #endif
 
     if ((LINE_CURSOR_TIMER_MAX - 1) < g_Options_SelectionHighlightTimer)
@@ -2057,6 +2065,11 @@ void Options_PcOptionsMenu_Control(void)
                 Sd_PlaySfx(Sfx_MenuMove, 0, 64);
                 g_Options_SelectionHighlightTimer = 0;
 #endif
+            } else if (sel->kind == PCK_QOLMODS) {
+                extern void Pc_QolMods_OpenList(void);
+                Pc_QolMods_OpenList();
+                Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+                g_Options_SelectionHighlightTimer = 0;
             } else if (sel->kind == PCK_BACK) {
                 Sd_PlaySfx(Sfx_MenuCancel, 0, 64);
                 ScreenFade_Start(true, false, false);
