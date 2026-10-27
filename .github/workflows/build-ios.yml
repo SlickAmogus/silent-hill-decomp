@@ -130,6 +130,18 @@ jobs:
           gh api "repos/$R/releases/tags/realtime-history" --jq \
             "[.assets[] | select(.name | startswith(\"${STEM}_\"))] | sort_by(.created_at) | reverse | .[${KEEP}:] | .[].name" |
             while read -r n; do gh release delete-asset realtime-history "$n" --repo "$R" --yes; done
+          # AltStore / SideStore source (ios_port/altstore_source.py): lists this
+          # build, so devices that added the source are offered it as an update.
+          APP="$(find build-ios -maxdepth 4 -name 'SilentHill.app' -type d | head -1)"
+          export R DATED
+          export VER="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")"
+          export BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")"
+          export MINOS="$(/usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP/Info.plist")"
+          export SIZE="$(stat -f%z "$SRC")"
+          export DATE="$(git log -1 --format=%cI)"
+          export SUMMARY="$(git log -1 --format=%s)"
+          python3 ios_port/altstore_source.py > "$RUNNER_TEMP/altstore-source.json"
+          gh release upload realtime "$RUNNER_TEMP/altstore-source.json" --clobber --repo "$R"
 
   # Launches the app in the iOS Simulator to see how far startup gets, with no
   # device, no Apple ID and no signing. It exercises the parts that are brand

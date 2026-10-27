@@ -114,6 +114,25 @@ endif()
 set(SH_IOS_SDK_NAME "${SH_IOS_PLATFORM_NAME}${SH_IOS_SDK_VERSION}")
 set(SH_IOS_DEPLOYMENT_TARGET "${CMAKE_OSX_DEPLOYMENT_TARGET}")
 
+# Version from the commit, so every build is distinguishable: AltStore and
+# SideStore offer an update only when the source's version differs from the
+# installed app's, and refuse an install whose bundle version does not match
+# the source. YYYY.MMDD.HHMM (UTC commit time) stays three numeric components
+# and orders correctly; the build number is the commit's unix time.
+set(SH_IOS_VERSION "1.0")
+set(SH_IOS_BUILD "1")
+execute_process(COMMAND ${CMAKE_COMMAND} -E env TZ=UTC
+                        git -C "${CMAKE_CURRENT_SOURCE_DIR}" log -1
+                        --date=format-local:%Y.%m%d.%H%M --format=%cd|%ct
+                OUTPUT_VARIABLE SH_IOS_GIT_STAMP
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_QUIET)
+if(SH_IOS_GIT_STAMP MATCHES "^([0-9]+\\.[0-9]+\\.[0-9]+)\\|([0-9]+)$")
+    set(SH_IOS_VERSION "${CMAKE_MATCH_1}")
+    set(SH_IOS_BUILD   "${CMAKE_MATCH_2}")
+endif()
+message(STATUS "iOS bundle version ${SH_IOS_VERSION} (${SH_IOS_BUILD})")
+
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/Resources/Info.plist.in"
                "${CMAKE_CURRENT_BINARY_DIR}/Info.plist" @ONLY)
 

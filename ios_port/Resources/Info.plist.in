@@ -17,9 +17,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0</string>
+	<string>@SH_IOS_VERSION@</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>@SH_IOS_BUILD@</string>
 
 	<!-- Xcode injects these; a CMake/Ninja build does not, and without them
 	     installers reject the bundle outright. CFBundleSupportedPlatforms is the
