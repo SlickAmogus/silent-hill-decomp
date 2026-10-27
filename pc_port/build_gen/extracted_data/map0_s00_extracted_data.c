@@ -25,7 +25,7 @@
 // 100% if their gating event flag is set. Same as the global default,
 // but Map_RoomBgmInit explicitly passes &D_800DF2F8 so we have to carry
 // the data even though it's identical content.
-u8 D_800DF2F8[8] = { 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80 };
+u8 D_800DF2F8[8] __attribute__((aligned(8))) = { 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80 };
 
 // 0x800DF300  s16 array — BGM layer-to-EventFlag mapping table for map0_s00.
 // Indexed by layer (1..6) in Map_RoomBgmInit; the loop turns layer i on
@@ -44,7 +44,7 @@ u8 D_800DF2F8[8] = { 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80 };
 //   [4] = 23  (EventFlag_23: alley2 deeper)
 //   [5] = 21  (EventFlag_21: alley3 entry / dark area)
 //   [6] = 24  (EventFlag_24: alley3 grey-children spawn point)
-s16 D_800DF300[16] = {
+s16 D_800DF300[16] __attribute__((aligned(8))) = {
     0, 3, 20, 22, 23, 21, 24, 0,
     0, 0, 0, 0, 0, 0, 0, 0
 };
@@ -54,7 +54,7 @@ s32 g_Cutscene_Timer = -1;
 
 // 0x800DFABC  size 0x1C (28 bytes) — main voice cmd table for cheryl chase.
 // D_800DFAC4 / D_800DFAC8 below alias into this on PSX.
-u16 g_Cutscene_MapMsgAudioCmds[14] = {
+u16 g_Cutscene_MapMsgAudioCmds[14] __attribute__((aligned(8))) = {
     0x100D, 0x1023, 0x1024, 0x0001, 0x0001, 0x0000, 0x101E, 0x1017, 0x0000, 0x0000, 0x0000, 0x0000,
     0x0000, 0x0000
 };
@@ -81,14 +81,14 @@ s32 g_WarpCamera = 1;
 // for indices > 0. Header declares as single u16; the array def works
 // because the linker matches by name, not by type. The 4 trailing zeros
 // give Map_MessageWithAudio idle-state safety if audioIdx overruns.
-u16 D_800DFAC8[6] = { 0x101E, 0x1017, 0x0000, 0x0000, 0x0000, 0x0000 };
+u16 D_800DFAC8[6] __attribute__((aligned(8))) = { 0x101E, 0x1017, 0x0000, 0x0000, 0x0000, 0x0000 };
 
 // 0x800DF1FC  size 0xE0 (224 bytes) — fallback room-index grid for
 // Map_RoomIdxGet: 14 x-cells * 16 z-cells of 40.0 world units, covering
 // X [-320,240) / Z [-240,400). The exe zero-stub made mapRoomIdx always 0
 // in the streets, killing per-room BGM/ambience gating. This file is linked
 // into the EXE (map0_s00 is static), so the data_stubs.c stub was removed.
-u8 MAP_ROOM_IDXS[224] = {
+u8 MAP_ROOM_IDXS[224] __attribute__((aligned(8))) = {
     0x00, 0x1B, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x1B, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x19, 0x19, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -109,7 +109,7 @@ u8 MAP_ROOM_IDXS[224] = {
 // for MAP_HAS_SECONDARY_GRID maps, indexed (GetXIdx(x)*5)+GetYIdx(x,z), both
 // 0..4. Rooms 0x01..0x15 = the named street blocks; fallback grid above
 // handles everything this misses. Stub removed from data_stubs.c (exe link).
-u8 sharedData_800DF2DC_0_s00[25] = {
+u8 sharedData_800DF2DC_0_s00[25] __attribute__((aligned(8))) = {
     0x00, 0x05, 0x06, 0x07, 0x08, 0x01, 0x09, 0x0A, 0x0B, 0x0C, 0x02, 0x0D, 0x00, 0x0E, 0x0F, 0x03,
     0x00, 0x10, 0x11, 0x12, 0x04, 0x00, 0x13, 0x14, 0x15
 };

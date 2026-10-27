@@ -21,6 +21,11 @@ import struct
 import sys
 from pathlib import Path
 
+# Every array is emitted 8-byte aligned. Most are raw bytes standing in for
+# structs, and a byte array is only byte-aligned: 32-bit ARM (Fire TV) raises
+# SIGBUS on the paired-word accesses (LDRD/STRD/VLDR) into them.
+ARRAY_ALIGN = "__attribute__((aligned(8)))"
+
 # ---------- config ----------
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -853,7 +858,7 @@ def emit_world_object(name, va, data, kind, decl_count):
 
     text = (f"// 0x{va:08X}  {kind} x{n} (PSX {elem_psx} B/elem; PC layout, "
             f"runtime ptrs NULLed)\n")
-    text += f"{c_type} {name}[{n}] = {{\n"
+    text += f"{c_type} {name}[{n}] {ARRAY_ALIGN} = {{\n"
     for i in range(n):
         ofs = i * elem_psx
         if ofs + elem_psx > len(data):
@@ -1259,7 +1264,7 @@ def generate_c(map_name, found, bin_filename):
             text += f"// (empty extraction for {name}, skipped)\n\n"
             continue
         n = size // TYPE_INFO[c_type][2]
-        text += f"{c_type} {name}[{n}] = {{\n{body}\n}};\n\n"
+        text += f"{c_type} {name}[{n}] {ARRAY_ALIGN} = {{\n{body}\n}};\n\n"
 
     return text
 

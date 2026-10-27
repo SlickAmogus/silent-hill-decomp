@@ -20,64 +20,64 @@ typedef struct { VECTOR3 position; SVECTOR3 rotation_C; } s_WorldObjectPose;
 #endif
 
 // 0x800CCC6C  size 0x1 (1 bytes)
-u8 LOADABLE_INVENTORY_ITEMS[1] = {
+u8 LOADABLE_INVENTORY_ITEMS[1] __attribute__((aligned(8))) = {
     0x00
 };
 
 // 0x800CCC78  size 0x8 (8 bytes)
-u8 sharedData_800EB738_6_s04[8] = {
+u8 sharedData_800EB738_6_s04[8] __attribute__((aligned(8))) = {
     0x80, 0x80, 0x00, 0x00, 0x80, 0x80, 0x00, 0x00
 };
 
 // 0x800CCC80  size 0x8 (8 bytes)
-u8 sharedData_800EB740_6_s04[8] = {
+u8 sharedData_800EB740_6_s04[8] __attribute__((aligned(8))) = {
     0x80, 0x80, 0x80, 0x80, 0x80, 0x00, 0x00, 0x00
 };
 
 // 0x800CCC88  size 0x8 (8 bytes)
-u8 sharedData_800EB748_6_s04[8] = {
+u8 sharedData_800EB748_6_s04[8] __attribute__((aligned(8))) = {
     0x80, 0x80, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00
 };
 
 // 0x800CCC8A  size 0x100 (256 bytes)
 // declared 256 B (stub capacity), 6 B from ROM
-u8 sharedData_800EB74A_6_s04[256] = {
+u8 sharedData_800EB74A_6_s04[256] __attribute__((aligned(8))) = {
     0x80, 0x00, 0x00, 0x00, 0x00, 0x00
 };
 
 // 0x800CCC90  size 0x100 (256 bytes)
 // declared 256 B (stub capacity), 12 B from ROM
-u8 sharedData_800EB750_6_s04[256] = {
+u8 sharedData_800EB750_6_s04[256] __attribute__((aligned(8))) = {
     0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFC, 0xFF
 };
 
 // 0x800CCD10  size 0x100 (256 bytes)
 // declared 256 B (stub capacity), 4 B from ROM
-u8 g_Particle_SpeedX[256] = {
+u8 g_Particle_SpeedX[256] __attribute__((aligned(8))) = {
     0x00, 0x00, 0x00, 0x00
 };
 
 // 0x800CCD14  size 0x100 (256 bytes)
 // declared 256 B (stub capacity), 4 B from ROM
-u8 g_Particle_SpeedZ[256] = {
+u8 g_Particle_SpeedZ[256] __attribute__((aligned(8))) = {
     0x00, 0x00, 0x00, 0x00
 };
 
 // 0x800CCD18  size 0x100 (256 bytes)
 // declared 256 B (stub capacity), 4 B from ROM
-u8 sharedData_800DFB6C_0_s00[256] = {
+u8 sharedData_800DFB6C_0_s00[256] __attribute__((aligned(8))) = {
     0x00, 0x00, 0x00, 0x00
 };
 
 // 0x800CCD1C  size 0x100 (256 bytes)
 // declared 256 B (stub capacity), 12 B from ROM
-u8 sharedData_800DFB70_0_s00[256] = {
+u8 sharedData_800DFB70_0_s00[256] __attribute__((aligned(8))) = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
 
 // 0x800CCD28  size 0x2328 (9000 bytes)
 // declared 9000 B (stub capacity), 256 B from ROM
-u8 sharedData_800DFB7C_0_s00[9000] = {
+u8 sharedData_800DFB7C_0_s00[9000] __attribute__((aligned(8))) = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -98,7 +98,7 @@ u8 sharedData_800DFB7C_0_s00[9000] = {
 
 // 0x800CD568  size 0x100 (256 bytes)
 // declared 256 B (stub capacity), 48 B from ROM
-u8 g_ParticleVectors0[256] = {
+u8 g_ParticleVectors0[256] __attribute__((aligned(8))) = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
@@ -106,7 +106,7 @@ u8 g_ParticleVectors0[256] = {
 
 // 0x800CD598  size 0x100 (256 bytes)
 // declared 256 B (stub capacity), 44 B from ROM
-u8 g_ParticleVectors1[256] = {
+u8 g_ParticleVectors1[256] __attribute__((aligned(8))) = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
@@ -114,49 +114,49 @@ u8 g_ParticleVectors1[256] = {
 
 // 0x800CD5C4  size 0x100 (256 bytes)
 // declared 256 B (stub capacity), 4 B from ROM
-u8 sharedData_800E0CA8_0_s00[256] = {
+u8 sharedData_800E0CA8_0_s00[256] __attribute__((aligned(8))) = {
     0x00, 0x00, 0x00, 0x00
 };
 
 // 0x800CD5C8  size 0x100 (256 bytes)
 // declared 256 B (stub capacity), 4 B from ROM
-u8 sharedData_800E0CAC_0_s00[256] = {
+u8 sharedData_800E0CAC_0_s00[256] __attribute__((aligned(8))) = {
     0x00, 0x00, 0x00, 0x00
 };
 
 // 0x800CD5CC  size 0x100 (256 bytes)
 // declared 256 B (stub capacity), 4 B from ROM
-u8 sharedData_800E0CB0_0_s00[256] = {
+u8 sharedData_800E0CB0_0_s00[256] __attribute__((aligned(8))) = {
     0x00, 0x00, 0x00, 0x00
 };
 
 // 0x800CD5D0  size 0x100 (256 bytes)
 // declared 256 B (stub capacity), 2 B from ROM
-u8 sharedData_800E0CB4_0_s00[256] = {
+u8 sharedData_800E0CB4_0_s00[256] __attribute__((aligned(8))) = {
     0x00, 0x00
 };
 
 // 0x800CD5D2  size 0x100 (256 bytes)
 // declared 256 B (stub capacity), 2 B from ROM
-u8 sharedData_800E0CB6_0_s00[256] = {
+u8 sharedData_800E0CB6_0_s00[256] __attribute__((aligned(8))) = {
     0x00, 0x00
 };
 
 // 0x800CD5D4  size 0x100 (256 bytes)
 // declared 256 B (stub capacity), 2 B from ROM
-u8 sharedData_800E0CB8_0_s00[256] = {
+u8 sharedData_800E0CB8_0_s00[256] __attribute__((aligned(8))) = {
     0x00, 0x00
 };
 
 // 0x800CD5D6  size 0x100 (256 bytes)
 // declared 256 B (stub capacity), 2 B from ROM
-u8 sharedData_800E0CBA_0_s00[256] = {
+u8 sharedData_800E0CBA_0_s00[256] __attribute__((aligned(8))) = {
     0x00, 0x00
 };
 
 // 0x800CD5D8  size 0x100 (256 bytes)
 // declared 256 B (stub capacity), 4 B from ROM
-u8 sharedData_800E39D8_0_s00[256] = {
+u8 sharedData_800E39D8_0_s00[256] __attribute__((aligned(8))) = {
     0x00, 0x00, 0x00, 0x00
 };
 
