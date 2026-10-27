@@ -63,21 +63,31 @@ jobs:
           # Shipped runtime assets (pc_port/assets/ mirrors the game folder layout).
           cp -r pc_port/assets/. "$STAGE/"
 
-          # Bundle libjpeg (issue #110): jpeg-turbo is keg-only, so the binary
-          # linked it by its absolute Homebrew path and users without
-          # `brew install jpeg-turbo` got "Library not loaded: .../libjpeg.8.dylib".
-          # Copy the actual linked dylib next to the binary and repoint the load
-          # command at @loader_path, so no Homebrew jpeg is needed at runtime.
-          JPEG_SRC="$(otool -L "$STAGE/SilentHillPC" | awk '/libjpeg\.[0-9]+\.dylib/{print $1; exit}')"
-          if [ -n "${JPEG_SRC:-}" ] && [ -f "$JPEG_SRC" ]; then
-            JPEG_BASE="$(basename "$JPEG_SRC")"
-            cp "$JPEG_SRC" "$STAGE/$JPEG_BASE"
-            chmod u+w "$STAGE/$JPEG_BASE"
-            install_name_tool -change "$JPEG_SRC" "@loader_path/$JPEG_BASE" "$STAGE/SilentHillPC"
-            install_name_tool -id "@loader_path/$JPEG_BASE" "$STAGE/$JPEG_BASE"
-            echo "Bundled $JPEG_BASE and repointed the load command."
-          else
-            echo "WARNING: could not locate the linked libjpeg to bundle." >&2
+          # Bundle every Homebrew dylib the binary links (issue #110, then
+          # openal-soft): they're linked by absolute /opt/homebrew paths, so users
+          # without the matching `brew install` got "Library not loaded". Copy
+          # each next to the binary and repoint its load command at @loader_path.
+          BREW_DEPS="$(otool -L "$STAGE/SilentHillPC" | awk 'NR>1 && $1 ~ /^\/opt\/homebrew\//{print $1}')"
+          for src in $BREW_DEPS; do
+            base="$(basename "$src")"
+            cp -L "$src" "$STAGE/$base"
+            chmod u+w "$STAGE/$base"
+            install_name_tool -change "$src" "@loader_path/$base" "$STAGE/SilentHillPC"
+            install_name_tool -id "@loader_path/$base" "$STAGE/$base"
+            echo "Bundled $base"
+          done
+          # Homebrew's sdl2 is sdl2-compat, which dlopen's SDL3 at runtime and
+          # searches @loader_path/libSDL3.dylib first.
+          if [ -f "$STAGE/libSDL2-2.0.0.dylib" ]; then
+            cp -L "$(brew --prefix sdl3)/lib/libSDL3.0.dylib" "$STAGE/libSDL3.dylib"
+            chmod u+w "$STAGE/libSDL3.dylib"
+            install_name_tool -id "@loader_path/libSDL3.dylib" "$STAGE/libSDL3.dylib"
+            echo "Bundled libSDL3.dylib for sdl2-compat"
+          fi
+          if otool -L "$STAGE/SilentHillPC" "$STAGE"/*.dylib "$STAGE"/maps/*.dylib | grep -q '/opt/homebrew/\|/usr/local/'; then
+            echo "ERROR: Homebrew load paths remain after bundling:" >&2
+            otool -L "$STAGE/SilentHillPC" "$STAGE"/*.dylib "$STAGE"/maps/*.dylib | grep '/opt/homebrew/\|/usr/local/' >&2
+            exit 1
           fi
 
           # Ad-hoc codesign the binary and every .dylib (issue #110): unsigned
@@ -95,9 +105,7 @@ jobs:
 
           Requires the original disc image in gamedata/ (not included).
 
-          Runtime dependencies (Homebrew):
-            brew install sdl2 openal-soft
-          (libjpeg is bundled; no jpeg-turbo install needed.)
+          SDL2, SDL3, OpenAL and libjpeg are bundled; no Homebrew install needed.
 
           The build is unsigned. Before the first run, clear the quarantine flag
           on the WHOLE folder so the binary AND the map .dylibs load without
