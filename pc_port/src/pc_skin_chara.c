@@ -287,6 +287,7 @@ typedef struct
     int         lightLogged;
     int         gunRaise, gunOut, gunFwd;    /* ini: mm */
     int         gunTwist, gunPitch, gunYaw; /* ini: degrees */
+    int         handRelax; /* ini: percent of the fist held with empty hands */
     int         female;
     int         brightness; /* percent of the lit vertex colour */
     int         fogPct;     /* percent of the game's fog amount */
@@ -2096,6 +2097,7 @@ static void Skin_LoadSettings(PcSkinChara* ch, const char* base)
     memset(ch->lightOff, 0, sizeof(ch->lightOff));
     ch->gunRaise = ch->gunOut = ch->gunFwd = 0;
     ch->gunTwist = ch->gunPitch = ch->gunYaw = 0;
+    ch->handRelax = 0;
     snprintf(path, sizeof(path), "%s.ini", base);
     f = fopen(path, "r");
     if (f == NULL)
@@ -2132,12 +2134,14 @@ static void Skin_LoadSettings(PcSkinChara* ch, const char* base)
             ch->gunPitch = val;
         else if (strcmp(key, "gun_yaw") == 0)
             ch->gunYaw = val;
+        else if (strcmp(key, "hand_relax") == 0)
+            ch->handRelax = val < 0 ? 0 : (val > 100 ? 100 : val);
     }
     fclose(f);
     SH_DBG("[SKIN] %s: female=%d brightness=%d fog=%d flashlight=%d at (%d %d %d)", path, ch->female,
            ch->brightness, ch->fogPct, ch->beamPct, ch->lightOff[0], ch->lightOff[1], ch->lightOff[2]);
-    SH_DBG("[SKIN] %s: gun raise=%d out=%d forward=%d twist=%d pitch=%d yaw=%d", path, ch->gunRaise, ch->gunOut,
-           ch->gunFwd, ch->gunTwist, ch->gunPitch, ch->gunYaw);
+    SH_DBG("[SKIN] %s: gun raise=%d out=%d forward=%d twist=%d pitch=%d yaw=%d hand_relax=%d", path, ch->gunRaise,
+           ch->gunOut, ch->gunFwd, ch->gunTwist, ch->gunPitch, ch->gunYaw, ch->handRelax);
 }
 
 int Pc_SkinChara_ReloadSettings(void)
@@ -3010,7 +3014,7 @@ static void Skin_GripWeights(PcSkinChara* ch, float* w)
         int held = g_WorldGfxWork.heldItem.itemId != NO_VALUE &&
                    g_WorldGfxWork.heldItem.bone.modelInfo.field_0 >= 0 &&
                    (g_WorldGfxWork.heldItem.itemId == InvItemId_CutscenePhone) == (side == 0);
-        float target = (ch->isPlayer && held && !s_rd.active) ? 1.0f : 0.0f;
+        float target = s_rd.active ? 0.0f : (ch->isPlayer && held) ? 1.0f : (float)ch->handRelax / 100.0f;
         float step = dt / 0.15f;
 
         if (ch->grip[side] < target)
