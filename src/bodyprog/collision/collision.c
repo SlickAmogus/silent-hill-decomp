@@ -595,7 +595,11 @@ void Collision_DefaultResultSet(s_CollisionResult* collResult, q19_12 offsetX, q
 s_SubCharacter** Collision_CollidableCharasGet(s32* collCharaCount, const s_SubCharacter* excludedChara, bool includePlayer) // 0x8006A1A4
 {
     s_SubCharacter*         curChara;
+#ifdef SH_XBOX_PORT
+    static s_SubCharacter*  collCharas[NPC_COUNT_MAX + 2]; /** All NPCs, the player and split screen's other player. */
+#else
     static s_SubCharacter*  collCharas[NPC_COUNT_MAX + 1]; /** Enough for all NPCs and player. */
+#endif
     static s_SubCharacter** curCollChara;                  /** Array of active characters. */
 
     /* Console NOCOLLIDE: phase a character by treating it exactly as the game's
@@ -663,6 +667,30 @@ s_SubCharacter** Collision_CollidableCharasGet(s32* collCharaCount, const s_SubC
             curChara->collision.field_E0 = 0;
         }
     }
+
+#ifdef SH_XBOX_PORT
+    /* Split screen: the other player, for movement and sight lines only -- the
+     * includePlayer==false lists feed bullets and hit volumes, which address
+     * their target as an npcs[] index. The two players pass through each other
+     * (a body block between them deadlocks doorways). */
+    if (includePlayer == true && excludedChara != &g_SysWork.playerWork.player)
+    {
+        extern s_SubCharacter* Split_CollidableSideChara(void);
+        curChara = Split_CollidableSideChara();
+        if (curChara != NULL && curChara != excludedChara &&
+            curChara->collision.state != CharaCollisionState_Ignore &&
+            curChara->collision.state != CharaCollisionState_Player &&
+            (excludedChara == NULL ||
+             excludedChara->collision.state != CharaCollisionState_4 ||
+             curChara->collision.state >= excludedChara->collision.state))
+        {
+            *collCharaCount += 1;
+            *curCollChara    = curChara;
+            curCollChara++;
+            curChara->collision.field_E0 = 0;
+        }
+    }
+#endif
 
     return &collCharas;
 }

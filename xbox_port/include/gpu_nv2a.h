@@ -74,4 +74,22 @@ void  GpuXbox_FbReadbackForTexture(int px0, int py0, int px1, int py1);
 void  GpuXbox_FbReadbackForStore(void);   /* psx_libgpu_xbox.c StoreImage: fb-rect grab */
 void  GpuXbox_FbStoreFrameTick(void);     /* psx_libgpu_xbox.c VSync: per-frame gate reset */
 
+/* Split screen. A view is one player's part of the screen: x/y/w/h is its rect in
+ * framebuffer pixels, crop the part of the PSX frame it shows (display-relative
+ * frame coordinates, 0..320 x 0..224 in game). index 0 is the first player's. */
+typedef struct {
+    int   index;
+    int   x, y, w, h;
+    float cropX, cropY, cropW, cropH;
+} GpuXboxView;
+void GpuXbox_ViewBegin(const GpuXboxView* v);
+void GpuXbox_ViewEnd(void);      /* back to the full frame; harmless when no view is on */
+int  GpuXbox_ViewActive(void);
+/* Fill a framebuffer rect in pushbuffer order (what was drawn before stays
+ * underneath, nothing drawn later is touched). Leaves the scissor on the rect. */
+void GpuNv2a_ClearRect(int x, int y, int w, int h, unsigned int argb);
+/* Ask for the split-screen vertex pool (twice the size) or the normal one; the
+ * switch happens at the next FrameBegin. */
+void GpuNv2a_SplitPool(int on);
+
 #endif /* SH_GPU_NV2A_H */

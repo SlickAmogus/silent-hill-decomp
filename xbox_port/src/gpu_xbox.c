@@ -41,6 +41,18 @@ OT_TAG prim_terminator = { (uintptr_t)-1, 0 };
 static float s_ofsX = 160.0f, s_ofsY = 112.0f;
 static float s_scaleX = 640.0f / 320.0f, s_scaleY = 480.0f / 224.0f;
 
+/* Split-screen view (GpuXbox_ViewBegin): while one is active the transform shows
+ * the view's crop of the PSX frame in the view's screen rect, and a scissor
+ * "reset" means that rect. With no view the full-frame expressions run exactly as
+ * they always have. */
+static int         s_viewOn;
+static GpuXboxView s_view;
+static float       s_viewOx, s_viewOy;   /* screen position of the crop's corner */
+/* The last view 0 transform, for a readback DrawSync starts between frames. */
+static struct { float ofsX, ofsY, scaleX, scaleY, ox, oy; int frame; } s_rbView = { 0, 0, 0, 0, 0, 0, -100 };
+static int GpuXbox_FrameSpanW(void);
+static int GpuXbox_FrameSpanH(void);
+
 /* --- one-run UI diagnostic (menu double-size text bug) ----------------------
  * Per frame: raw (pre-transform) coords of the first SPRTs and the first small
  * (glyph-sized) FT4 quads, plus the env tuple active when the first SPRT was
@@ -227,8 +239,10 @@ static inline unsigned int* TexLookup(int tpage, int clut)
 
 static void PutVert(ShVertex* v, int x, int y, int r, int g, int b)
 {
-    v->pos[0] = ((float)x + s_ofsX) * s_scaleX + (float)g_Nv2aContentX;
+    v->pos[0] = ((float)x + s_ofsX) * s_scaleX + (s_viewOn ? s_viewOx : (float)g_Nv2aContentX);
     v->pos[1] = ((float)y + s_ofsY) * s_scaleY;
+    if (s_viewOn)
+        v->pos[1] += s_viewOy;
     v->pos[2] = 0.0f;
     v->pos[3] = 1.0f;   /* affine W (VS divides screen pos by this); PGXP overrides */
     v->col[0] = (float)r * (1.0f / 255.0f);
@@ -249,8 +263,10 @@ extern void          PsxVram_DumpFontStrip(const char* tag);
 
 static void PutVertUV(ShVertex* v, int x, int y, int r, int g, int b, int u, int tv)
 {
-    v->pos[0] = ((float)x + s_ofsX) * s_scaleX + (float)g_Nv2aContentX;
+    v->pos[0] = ((float)x + s_ofsX) * s_scaleX + (s_viewOn ? s_viewOx : (float)g_Nv2aContentX);
     v->pos[1] = ((float)y + s_ofsY) * s_scaleY;
+    if (s_viewOn)
+        v->pos[1] += s_viewOy;
     v->pos[2] = 0.0f;
     v->pos[3] = 1.0f;   /* affine W (VS divides screen pos by this); PGXP overrides */
     r <<= 1; if (r > 255) r = 255;
@@ -582,8 +598,10 @@ static void PgxpApplyPoly(ShVertex* v, const void* a0, const void* a1,
         return;
     }
     for (i = 0; i < n; i++) {
-        v[i].pos[0] = (px[i] + s_ofsX) * s_scaleX + (float)g_Nv2aContentX;
+        v[i].pos[0] = (px[i] + s_ofsX) * s_scaleX + (s_viewOn ? s_viewOx : (float)g_Nv2aContentX);
         v[i].pos[1] = (py[i] + s_ofsY) * s_scaleY;
+        if (s_viewOn)
+            v[i].pos[1] += s_viewOy;
         v[i].pos[3] = pw[i];   /* > 0 -> HW perspective-correct interpolation */
     }
     s_pgxpFull++;
@@ -871,7 +889,7 @@ static int ProcessPoly(P_TAG* tag)
             if (Y < mny) mny = Y;
             if (Y > mxy) mxy = Y;
         }
-        if ((mxx - mnx) >= g_Nv2aContentW || (mxy - mny) >= g_Nv2aContentH) {
+        if ((mxx - mnx) >= GpuXbox_FrameSpanW() || (mxy - mny) >= GpuXbox_FrameSpanH()) {
             static unsigned s_big;
             if ((s_big++ & 0x1F) == 0)
                 SH_DBG("[BIGPRIM] code=0x%02x tp=0x%x span=%dx%d at(%d,%d)",
@@ -913,7 +931,7 @@ static int ProcessPoly(P_TAG* tag)
             if (X < mnx) mnx = X; if (X > mxx) mxx = X;
             if (Y < mny) mny = Y; if (Y > mxy) mxy = Y;
         }
-        if ((mxx - mnx) >= 2 * g_Nv2aContentW || (mxy - mny) >= 2 * g_Nv2aContentH) {
+        if ((mxx - mnx) >= 2 * GpuXbox_FrameSpanW() || (mxy - mny) >= 2 * GpuXbox_FrameSpanH()) {
             static unsigned s_fx;
             if ((s_fx++ & 0x3F) == 0)
                 SH_DBG("[FXDROP] code=0x%02x abr=%d tp=0x%x span=%dx%d",
@@ -1527,6 +1545,21 @@ static void FbReadback(int fromLastQueued, int minSpacing)
     float biasX, biasY;
     int k, i, n, t0;
     static int bxTab[640];
+    /* The inverse of whatever transform drew the frame being read: the live one,
+     * or -- for a DrawSync refresh between the views of a split frame -- view
+     * 0's, so a feedback effect in the first view samples that view and not a
+     * squashed copy of the whole split screen. */
+    float rbOfsX = s_ofsX, rbOfsY = s_ofsY, rbSX = s_scaleX, rbSY = s_scaleY;
+    int   rbOx = g_Nv2aContentX, rbOy = 0;
+
+    if (s_viewOn) {
+        rbOx = (int)s_viewOx;
+        rbOy = (int)s_viewOy;
+    } else if (g_Nv2aFrameCount - s_rbView.frame <= 1) {
+        rbOfsX = s_rbView.ofsX;   rbOfsY = s_rbView.ofsY;
+        rbSX   = s_rbView.scaleX; rbSY   = s_rbView.scaleY;
+        rbOx   = (int)s_rbView.ox; rbOy  = (int)s_rbView.oy;
+    }
 
     if (g_PsxSkipFramebufferStore || s_fbGateLatch)
         return;                                   /* TIM-protect tick (paper map) */
@@ -1551,11 +1584,11 @@ static void FbReadback(int fromLastQueued, int minSpacing)
     pageW    = pr[0][2];
     pageH    = pr[0][3];
     centered = (g_activeDispEnv.disp.y == 0);     /* libgs envs: draw offset = disp center */
-    biasX    = centered ? (s_ofsX - (float)pageW * 0.5f) : 0.0f;
-    biasY    = centered ? (s_ofsY - (float)pageH * 0.5f) : 0.0f;
+    biasX    = centered ? (rbOfsX - (float)pageW * 0.5f) : 0.0f;
+    biasY    = centered ? (rbOfsY - (float)pageH * 0.5f) : 0.0f;
 
     for (i = 0; i < pageW; i++) {                 /* x map is row-invariant */
-        int bx = (int)(((float)i + biasX) * s_scaleX) + g_Nv2aContentX; /* inverse of PutVert incl. pillar offset */
+        int bx = (int)(((float)i + biasX) * rbSX) + rbOx; /* inverse of PutVert incl. pillar offset */
         if (bx < 0) bx = 0;
         if (bx >= fbW) bx = fbW - 1;
         bxTab[i] = bx;
@@ -1570,7 +1603,7 @@ static void FbReadback(int fromLastQueued, int minSpacing)
     for (k = 0; k < pageH; k++) {
         const unsigned int* srow;
         unsigned short*     drow = &s_fbReadbackBuf[k * pageW];
-        int by = (int)(((float)k + biasY) * s_scaleY);
+        int by = (int)(((float)k + biasY) * rbSY) + rbOy;
         if (by < 0) by = 0;
         if (by >= fbH) by = fbH - 1;
         srow = (const unsigned int*)(fb + by * pitchB);
@@ -1748,6 +1781,67 @@ static void RecomputeTransform(void)
         s_scaleX = (float)g_Nv2aContentW / (g_activeDrawEnv.clip.w ? (float)g_activeDrawEnv.clip.w : 320.0f);
         s_scaleY = (float)g_Nv2aContentH / (g_activeDrawEnv.clip.h ? (float)g_activeDrawEnv.clip.h : 240.0f);
     }
+    /* A view shows its crop of the frame in its own rect. Re-applied on every
+     * recompute, so a PutDrawEnv inside a view walk keeps the view. */
+    if (s_viewOn) {
+        s_ofsX  -= s_view.cropX;
+        s_ofsY  -= s_view.cropY;
+        s_scaleX = (float)s_view.w / s_view.cropW;
+        s_scaleY = (float)s_view.h / s_view.cropH;
+        s_viewOx = (float)s_view.x;
+        s_viewOy = (float)s_view.y;
+    }
+}
+
+/* The screen size the whole PSX frame maps to: the content rect, or for a view
+ * the frame at that view's scale. The oversized-prim tests are relative to it. */
+static int GpuXbox_FrameSpanW(void)
+{
+    int dw;
+    if (!s_viewOn)
+        return g_Nv2aContentW;
+    dw = g_activeDispEnv.disp.w > 0 ? g_activeDispEnv.disp.w : 320;
+    return (int)((float)dw * s_scaleX);
+}
+
+static int GpuXbox_FrameSpanH(void)
+{
+    int dh;
+    if (!s_viewOn)
+        return g_Nv2aContentH;
+    dh = g_activeDispEnv.disp.h > 0 ? g_activeDispEnv.disp.h : 240;
+    return (int)((float)dh * s_scaleY);
+}
+
+/* Split screen (split_render_xbox.c): draw what follows into one view. Calls may
+ * follow each other to move between views; GpuXbox_ViewEnd returns to the full
+ * frame and must run before the 2D layer and before VSync. */
+void GpuXbox_ViewBegin(const GpuXboxView* v)
+{
+    s_view   = *v;
+    s_viewOn = 1;
+    RecomputeTransform();
+    GpuNv2a_SetScissor(s_view.x, s_view.y, s_view.w, s_view.h);   /* flushes the open run */
+    if (v->index == 0) {
+        s_rbView.ofsX   = s_ofsX;   s_rbView.ofsY   = s_ofsY;
+        s_rbView.scaleX = s_scaleX; s_rbView.scaleY = s_scaleY;
+        s_rbView.ox     = s_viewOx; s_rbView.oy     = s_viewOy;
+        s_rbView.frame  = g_Nv2aFrameCount;
+    }
+}
+
+void GpuXbox_ViewEnd(void)
+{
+    if (!s_viewOn)
+        return;
+    s_viewOn = 0;
+    RecomputeTransform();
+    GpuNv2a_SetScissor(0, 0, 0, 0);
+}
+
+int GpuXbox_ViewActive(void)
+{
+    return s_viewOn;
 }
 
 DISPENV* PutDispEnv(DISPENV* env)
@@ -1773,7 +1867,28 @@ DRAWENV* PutDrawEnv(DRAWENV* env)
     {
         int dispW = g_activeDispEnv.disp.w > 0 ? g_activeDispEnv.disp.w : 320;
         int dispH = g_activeDispEnv.disp.h > 0 ? g_activeDispEnv.disp.h : 240;
-        if (env->clip.w > 0 && env->clip.h > 0 &&
+        if (s_viewOn) {
+            /* Inside a view: a sub-clip maps through the view and is cut to the
+             * view's rect, and "no sub-clip" is the view's rect itself, so the
+             * other half of the screen is never drawn over. */
+            int x0 = s_view.x, y0 = s_view.y, x1 = s_view.x + s_view.w, y1 = s_view.y + s_view.h;
+            if (env->clip.w > 0 && env->clip.h > 0 &&
+                (env->clip.w < dispW || env->clip.h < dispH)) {
+                float fx = (float)env->clip.x - (float)g_activeDispEnv.disp.x - s_view.cropX;
+                float fy = (float)env->clip.y - (float)g_activeDispEnv.disp.y - s_view.cropY;
+                int   cx0 = (int)(fx * s_scaleX) + s_view.x;
+                int   cy0 = (int)(fy * s_scaleY) + s_view.y;
+                int   cx1 = cx0 + (int)((float)env->clip.w * s_scaleX + 0.5f);
+                int   cy1 = cy0 + (int)((float)env->clip.h * s_scaleY + 0.5f);
+                if (cx0 > x0) x0 = cx0;
+                if (cy0 > y0) y0 = cy0;
+                if (cx1 < x1) x1 = cx1;
+                if (cy1 < y1) y1 = cy1;
+                if (x1 <= x0) x1 = x0 + 1;
+                if (y1 <= y0) y1 = y0 + 1;
+            }
+            GpuNv2a_SetScissor(x0, y0, x1 - x0, y1 - y0);
+        } else if (env->clip.w > 0 && env->clip.h > 0 &&
             (env->clip.w < dispW || env->clip.h < dispH)) {
             int sx = (int)(((float)env->clip.x - (float)g_activeDispEnv.disp.x) * s_scaleX) + g_Nv2aContentX;
             int sy = (int)(((float)env->clip.y - (float)g_activeDispEnv.disp.y) * s_scaleY);

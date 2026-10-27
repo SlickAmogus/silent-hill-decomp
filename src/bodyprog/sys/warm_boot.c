@@ -115,6 +115,15 @@ void Game_WarmBoot(void) // 0x80034264
 {
     e_GameState prevState;
 
+#ifdef SH_XBOX_PORT
+    /* Split screen: back to one player before SysWork_Clear below -- or, after a
+     * split game over, back to the Multiplayer menu (split_xbox.c). */
+    {
+        extern void Split_OnWarmBoot(void);
+        Split_OnWarmBoot();
+    }
+#endif
+
 #ifdef SH_PC_PORT
     /* A warm reset can fire from any state that holds the PC freeze-frame:
      * pause, the map-screen messages ("I don't have a map" / "too dark") and

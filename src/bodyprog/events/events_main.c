@@ -168,6 +168,17 @@ void Event_Update(bool disableButtonEvents) // 0x800373CC
         if (mapEvent->triggerType == TriggerType_None)
         {
 #ifdef SH_XBOX_PORT
+            {
+                /* Split screen: rows with no trigger belong to the map, not to a
+                 * player; they ran in the slot player's pass already. */
+                extern int g_XbSplitSidePass;
+                if (g_XbSplitSidePass)
+                {
+                    continue;
+                }
+            }
+#endif
+#ifdef SH_XBOX_PORT
             /* THE end-of-intro case: map0_s00's SysState_LoadOverlay event for
              * MAP0_S01 (requiredEventFlag=EventFlag_26, no disable flag) fires
              * every frame once the death cutscene sets the flag. On PSX the
@@ -348,7 +359,15 @@ bool Event_CollideFacingCheck(s_MapPoint2d* mapPoint) // 0x800378D4
         const q19_12 reach = Q12(0.8f);
 #endif
 
+#ifdef SH_XBOX_PORT
+    /* Split screen: both players run their events within one tick, so the
+     * per-tick probe would answer the second with the first one's position.
+     * Recompute it for whoever is in the player slot. */
+    extern int g_XbSplitActive;
+    if (g_TickCount > D_800A9A20 || g_XbSplitActive)
+#else
     if (g_TickCount > D_800A9A20)
+#endif
     {
         rotY       = g_SysWork.playerWork.player.rotation.vy;
         D_800A9A24 = g_SysWork.playerWork.player.position.vx - (Math_Sin(rotY) >> 3); // `/ 8`.

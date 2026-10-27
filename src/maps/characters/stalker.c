@@ -594,6 +594,21 @@ void Ai_Stalker_ControlUpdate(s_SubCharacter* stalker)
         }
     }
 
+#ifdef SH_XBOX_PORT
+    {
+        /* Split screen: the predictor below keeps ONE history of "the player",
+         * and each stalker may now be after a different one, so the history
+         * would mix both and lead every chase off into nowhere. Chase the
+         * targeted player where they are. */
+        extern int g_XbSplitActive;
+        if (g_XbSplitActive)
+        {
+            sharedData_800E3A18_0_s00 = g_SysWork.playerWork.player.position.vx;
+            sharedData_800E3A1C_0_s00 = g_SysWork.playerWork.player.position.vz;
+            g_SysWork.bgmStatusFlags |= BgmStatusFlag_4;
+        }
+    }
+#endif
     if (!(g_SysWork.bgmStatusFlags & BgmStatusFlag_4))
     {
         g_SysWork.bgmStatusFlags |= BgmStatusFlag_4;

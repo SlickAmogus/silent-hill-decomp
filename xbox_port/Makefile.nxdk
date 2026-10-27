@@ -134,6 +134,9 @@ $(XBOX_PORT)/src/pgxp_xbox.obj:                    CFLAGS   += $(SH_OPT)
 # Held OUT: dsound_xbox.c + psx_libgpu_xbox.c drive producer/consumer ring + frame-
 # present ordering — flip those only as their own verified step.
 $(XBOX_PORT)/src/psx_vram.obj:                     CFLAGS   += $(SH_OPT)
+# Split screen: view 2's sanitizer walk and the per-frame context exchange.
+$(XBOX_PORT)/src/split_render_xbox.obj:            CFLAGS   += $(SH_OPT)
+$(XBOX_PORT)/src/split_xbox.obj:                   CFLAGS   += $(SH_OPT)
 $(XBOX_PORT)/src/audio_xbox.obj:                   CFLAGS   += $(SH_OPT)
 $(XBOX_PORT)/src/xa_xbox.obj:                      CFLAGS   += $(SH_OPT)
 $(XBOX_PORT)/src/fmv_xbox.obj:                     CFLAGS   += $(SH_OPT)
@@ -299,7 +302,12 @@ XBOX_SRCS = \
 	$(XBOX_PORT)/src/ra_browser_xbox.c \
 	$(XBOX_PORT)/src/xbox_extra_actions.c \
 	$(XBOX_PORT)/src/stb_image_impl.c \
-	$(XBOX_PORT)/src/dbg_overlay_xbox.c
+	$(XBOX_PORT)/src/dbg_overlay_xbox.c \
+	$(XBOX_PORT)/src/split_xbox.c \
+	$(XBOX_PORT)/src/split_render_xbox.c \
+	$(XBOX_PORT)/src/split_npc_xbox.c \
+	$(XBOX_PORT)/src/split_audio_xbox.c \
+	$(XBOX_PORT)/src/split_menu_xbox.c
 
 # RetroAchievements client library (rcheevos). Excludes rc_libretro.c (needs
 # libretro.h) + rc_client_raintegration.c (Windows RAIntegration), matching the PC.

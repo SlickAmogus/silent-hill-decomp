@@ -87,6 +87,14 @@ typedef enum _MainMenuEntry
     MainMenuEntry_Load     = 0,
     MainMenuEntry_Continue = 1,
     MainMenuEntry_Start    = 2,
+#ifdef SH_XBOX_PORT
+    /* Xbox: MULTIPLAYER (split screen, split_menu_xbox.c) sits under START, and
+     * the port's Exit row follows Option. Only title.c uses these. */
+    MainMenuEntry_Multiplayer = 3,
+    MainMenuEntry_Option   = 4,
+    MainMenuEntry_Exit     = 5,
+    MainMenuEntry_Count    = 6
+#else
     MainMenuEntry_Option   = 3,
     MainMenuEntry_Extra    = 4, /** @unused The extra options menu may have been accessible via the main menu. */
 
@@ -99,6 +107,7 @@ typedef enum _MainMenuEntry
 #endif
 
     MainMenuEntry_Count    = 5
+#endif
 } e_MainMenuEntry;
 
 typedef enum _MainMenuState

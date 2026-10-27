@@ -79,6 +79,11 @@
 #define RES_SLABS_PLAYAS   2
 #define RES_SLABS_MAX      (RES_SLABS_CHUNK + RES_SLABS_PLAYAS)
 #define RES_FREE_FLOOR_KB  8192
+/* Split screen's Player 2 wears its own skin (slot 301) and weapon texture (302)
+ * from the same chara partition. When Player 1 also wears a skin, the two
+ * play-as slabs are taken, so split screen appends up to this many more to the
+ * partition when it starts (Xbox_ResidentPoolReserveExtra); never at boot. */
+#define RES_SLABS_EXTRA    2
 
 typedef struct {
     unsigned short* words;      /* pixel block, PSX VRAM word layout */
@@ -90,8 +95,9 @@ typedef struct {
     int             slot;       /* owning slot id, or -1 when free */
 } ResSlab;
 
-static ResSlab  s_slabs[RES_SLABS_MAX];
+static ResSlab  s_slabs[RES_SLABS_MAX + RES_SLABS_EXTRA];
 static int      s_slabCount;                /* slabs actually reserved */
+static int      s_charaSlabs = RES_SLABS_PLAYAS; /* the top s_charaSlabs of them are the chara partition */
 static int      s_inited;
 static unsigned s_reRegisters;              /* slot reuses seen this map */
 
@@ -161,7 +167,7 @@ static int ResChunkSlabs(void)
     /* Only the CHUNK partition is offered to the map pool; the play-as reserve
      * at the top of the array is invisible to it, so enabling a swap can never
      * shrink the chunk pool and a busy map can never starve a swap. */
-    int n = s_slabCount - RES_SLABS_PLAYAS;
+    int n = s_slabCount - s_charaSlabs;
     return (n > 0) ? n : 0;
 }
 
@@ -341,6 +347,70 @@ int Xbox_ResidentPoolRegisterTim(int slot, const unsigned char* tim, unsigned si
 
     (void)nativeW; (void)nativeH;              /* == sl->w/h for a disc TIM */
     return 0;
+}
+
+/* ---- split screen (split_xbox.c) ---- */
+
+/* Hand a chara-range slot's slab back. Map init never frees these (they outlive
+ * maps by design), so a slot split screen claimed for Player 2 must be returned
+ * when split screen ends or Player 1's play-as skin would find no slab. */
+void Xbox_ResidentPoolRelease(int slot)
+{
+    int s;
+
+    if (!s_inited || slot < HIRES_POOL_CHARA_SLOT_BASE || slot >= RES_SLOT_MAX || s_slotSlab[slot] < 0)
+        return;
+    s = s_slotSlab[slot];
+    PsxVram_InvalidateResidentSlot(slot);
+    s_slabs[s].slot       = -1;
+    s_slabs[s].pitchWords = 0;
+    s_slotSlab[slot]      = -1;
+}
+
+/* Free slabs in the chara partition. */
+int Xbox_ResidentPoolFreeCharaSlabs(void)
+{
+    int i, n = 0;
+
+    ResInit();
+    for (i = ResChunkSlabs(); i < s_slabCount; i++)
+        if (s_slabs[i].slot < 0)
+            n++;
+    return n;
+}
+
+/* Grow the chara partition by up to n slabs (appended above it, so the chunk
+ * partition keeps exactly what it had). Stops at a 1MB free-RAM floor. Returns
+ * how many were added; they stay for the rest of the session. */
+int Xbox_ResidentPoolReserveExtra(int n)
+{
+    int added = 0;
+
+    ResInit();
+    if (!g_PcConfig.xboxPalettedTex)
+        return 0;
+    while (added < n && s_slabCount < RES_SLABS_MAX + RES_SLABS_EXTRA && Xbox_MemFreeKB() > 1024)
+    {
+        unsigned short* px = (unsigned short*)malloc(RES_SLAB_BYTES);
+        unsigned short* cl = px ? (unsigned short*)malloc(RES_MAX_ROWS * RES_CLUT_WORDS * 2) : 0;
+
+        if (!cl)
+        {
+            free(px);
+            break;
+        }
+        memset(&s_slabs[s_slabCount], 0, sizeof(s_slabs[s_slabCount]));
+        s_slabs[s_slabCount].words = px;
+        s_slabs[s_slabCount].clut  = cl;
+        s_slabs[s_slabCount].slot  = -1;
+        s_slabCount++;
+        s_charaSlabs++;
+        added++;
+    }
+    if (added)
+        SH_DBG("[RESPOOL] +%d chara slab(s) for split screen (%d in the partition), free=%uKB",
+               added, s_charaSlabs, Xbox_MemFreeKB());
+    return added;
 }
 
 /* Read side, for psx_vram.c's paletted decode. Returns 0 when the slot is not

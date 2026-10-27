@@ -258,6 +258,11 @@ void DbgOverlay_XboxRender(void)
         extern void Xbox_RaBrowser_Render(void);
         Xbox_RaBrowser_Render();
     }
+    /* Split screen's Multiplayer menu (title screen). */
+    {
+        extern void SplitMenu_Render(void);
+        SplitMenu_Render();
+    }
     {
         extern void Xbox_FpsCounterRender(void);
         Xbox_FpsCounterRender();

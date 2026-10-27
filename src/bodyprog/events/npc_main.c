@@ -28,6 +28,10 @@ extern int g_DebugViewNpcSlot;
 void Pc_KeyframeViewerPoseNpc(s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords);
 #include "pc_pick.h"
 #endif
+#ifdef SH_XBOX_PORT
+extern int g_XbSplitActive;                                  /* split_xbox.c */
+extern int SplitNpc_SpawnRingOk(const VECTOR3* pos, int cond); /* split_npc_xbox.c */
+#endif
 
 void Savegame_EnemyStateUpdate(s_SubCharacter* chara) // 0x80037DC4
 {
@@ -310,7 +314,12 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
             /* The PSX spawn ring (20..22u) sits inside the fog. With the fog
              * thinned the ring is in plain sight, so spawn anywhere out of the
              * camera's view instead, nearer or further than the ring. */
-            (Pc_LongViewActive()
+            (
+#ifdef SH_XBOX_PORT
+             /* Split screen: the ring around either player, clear of both. */
+             g_XbSplitActive ? SplitNpc_SpawnRingOk(pos, cond) :
+#endif
+             Pc_LongViewActive()
                  ? (!Math_Distance2dCheck(&g_SysWork.playerWork.player.position, pos, Q12(30.0f)) &&
                     (!cond || (Math_Distance2dCheck(&g_SysWork.playerWork.player.position, pos, Q12(12.0f)) &&
                                !Pc_WorldPointInView(curCharaSpawn->positionX, curCharaSpawn->positionZ))))
@@ -476,6 +485,21 @@ static s32 func_800382EC(const s_func_800382EC_0* field_0, u32* field_40)
     return NO_VALUE;
 }
 
+#ifdef SH_XBOX_PORT
+/* Split screen (split_npc_xbox.c, split_render_xbox.c). Every one is a no-op, or
+ * returns its input, unless a split game is running. */
+extern int  g_XbSplitActive;
+extern void SplitNpc_BeginUpdate(int k, s_SubCharacter* npc);
+extern void SplitNpc_EndUpdate(int k, s_SubCharacter* npc);
+extern void SplitNpc_Freed(int k);
+extern s32  SplitNpc_NearestPlayerDist2(const VECTOR3* pos, s32 d1);
+extern s32  SplitNpc_CameraDist2(const VECTOR3* pos, s32 d1);
+extern int  SplitNpc_InPlayerCell(const VECTOR3* npcPos);
+extern int  SplitNpc_SpawnRingOk(const VECTOR3* pos, int cond);
+extern int  SplitRender_View2Begin(void);
+extern void SplitRender_View2End(void);
+#endif
+
 void Game_NpcUpdate(void) // 0x80038354
 {
     s_func_800382EC_0  field_0[3];
@@ -527,6 +551,11 @@ void Game_NpcUpdate(void) // 0x80038354
             {
                 temp_t3 = Q12_SQUARE_PRECISE(Q12_TO_Q6(npc->position.vx) - posXShift6) +
                           Q12_SQUARE_PRECISE(Q12_TO_Q6(npc->position.vz) - posZShift6);
+#ifdef SH_XBOX_PORT
+                /* Split screen: a monster stays (and the radio hears it) while
+                 * it is near either player. */
+                temp_t3 = (u32)SplitNpc_NearestPlayerDist2(&npc->position, (s32)temp_t3);
+#endif
                 var_t5 = 0;
 
                 if (g_MapOverlayHdr.mapInfo->flags & MapFlag_Interior)
@@ -576,6 +605,9 @@ void Game_NpcUpdate(void) // 0x80038354
                         s32 npcCell    = (npc->position.vx                        + (CHUNK_CELL_SIZE * 4)) / CHUNK_CELL_SIZE;
                         if (npcCell != playerCell)
                         {
+#ifdef SH_XBOX_PORT
+                            if (!SplitNpc_InPlayerCell(&npc->position))
+#endif
                             continue;
                         }
 
@@ -584,6 +616,9 @@ void Game_NpcUpdate(void) // 0x80038354
                         npcCell    = (npc->position.vz                        + (CHUNK_CELL_SIZE * 4)) / CHUNK_CELL_SIZE;
                         if (npcCell != playerCell)
                         {
+#ifdef SH_XBOX_PORT
+                            if (!SplitNpc_InPlayerCell(&npc->position))
+#endif
                             continue;
                         }
                     }
@@ -633,6 +668,9 @@ void Game_NpcUpdate(void) // 0x80038354
                     npc->model.charaId = Chara_None;
                     SysWork_NpcFlagClear(k);
                     CLEAR_FLAG(g_SysWork.field_228C, npc->field_40);
+#ifdef SH_XBOX_PORT
+                    SplitNpc_Freed(k);
+#endif
 #ifdef SH_PC_PORT
                     /* Slot freed: drop any debug-spawn flag with it (its own
                      * Savegame_EnemyStateUpdate already ran at kill time). */
@@ -728,6 +766,18 @@ void Game_NpcUpdate(void) // 0x80038354
                                           g_CharaModelAnimsData[animDataInfoIdx].boneCoords,
                                           1, npc->timer_C6,
                                           (s8)npc->model.paletteIdx);
+#ifdef SH_XBOX_PORT
+                            if (SplitRender_View2Begin())
+                            {
+                                Pc_Pick_CharaPreDraw(npc, (int)(npc - g_SysWork.npcs),
+                                                     g_CharaModelAnimsData[animDataInfoIdx].boneCoords);
+                                func_8003DA9C(npc->model.charaId,
+                                              g_CharaModelAnimsData[animDataInfoIdx].boneCoords,
+                                              1, npc->timer_C6,
+                                              (s8)npc->model.paletteIdx);
+                                SplitRender_View2End();
+                            }
+#endif
                         }
                     }
                     else
@@ -794,6 +844,18 @@ void Game_NpcUpdate(void) // 0x80038354
                                       g_CharaModelAnimsData[animDataInfoIdx].boneCoords,
                                       1, npc->timer_C6,
                                       (s8)npc->model.paletteIdx);
+#ifdef SH_XBOX_PORT
+                        if (SplitRender_View2Begin())
+                        {
+                            Pc_Pick_CharaPreDraw(npc, (int)(npc - g_SysWork.npcs),
+                                                 g_CharaModelAnimsData[animDataInfoIdx].boneCoords);
+                            func_8003DA9C(npc->model.charaId,
+                                          g_CharaModelAnimsData[animDataInfoIdx].boneCoords,
+                                          1, npc->timer_C6,
+                                          (s8)npc->model.paletteIdx);
+                            SplitRender_View2End();
+                        }
+#endif
                     }
                     continue;
                 }
@@ -891,6 +953,10 @@ void Game_NpcUpdate(void) // 0x80038354
             else
 #endif
             {
+#ifdef SH_XBOX_PORT
+                /* Split screen: run the AI against the player it is after. */
+                SplitNpc_BeginUpdate(k, npc);
+#endif
                 g_MapOverlayHdr.charaUpdateFuncs[npc->model.charaId](npc, g_CharaModelAnimsData[animDataInfoIdx].activeAnmHdr, boneCoords);
 #ifdef SH_PC_PORT
                 /* Randomizer enemy-HP scale: the AI update above sets an enemy's
@@ -904,6 +970,9 @@ void Game_NpcUpdate(void) // 0x80038354
                 Collision_FlagsUpdate();
                 func_80037E78(npc);
                 func_8008A3AC(npc);
+#ifdef SH_XBOX_PORT
+                SplitNpc_EndUpdate(k, npc);
+#endif
             }
 
             if (npc->model.anim.flags & AnimFlag_Visible)
@@ -912,6 +981,18 @@ void Game_NpcUpdate(void) // 0x80038354
                 Pc_Pick_CharaPreDraw(npc, (int)(npc - g_SysWork.npcs), boneCoords);
 #endif
                 func_8003DA9C(npc->model.charaId, boneCoords, 1, npc->timer_C6, (s8)npc->model.paletteIdx);
+#ifdef SH_XBOX_PORT
+                /* Split screen: Player 2's view, now, while this type's shared
+                 * bone buffer still holds this NPC's pose (the next NPC of the
+                 * same type overwrites it). The bone world matrices are cached,
+                 * so only the screen transform is redone. */
+                if (SplitRender_View2Begin())
+                {
+                    Pc_Pick_CharaPreDraw(npc, (int)(npc - g_SysWork.npcs), boneCoords);
+                    func_8003DA9C(npc->model.charaId, boneCoords, 1, npc->timer_C6, (s8)npc->model.paletteIdx);
+                    SplitRender_View2End();
+                }
+#endif
             }
         }
     }
@@ -1068,5 +1149,9 @@ static s32 Camera_Distance2dGet(const VECTOR3* pos) // 0x80038B44
     vwGetViewPosition(&camPos);
     deltaX = Q12_TO_Q6(camPos.vx - pos->vx);
     deltaZ = Q12_TO_Q6(camPos.vz - pos->vz);
+#ifdef SH_XBOX_PORT
+    return SplitNpc_CameraDist2(pos, Q12_MULT_PRECISE(deltaX, deltaX) + Q12_MULT_PRECISE(deltaZ, deltaZ));
+#else
     return Q12_MULT_PRECISE(deltaX, deltaX) + Q12_MULT_PRECISE(deltaZ, deltaZ);
+#endif
 }

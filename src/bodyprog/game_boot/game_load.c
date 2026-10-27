@@ -124,6 +124,16 @@ void GameBoot_GameStartup(void) // 0x80034964
             g_GameWork.background2dColor.g = 0;
             g_GameWork.background2dColor.b = 0;
 
+#ifdef SH_XBOX_PORT
+            /* Split screen: every load passes here once, before the chunk slots
+             * are sized (step 7). A split game being started arms here, and every
+             * load of a running one brings the other player along. */
+            {
+                extern void Split_OnBootStep0(int processFlags);
+                Split_OnBootStep0((int)g_SysWork.processFlags);
+            }
+#endif
+
             if (g_SysWork.processFlags == ProcessFlag_RoomTransition)
             {
                 AreaLoad_UpdatePlayerPosition();

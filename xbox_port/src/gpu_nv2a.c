@@ -56,6 +56,14 @@ unsigned long long g_Nv2aDrawCycles = 0;
 #define WHITE_TEX_DIM 64
 
 static ShVertex* s_batch;     /* contiguous staging pool for vertex submission */
+/* Split screen draws the world twice, which roughly doubles a heavy frame's
+ * ~15K vertices and would drain the GPU mid-frame on every one of them. While a
+ * split game runs the pool is a double-size one instead; single player keeps the
+ * normal pool and its memory. The switch is made at FrameBegin, between frames. */
+static ShVertex* s_batchNormal;
+static ShVertex* s_batchSplit;
+static int       s_batchCap = MAX_BATCH_VERTS;
+static int       s_poolWantSplit;
 
 /* The write-combining win depends on the stride being exactly one cache line;
  * a silent change here would quietly restore the partial-line evictions (and a
@@ -155,6 +163,7 @@ void GpuNv2a_Init(void)
 
     s_batch    = MmAllocateContiguousMemoryEx(MAX_BATCH_VERTS * sizeof(ShVertex), 0, MAXRAM, 0,
                                               PAGE_READWRITE | PAGE_WRITECOMBINE);
+    s_batchNormal = s_batch;
     s_whiteTex = MmAllocateContiguousMemoryEx(WHITE_TEX_DIM * WHITE_TEX_DIM * 4, 0, MAXRAM, 0,
                                               PAGE_READWRITE | PAGE_WRITECOMBINE);
     {
@@ -275,6 +284,50 @@ void GpuNv2a_SetBlendMode(int mode)
     pb_end(p);
 }
 
+void GpuNv2a_SplitPool(int on)
+{
+    s_poolWantSplit = on ? 1 : 0;
+}
+
+/* Between frames: give the split pool when it is wanted, the normal one when it
+ * is not. The pool being replaced is only freed once its replacement exists and
+ * the GPU has finished reading it, so a failed allocation just keeps the pool
+ * there is. */
+static void GpuNv2a_PoolSwitch(void)
+{
+    if (s_poolWantSplit && !s_batchSplit) {
+        s_batchSplit = MmAllocateContiguousMemoryEx(2 * MAX_BATCH_VERTS * sizeof(ShVertex), 0, MAXRAM, 0,
+                                                    PAGE_READWRITE | PAGE_WRITECOMBINE);
+        SH_DBG("[NV2A] split vertex pool %s (%d verts)", s_batchSplit ? "on" : "FAILED, keeping the normal pool",
+               2 * MAX_BATCH_VERTS);
+        if (s_batchSplit && s_batchNormal) {
+            while (pb_busy()) { }
+            MmFreeContiguousMemory(s_batchNormal);
+            s_batchNormal = NULL;
+        }
+    } else if (!s_poolWantSplit && s_batchSplit) {
+        if (!s_batchNormal)
+            s_batchNormal = MmAllocateContiguousMemoryEx(MAX_BATCH_VERTS * sizeof(ShVertex), 0, MAXRAM, 0,
+                                                         PAGE_READWRITE | PAGE_WRITECOMBINE);
+        if (s_batchNormal) {
+            while (pb_busy()) { }
+            MmFreeContiguousMemory(s_batchSplit);
+            s_batchSplit = NULL;
+            SH_DBG("[NV2A] split vertex pool off");
+        }
+    }
+    s_batch    = s_batchSplit ? s_batchSplit : s_batchNormal;
+    s_batchCap = s_batchSplit ? 2 * MAX_BATCH_VERTS : MAX_BATCH_VERTS;
+}
+
+void GpuNv2a_ClearRect(int x, int y, int w, int h, unsigned int argb)
+{
+    if (w <= 0 || h <= 0)
+        return;
+    GpuNv2a_SetScissor(x, y, w, h);   /* flushes the open run first */
+    pb_fill(x, y, w, h, argb);
+}
+
 /* Draw-clip scissor (NV2A window clip, inclusive coords). w/h <= 0 resets to
  * the full surface. */
 void GpuNv2a_SetScissor(int x, int y, int w, int h)
@@ -354,6 +407,8 @@ void GpuNv2a_FrameBegin(void)
     }
     pb_erase_text_screen();
 
+    if (s_poolWantSplit || s_batchSplit)
+        GpuNv2a_PoolSwitch();
     s_batchUsed = 0; /* recycle the vertex pool each frame */
     s_runStart  = 0; /* no pending run at frame start (the BindTexture in the
                       * setup below then flushes an empty run — a no-op) */
@@ -654,6 +709,13 @@ void GpuNv2a_FreezeRelease(void)
 int GpuNv2a_Ms(void)
 {
     return (int)KeTickCount;
+}
+
+/* Real vblanks since boot (pbkit's vblank interrupt count), for split screen's
+ * frame pacing (psx_libgpu_xbox.c). */
+unsigned GpuNv2a_VblCounter(void)
+{
+    return (unsigned)pb_get_vbl_counter();
 }
 
 void GpuNv2a_WaitVbl(void)
@@ -1066,12 +1128,12 @@ ShVertex* GpuNv2a_BatchAlloc(int count)
 {
     ShVertex* p;
 
-    if (count <= 0 || count > MAX_BATCH_VERTS)
+    if (count <= 0 || count > s_batchCap)
         return 0;
-    if (s_batchUsed + count > MAX_BATCH_VERTS) {
+    if (s_batchUsed + count > s_batchCap) {
         static int s_allocFlushLogged = 0;
         if (!s_allocFlushLogged) {
-            SH_DBG("[NV2A] vertex pool flush (> %d verts/frame)", MAX_BATCH_VERTS);
+            SH_DBG("[NV2A] vertex pool flush (> %d verts/frame)", s_batchCap);
             s_allocFlushLogged = 1;
         }
         GpuNv2a_FlushBatch();
@@ -1085,11 +1147,11 @@ ShVertex* GpuNv2a_BatchAlloc(int count)
      * cut, or says plainly that it is not. Only checked when the pool is getting
      * genuinely full -- this runs PER PRIMITIVE inside the measured emit path,
      * and the answer below 75% is never interesting. */
-    if (s_batchUsed > (MAX_BATCH_VERTS * 3) / 4) {
+    if (s_batchUsed > (s_batchCap * 3) / 4) {
         static int s_peak = 0;
         if (s_batchUsed > s_peak) {
             s_peak = s_batchUsed;
-            SH_DBG("[NV2A] vertex pool peak %d/%d verts", s_peak, MAX_BATCH_VERTS);
+            SH_DBG("[NV2A] vertex pool peak %d/%d verts", s_peak, s_batchCap);
         }
     }
     return p;
@@ -1099,15 +1161,15 @@ void GpuNv2a_EmitTris(const ShVertex* verts, int count)
 {
     int start;
 
-    if (count <= 0 || count > MAX_BATCH_VERTS)
+    if (count <= 0 || count > s_batchCap)
         return;
-    if (s_batchUsed + count > MAX_BATCH_VERTS) {
+    if (s_batchUsed + count > s_batchCap) {
         /* Pool full mid-frame: draw the pending run FIRST (its verts are about to
          * be overwritten), drain the GPU (attribute base is fixed at s_batch[0]),
          * then recycle from 0 — already-drawn runs are in the framebuffer, so the
          * scene accumulates. Rare at this pool size. */
         static int s_flushLogged = 0;
-        if (!s_flushLogged) { SH_DBG("[NV2A] vertex pool flush (> %d verts/frame)", MAX_BATCH_VERTS); s_flushLogged = 1; }
+        if (!s_flushLogged) { SH_DBG("[NV2A] vertex pool flush (> %d verts/frame)", s_batchCap); s_flushLogged = 1; }
         GpuNv2a_FlushBatch();
         while (pb_busy()) { }
         s_batchUsed = 0;

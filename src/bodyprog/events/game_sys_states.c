@@ -149,6 +149,11 @@ void GameState_InGame_Update(void) // 0x80038BD4
                 }
             }
 #endif
+#ifdef SH_XBOX_PORT
+            /* Split screen: the first gameplay frame of a split game, or of any
+             * load in one, puts the other player beside the player in the slots. */
+            { extern void Split_OnInGameEnter(void); Split_OnInGameEnter(); }
+#endif
 
             g_IntervalVBlanks = 2;
             g_GameWork.gameStateSteps[0]++;
@@ -268,6 +273,11 @@ void GameState_InGame_Update(void) // 0x80038BD4
             }
         }
     }
+#ifdef SH_XBOX_PORT
+    /* Split screen: Player 2's doors, pickups, pause and menus, and who is in
+     * the player slots for the rest of the frame (split_xbox.c). */
+    { extern void Split_AfterDispatch(void); Split_AfterDispatch(); }
+#endif
     Demo_DemoRandSeedRestore();
 
     D_800A9A0C = ScreenFade_IsFinished() && Fs_QueueChunksLoad();
@@ -309,6 +319,9 @@ void GameState_InGame_Update(void) // 0x80038BD4
             extern void DebugCamera_Update(void);
             DebugCamera_Update();
         }
+#endif
+#ifdef SH_XBOX_PORT
+        { extern void Split_SlotCameraDone(void); Split_SlotCameraDone(); }
 #endif
 
         if (g_MapOverlayHdr.func_44 != NULL)
@@ -378,6 +391,11 @@ void GameState_InGame_Update(void) // 0x80038BD4
             Player_CombatUpdate(&g_SysWork.playerWork, g_SysWork.playerBoneCoords);
             func_8008A3AC(&g_SysWork.playerWork.player);
         }
+#ifdef SH_XBOX_PORT
+        /* Split screen: the other player's camera, update, draws and attacks,
+         * and the slot player's body in the other view (split_xbox.c). */
+        { extern void Split_SidePass(void); Split_SidePass(); }
+#endif
 
         Demo_DemoRandSeedRestore();
         Game_NpcRoomInitSpawn(true);
@@ -416,6 +434,11 @@ void GameState_InGame_Update(void) // 0x80038BD4
              * elements that lay out before this point in the frame. */
             g_PcWorldHorPlus = g_PcHorPlusEnabled;
         }
+#endif
+#ifdef SH_XBOX_PORT
+        /* Split screen: the map, its objects and the screen-space quads again,
+         * from the other player's camera, into the second view. */
+        { extern void Split_View2World(void); Split_View2World(); }
 #endif
         Demo_DemoRandSeedAdvance();
     }
@@ -1736,6 +1759,11 @@ void SysState_GameOver_Update(void) // 0x8003A52C
         default:
             g_MapOverlayHdr.playerControlUnfreeze(0);
             SysWork_StateSetNext(SysState_Gameplay);
+#ifdef SH_XBOX_PORT
+            /* Split screen: a game over keeps the session; the title comes back
+             * up in the Multiplayer menu on Continue. */
+            { extern void Split_OnGameOverExit(void); Split_OnGameOverExit(); }
+#endif
             Game_WarmBoot();
             break;
     }

@@ -255,9 +255,20 @@ void Pc_PlayAs_ApplySkinVisibility(void)
 {
     const PcPlayAsChara* p     = PlayAs_Cur();
     s_CharaModel*        model = &g_WorldGfxWork.harryModel;
-    s_Skeleton*          skel  = &model->skeleton;
+    s_Skeleton*          skel;
     int                  i;
     int                  j;
+
+#ifdef SH_XBOX_PORT
+    /* The model the character in the player slots wears: split screen's Player 2
+     * has its own, registered in Harry's slot only for Player 2's turn
+     * (split_xbox.c). For one player this is always harryModel. */
+    if (g_WorldGfxWork.registeredCharaModels[Chara_Harry] != NULL)
+    {
+        model = g_WorldGfxWork.registeredCharaModels[Chara_Harry];
+    }
+#endif
+    skel = &model->skeleton;
 
     if (!model->isLoaded || model->lmHdr == NULL)
     {
@@ -743,12 +754,127 @@ static void PlayAs_EnsureHeroTimSlot(void)
 
 void Pc_PlayAs_HeldItemImageDesc(void* imageDesc)
 {
+#ifdef SH_XBOX_PORT
+    /* Keyed on what Harry's VRAM parcel holds -- the row Player 1's skin
+     * retargets -- rather than on the character in the slots: split screen's
+     * Player 2 can be Harry while Player 1's skin owns the parcel, or a skin
+     * while the parcel still holds HERO.TIM. For one player the two always agree
+     * (PlayAs_RowApply and s_current change together). */
+    if (CHARA_FILE_INFOS[Chara_Harry].textureFileIdx == FILE_CHARA_HERO_TIM || !s_heroTimSlotQueued)
+#else
     if (PlayAs_Cur()->charaId == Chara_Harry || !s_heroTimSlotQueued)
+#endif
     {
         return;
     }
     *(s_FsImageDesc*)imageDesc = s_heroTimVirtualDesc;
 }
+
+#ifdef SH_XBOX_PORT
+_Static_assert(sizeof(((PcPlayAsCtx*)0)->skinBindT) == sizeof(s_skinBindT), "PcPlayAsCtx.skinBindT");
+_Static_assert(sizeof(((PcPlayAsCtx*)0)->skinBindHas) == sizeof(s_skinBindHas), "PcPlayAsCtx.skinBindHas");
+_Static_assert(sizeof(((PcPlayAsCtx*)0)->extraT) == sizeof(s_extraT), "PcPlayAsCtx.extraT");
+_Static_assert(sizeof(((PcPlayAsCtx*)0)->extraR) == sizeof(s_extraR), "PcPlayAsCtx.extraR");
+_Static_assert(sizeof(((PcPlayAsCtx*)0)->extraParent) == sizeof(s_extraParent), "PcPlayAsCtx.extraParent");
+
+static void PlayAs_CtxSwap(PcPlayAsCtx* c)
+{
+    PcPlayAsCtx t;
+
+    t.cur             = s_current;
+    t.skinBindFileIdx = s_skinBindFileIdx;
+    t.skinBindValid   = s_skinBindValid;
+    t.extraCount      = s_extraCount;
+    memcpy(t.skinBindT, s_skinBindT, sizeof(s_skinBindT));
+    memcpy(t.skinBindHas, s_skinBindHas, sizeof(s_skinBindHas));
+    memcpy(t.extraT, s_extraT, sizeof(s_extraT));
+    memcpy(t.extraR, s_extraR, sizeof(s_extraR));
+    memcpy(t.extraParent, s_extraParent, sizeof(s_extraParent));
+
+    s_current         = (c->cur >= 0 && c->cur < PLAYAS_COUNT) ? c->cur : 0;
+    s_skinBindFileIdx = c->skinBindFileIdx;
+    s_skinBindValid   = c->skinBindValid;
+    s_extraCount      = (c->extraCount >= 0 && c->extraCount <= PLAYAS_EXTRA_MAX) ? c->extraCount : 0;
+    memcpy(s_skinBindT, c->skinBindT, sizeof(s_skinBindT));
+    memcpy(s_skinBindHas, c->skinBindHas, sizeof(s_skinBindHas));
+    memcpy(s_extraT, c->extraT, sizeof(s_extraT));
+    memcpy(s_extraR, c->extraR, sizeof(s_extraR));
+    memcpy(s_extraParent, c->extraParent, sizeof(s_extraParent));
+
+    *c = t;
+}
+
+void Pc_PlayAs_CtxExchange(PcPlayAsCtx* ctx)
+{
+    if (ctx != NULL)
+    {
+        PlayAs_CtxSwap(ctx);
+    }
+}
+
+/* The live player steps aside for the build: the skin's rig is read by the very
+ * code a swap uses (PlayAs_LoadSkinBinds / PlayAs_ClearRetarget), into an empty
+ * context, and the root height it would patch is captured and put back. */
+int Pc_PlayAs_BuildCtx(int idx, PcPlayAsCtx* out, unsigned char* outRootY)
+{
+    u8*         anm       = (u8*)FS_BUFFER_0;
+    u8          liveRootY = anm[0x13];
+    PcPlayAsCtx ctx;
+    int         ok;
+
+    if (idx < 0 || idx >= PLAYAS_COUNT || out == NULL || outRootY == NULL)
+    {
+        return 0;
+    }
+
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.cur             = idx;
+    ctx.skinBindFileIdx = (short)NO_VALUE;
+    PlayAs_CtxSwap(&ctx);
+
+    if (s_playable[idx].charaId == Chara_Harry)
+    {
+        PlayAs_ClearRetarget();
+        ok = 1;
+    }
+    else
+    {
+        PlayAs_LoadSkinBinds();
+        ok = s_skinBindValid;
+        /* No rig read: Harry's proportions, so Harry's root height, not the live
+         * player's (a skin's patched byte). */
+        if (!ok)
+        {
+            anm[0x13] = s_rootYPatched ? s_rootYOrig : liveRootY;
+        }
+    }
+
+    *outRootY = anm[0x13];
+    anm[0x13] = liveRootY;
+    PlayAs_CtxSwap(&ctx);
+    *out = ctx;
+    return ok;
+}
+
+int Pc_PlayAs_CharaIdOf(int idx)
+{
+    if (idx < 0 || idx >= PLAYAS_COUNT)
+    {
+        return Chara_Harry;
+    }
+    return s_playable[idx].charaId;
+}
+
+int Pc_PlayAs_HeroTimDesc(void* imageDesc)
+{
+    if (!s_heroTimSlotQueued || imageDesc == NULL)
+    {
+        return 0;
+    }
+    *(s_FsImageDesc*)imageDesc = s_heroTimVirtualDesc;
+    return 1;
+}
+#endif
 
 void Pc_PlayAs_OnPlayerModelLoaded(void)
 {

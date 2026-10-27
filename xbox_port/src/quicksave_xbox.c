@@ -74,6 +74,8 @@ static int Xbox_QuickSave_BossActive(void)
     return 0;
 }
 
+extern int g_XbSplitActive; /* split_xbox.c */
+
 void Pc_QuickSaveLoadUpdate(void)
 {
     extern int Pad_XboxBlackWhite(int* black, int* white);   /* pad_xbox.c */
@@ -104,12 +106,28 @@ void Pc_QuickSaveLoadUpdate(void)
         return;
     }
 
+    /* Split screen: with Player 2 in the player slots a save would record
+     * Player 2's half of the state and a load would rebuild the wrong player.
+     * The request stays queued for the frame the slots are Player 1's again. */
+    {
+        extern int g_XbSplitActive;
+        extern int Split_SlotOwner(void);
+        if (g_XbSplitActive && Split_SlotOwner() != 0)
+            return;
+    }
+
     if (curSave && !prevSave)
     {
         s_pendingSave = 0;
         if (Xbox_QuickSave_BossActive())
         {
             SH_DBG("[QUICK] save refused: boss fight active");
+        }
+        else if (g_XbSplitActive && g_SysWork.playerWork.player.health <= Q12(0.0f))
+        {
+            /* Split screen: a downed player waits several seconds to get back up;
+             * a save made then would load straight into a death. */
+            SH_DBG("[QUICK] save refused: player down");
         }
         else
         {

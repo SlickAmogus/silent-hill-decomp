@@ -330,6 +330,14 @@ void func_800892A4(s32 idx) // 0x800892A4
     if (!g_SysWork.field_2514.field_0.field_0_16)
         return;
 #endif
+#ifdef SH_XBOX_PORT
+    /* Split screen: an effect for Player 2 goes to Player 2's pad. */
+    {
+        extern int Split_RumbleToP2(s32 idx, s32 strength);
+        if (Split_RumbleToP2(idx, 0x80))
+            return;
+    }
+#endif
     func_800895E4(&g_SysWork.field_2514, &D_8002AC04[idx], 0x80);
 }
 
@@ -339,6 +347,13 @@ void func_800892DC(s32 idx, u8 arg1) // 0x800892DC
     /* See func_800892A4 — drop pre-init effect inserts. */
     if (!g_SysWork.field_2514.field_0.field_0_16)
         return;
+#endif
+#ifdef SH_XBOX_PORT
+    {
+        extern int Split_RumbleToP2(s32 idx, s32 strength);
+        if (Split_RumbleToP2(idx, arg1))
+            return;
+    }
 #endif
     func_800895E4(&g_SysWork.field_2514, &D_8002AC04[idx], arg1);
 }

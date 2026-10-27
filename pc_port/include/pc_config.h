@@ -303,6 +303,21 @@ typedef struct {
     int xbBindCycleWeapon;
     int xbBindReload;
     int xbBindQuickTurn;
+    /* Xbox split screen (split_xbox.c), set from the Multiplayer menu or the
+     * Options pages. splitLayout: 0 = top/bottom, 1 = side by side, 2 = top/bottom
+     * with each picture whole, 3 = side by side whole (config key: split_layout;
+     * 0/1 mean what they do in the online branch). splitP2Character: Player
+     * 2's character, a play-as token like player_character, "cybil" by default
+     * (split_p2_character). splitAudio: 0 = each world sound comes from
+     * whichever player is nearer it, 1 = Player 1's sounds left / Player 2's
+     * right (split_audio). splitP2Port: Player 2's controller port, 0 = the
+     * first one free (split_p2_port). splitRespawnSec: how long a downed player
+     * waits before getting up beside the other (split_respawn_s). */
+    int  splitLayout;
+    char splitP2Character[16];
+    int  splitAudio;
+    int  splitP2Port;
+    int  splitRespawnSec;
     int disableDpadMovement; /* 1 = the controller D-pad no longer drives movement, freeing those D-pad inputs to be bound to other actions (config key: disable_dpad_movement); default 0 */
     int menuFilter;          /* 1 = bilinear-filter menus / 2D screens, independent of the in-game texture Filtering mode; default 0 (config key: menu_filter) */
     int minimap;             /* minimap overlay: 0 = off, 1 = square, 2 = circle (config key: minimap); default 0 */

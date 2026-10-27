@@ -164,6 +164,9 @@ static s32 g_PrevVBlanks = 0;
 #define PC_CANARY_VAL  0xDE
 static PACKET* s_PcPacketBufs[2] = { NULL, NULL };
 static PACKET* s_PcPacketBufEnds[2] = { NULL, NULL };
+#ifdef SH_XBOX_PORT
+static int     s_xbSplitPresented; /* this frame's world went out as split screen's two views */
+#endif
 
 /* Exposes the active packet arena's end so the wide-LM drawer (pc_wide_lm_draw.c)
  * can bounds-check every emit — the GsOUT_PACKET_P arena has no emit-time guard,
@@ -580,6 +583,18 @@ void Pc_ControlStyleUpdate(void)
     int curL3;
 
     if (!inited) { Xbox_ApplyControlStyle(g_PcConfig.controlStyle); inited = 1; }
+
+    /* Split screen runs the Classic camera for both players: the alternate
+     * cameras keep one set of state (split_xbox.c), and L3's character swap is
+     * Player 1's skin reloading under both. */
+    {
+        extern int g_XbSplitActive;
+        if (g_XbSplitActive)
+        {
+            prevR3 = prevL3 = 0;
+            return;
+        }
+    }
 
     /* L3 -> cycle the play-as character. Opt-in (character_switch_l3, default
      * off) because a swap is a SYNCHRONOUS model + skin reload off the disc
@@ -2359,6 +2374,11 @@ void MainLoop(void) // 0x80032EE0
         }
 #endif
         // Update input.
+#ifdef SH_XBOX_PORT
+        /* Split screen: both pads back in player order, and Player 2's raw
+         * bytes where the PSX pad 2 port puts them (split_xbox.c). */
+        { extern void Split_FrameInputBegin(void); Split_FrameInputBegin(); }
+#endif
         Joy_ReadP1();
         Demo_ControllerDataUpdate();
 #ifdef SH_PC_PORT
@@ -2369,6 +2389,10 @@ void MainLoop(void) // 0x80032EE0
         }
 #endif
         Joy_ControllerDataUpdate();
+#ifdef SH_XBOX_PORT
+        /* ...and the pad of whoever is in the player slots in controllers[0]. */
+        { extern void Split_FrameInputEnd(void); Split_FrameInputEnd(); }
+#endif
 
 #ifdef SH_PC_PORT
         /* Console input mode: suppress controller input HERE, after the pad
@@ -2620,6 +2644,9 @@ void MainLoop(void) // 0x80032EE0
 
         GsClearOt(0, 0, &g_OrderingTable0[g_ActiveBufferIdx]);
         GsClearOt(0, 0, &g_OrderingTable2[g_ActiveBufferIdx]);
+#ifdef SH_XBOX_PORT
+        { extern void Split_FrameBegin(void); Split_FrameBegin(); }
+#endif
 
         g_SysWork.bgmStatusFlags = BgmStatusFlag_None;
 
@@ -3094,6 +3121,15 @@ void MainLoop(void) // 0x80032EE0
             else
             {
                 ML_TRACE("VSync-gameplay");
+#ifdef SH_XBOX_PORT
+                /* Split screen: one present per loop against a real-vblank
+                 * target (split_xbox.c). Every other frame takes the stock
+                 * pacing below, unchanged. */
+                {
+                    extern int Split_PacedVSync(int* vblanks, int* prevVblanks);
+                    if (!Split_PacedVSync(&g_VBlanks, &g_PrevVBlanks))
+                    {
+#endif
                 if (!ScreenFade_IsNone())
                 {
                     VSync(SyncMode_Wait);
@@ -3228,6 +3264,10 @@ void MainLoop(void) // 0x80032EE0
                     VSync(SyncMode_Wait);
                     g_VBlanks++;
                     g_PrevVBlanks++;
+                }
+#endif
+#ifdef SH_XBOX_PORT
+                    }
                 }
 #endif
             }
@@ -4026,6 +4066,19 @@ void MainLoop(void) // 0x80032EE0
             }
         }
 #endif
+#ifdef SH_XBOX_PORT
+        /* Split screen: both world views, each sanitized and walked into its own
+         * part of the screen (split_render_xbox.c). Single player, and every
+         * split frame that is not showing two views, takes the code below. */
+        {
+            extern int          SplitRender_Present(uintptr_t pktLo, uintptr_t pktHi, unsigned int clearArgb);
+            extern unsigned int GpuXbox_GetClearColor(void);
+            s_xbSplitPresented = SplitRender_Present((uintptr_t)s_PcPacketBufs[g_ActiveBufferIdx],
+                                                     (uintptr_t)s_PcPacketBufEnds[g_ActiveBufferIdx],
+                                                     GpuXbox_GetClearColor());
+        }
+        if (!s_xbSplitPresented) {
+#endif
 #ifdef SH_PC_PORT
         if (g_GameWork.gameState == 11) {
             /* Sanitize InGame OT0 — only allow known-safe rendering primitives.
@@ -4313,6 +4366,9 @@ void MainLoop(void) // 0x80032EE0
             extern void PsyX_ItemProbeEndFrame(void);
             PsyX_ItemProbeEndFrame();
         }
+#endif
+#ifdef SH_XBOX_PORT
+        } /* !s_xbSplitPresented */
 #endif
         ML_TRACE("OT0-done");
 #ifdef SH_XBOX_PORT

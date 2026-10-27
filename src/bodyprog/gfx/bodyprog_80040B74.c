@@ -1730,6 +1730,41 @@ q19_12 Ipd_DistanceToEdgeGet(q19_12 posX, q19_12 posZ, s32 cellX, s32 cellZ) // 
 }
 
 
+#ifdef SH_XBOX_PORT
+/* Split screen: Player 2's two streaming points (split_xbox.c fills them in
+ * Player 2's pass) and Player 2's padded distance to every active chunk, kept
+ * beside the vanilla fields -- which stay Player 1's -- so loading, eviction and
+ * texture release keep what either player stands near. Nothing reads them unless
+ * g_XbSplitStreamValid is set, so single player streams exactly as before. */
+int           g_XbSplitStreamValid;
+q19_12        g_XbSplitStreamPos[4];   /* pos0 x, z, pos1 x, z */
+static q19_12 s_p2Dist0[256];
+static q19_12 s_p2Dist1[256];
+
+static int Split_ChunkNearP2(const s_Chunk* chunk, q19_12 within)
+{
+    s32 i = (s32)(chunk - g_Map.activeChunks);
+
+    if (!g_XbSplitStreamValid || i < 0 || i >= 256)
+        return 0;
+    return s_p2Dist0[i] <= within || s_p2Dist1[i] <= within;
+}
+
+/* Split screen, per view: the chunk is outside the window of the player whose
+ * view is being drawn -- what single player would not draw (its textures would
+ * have been released), only kept now because the other player is near it. */
+int Split_ChunkOutsideView(const s_Chunk* chunk, int secondView)
+{
+    s32 i = (s32)(chunk - g_Map.activeChunks);
+
+    if (!g_XbSplitStreamValid || !g_Map.isExterior || i < 0 || i >= 256)
+        return 0;
+    if (secondView)
+        return s_p2Dist0[i] > Q12(0.0f) && s_p2Dist1[i] > Q12(0.0f);
+    return chunk->paddedDistanceToEdge0 > Q12(0.0f) && chunk->paddedDistanceToEdge1 > Q12(0.0f);
+}
+#endif
+
 s32 Map_ChunkLoad(s_MapTerrain* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 posZ1) // 0x80042EBC
 {
     s32          cellX0;
@@ -1886,6 +1921,74 @@ s32 Map_ChunkLoad(s_MapTerrain* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q
             }
         }
     }
+
+#ifdef SH_XBOX_PORT
+    /* Split screen: the same window again around Player 2, sharing this frame's
+     * load budget. A chunk loaded here is in Player 2's window by definition, so
+     * its Player 2 distances are zeroed for the same reason Player 1's are above:
+     * no later load this frame may pick it as the victim. */
+    if (g_XbSplitStreamValid && !g_DebugCamEnabled)
+    {
+        const q19_12 p2x0 = g_XbSplitStreamPos[0], p2z0 = g_XbSplitStreamPos[1];
+        const q19_12 p2x1 = g_XbSplitStreamPos[2], p2z1 = g_XbSplitStreamPos[3];
+        const s32    p2cellX0 = FLOOR_TO_STEP(Q12_TO_Q8(p2x0), Q12_TO_Q8(CHUNK_CELL_SIZE));
+        const s32    p2cellZ0 = FLOOR_TO_STEP(Q12_TO_Q8(p2z0), Q12_TO_Q8(CHUNK_CELL_SIZE));
+
+        for (z = -1; z <= 1; z++)
+        {
+            for (x = -1; x <= 1; x++)
+            {
+                if (!((!map->isExterior && x == 0 && z == 0) || (map->isExterior && (x == 0 || z == 0))))
+                {
+                    continue;
+                }
+                projCellZ = p2cellZ0 + z;
+                projCellX = p2cellX0 + x;
+                chunkIdx  = Map_IpdIdxGet(projCellX, projCellZ);
+                if (chunkIdx == NO_VALUE ||
+                    (map->isExterior && Ipd_PaddedDistanceToEdgeGet(p2x0, p2z0, projCellX, projCellZ, map->isExterior) > Q12(0.0f)) ||
+                    Map_IsIpdPresentCheck(map->activeChunks, projCellX, projCellZ))
+                {
+                    continue;
+                }
+                if (loadsThisFrame >= maxLoadsPerFrame)
+                {
+                    continue;
+                }
+                chunk = Ipd_FreeChunkFind(map->activeChunks, map->isExterior);
+                if (chunk == NULL)
+                {
+                    continue;
+                }
+                if (Fs_QueueEntryLoadStatusGet(chunk->queueIdx) >= ChunkLoadState_Loaded)
+                {
+                    ipdHdr = chunk->ipdHdr;
+                    if (ipdHdr->isLoaded)
+                    {
+                        Lm_MaterialRefCountDec(ipdHdr->lmHdr);
+                    }
+                }
+                chunk->materialCount = 0;
+                curQueueIdx = Ipd_LoadStart(chunk, chunkIdx, projCellX, projCellZ, p2x0, p2z0, p2x1, p2z1, map->isExterior);
+                if (curQueueIdx != NO_VALUE)
+                {
+                    s32 ci = (s32)(chunk - map->activeChunks);
+
+                    queueIdx = curQueueIdx;
+                    loadsThisFrame++;
+                    chunk->outsideCount          = 0;
+                    chunk->paddedDistanceToEdge0 = Q12(0.0f);
+                    chunk->paddedDistanceToEdge1 = Q12(0.0f);
+                    if (ci >= 0 && ci < 256)
+                    {
+                        s_p2Dist0[ci] = Q12(0.0f);
+                        s_p2Dist1[ci] = Q12(0.0f);
+                    }
+                }
+            }
+        }
+    }
+#endif
     } /* close scanMin/scanMax block */
 
     return queueIdx;
@@ -2004,6 +2107,28 @@ void Ipd_ActiveChunksSample(s_MapTerrain* map, q19_12 posX0, q19_12 posZ0, q19_1
         {
             Ipd_DistanceToEdgeCalc(curChunk, posX0, posZ0, posX1, posZ1, isExterior);
         }
+#ifdef SH_XBOX_PORT
+        if (g_XbSplitStreamValid)
+        {
+            s32 ci = (s32)(curChunk - map->activeChunks);
+
+            if (ci >= 0 && ci < 256)
+            {
+                if (curChunk->queueIdx == NO_VALUE)
+                {
+                    s_p2Dist0[ci] = INT_MAX;
+                    s_p2Dist1[ci] = INT_MAX;
+                }
+                else
+                {
+                    s_p2Dist0[ci] = Ipd_PaddedDistanceToEdgeGet(g_XbSplitStreamPos[0], g_XbSplitStreamPos[1],
+                                                                curChunk->cellX, curChunk->cellZ, isExterior);
+                    s_p2Dist1[ci] = Ipd_PaddedDistanceToEdgeGet(g_XbSplitStreamPos[2], g_XbSplitStreamPos[3],
+                                                                curChunk->cellX, curChunk->cellZ, isExterior);
+                }
+            }
+        }
+#endif
 
 #ifdef SH_PC_PORT
         /* A just-loaded chunk's isLoaded byte comes straight from the IPD file
@@ -2029,7 +2154,11 @@ void Ipd_ActiveChunksSample(s_MapTerrain* map, q19_12 posX0, q19_12 posZ0, q19_1
             curChunk->materialCount = Ipd_HalfPageMaterialCountGet(curChunk->ipdHdr);
         }
 
-        if (curChunk->paddedDistanceToEdge0 > Q12(0.0f) && curChunk->paddedDistanceToEdge1 > Q12(0.0f))
+        if (curChunk->paddedDistanceToEdge0 > Q12(0.0f) && curChunk->paddedDistanceToEdge1 > Q12(0.0f)
+#ifdef SH_XBOX_PORT
+            && !Split_ChunkNearP2(curChunk, Q12(0.0f))
+#endif
+            )
         {
             curChunk->outsideCount++;
         }
@@ -2565,7 +2694,11 @@ void Ipd_ChunkMaterialsApply(s_MapTerrain* map) // 0x800433B8
         if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx) >= ChunkLoadState_Loaded)
         {
             if (curChunk->ipdHdr->isLoaded &&
-                curChunk->paddedDistanceToEdge0 > _matDist && curChunk->paddedDistanceToEdge1 > _matDist)
+                curChunk->paddedDistanceToEdge0 > _matDist && curChunk->paddedDistanceToEdge1 > _matDist
+#ifdef SH_XBOX_PORT
+                && !Split_ChunkNearP2(curChunk, _matDist)
+#endif
+                )
             {
                 Lm_MaterialRefCountDec(curChunk->ipdHdr->lmHdr);
             }
@@ -2577,7 +2710,11 @@ void Ipd_ChunkMaterialsApply(s_MapTerrain* map) // 0x800433B8
         if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx) >= ChunkLoadState_Loaded)
         {
             if (curChunk->ipdHdr->isLoaded &&
-                (curChunk->paddedDistanceToEdge0 <= _matDist || curChunk->paddedDistanceToEdge1 <= _matDist))
+                (curChunk->paddedDistanceToEdge0 <= _matDist || curChunk->paddedDistanceToEdge1 <= _matDist
+#ifdef SH_XBOX_PORT
+                 || Split_ChunkNearP2(curChunk, _matDist)
+#endif
+                 ))
             {
                 Ipd_MaterialsLoad(curChunk->ipdHdr, &map->chunkTextures.fullPage, &map->chunkTextures.halfPage, map->textureFileIdx);
                 Lm_MaterialFlagsApply(curChunk->ipdHdr->lmHdr);
@@ -2683,6 +2820,26 @@ s_Chunk* Ipd_FreeChunkFind(s_Chunk* chunks, bool isExterior)
                 {
                     continue;
                 }
+#ifdef SH_XBOX_PORT
+                /* Split screen: never evict what Player 2 stands in either, and
+                 * rank the rest by the nearer player. */
+                if (g_XbSplitStreamValid)
+                {
+                    s32 ci = (s32)(curChunk - chunks);
+
+                    if (ci >= 0 && ci < 256)
+                    {
+                        if (s_p2Dist0[ci] == Q12(0.0f))
+                        {
+                            continue;
+                        }
+                        if (s_p2Dist0[ci] < dist)
+                        {
+                            dist = s_p2Dist0[ci];
+                        }
+                    }
+                }
+#endif
             }
 
 #ifdef SH_PC_PORT
@@ -3023,6 +3180,16 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
     {
         if (IpdHeader_LoadStateGet(curChunk) >= StaticModelLoadState_Loaded && Ipd_CellPositionMatchCheck(curChunk, &g_Map))
         {
+#ifdef SH_XBOX_PORT
+            /* Split screen: each view draws the window of its own player only. */
+            {
+                extern int SplitRender_InView2(void);
+                if (Split_ChunkOutsideView(curChunk, SplitRender_InView2()))
+                {
+                    continue;
+                }
+            }
+#endif
 #ifdef SH_PC_PORT
             /* Whole-town draw set = outdoor cells only (streets/alleys; hosted
              * interior islands and parked cells excluded — they'd float in the

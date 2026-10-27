@@ -428,7 +428,17 @@ s32 vcExecCamera(void) // 0x80080FBC
         return VC_MV_CHASE;
     }
 
+#ifdef SH_XBOX_PORT
+    {
+        /* Split screen: the second camera of the frame (split_xbox.c) must not
+         * advance the dead NPCs' timers a second time. */
+        extern int g_XbSplitSidePass;
+        if (!g_XbSplitSidePass)
+            vcSetAllNpcDeadTimer();
+    }
+#else
     vcSetAllNpcDeadTimer();
+#endif
     SetGeomScreen(vcWork.geom_screen_dist);
     vcPreSetDataInVC_WORK(&vcWork, vcWork.vc_road_ary_list);
 

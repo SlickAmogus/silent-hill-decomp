@@ -104,8 +104,30 @@ s32 func_8005D9B8(VECTOR3* pos, q23_8 vol) // 0x8005D9B8
     s32 var_s0;
     s32 var_v0;
 
+#ifdef SH_XBOX_PORT
+    {
+        /* Split screen: loudness against the player nearer the sound and that
+         * player's camera (split_audio_xbox.c). */
+        extern int            SplitAudio_Active(void);
+        extern int            SplitAudio_Pick(const VECTOR3* pos);
+        extern const VECTOR3* SplitAudio_CamPos(int k);
+        extern VECTOR3*       SplitAudio_PlayerPos(int k);
+        if (SplitAudio_Active())
+        {
+            int k      = SplitAudio_Pick(pos);
+            D_800C42C0 = *SplitAudio_CamPos(k);
+            D_800C42CC = SplitAudio_PlayerPos(k);
+        }
+        else
+        {
+            vwGetViewPosition(&D_800C42C0);
+            D_800C42CC = &g_SysWork.playerWork.player.position;
+        }
+    }
+#else
     vwGetViewPosition(&D_800C42C0);
     D_800C42CC = &g_SysWork.playerWork.player.position;
+#endif
 
     deltaX = D_800C42C0.vx - D_800C42CC->vx;
     deltaY = D_800C42C0.vy - D_800C42CC->vy;
@@ -251,11 +273,19 @@ void func_8005DD44(e_SfxId sfxId, VECTOR3* pos, q23_8 vol, s8 pitch) // 0x8005DD
 
 static inline s32 AttenuationCalc(s32 volume, VECTOR3* pos, q19_12 falloff)
 {
-    q19_12 dist;
+    q19_12         dist;
+    const VECTOR3* lp = &g_SysWork.playerWork.player.position;
+#ifdef SH_XBOX_PORT
+    extern int      SplitAudio_Active(void);
+    extern int      SplitAudio_Pick(const VECTOR3* pos);
+    extern VECTOR3* SplitAudio_PlayerPos(int k);
+    if (SplitAudio_Active())
+        lp = SplitAudio_PlayerPos(SplitAudio_Pick(pos));
+#endif
 
-    dist = Math_Vector3MagCalc(g_SysWork.playerWork.player.position.vx - pos->vx,
-                               g_SysWork.playerWork.player.position.vy - pos->vy,
-                               g_SysWork.playerWork.player.position.vz - pos->vz);
+    dist = Math_Vector3MagCalc(lp->vx - pos->vx,
+                               lp->vy - pos->vy,
+                               lp->vz - pos->vz);
     return (volume * dist) / falloff;
 }
 

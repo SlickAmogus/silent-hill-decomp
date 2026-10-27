@@ -1777,6 +1777,15 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
     }
 
     target->attackReceived = weaponAttack;
+#ifdef SH_XBOX_PORT
+    /* Split screen: remember which player hit this monster (split_npc_xbox.c). */
+    if (attacker == &g_SysWork.playerWork.player &&
+        target >= &g_SysWork.npcs[0] && target < &g_SysWork.npcs[NPC_COUNT_MAX])
+    {
+        extern void SplitNpc_NoteHit(int k);
+        SplitNpc_NoteHit((int)(target - g_SysWork.npcs));
+    }
+#endif
     sp14                     |= sp10;
     attacker->field_44.field_8 = sp14;
 

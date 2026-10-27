@@ -180,6 +180,66 @@ void Pc_KeyframeViewerPoseNpc(s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords)
 }
 #endif
 
+#ifdef SH_XBOX_PORT
+extern int Split_DeathHolding(void); /* split_xbox.c */
+extern int g_XbSplitSidePass;        /* split_xbox.c: the code below is running for the other player */
+
+/* Split screen runs the player code for two players in one frame, swapping all
+ * per-player state between their turns (split_xbox.c). The per-player statics
+ * the classic path keeps are gathered in this one block so that swap can reach
+ * them; the old names are aliased onto it, so the code using them is unchanged.
+ * Same initial values, same lifetime -- single player sees no difference. */
+typedef struct
+{
+    q19_12  walkRunBlendTime;
+    s16     prevRotY;
+    int     prevRotValid;
+    bool    meleeNeedsRelease;
+    s32     d44D0;
+    s32     d44D4;
+    int     mtClickQueue;
+    q19_12  afkFrac;
+    VECTOR3 d44E0;
+    int     moveFwdShiftAccum;
+    int     attackShiftAccum;
+    s32     reactPrevState;
+    s32     reactPrevBodyKf;
+    s32     reactPrevUpperKf;
+    q19_12  reactStillTime;
+    q19_12  reactStateTime;
+} s_PlayerXbSplitLocals;
+
+static s_PlayerXbSplitLocals g_PlayerXbSplitLocals = {
+    0, 0, 0, false, 0, 0, 0, 0, { 0, 0, 0 }, 0, 0, -1, -1, -1, 0, 0
+};
+
+void* Player_XbSplitLocals(unsigned* size)
+{
+    *size = (unsigned)sizeof(g_PlayerXbSplitLocals);
+    return &g_PlayerXbSplitLocals;
+}
+
+/* A fresh player's values (split_xbox.c, when Player 2 joins). */
+void Player_XbSplitLocalsReset(void)
+{
+    static const s_PlayerXbSplitLocals init = {
+        0, 0, 0, false, 0, 0, 0, 0, { 0, 0, 0 }, 0, 0, -1, -1, -1, 0, 0
+    };
+    g_PlayerXbSplitLocals = init;
+}
+
+#define s_walkRunBlendTime    g_PlayerXbSplitLocals.walkRunBlendTime
+#define s_pcPlayerPrevRotY    g_PlayerXbSplitLocals.prevRotY
+#define s_pcPlayerPrevValid   g_PlayerXbSplitLocals.prevRotValid
+#define s_pcMeleeNeedsRelease g_PlayerXbSplitLocals.meleeNeedsRelease
+#define D_800C44D0            g_PlayerXbSplitLocals.d44D0
+#define D_800C44D4            g_PlayerXbSplitLocals.d44D4
+#define s_pcMtClickQueue      g_PlayerXbSplitLocals.mtClickQueue
+#define s_afkFrac             g_PlayerXbSplitLocals.afkFrac
+#define D_800C44E0            g_PlayerXbSplitLocals.d44E0
+#define s_moveFwdShiftAccum   g_PlayerXbSplitLocals.moveFwdShiftAccum
+#define s_attackShiftAccum    g_PlayerXbSplitLocals.attackShiftAccum
+#endif
 s_800C44F0 D_800C44F0[10];
 VECTOR3    g_TargetEnemyPosition;
 q19_12     D_800C454C;
@@ -1212,7 +1272,9 @@ static inline void func_80071968_Switch1(void)
 #ifdef SH_PC_PORT
 /* Time spent in the walk<->run transition blend, for the deadlock bound at the
  * bottom of Player_AnimUpdate. */
+#ifndef SH_XBOX_PORT
 static q19_12 s_walkRunBlendTime = 0;
+#endif
 #endif
 
 void Player_AnimUpdate(s_SubCharacter* player, s_PlayerExtra* extra, s_AnmHeader* anmHdr, GsCOORDINATE2* coords) // 0x80071968
@@ -1487,13 +1549,22 @@ void Player_AnimUpdate(s_SubCharacter* player, s_PlayerExtra* extra, s_AnmHeader
  * here legitimately runs that long. Both counters are watched because the
  * damage family exits on the upper-body anim and the release family on the
  * body anim. Keyframe-based, so 30 and 240 fps behave identically. */
+#ifdef SH_XBOX_PORT
+#define s_prevState   g_PlayerXbSplitLocals.reactPrevState
+#define s_prevBodyKf  g_PlayerXbSplitLocals.reactPrevBodyKf
+#define s_prevUpperKf g_PlayerXbSplitLocals.reactPrevUpperKf
+#define s_stillTime   g_PlayerXbSplitLocals.reactStillTime
+#define s_stateTime   g_PlayerXbSplitLocals.reactStateTime
+#endif
 static bool Pc_ReactionStateStuck(s32 state, s32 bodyKf, s32 upperKf)
 {
+#ifndef SH_XBOX_PORT
     static s32    s_prevState   = -1;
     static s32    s_prevBodyKf  = -1;
     static s32    s_prevUpperKf = -1;
     static q19_12 s_stillTime   = 0;
     static q19_12 s_stateTime   = 0;
+#endif
 
     if (state != s_prevState)
     {
@@ -1527,6 +1598,13 @@ static bool Pc_ReactionStateStuck(s32 state, s32 bodyKf, s32 upperKf)
     s_stateTime = 0;
     return true;
 }
+#ifdef SH_XBOX_PORT
+#undef s_prevState
+#undef s_prevBodyKf
+#undef s_prevUpperKf
+#undef s_stillTime
+#undef s_stateTime
+#endif
 #endif
 
 void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINATE2* coords) // 0x80071CE8
@@ -1560,6 +1638,10 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
 
     animStatus = ANIM_STATUS(HarryAnim_Still, false);
 
+#ifdef SH_XBOX_PORT
+    /* Split screen: the play clock ticks once a frame, in Player 1's pass. */
+    if (!g_XbSplitSidePass)
+#endif
     Game_TimerUpdate();
 
     D_800C4550                              = 0;
@@ -1599,7 +1681,12 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
         g_SysWork.playerWork.player.health  = CLAMP(g_SysWork.playerWork.player.health, Q12(0.0f), Q12(100.0f));
     }
 
-    if (g_SavegamePtr->mapIdx == MapIdx_MAP2_S00)
+    if (g_SavegamePtr->mapIdx == MapIdx_MAP2_S00
+#ifdef SH_XBOX_PORT
+        /* Split screen: the map's padlock hook runs once, not per player. */
+        && !g_XbSplitSidePass
+#endif
+        )
     {
         g_MapOverlayHdr.func_108();
     }
@@ -3141,6 +3228,17 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     if (player->health <= Q12(0.0f) && player->properties.player.afkTimer <= Q12(0.0f))
                     {
                         g_MapOverlayHdr.playerAnimLock();
+#ifdef SH_XBOX_PORT
+                        {
+                            /* Split screen: with the other player still up, this one waits to
+                             * get back up beside them instead of ending the game. */
+                            extern int Split_DeathHold(void);
+                            if (Split_DeathHold())
+                            {
+                                return;
+                            }
+                        }
+#endif
                         SysWork_StateSetNext(SysState_GameOver);
 
                         player->health                                                         = Q12(100.0f);
@@ -3233,6 +3331,17 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     if (player->health <= Q12(0.0f) && player->properties.player.afkTimer <= Q12(0.0f))
                     {
                         g_MapOverlayHdr.playerAnimLock();
+#ifdef SH_XBOX_PORT
+                        {
+                            /* Split screen: with the other player still up, this one waits to
+                             * get back up beside them instead of ending the game. */
+                            extern int Split_DeathHold(void);
+                            if (Split_DeathHold())
+                            {
+                                return;
+                            }
+                        }
+#endif
 
                         SysWork_StateSetNext(SysState_GameOver);
 
@@ -3829,6 +3938,17 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
             if (player->model.anim.keyframeIdx == g_MapOverlayHdr.field_38[D_800AF220].keyframeIdx_6)
             {
                 g_MapOverlayHdr.playerAnimLock();
+#ifdef SH_XBOX_PORT
+                {
+                    /* Split screen: with the other player still up, this one waits to
+                     * get back up beside them instead of ending the game. */
+                    extern int Split_DeathHold(void);
+                    if (Split_DeathHold())
+                    {
+                        return;
+                    }
+                }
+#endif
 
                 SysWork_StateSetNext(SysState_GameOver);
 
@@ -3880,7 +4000,13 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
              * extra but not player in this state, so the GameOver check at
              * line 2651 (which reads player->model.anim.keyframeIdx) never fires
              * without this copy. */
-            if (player->model.stateStep == 2) {
+            if (player->model.stateStep == 2
+#ifdef SH_XBOX_PORT
+                /* Not while split screen holds the body for a respawn: that
+                 * keeps it locked and blinks it. */
+                && !Split_DeathHolding()
+#endif
+                ) {
                 Player_AnimFlagsSet(AnimFlag_Unlocked | AnimFlag_Visible);
                 if (extra->model.anim.keyframeIdx > player->model.anim.keyframeIdx) {
                     player->model.anim.keyframeIdx = extra->model.anim.keyframeIdx;
@@ -3937,6 +4063,17 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                 }
 
                 g_MapOverlayHdr.playerAnimLock();
+#ifdef SH_XBOX_PORT
+                {
+                    /* Split screen: with the other player still up, this one waits to
+                     * get back up beside them instead of ending the game. */
+                    extern int Split_DeathHold(void);
+                    if (Split_DeathHold())
+                    {
+                        return;
+                    }
+                }
+#endif
 
                 SysWork_StateSetNext(SysState_GameOver);
 
@@ -3983,6 +4120,17 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
 #endif
             {
                 g_MapOverlayHdr.playerAnimLock();
+#ifdef SH_XBOX_PORT
+                {
+                    /* Split screen: with the other player still up, this one waits to
+                     * get back up beside them instead of ending the game. */
+                    extern int Split_DeathHold(void);
+                    if (Split_DeathHold())
+                    {
+                        return;
+                    }
+                }
+#endif
 
                 SysWork_StateSetNext(SysState_GameOver);
 
@@ -4172,8 +4320,10 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
      * complaint). Track previous-frame rotation per-player and recompute
      * rotationSpeed.vy from the actual frame-to-frame delta. */
     {
+#ifndef SH_XBOX_PORT
         static s16 s_pcPlayerPrevRotY = 0;
         static int s_pcPlayerPrevValid = 0;
+#endif
         if (s_pcPlayerPrevValid && g_DeltaTime != 0) {
             s32 dRot = (s32)(s16)(player->rotation.vy - s_pcPlayerPrevRotY);
             player->rotationSpeed.vy = (s16)((dRot << 8) / g_DeltaTime);
@@ -4207,7 +4357,9 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
  * NOT set when the user is still holding at swing completion — that path
  * is continuous-hold (refill IsAttacking, keep swinging), which is exactly
  * what we want for hold-to-jab. */
+#ifndef SH_XBOX_PORT
 static bool s_pcMeleeNeedsRelease = false;
+#endif
 #endif
 
 void Player_UpperBodyStateUpdate(s_PlayerExtra* extra, e_PlayerUpperBodyState upperState, s32 unused, s32 arg3) // 0x80073FC0
@@ -4757,10 +4909,12 @@ void Player_UpperBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
  * (un-nested below) reads and writes them, and it now sits above its former
  * parent, so they move to file scope. Still one instance with the same
  * lifetime; only the visibility changes. */
+#ifndef SH_XBOX_PORT
 static s32 D_800C44D0;
 static s32 D_800C44D4;
 #ifdef SH_PC_PORT
 static int s_pcMtClickQueue = 0;
+#endif
 #endif
 
 /* Un-nested from Player_UpperBodyMainUpdate: Clang has no GCC nested-function
@@ -5709,7 +5863,9 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                  * duration in other states) and the trigger stays ~10s at any
                  * framerate. */
                 {
+#ifndef SH_XBOX_PORT
                     static q19_12 s_afkFrac = 0;
+#endif
 
                     if (player->properties.player.afkTimer == Q12(0.0f))
                     {
@@ -10945,7 +11101,9 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
     VECTOR*               vec3; // Q19.12
     s_Model*              model;
     static s32            __pad_bss_800C44D8[2];
+#ifndef SH_XBOX_PORT
     static VECTOR3        D_800C44E0;
+#endif
     static s32            __pad_bss_800C44EC;
 
     #define playerExtra  g_SysWork.playerWork.extra
@@ -12011,7 +12169,9 @@ void Player_Controller(void) // 0x8007F32C
      * it once per 30 Hz tick (needs ~66 ms of genuine release). The current-input
      * OR below stays per frame, so forward held in ANY sub-frame keeps bit0 set.
      * Same throttle the attack shift register uses further down. */
+#ifndef SH_XBOX_PORT
     static int s_moveFwdShiftAccum = 0;
+#endif
     if (PC_Tick30HzReady(&s_moveFwdShiftAccum))
 #endif
     {
@@ -12107,7 +12267,9 @@ void Player_Controller(void) // 0x8007F32C
          * tap=slash / hold=jab distinction from the PSX. Skipping the
          * shift on sub-tick PC frames leaves the existing values cached
          * for the gate at line ~4960 to see, matching PSX behavior. */
+#ifndef SH_XBOX_PORT
         static int s_attackShiftAccum = 0;
+#endif
         if (PC_Tick30HzReady(&s_attackShiftAccum))
 #endif
         {

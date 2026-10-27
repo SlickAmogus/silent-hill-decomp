@@ -262,6 +262,16 @@ void Ipd_PlayerChunkInit(s_MapOverlayHdr* mapHdr, s32 playerPosX, s32 playerPosZ
         activeIpdCount = 4;
     }
 #endif
+#ifdef SH_XBOX_PORT
+    /* Split screen: outdoors one player's window alone fills the 4 slots, so the
+     * other player's cell would never load. Sized here, at the map load, which is
+     * the only time the slot buffers can change (split_xbox.c). */
+    {
+        extern int Split_ExteriorChunkSlots(int count, int interior);
+        activeIpdCount = Split_ExteriorChunkSlots(activeIpdCount, (flags & MapFlag_Interior) != 0);
+    }
+    { extern void Split_StreamPointsInvalidate(void); Split_StreamPointsInvalidate(); }
+#endif
 
 
     mapInfo = mapHdr->mapInfo;
@@ -434,6 +444,96 @@ void Ipd_CloseRangeChunksInit(void) // 0x8003C3AC
 
     Ipd_ChunkInit(pos0.vx, pos0.vz, pos1.vx, pos1.vz);
 }
+
+#ifdef SH_XBOX_PORT
+/* Split screen: the two streaming points Ipd_CloseRangeChunksInit computes, for
+ * the character in the player slot and the camera that is published -- Player
+ * 2's, when called from Player 2's pass. A copy of that math rather than a
+ * refactor of it, so Player 1's streaming stays exactly as it is. No stored
+ * sample point: scripts only ever set it for Player 1. */
+void Ipd_SplitStreamPointsGet(q19_12 out[4])
+{
+    VECTOR3         pos0;
+    VECTOR3         pos1;
+    SVECTOR         rot;
+    q19_12          moveDist;
+    s32             temp_s0_2;
+    s32             temp_v1_4;
+    s32             var_s1;
+    s32             cellX, cellZ, baseX, baseZ;
+    u8              flagsCpy;
+    s_SubCharacter* chara = &g_SysWork.playerWork.player;
+
+    pos0     = chara->position;
+    moveDist = (chara->moveSpeed * Q12(5.5f)) / 16015;
+    moveDist = CLAMP(moveDist, Q12(0.0f), Q12(5.5f));
+    pos0.vx += Q12_MULT_PRECISE(moveDist, Math_Sin(chara->headingAngle));
+    pos0.vz += Q12_MULT_PRECISE(moveDist, Math_Cos(chara->headingAngle));
+
+    if (g_WorldEnvWork.isFogEnabled && !g_PcConfig.disableCulling)
+    {
+        vwGetViewPosition(&pos1);
+        vwGetViewAngle(&rot);
+
+        flagsCpy = g_WorldGfxWork.mapInfo->flags;
+        if (!(flagsCpy & MapFlag_Interior) || !(flagsCpy & (MapFlag_OneActiveChunk | MapFlag_TwoActiveChunks)))
+        {
+            var_s1 = Q12_MULT(Math_Cos(rot.vx), Q12(9.0f));
+        }
+        else
+        {
+            var_s1 = Q12(0.0f);
+        }
+
+        temp_s0_2 = Q12_MULT(var_s1, Math_Sin(rot.vy));
+        temp_s0_2 = CLAMP(temp_s0_2, Q12(-6.0f), Q12(6.0f));
+        temp_v1_4 = Q12_MULT(var_s1, Math_Cos(rot.vy));
+        temp_v1_4 = CLAMP(temp_v1_4, Q12(-6.0f), Q12(6.0f));
+        pos1.vx += temp_s0_2;
+        pos1.vz += temp_v1_4;
+
+        if (Vc_VectorMagnitudeCalc(pos1.vx - chara->position.vx, Q12(0.0f), pos1.vz - chara->position.vz) > Q12(16.0f))
+        {
+            var_s1  = Q12(14.0f);
+            pos1.vx = chara->position.vx + Q12_MULT(Math_Sin(rot.vy), var_s1);
+            pos1.vz = chara->position.vz + Q12_MULT(Math_Cos(rot.vy), var_s1);
+        }
+    }
+    else
+    {
+        pos1     = chara->position;
+        pos1.vx += FP_FROM(Q12(Math_Sin(chara->rotation.vy)), Q12_SHIFT);
+        pos1.vz += FP_FROM(Q12(Math_Cos(chara->rotation.vy)), Q12_SHIFT);
+    }
+
+    flagsCpy = g_WorldGfxWork.mapInfo->flags;
+    if ((flagsCpy & MapFlag_Interior) && (flagsCpy & (MapFlag_OneActiveChunk | MapFlag_TwoActiveChunks)))
+    {
+        cellX = chara->position.vx / Q12(2.5f);
+        if (chara->position.vx < Q12(0.0f))
+        {
+            cellX--;
+        }
+        cellZ = chara->position.vz / Q12(2.5f);
+        if (chara->position.vz < Q12(0.0f))
+        {
+            cellZ--;
+        }
+        baseX = cellX * Q12(2.5f);
+        baseZ = cellZ * Q12(2.5f);
+
+        pos0.vx = CLAMP(pos0.vx, baseX + 1, baseX + (Q12(2.5f) - 1));
+        pos0.vz = CLAMP(pos0.vz, baseZ + 1, baseZ + (Q12(2.5f) - 1));
+        pos1.vx = CLAMP(pos1.vx, baseX + 1, baseX + (Q12(2.5f) - 1));
+        pos1.vz = CLAMP(pos1.vz, baseZ + 1, baseZ + (Q12(2.5f) - 1));
+    }
+
+    out[0] = pos0.vx;
+    out[1] = pos0.vz;
+    out[2] = pos1.vx;
+    out[3] = pos1.vz;
+}
+#endif
 
 bool Ipd_ChunkInitCheck(void) // 0x8003C850
 {
@@ -761,6 +861,22 @@ void Gfx_WorldObjectsDraw(s_WorldGfxWork* worldGfxWork) // 0x8003CB44
     {
         Gfx_WorldObjectDraw(curObj);
     }
+#ifdef SH_XBOX_PORT
+    {
+        /* Split screen: the same queue into the second view, before it is
+         * emptied. Each object is drawn from its own stored transform. */
+        extern int  SplitRender_View2Begin(void);
+        extern void SplitRender_View2End(void);
+        if (SplitRender_View2Begin())
+        {
+            for (curObj = &worldGfxWork->objects[0]; curObj < &worldGfxWork->objects[worldGfxWork->objectCount]; curObj++)
+            {
+                Gfx_WorldObjectDraw(curObj);
+            }
+            SplitRender_View2End();
+        }
+    }
+#endif
 
     worldGfxWork->objectCount = 0;
 #ifdef SH_XBOX_PORT
@@ -1051,6 +1167,15 @@ s32 WorldGfx_PlayerHeldItemSet(e_InvItemId itemId) // 0x8003CDA0
         heldItem->imageDesc.v        = 224;
         heldItem->imageDesc.clutX    = 736;
         heldItem->imageDesc.clutY    = 498;
+#ifdef SH_XBOX_PORT
+        /* Split screen: Player 2's own-texture weapon loads into a texture slot
+         * of its own, so the one VRAM rect these weapons share stays Player 1's
+         * (split_xbox.c). No-op for one player. */
+        {
+            extern void Split_HeldItemImageDesc(s_FsImageDesc* image);
+            Split_HeldItemImageDesc(&heldItem->imageDesc);
+        }
+#endif
     }
 
     // Load texture.

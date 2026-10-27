@@ -114,8 +114,29 @@ q23_8 Sfx_DistanceAttenuatedVolumeGet(const VECTOR3* pos, q23_8 vol) // 0x8005D9
     q19_12 srcDistAtten; // Source-to-player distance attenuation
     q23_8  adjVol;
 
+#ifdef SH_XBOX_PORT
+    {
+        /* Split screen: see 3d_audio.c's twin. */
+        extern int            SplitAudio_Active(void);
+        extern int            SplitAudio_Pick(const VECTOR3* pos);
+        extern const VECTOR3* SplitAudio_CamPos(int k);
+        extern VECTOR3*       SplitAudio_PlayerPos(int k);
+        if (SplitAudio_Active())
+        {
+            int k                = SplitAudio_Pick(pos);
+            g_Sfx_CameraPosition = *SplitAudio_CamPos(k);
+            g_Sfx_PlayerPosition = SplitAudio_PlayerPos(k);
+        }
+        else
+        {
+            vwGetViewPosition(&g_Sfx_CameraPosition);
+            g_Sfx_PlayerPosition = &g_SysWork.playerWork.player.position;
+        }
+    }
+#else
     vwGetViewPosition(&g_Sfx_CameraPosition);
     g_Sfx_PlayerPosition = &g_SysWork.playerWork.player.position;
+#endif
 
     offsetX      = g_Sfx_CameraPosition.vx - g_Sfx_PlayerPosition->vx;
     offsetY      = g_Sfx_CameraPosition.vy - g_Sfx_PlayerPosition->vy;
@@ -248,11 +269,19 @@ void Sfx_WithPitchPlay(e_SfxId sfxId, const VECTOR3* pos, q23_8 vol, s8 pitch) /
 
 static inline q23_8 AttenuationCalc(s32 vol, VECTOR3* pos, q19_12 falloff)
 {
-    q19_12 dist;
+    q19_12         dist;
+    const VECTOR3* lp = &g_SysWork.playerWork.player.position;
+#ifdef SH_XBOX_PORT
+    extern int      SplitAudio_Active(void);
+    extern int      SplitAudio_Pick(const VECTOR3* pos);
+    extern VECTOR3* SplitAudio_PlayerPos(int k);
+    if (SplitAudio_Active())
+        lp = SplitAudio_PlayerPos(SplitAudio_Pick(pos));
+#endif
 
-    dist = Math_Vector3MagCalcSafe(g_SysWork.playerWork.player.position.vx - pos->vx,
-                                   g_SysWork.playerWork.player.position.vy - pos->vy,
-                                   g_SysWork.playerWork.player.position.vz - pos->vz);
+    dist = Math_Vector3MagCalcSafe(lp->vx - pos->vx,
+                                   lp->vy - pos->vy,
+                                   lp->vz - pos->vz);
 
 #ifdef SH_PC_PORT
     /* The rain loop (`Particle_SoundUpdate`) is the game's only zero-falloff

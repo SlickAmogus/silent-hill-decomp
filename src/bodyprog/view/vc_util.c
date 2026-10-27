@@ -398,6 +398,15 @@ s8 Vc_StereoBalanceGet(const VECTOR3* soundPos) // 0x80040A64
     MATRIX  viewMat;
     s32     dot;
     s32     balance;
+#ifdef SH_XBOX_PORT
+    /* Split screen: the listener is whichever player is nearer the sound. */
+    extern int            SplitAudio_Active(void);
+    extern int            SplitAudio_Pick(const VECTOR3* pos);
+    extern const VECTOR3* SplitAudio_CamPos(int k);
+    extern const MATRIX*  SplitAudio_CamMat(int k);
+    extern s32            SplitAudio_Balance(int k, s32 balance);
+    int                   ssK = -1;
+#endif
 
     // If monoural sound type, default to balance of 0.
     if (g_GameWork.config.soundType)
@@ -406,6 +415,14 @@ s8 Vc_StereoBalanceGet(const VECTOR3* soundPos) // 0x80040A64
     }
 
     // Compute direction from camera to sound.
+#ifdef SH_XBOX_PORT
+    if (SplitAudio_Active())
+    {
+        ssK    = SplitAudio_Pick(soundPos);
+        camPos = *SplitAudio_CamPos(ssK);
+    }
+    else
+#endif
     vwGetViewPosition(&camPos);
     offset.vx = Q12_TO_Q6(soundPos->vx - camPos.vx);
     offset.vy = Q12_TO_Q6(soundPos->vy - camPos.vy);
@@ -413,6 +430,11 @@ s8 Vc_StereoBalanceGet(const VECTOR3* soundPos) // 0x80040A64
     VectorNormal(&offset, &dir);
 
     // Compute stereo balance.
+#ifdef SH_XBOX_PORT
+    if (ssK >= 0)
+        viewMat = *SplitAudio_CamMat(ssK);
+    else
+#endif
     Vw_CoordHierarchyMatrixCompute(vwGetViewCoord(), &viewMat);
     dot     = Math_MultiplyMatrix(viewMat, dir);
     balance = CLAMP(dot, -127, 127);
@@ -428,6 +450,10 @@ s8 Vc_StereoBalanceGet(const VECTOR3* soundPos) // 0x80040A64
         g_Pc_SfxAzimuth      = ratan2(dot, fwd);
         g_Pc_SfxAzimuthValid = 1;
     }
+#endif
+#ifdef SH_XBOX_PORT
+    if (ssK >= 0)
+        balance = SplitAudio_Balance(ssK, balance);
 #endif
 
     return balance;

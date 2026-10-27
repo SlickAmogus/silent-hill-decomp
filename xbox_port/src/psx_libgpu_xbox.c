@@ -176,6 +176,12 @@ static void (*s_vsyncCb)(void) = 0;   /* the game's per-vblank callback */
  * hold it for N vblanks, then open the next frame (FrameBegin). The registered
  * VSyncCallback (Screen_VSyncCallback: boot-logo timers counters_1C[] + MIDI pump)
  * is fired once per real vblank — we have no vblank IRQ, so this is its tick. */
+static int   s_pacedTarget; /* VSync_Paced's n while it runs */
+static int   s_pacedValid;
+static int   s_pacedGot;
+static unsigned s_pacedRef;
+extern unsigned GpuNv2a_VblCounter(void);
+
 int VSync(int mode)
 {
     int n, i;
@@ -250,8 +256,32 @@ int VSync(int mode)
     }
 
     n = (mode == 0) ? 1 : mode;
+    if (s_pacedTarget > 0) {
+        /* VSync_Paced: hold until the n-th real vblank after the previous paced
+         * present -- at least one -- and credit every vblank that really
+         * passed, so the 60Hz callback (timers, sequencer) keeps real time. */
+        unsigned target = s_pacedValid ? s_pacedRef + (unsigned)n : 0;
+        unsigned now;
+        int   waited = 0, real;
+
+        do {
+            GpuNv2a_WaitVbl();
+            waited++;
+            now = GpuNv2a_VblCounter();
+        } while (s_pacedValid && (int)(now - target) < 0 && waited < 6);
+        real = s_pacedValid ? (int)(now - s_pacedRef) : waited;
+        if (real < 1) real = 1;
+        if (real > 4) real = 4;
+        s_pacedRef   = now;
+        s_pacedValid = 1;
+        s_pacedGot   = real;
+        n            = real;
+    } else {
+        s_pacedValid = 0;
+    }
     for (i = 0; i < n; i++) {
-        GpuNv2a_WaitVbl();          /* hold the presented frame for one vblank */
+        if (s_pacedTarget <= 0)
+            GpuNv2a_WaitVbl();      /* hold the presented frame for one vblank */
         ++s_vblanks;
         /* Commit the RAM-buffered log to HDD ~once/second (here, not on the mode<0
          * timing reads) so SH_DBG stays a cheap memcpy in the hot path. */
@@ -283,3 +313,15 @@ int VSync(int mode)
 }
 
 int VSyncCallback(void (*f)(void)) { s_vsyncCb = f; return 0; }
+
+/* Split screen's frame pacing (split_xbox.c): one present, then the first real
+ * vblank at least n after the previous paced present. Returns the vblanks that
+ * really passed. */
+int VSync_Paced(int n)
+{
+    s_pacedTarget = n > 0 ? n : 1;
+    s_pacedGot    = 1;
+    VSync(s_pacedTarget);
+    s_pacedTarget = 0;
+    return s_pacedGot;
+}

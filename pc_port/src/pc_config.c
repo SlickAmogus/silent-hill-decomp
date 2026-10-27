@@ -33,6 +33,8 @@ s_PcConfig g_PcConfig = {
     .cutsceneLineGapMs = 300,
 #ifdef SH_XBOX_PORT
     .darkHarry         = 0,   /* off on Xbox, and not on its Options pages; dark_harry = 1 in the cfg still enables it */
+    .splitP2Character  = "cybil",
+    .splitRespawnSec   = 7,
 #else
     .darkHarry         = 1,   /* on by default for now */
 #endif
@@ -1259,6 +1261,27 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "xb_bind_quick_turn") == 0)
         {
             g_PcConfig.xbBindQuickTurn = atoi(value);
+        }
+        else if (strcmp(key, "split_layout") == 0)
+        {
+            g_PcConfig.splitLayout = atoi(value);
+        }
+        else if (strcmp(key, "split_p2_character") == 0)
+        {
+            strncpy(g_PcConfig.splitP2Character, value, sizeof(g_PcConfig.splitP2Character) - 1);
+            g_PcConfig.splitP2Character[sizeof(g_PcConfig.splitP2Character) - 1] = '\0';
+        }
+        else if (strcmp(key, "split_respawn_s") == 0)
+        {
+            g_PcConfig.splitRespawnSec = atoi(value);
+        }
+        else if (strcmp(key, "split_audio") == 0)
+        {
+            g_PcConfig.splitAudio = atoi(value);
+        }
+        else if (strcmp(key, "split_p2_port") == 0)
+        {
+            g_PcConfig.splitP2Port = atoi(value);
         }
         else if (strcmp(key, "bw_quick_save") == 0)
         {

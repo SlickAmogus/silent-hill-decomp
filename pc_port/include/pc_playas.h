@@ -68,6 +68,40 @@ void Pc_PlayAs_ApplySkinVisibility(void);
  * warm reset's SysWork_Clear. */
 void Pc_PlayAs_PlayerAnimTick(void);
 
+#ifdef SH_XBOX_PORT
+/* Split screen (xbox_port/src/split_xbox.c): Player 2 wears a character of its
+ * own. Everything play-as keeps per player -- the character, the skin's bind
+ * offsets and extra bones -- is this one block, which split screen exchanges with
+ * the live state for Player 2's turn (the root height byte in HB_BASE's header is
+ * exchanged by split screen itself). Same element types as the statics. */
+typedef struct
+{
+    int           cur;
+    int           skinBindT[18][3];
+    unsigned char skinBindHas[18];
+    short         skinBindFileIdx;
+    int           skinBindValid;
+    int           extraT[5][3];
+    int           extraR[5][9];
+    unsigned char extraParent[5];
+    int           extraCount;
+} PcPlayAsCtx;
+
+void Pc_PlayAs_CtxExchange(PcPlayAsCtx* ctx);
+
+/* The context of character `idx` worn on Harry's rig, built without touching the
+ * live player: the skin's binds come from its ANM like a swap would read them.
+ * *outRootY is the HB_BASE root height that character needs. Returns 0 when the
+ * skin's rig could not be read (the character then wears Harry's proportions). */
+int Pc_PlayAs_BuildCtx(int idx, PcPlayAsCtx* out, unsigned char* outRootY);
+
+int Pc_PlayAs_CharaIdOf(int idx);
+
+/* HERO.TIM's virtual texture slot, registered while a skin owns Harry's VRAM
+ * parcel. Returns 0 (and leaves *imageDesc alone) when there is none. */
+int Pc_PlayAs_HeroTimDesc(void* imageDesc /* s_FsImageDesc* */);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

@@ -116,6 +116,9 @@ s32 g_PcOptionsMenu_SelectedEntry     = 0;
 s32 g_PcOptionsMenu_PrevSelectedEntry = 0;
 static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System, 2 = Controls, 3 = Camera, 4 = HUD */
 #define PCOPT_PAGE_COUNT 5
+#ifdef SH_XBOX_PORT
+#define XBOPT_PAGE_COUNT 6 /* PCOPT_X .. PCOPT_X6 */
+#endif
 
 /* Mouse hover moves the selection WITHOUT resetting g_Options_SelectionHighlightTimer:
  * a reset re-arms the LINE_CURSOR_TIMER_MAX gate, which then swallows the click that
@@ -128,7 +131,7 @@ static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System, 2 = Cont
  * which is the right behaviour for a pointer that is already there. */
 s32 g_PcOptions_HighlightSnap = 0;
 
-enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_CAMSTYLE, PCK_PLAYAS, PCK_CHEAT, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_EXITMENU, PCK_RASTATUS, PCK_QSAVE, PCK_QLOAD };
+enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_CAMSTYLE, PCK_PLAYAS, PCK_CHEAT, PCK_P2CHAR, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_EXITMENU, PCK_RASTATUS, PCK_QSAVE, PCK_QLOAD };
 
 /* PC-options row origin. The heading sits at y=20 and the rows used to start at 56,
  * leaving a full empty row beneath it while the pages ran off the BOTTOM of the
@@ -427,7 +430,24 @@ static const s_PcOpt PCOPT_X5[] = {
     { "Shotgun_+30",          NULL, NULL, NULL, 8, NULL, NULL, 1, PCK_CHEAT },
     { "Kill_Nearby_Enemies",  NULL, NULL, NULL, 9, NULL, NULL, 1, PCK_CHEAT },
     { "Prev_Page",            NULL, NULL, NULL, 0, NULL, NULL, 0, PCK_PREV  },
+    { "Next_Page",            NULL, NULL, NULL, 0, NULL, NULL, 0, PCK_NEXT  },
     { "Back",                 NULL, NULL, NULL, 0, NULL, NULL, 0, PCK_BACK  },
+};
+
+/* Page 6: split screen (split_xbox.c; the title's Multiplayer menu has the same
+ * rows). Layout and sound apply live; Player 2's character changes at the next
+ * area load, or when a split game starts. */
+static const int         VAL_SPLAYOUT[] = { 0, 1, 2, 3 };
+static const char* const LBL_SPLAYOUT[] = { "Top_/_Bottom", "Side_by_Side", "Top_/_Bottom_Whole", "Side_/_Side_Whole" };
+static const char* const LBL_SPAUDIO[]  = { "Nearest_Player", "P1_Left_/_P2_Right" };
+static const int         VAL_SPRESP[]   = { 3, 5, 7, 10, 15 };
+static const s_PcOpt PCOPT_X6[] = {
+    { "Layout",          &g_PcConfig.splitLayout,       "split_layout",        VAL_SPLAYOUT, 4, LBL_SPLAYOUT, NULL,          1, PCK_INT      },
+    { "Player_2",        NULL,                          NULL,                  NULL,        0, NULL,        NULL,            1, PCK_P2CHAR   },
+    { "2P_Sound",        &g_PcConfig.splitAudio,        "split_audio",         VAL_ONOFF,   2, LBL_SPAUDIO, NULL,            1, PCK_INT      },
+    { "Respawn_Secs",    &g_PcConfig.splitRespawnSec,   "split_respawn_s",     VAL_SPRESP,  5, NULL,        NULL,            1, PCK_INT      },
+    { "Prev_Page",       NULL,                          NULL,                  NULL,        0, NULL,        NULL,            0, PCK_PREV     },
+    { "Back",            NULL,                          NULL,                  NULL,        0, NULL,        NULL,            0, PCK_BACK     },
 };
 #endif
 
@@ -472,9 +492,13 @@ const s_PcOpt* PcOpt_PageByIndex(int page, int* count)
 static const s_PcOpt* PcOpt_Page(int* count)
 {
 #ifdef SH_XBOX_PORT
-    /* Five pages. PCOPT_X ends in NEXT, X2..X4 have PREV+NEXT, PCOPT_X5 ends
-     * in PREV, so the page index only ever reaches 0..4. */
-    if (g_PcOptionsMenu_Page >= 4) {
+    /* Six pages. PCOPT_X ends in NEXT, X2..X5 have PREV+NEXT, PCOPT_X6 ends
+     * in PREV, so the page index only ever reaches 0..5. */
+    if (g_PcOptionsMenu_Page >= 5) {
+        *count = (int)(sizeof(PCOPT_X6) / sizeof(PCOPT_X6[0]));
+        return PCOPT_X6;
+    }
+    if (g_PcOptionsMenu_Page == 4) {
         *count = (int)(sizeof(PCOPT_X5) / sizeof(PCOPT_X5[0]));
         return PCOPT_X5;
     }
@@ -542,6 +566,11 @@ static const char* PcOpt_ValueLabel(const s_PcOpt* e, char* buf, int bufsz)
         extern const char* Pc_Cheats_Label(int page, int idx, char* buf, int bufsz);
         return Pc_Cheats_Label(0 /* PC_CHEATS_PAGE_CHEATS */, e->nVals, buf, bufsz);
     }
+    if (e->kind == PCK_P2CHAR) {
+        extern const char* Pc_PlayAs_Label(int idx);
+        extern int         Split_P2CharIndex(void);
+        return Pc_PlayAs_Label(Split_P2CharIndex());
+    }
 #endif
     if (e->kind == PCK_MAP) {
         return g_PcConfig.mapName[0] ? g_PcConfig.mapName : "map0_s00";
@@ -594,10 +623,29 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
 
     if (e->kind == PCK_PLAYAS) {
         extern int Pc_PlayAs_Cycle(int step);
+#ifdef SH_XBOX_PORT
+        /* Split screen: a character change reloads the model in the player
+         * slots and claims play-as texture slabs Player 2 may be using; like
+         * the L3 swap, it waits until split screen ends. */
+        {
+            extern int g_XbSplitActive;
+            if (g_XbSplitActive)
+            {
+                Sd_PlaySfx(Sfx_MenuError, 0, 64);
+                return;
+            }
+        }
+#endif
         Pc_PlayAs_Cycle(dir);   /* persists itself via PcConfig_SaveKeyValue */
         return;
     }
 #ifdef SH_XBOX_PORT
+    if (e->kind == PCK_P2CHAR) {
+        extern void Split_P2CharCycle(int dir);
+        Split_P2CharCycle(dir);   /* persists split_p2_character */
+        SH_DBG_ECHO("%s: %s", e->name, PcOpt_ValueLabel(e, vbuf, sizeof(vbuf)));
+        return;
+    }
     if (e->kind == PCK_CHEAT) {
         extern void Pc_Cheats_Adjust(int page, int idx, int dir);
         Pc_Cheats_Adjust(0 /* PC_CHEATS_PAGE_CHEATS */, e->nVals, dir);   /* plays its own sound */
@@ -661,10 +709,17 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
          * starts behind Harry instead of popping. */
         extern void Xbox_ApplyControlStyle(int s);
         extern int  g_DebugThirdPersonCam, g_TpsCamNeedsReset;
+        extern int  g_XbSplitActive;
         static const char* const CAM_KEY[] = { "classic", "tps", "ots", "fps" };
         int idx    = (PcOpt_ValIndex(e) + dir + e->nVals) % e->nVals;
         int val    = e->vals[idx];
         int wasCam = g_DebugThirdPersonCam;
+        /* Split screen runs both players on the Classic camera (the others keep
+         * one set of state); the choice waits until split screen ends. */
+        if (g_XbSplitActive) {
+            Sd_PlaySfx(Sfx_MenuError, 0, 64);
+            return;
+        }
         *e->field  = val;
         Xbox_ApplyControlStyle(val);
         if (!wasCam && g_DebugThirdPersonCam) g_TpsCamNeedsReset = 1;
@@ -675,6 +730,16 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
 #endif
     if (e->field == NULL)
         return;
+#ifdef SH_XBOX_PORT
+    /* Split screen: 2D movement keeps one set of state for both players. */
+    {
+        extern int g_XbSplitActive;
+        if (g_XbSplitActive && e->field == &g_PcConfig.control2d) {
+            Sd_PlaySfx(Sfx_MenuError, 0, 64);
+            return;
+        }
+    }
+#endif
 
     {
         int idx = (PcOpt_ValIndex(e) + dir + e->nVals) % e->nVals;
@@ -1609,13 +1674,21 @@ void Options_PcOptionsMenu_Control(void)
          * the same PSX bits, so this works on keyboard too. */
         if (g_Controller0->clickedBtnFlags & ControllerFlag_R1) {
             Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+#ifdef SH_XBOX_PORT
+            g_PcOptionsMenu_Page = (g_PcOptionsMenu_Page + 1) % XBOPT_PAGE_COUNT;
+#else
             g_PcOptionsMenu_Page = (g_PcOptionsMenu_Page + 1) % PCOPT_PAGE_COUNT;
+#endif
             g_PcOptionsMenu_SelectedEntry     = 0;
             g_Options_SelectionHighlightTimer = 0;
         }
         if (g_Controller0->clickedBtnFlags & ControllerFlag_L1) {
             Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+#ifdef SH_XBOX_PORT
+            g_PcOptionsMenu_Page = (g_PcOptionsMenu_Page + XBOPT_PAGE_COUNT - 1) % XBOPT_PAGE_COUNT;
+#else
             g_PcOptionsMenu_Page = (g_PcOptionsMenu_Page + PCOPT_PAGE_COUNT - 1) % PCOPT_PAGE_COUNT;
+#endif
             g_PcOptionsMenu_SelectedEntry     = 0;
             g_Options_SelectionHighlightTimer = 0;
         }
@@ -1811,7 +1884,7 @@ static void Options_PcOptionsMenu_ConfigDraw(void)
     /* Xbox page 2 carries the longest labels on either page ("Minimap Corner",
      * "Minimap Opacity"), and 204 put the value hard against them -- the value
      * overlapped the label instead of sitting in its own column. */
-    int            valX = (g_PcOptionsMenu_Page == 0) ? 196 : 248;
+    int            valX = (g_PcOptionsMenu_Page == 0) ? 196 : (g_PcOptionsMenu_Page == 5) ? 144 : 248;
 #else
     int            valX = (g_PcOptionsMenu_Page == 0) ? 196 : (g_PcOptionsMenu_Page == 1) ? 204 : 240;
 #endif

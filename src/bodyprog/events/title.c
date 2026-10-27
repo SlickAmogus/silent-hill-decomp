@@ -10,6 +10,9 @@
 #include "pc_title_style.h"
 #include "main/fileinfo.h" /* g_GameRegion: PAL repositions the achievements hint */
 #endif
+#ifdef SH_XBOX_PORT
+#include "split_xbox.h" /* the Multiplayer row: split screen */
+#endif
 
 #include <psyq/libetc.h>
 #include <psyq/libpad.h>
@@ -60,7 +63,11 @@ void MainMenu_FogUpdate(void);
 
 static s32 g_MainMenuState              = 0;
 static s32 g_MainMenu_SelectedEntry     = MainMenuEntry_Start;
-#ifdef SH_PC_PORT
+#if defined(SH_XBOX_PORT)
+/* Multiplayer must be in the base set: it is always offered, like Exit. */
+#define MAINMENU_BASE_ENTRY_FLAGS ((1 << MainMenuEntry_Start) | (1 << MainMenuEntry_Multiplayer) | \
+                                   (1 << MainMenuEntry_Option) | (1 << MainMenuEntry_Exit))
+#elif defined(SH_PC_PORT)
 /* The port adds an Exit row, always available alongside Option. */
 #define MAINMENU_BASE_ENTRY_FLAGS ((1 << MainMenuEntry_Start) | (1 << MainMenuEntry_Option) | (1 << MainMenuEntry_Exit))
 #else
@@ -92,13 +99,20 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
      * map must have NO effect until New Game selects it (title.c New Game
      * path below). */
 #endif
+#ifdef SH_XBOX_PORT
+    #define MAIN_MENU_GAME_STATE_COUNT MainMenuEntry_Count
+#else
     #define MAIN_MENU_GAME_STATE_COUNT 5
+#endif
 
     s32 NEXT_GAME_STATES[MAIN_MENU_GAME_STATE_COUNT] =
     {
         GameState_LoadSavegameScreen,
         GameState_AutoLoadSavegame,
         GameState_MovieOpening,
+#ifdef SH_XBOX_PORT
+        GameState_MainMenu, /* Multiplayer opens its menu in place; never handed off. */
+#endif
         GameState_OptionScreen,
         GameState_MovieIntro
     };
@@ -147,6 +161,11 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
     /* Neither the gameplay demo nor the intro FMV may take the screen while the
      * achievement panel is up -- the player is reading, not idle. */
     playInGameDemo = g_PcConfig.attractDemos && !browserOpen &&
+#ifdef SH_XBOX_PORT
+                     /* Nor while split screen is in its menu or starting a game:
+                      * a demo would boot with the split session waiting. */
+                     !Split_TitleBusy() &&
+#endif
                      (((g_Demo_ReproducedCount + 1) % 3) != 0);
 #else
     /* Xbox + PSX: play the attract-mode gameplay demos (data is on the disc).
@@ -224,13 +243,32 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 }
             }
 
-#ifdef SH_XBOX_PORT
-            /* Repurpose the unused Extra slot as "EXIT" (quit to dashboard) — a
-             * console has no window-close, so give the main menu a real quit. */
-            g_MainMenu_VisibleEntryFlags |= (1 << MainMenuEntry_Extra);
-#endif
-
             g_MainMenu_VisibleEntryFlags |= g_MainMenu_VisibleEntryFlags << MainMenuEntry_Count;
+
+#ifdef SH_XBOX_PORT
+            /* Split screen: the Multiplayer menu owns the pad while it is up, the
+             * way the achievement list does below (same rule: clear the derived
+             * per-frame events, never heldBtnFlags). Split_TitleFrame re-opens
+             * it when a split game being started was backed out of, or after a
+             * split game over, so the session carries on from here. */
+            Split_TitleFrame((g_MainMenu_VisibleEntryFlags & (1 << MainMenuEntry_Continue)) != 0,
+                             (g_MainMenu_VisibleEntryFlags & (1 << MainMenuEntry_Load)) != 0);
+            if (SplitMenu_IsOpen())
+            {
+                SplitMenu_Update(
+                    (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.cancel) != 0,
+                    (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickUp) != 0,
+                    (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickDown) != 0,
+                    (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickLeft) != 0,
+                    (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickRight) != 0,
+                    (g_Controller0->clickedBtnFlags & (g_GameWorkPtr->config.controllerConfig.enter |
+                                                       g_GameWorkPtr->config.controllerConfig.action)) != 0);
+                g_Controller0->clickedBtnFlags   = 0;
+                g_Controller0->pulsedBtnFlags    = 0;
+                g_Controller0->releasedBtnFlags  = 0;
+                g_Controller0->pulsedGuiBtnFlags = 0;
+            }
+#endif
 
             if (g_Controller0->pulsedBtnFlags & (ControllerFlag_LStickUp | ControllerFlag_LStickDown))
             {
@@ -350,6 +388,36 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             }
 #endif
 
+#ifdef SH_XBOX_PORT
+            /* The Multiplayer row opens the split-screen menu in place: no fade,
+             * no game state. A half-loaded attract demo or intro movie is
+             * cancelled exactly as the stock confirm below does it. */
+            if ((g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.enter) &&
+                g_MainMenu_SelectedEntry == MainMenuEntry_Multiplayer && !browserOpen)
+            {
+                if (g_GameWork.gameStateSteps[0] != 1)
+                {
+                    g_GameWork.gameStateSteps[0] = 1;
+                    Fs_QueueReset();
+                }
+                SplitMenu_Open();
+                SD_Call(Sfx_MenuConfirm);
+                g_Controller0->clickedBtnFlags &= ~(g_GameWorkPtr->config.controllerConfig.enter |
+                                                    g_GameWorkPtr->config.controllerConfig.action);
+            }
+            /* A game the split menu started: run the stock entry for it, so the
+             * difficulty select, the opening, the auto-load and the load screen
+             * all happen exactly as they do for one player. */
+            {
+                int splitEntry = Split_TitleTakeBootEntry();
+                if (splitEntry >= 0)
+                {
+                    g_MainMenu_SelectedEntry        = splitEntry;
+                    g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.enter;
+                }
+            }
+#endif
+
             if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.enter)
             {
                 g_GameWork.gameState = GameState_MainMenu;
@@ -401,6 +469,16 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                     case MainMenuEntry_Option:
                         GameFs_OptionBinLoad();
                         break;
+
+#ifdef SH_XBOX_PORT
+                    /* Not reached (the row is handled above, before any fade);
+                     * if it ever is, undo the fade and open the menu. */
+                    case MainMenuEntry_Multiplayer:
+                        ScreenFade_Reset();
+                        g_MainMenuState = MenuState_Main;
+                        SplitMenu_Open();
+                        break;
+#endif
 
 #ifdef SH_PC_PORT
                     /* Retail leaves this slot dead (never made visible, empty
@@ -646,6 +724,13 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
     {
         g_SysWork.counters_1C[1] = 0;
     }
+#ifdef SH_XBOX_PORT
+    /* Same for the split-screen menu and a split game being started. */
+    if (Split_TitleBusy())
+    {
+        g_SysWork.counters_1C[1] = 0;
+    }
+#endif
 #endif
 
     if (!playInGameDemo)
@@ -692,6 +777,14 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 
         if (g_MainMenuState < 3)
         {
+#ifdef SH_XBOX_PORT
+            /* The split-screen menu draws itself over the title art
+             * (DbgOverlay_XboxRender); the rows and the hint stay hidden. */
+            if (SplitMenu_IsOpen())
+            {
+                return;
+            }
+#endif
             MainMenu_MainTextDraw();
 #ifdef SH_PC_PORT
             MainMenu_AchievementHintDraw();
@@ -843,13 +936,22 @@ static void MainMenu_AchievementHintDraw(void)
 static void MainMenu_MainTextDraw(void) // 0x8003B568
 {
     #define COLUMN_POS_X 158
+#ifdef SH_XBOX_PORT
+    /* Six rows: one row higher, so the last stays clear of the copyright line
+     * baked into the title art (~y286). */
+    #define COLUMN_POS_Y 164
+#else
     #define COLUMN_POS_Y 184
+#endif
     #define STR_OFFSET_Y 20
 
     static const char* MAIN_MENU_ENTRY_STRINGS[] = {
         "LOAD",
         "CONTINUE",
         "START",
+#ifdef SH_XBOX_PORT
+        "MULTIPLAYER",
+#endif
         "OPTION",
 #ifdef SH_PC_PORT
         "EXIT" /* PC port: quits the game. Reuses the unused Extra slot. */
@@ -857,7 +959,11 @@ static void MainMenu_MainTextDraw(void) // 0x8003B568
         "EXTRA" /** @unused See `e_MainMenuEntry`. */
 #endif
     };
-    static const u8 STR_OFFSETS_X[] = { 29, 50, 32, 39,
+    static const u8 STR_OFFSETS_X[] = { 29, 50, 32,
+#ifdef SH_XBOX_PORT
+        0,  // Multiplayer: centred from its measured width.
+#endif
+        39,
         33  // @unused Element at index 4. See `g_MainMenu_VisibleEntryFlags`.
     };
 
@@ -881,7 +987,11 @@ static void MainMenu_MainTextDraw(void) // 0x8003B568
              * keep using them when the text is untranslated. The port's Exit row
              * has no authored offset (index 4's was for "EXTRA"), so centre it
              * from the measured width in every language, English included. */
-            s32         offX = (tr == MAIN_MENU_ENTRY_STRINGS[i] && i != MainMenuEntry_Exit)
+            s32         offX = (tr == MAIN_MENU_ENTRY_STRINGS[i] && i != MainMenuEntry_Exit
+#ifdef SH_XBOX_PORT
+                                    && i != MainMenuEntry_Multiplayer
+#endif
+                                    )
                                    ? STR_OFFSETS_X[i]
                                    : ((Pc_LangMenuTextWidth(tr) + 6) >> 1);
             Gfx_StringSetPosition(COLUMN_POS_X - offX, COLUMN_POS_Y + (i * STR_OFFSET_Y));
