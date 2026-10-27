@@ -41,6 +41,10 @@ int Pc_MouseCursor_MenuRowHover(int baseY, int stepY, int count, unsigned int vi
  * keyboard/pad for the menu selection. */
 int Pc_MouseCursor_Moved(void);
 
+/* Brackets the QoL mods window's own pointer reads: while it is open every
+ * other reader sees no pointer at all (pc_mouse_cursor.c, Mc_Captured). */
+void Pc_MouseCursor_OwnerRead(int on);
+
 /* Raw pointer position in the text-authoring space (the coordinates
  * Gfx_StringSetPosition takes). Returns 0 (outputs untouched) when the cursor
  * is disabled/captured/outside the viewport — menus with non-uniform layouts

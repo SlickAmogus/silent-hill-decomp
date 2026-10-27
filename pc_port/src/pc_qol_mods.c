@@ -919,7 +919,7 @@ static int   s_geoBtns;
 int Pc_QolMods_Frame(int atTitle, int up, int down, int left, int right, int confirm, int cancel)
 {
     const char* labels[3];
-    int   nBtn, mMoved, mClick;
+    int   nBtn, mMoved, mClick, mIn;
     float mx, my;
 
     qm_step();
@@ -984,9 +984,12 @@ int Pc_QolMods_Frame(int atTitle, int up, int down, int left, int right, int con
 
     /* Pointer and touch: tap a checkbox to tick it, the rest of a row for its
      * details, or a button. */
+    Pc_MouseCursor_OwnerRead(1);
     mMoved = Pc_MouseCursor_Moved();
     mClick = Pc_MouseCursor_LeftClicked();
-    if (s_geoValid && (mMoved || mClick) && Pc_MouseCursor_ViewportPos(&mx, &my))
+    mIn    = Pc_MouseCursor_ViewportPos(&mx, &my);
+    Pc_MouseCursor_OwnerRead(0);
+    if (s_geoValid && (mMoved || mClick) && mIn)
     {
         float py  = (1.0f - my) * s_vpH;
         float mpx = mx * s_vpW;
