@@ -1047,6 +1047,75 @@ static void Skin_BuildBreath(PcSkinChara* ch, const float* gpos, const float* wa
     ch->breathPhase = (float)(rand() % 1000) / 1000.0f;
 }
 
+/* A hand with no finger bones: the knuckle row and bend axis from the mesh.
+ * The hand points from the wrist to its centroid, the knuckles sit halfway
+ * out, and the fingers spread widest across the bend axis. Rigs are bound
+ * with the palm facing down or toward the leg, which picks the fold side. */
+static int Skin_MeshKnuckles(const PcSkinChara* ch, const float* gpos, int bone, const float* wrist, float* knuckle,
+                             float* a, float* c)
+{
+    float ctr[3] = { 0, 0, 0 }, e1[3], e2[3], len, smax = 0.0f, sxx = 0.0f, sxy = 0.0f, syy = 0.0f, th, q[3];
+    int i, f, n = 0;
+
+    for (i = 0; i < ch->vertCount; i++)
+        if (ch->verts[i].dom == bone)
+        {
+            for (f = 0; f < 3; f++)
+                ctr[f] += gpos[i * 3 + f];
+            n++;
+        }
+    if (n < 16)
+        return 0;
+    for (f = 0; f < 3; f++)
+        a[f] = ctr[f] / (float)n - wrist[f];
+    len = V3_Len(a);
+    if (len < 1e-3f)
+        return 0;
+    for (f = 0; f < 3; f++) a[f] /= len;
+    for (i = 0; i < ch->vertCount; i++)
+        if (ch->verts[i].dom == bone)
+        {
+            float t = (gpos[i * 3] - wrist[0]) * a[0] + (gpos[i * 3 + 1] - wrist[1]) * a[1] +
+                      (gpos[i * 3 + 2] - wrist[2]) * a[2];
+            if (t > smax) smax = t;
+        }
+    for (f = 0; f < 3; f++)
+        knuckle[f] = wrist[f] + a[f] * 0.5f * smax;
+    e1[0] = (fabsf(a[0]) < 0.9f) ? 1.0f : 0.0f;
+    e1[1] = (fabsf(a[0]) < 0.9f) ? 0.0f : 1.0f;
+    e1[2] = 0.0f;
+    th = e1[0] * a[0] + e1[1] * a[1];
+    for (f = 0; f < 3; f++) e1[f] -= th * a[f];
+    len = V3_Len(e1);
+    for (f = 0; f < 3; f++) e1[f] /= len;
+    e2[0] = a[1] * e1[2] - a[2] * e1[1];
+    e2[1] = a[2] * e1[0] - a[0] * e1[2];
+    e2[2] = a[0] * e1[1] - a[1] * e1[0];
+    for (i = 0; i < ch->vertCount; i++)
+        if (ch->verts[i].dom == bone)
+        {
+            float r[3], x, y;
+            for (f = 0; f < 3; f++) r[f] = gpos[i * 3 + f] - knuckle[f];
+            if (r[0] * a[0] + r[1] * a[1] + r[2] * a[2] <= 0.0f)
+                continue;
+            x = r[0] * e1[0] + r[1] * e1[1] + r[2] * e1[2];
+            y = r[0] * e2[0] + r[1] * e2[1] + r[2] * e2[2];
+            sxx += x * x;
+            sxy += x * y;
+            syy += y * y;
+        }
+    th = 0.5f * atan2f(2.0f * sxy, sxx - syy);
+    for (f = 0; f < 3; f++)
+        c[f] = cosf(th) * e1[f] + sinf(th) * e2[f];
+    q[0] = c[1] * a[2] - c[2] * a[1];
+    q[1] = c[2] * a[0] - c[0] * a[2];
+    q[2] = c[0] * a[1] - c[1] * a[0];
+    /* +y is down in game space; the body's midline is x = 0. */
+    if (q[1] + (wrist[0] > 0.0f ? -q[0] : q[0]) < 0.0f)
+        for (f = 0; f < 3; f++) c[f] = -c[f];
+    return 1;
+}
+
 static void Skin_BuildGrip(PcSkinChara* ch, const float* gpos, float jointPos[][3], const int* handJoint,
                            int indexJoint[][5], float scale, float offX, float offY, float offZ)
 {
@@ -1058,8 +1127,19 @@ static void Skin_BuildGrip(PcSkinChara* ch, const float* gpos, float jointPos[][
         float P[6][3], a[3], c[3], q[3], d1[3], d2[3], len, ca, L = 0.0f, kap, rad;
         PcSkinMorph* m = &ch->morph[PC_SKIN_MORPH_GRIP_L + side];
 
-        if (handJoint[side] < 0 || indexJoint[side][0] < 0 || indexJoint[side][1] < 0 || indexJoint[side][2] < 0)
+        if (handJoint[side] < 0)
             continue;
+        if (indexJoint[side][0] < 0 || indexJoint[side][1] < 0 || indexJoint[side][2] < 0)
+        {
+            const float* src = jointPos[handJoint[side]];
+            P[0][0] = src[0] * scale + offX;
+            P[0][1] = -src[1] * scale + offY;
+            P[0][2] = src[2] * scale + offZ;
+            if (!Skin_MeshKnuckles(ch, gpos, bone, P[0], P[1], a, c))
+                continue;
+            SH_DBG("[SKIN] game hand %d: no finger bones, curl taken from the mesh", bone);
+            goto curl;
+        }
         for (f = 0; f < 6; f++)
         {
             int jt = f ? indexJoint[side][f - 1] : handJoint[side];
@@ -1116,6 +1196,7 @@ static void Skin_BuildGrip(PcSkinChara* ch, const float* gpos, float jointPos[][
         }
         else
             for (i = 0; i < 3; i++) c[i] /= len;
+    curl:
         q[0] = c[1] * a[2] - c[2] * a[1];
         q[1] = c[2] * a[0] - c[0] * a[2];
         q[2] = c[0] * a[1] - c[1] * a[0];
