@@ -68,6 +68,7 @@
 extern void  Cd_XboxInit(void);                    /* cd_xbox.c */
 extern FILE* Cd_XboxGetBinFile(void);
 extern int   VSync(int mode);                      /* psx_libgpu_xbox.c */
+extern void  GpuXbox_ClearColorReset(void);        /* gpu_xbox.c: frame clear back to black */
 extern unsigned short Pad_XboxButtons(void);       /* pad_xbox.c (active-low) */
 extern void  Xa_XboxStreamBegin(void);             /* xa_xbox.c FMV stream mode */
 extern void  Xa_XboxStreamFeedSector(const unsigned char* sector2336);
@@ -595,6 +596,8 @@ int FMV_Play(int file_idx, int max_frames)
         return -1;
     }
     e = &s_fmvFiles[table_idx];
+
+    GpuXbox_ClearColorReset();
 
     /* AVI override first (PC parity): a usable D:\fmv\<name>.avi (or
      * D:\gamedata\fmv\<name>.avi) replaces the disc movie; an unusable one

@@ -1943,6 +1943,14 @@ unsigned int GpuXbox_GetClearColor(void)
     return 0xFF000000u;
 }
 
+/* FMV_Play blocks the game loop, so no GsSortClear runs during a movie and the
+ * last in-game frame's fog colour would fill the bars around a 320x208 movie.
+ * PSX open_main blacks the screen first; the next GsSortClear sets it again. */
+void GpuXbox_ClearColorReset(void)
+{
+    g_activeDrawEnv.isbg = 0;
+}
+
 /* ClearImage support (psx_libgpu_xbox.c): draw an immediate flat quad through
  * the current screen transform when the rect intersects the display area, so
  * colour wipes/flashes land in the visible frame (the VRAM-side fill is done
