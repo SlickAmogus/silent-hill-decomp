@@ -2493,6 +2493,11 @@ void MainLoop(void) // 0x80032EE0
                     (pcQmPulsed  & (ControllerFlag_LStickRight | ControllerFlag_DpadRight)) != 0,
                     (pcQmClicked & (cc->enter | cc->action)) != 0,
                     (pcQmClicked & cc->cancel) != 0)) {
+                /* The next pad update derives its press edges from heldBtnFlags,
+                 * so zeroing it alone made a held key a fresh press every frame:
+                 * the window raced through rows. Same stash as the quick menu. */
+                s_pcQoHeldStash      = g_Controller0->heldBtnFlags;
+                s_pcQoHeldStashValid = 1;
                 g_Controller0->heldBtnFlags      = 0;
                 g_Controller0->clickedBtnFlags   = 0;
                 g_Controller0->releasedBtnFlags  = 0;
