@@ -941,11 +941,15 @@ int Pc_QolMods_Frame(int atTitle, int up, int down, int left, int right, int con
             {
                 PcConfig_SaveKeyValue(QM_OFFERED_KEY, "1");
                 qm_set_mode(QM_PROMPT);
+                Pc_MouseCursor_Show();
                 return 1;
             }
         }
         return 0;
     }
+
+    /* The pointer is drawn only on frames that ask for it. */
+    Pc_MouseCursor_Show();
 
     /* The press that opened the window must not also act inside it. */
     if (SDL_GetTicks() - s_openMs < QM_OPEN_GUARD_MS)
