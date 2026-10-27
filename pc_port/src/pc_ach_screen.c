@@ -248,32 +248,104 @@ static int ach_back_right(void)
     return ACH_BACK_X + NM_BULLET_TEXT_DX + Nm_TextWidth("Back");
 }
 
-static int ach_hit(const NmInput* in)
+static int ach_hit_at(int x, int y)
 {
     int i;
 
-    if (!in->mouseOk)
-    {
-        return ACH_HIT_NONE;
-    }
-
     for (i = 0; i < ACH_VISIBLE && s_scroll.top + i < s_list.count; i++)
     {
-        int y = ACH_LIST_Y + (i * ACH_PITCH) - 2;
+        int rowY = ACH_LIST_Y + (i * ACH_PITCH) - 2;
 
-        if (in->mouseX >= ACH_BADGE_X && in->mouseX < 320 - ACH_BADGE_X &&
-            in->mouseY >= y && in->mouseY < y + ACH_PITCH)
+        if (x >= ACH_BADGE_X && x < 320 - ACH_BADGE_X && y >= rowY && y < rowY + ACH_PITCH)
         {
             return s_scroll.top + i;
         }
     }
 
-    if (in->mouseX >= ACH_BACK_X - 1 && in->mouseX < ach_back_right() + 4 &&
-        in->mouseY >= ACH_FOOTER_Y && in->mouseY < ACH_FOOTER_Y + 16)
+    if (x >= ACH_BACK_X - 1 && x < ach_back_right() + 4 && y >= ACH_FOOTER_Y && y < ACH_FOOTER_Y + 16)
     {
         return ACH_HIT_BACK;
     }
     return ACH_HIT_NONE;
+}
+
+static int ach_hit(const NmInput* in)
+{
+    return in->mouseOk ? ach_hit_at(in->mouseX, in->mouseY) : ACH_HIT_NONE;
+}
+
+/* Touch on the list: content follows the finger a row per row-height, and only
+ * a touch that never moved past the slop opens what it landed on, decided on
+ * release. Same model as the save/load screen (saveload.c). */
+#define ACH_TOUCH_SLOP 6
+static void ach_select(int hit);
+static int s_tActive, s_tStartX, s_tStartY, s_tLastY, s_tMoved;
+
+/* 1 if the touch this frame was handled (the caller skips the mouse path),
+ * with *activate set when a tap opened something. */
+static int ach_touch(const NmInput* in, int* activate)
+{
+    *activate = 0;
+    if (in->touchPress)
+    {
+        s_tActive = 1;
+        s_tStartX = in->touchX;
+        s_tStartY = in->touchY;
+        s_tLastY  = in->touchY;
+        s_tMoved  = 0;
+        return 1;
+    }
+    if (!s_tActive)
+    {
+        return in->touch;
+    }
+    if (in->touchHeld)
+    {
+        int dx = in->touchX - s_tStartX, dy = in->touchY - s_tStartY;
+
+        if (dx < 0) dx = -dx;
+        if (dy < 0) dy = -dy;
+        if (dx > ACH_TOUCH_SLOP || dy > ACH_TOUCH_SLOP)
+        {
+            s_tMoved = 1;
+        }
+        if (s_tMoved)
+        {
+            int rows = (s_tLastY - in->touchY) / ACH_PITCH;
+
+            if (rows != 0)
+            {
+                int oldTop = s_scroll.top;
+
+                NmScroll_Wheel(&s_scroll, -rows);
+                s_tLastY -= rows * ACH_PITCH;
+                if (s_scroll.top != oldTop)
+                {
+                    s_onBack = 0;
+                    SD_Call(Sfx_MenuMove);
+                }
+            }
+        }
+        return 1;
+    }
+    if (in->touchRelease)
+    {
+        s_tActive = 0;
+        if (!s_tMoved)
+        {
+            int hit = ach_hit_at(s_tStartX, s_tStartY);
+
+            if (hit != ACH_HIT_NONE)
+            {
+                Nm_HighlightSnap();
+                ach_select(hit);
+                *activate = 1;
+            }
+        }
+        return 1;
+    }
+    s_tActive = 0;
+    return in->touch;
 }
 
 static void ach_select(int hit)
@@ -338,6 +410,19 @@ static int ach_update_list(const NmInput* in, int back)
         }
     }
 
+    {
+        int tap;
+
+        if (ach_touch(in, &tap))
+        {
+            if (tap)
+            {
+                return ach_activate();
+            }
+            goto pad;
+        }
+    }
+
     hit = ach_hit(in);
     if (in->mouseLeft && hit != ACH_HIT_NONE)
     {
@@ -351,6 +436,7 @@ static int ach_update_list(const NmInput* in, int back)
         ach_select(hit);
     }
 
+pad:
     if (in->up && s_onBack && count > 0)
     {
         s_onBack = 0;

@@ -469,6 +469,22 @@ void NmInput_FromGame(NmInput* out)
     out->mouseMoved = Pc_MouseCursor_Moved();
     out->mouseLeft  = Pc_MouseCursor_LeftClicked();
     out->mouseRight = Pc_MouseCursor_RightClicked();
+
+    out->touch = Pc_MouseCursor_TouchDriving();
+    {
+        int tx = 0, ty = 0;
+        if (Pc_MouseCursor_TouchDown(&tx, &ty))
+        {
+            out->touchHeld  = 1;
+            out->touchPress = Pc_MouseCursor_TouchPressed();
+        }
+        else if (Pc_MouseCursor_TouchReleased(&tx, &ty))
+        {
+            out->touchRelease = 1;
+        }
+        out->touchX = tx;
+        out->touchY = nm_interlaced() ? (ty + 112) / 2 : ty;
+    }
 }
 
 void NmPage_Draw(const NmPage* p, int x, int y, int pitch, int valueX)

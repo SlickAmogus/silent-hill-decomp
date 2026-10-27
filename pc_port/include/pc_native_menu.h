@@ -11,7 +11,12 @@ typedef struct { int up, down, left, right;      /* pulsed (repeat) */
                  int confirm, cancel, clear;       /* press edges */
                  int wheel;                        /* notches, + = up */
                  int mouseOk, mouseX, mouseY;      /* 320x240 text space */
-                 int mouseMoved, mouseLeft, mouseRight; } NmInput;
+                 int mouseMoved, mouseLeft, mouseRight;
+                 /* Touch, kept apart from the mouse it is also synthesized
+                  * into: a list wants a drag to scroll, and the synthesized
+                  * click arrives on the press, before a drag can be told
+                  * from a tap. touchX/Y are in the same space as mouseX/Y. */
+                 int touch, touchPress, touchHeld, touchRelease, touchX, touchY; } NmInput;
 
 typedef struct { int count, visible, top, sel; } NmScroll;
 void NmScroll_Init(NmScroll* s, int count, int visible);
