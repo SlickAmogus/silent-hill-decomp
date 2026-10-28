@@ -107,6 +107,14 @@ static const s_MenuTranslation s_MenuTr[] = {
     { "\x07Is_it_OK_to_format?",
         { "\x07Wirklich_formatieren?", "\x07Vraiment_formater_?", "\x07\xBF" "Formatear?", "\x07" "Formattare?" } },
 
+    /* --- Pause menu --- */
+    { "SAVE",                            { "SPEICHERN", "SAUVEGARDER", "GUARDAR", "SALVA" } },
+    { "Return_to_the_title_screen?",     { "Zur\xFC" "ck_zum_Titelbildschirm?", "Retourner_\xE0_l'\xE9" "cran_titre_?", "\xBFVolver_a_la_pantalla_de_t\xEDtulo?", "Tornare_alla_schermata_del_titolo?" } },
+    { "Quit_the_game?",                  { "Spiel_beenden?", "Quitter_le_jeu_?", "\xBFSalir_del_juego?", "Uscire_dal_gioco?" } },
+    /* Shortened where the full sentence passed 300 px: the reason line is FONT16 and never shrinks. */
+    { "Cannot_save_during_a_boss_fight", { "Kein_Speichern_im_Bosskampf", "Pas_de_sauvegarde_contre_un_boss", "No_se_puede_guardar_contra_un_jefe", "Impossibile_salvare_contro_un_boss" } },
+    { "Cannot_save_in_a_randomizer_run", { "Kein_Speichern_im_Randomizer", "Pas_de_sauvegarde_en_al\xE9" "atoire", "No_se_puede_guardar_en_aleatorio", "Non_si_salva_in_modalit\xE0_casuale" } },
+
     /* --- Saveload screen chrome + memory card dialogs --- */
     { "FILE", { "DATEI", "FICHIER", "ARCHIVO", NULL   } },
     { "Data", { "Daten", "Fich.",   "Datos",   "Dati" } },

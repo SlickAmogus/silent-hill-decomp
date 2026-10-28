@@ -18,6 +18,7 @@
 #ifdef SH_PC_PORT
 #include <ctype.h>
 #include "pc_config.h"
+#include "pc_pause_menu.h"
 #endif
 
 #define LINE_CURSOR_TIMER_MAX 8
@@ -1655,6 +1656,8 @@ void GameState_Options_Update(void) // 0x801E2D44
     if (g_GameWork.gameStatePrev != GameState_MainMenu
 #ifdef SH_PC_PORT
         && g_GameWork.gameStateSteps[0] != OptionsMenuState_PcOptions
+        /* Opened from pause, which keeps the clock stopped. */
+        && !Pc_PauseMenu_ReturnPending()
 #endif
        )
     {

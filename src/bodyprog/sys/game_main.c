@@ -6,6 +6,7 @@
 #include "xa_player.h"
 #include "pc_msg_voice.h"
 #include "pc_dark_harry.h"
+#include "pc_pause_menu.h"
 #include <SDL_timer.h>
 #include <math.h>
 extern void PsyX_EndScene(void);
@@ -2649,6 +2650,22 @@ void MainLoop(void) // 0x80032EE0
             {
                 g_PsxPresentLastFrame    = 0;
                 g_PcFreezeReleasePending = 0;
+            }
+
+            /* Pause -> OPTION holds the frozen frame through SysState_OptionsMenu's
+             * fade; the options screen itself must not draw over it. */
+            if (Pc_PauseMenu_ReturnPending() && g_GameWork.gameState != GameState_InGame)
+            {
+                g_PsxPresentLastFrame = 0;
+            }
+
+            /* A load that went through, or the way back to the title: nothing is
+             * coming back to the pause menu. Not the load screen itself (it sits
+             * below MainLoadScreen), whose cancel still returns there. */
+            if (g_GameWork.gameState == GameState_MainLoadScreen ||
+                g_GameWork.gameState == GameState_MainMenu)
+            {
+                Pc_PauseMenu_Reset();
             }
         }
 #endif
