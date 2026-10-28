@@ -3338,3 +3338,47 @@ Z in game. Letters, top-row digits and OEM punctuation are now captured by PC
 scancode (`MapVirtualKey`, gated by `IsLayoutKey` because keypad `/` shares
 scancode 0x35 with `/`), and each box shows its key's label on the active
 layout. The saved name lives in the box's `Tag`; its text is display only.
+
+## Pause menu (2026-10-28)
+
+**PAUSED became a menu.** On PC, `SysState_GamePaused_Update` keeps its
+freeze, its `SD_Call(3)` mute and the debug L3 combo, then hands the rest to
+`Pc_PauseMenu_Update` (`pc_port/src/pc_pause_menu.c`): CONTINUE / SAVE / LOAD /
+OPTION / EXIT in FONT16 with the title's quote marks, over the frozen frame.
+The retail blink and pause-bind resume stay under `#else`. The rows and the Yes/No
+popup are a renderer-free model (`pc_pause_menu_core.c`, `pc_pause_menu_test`).
+SAVE and LOAD open the same screens as F6 / F8 (`Pc_QuickSave_Open*Screen`).
+In a randomizer run or with a live boss they are darkened, and a reason line
+shows.
+
+**Leaving and coming back.** SAVE / LOAD / OPTION set a pending return, and
+PsyCross's `g_PsxFreezeCaptureHold` keeps the paused frame from being
+overwritten while the other screen draws. The MainLoop post-update block hands
+the state back to `SysState_GamePaused` on the same tick the screen returns to
+InGame. A hook in the dispatch block would see `Game_StateSetNext`'s forced
+Gameplay sysState first and tick the world once. `Pc_PauseMenu_Reset` clears
+the return on MainLoadScreen / MainMenu, `Game_WarmBoot`, and any exit that
+leaves the pause. `options.c` gates `Game_TimerUpdate` while a return is
+pending, so the clear time does not run.
+
+**Fades.** The Hor+ gate in `MainLoop` held 4:3 for 300 ms after any 2D
+background screen and only let go early on a frame where the world was drawn.
+A frozen world is never drawn, so on the way back from Save / Options the fade
+darkened a 4:3 window while the presented frame filled the side bars. A
+presented freeze-frame now ends that hold too. While the fade is opaque, the
+UI pass keeps the gate's framing instead of narrowing to 4:3 for a menu state,
+which also removes one frame of fog-grey bars on gameplay -> Options. SAVE /
+LOAD / EXIT fade out like the game's own exits: the menu goes on confirm and
+SAVELOAD.BIN loads under the fade. EXIT -> Yes sets `SysFlag_DoWarmReset` only
+once the screen is black.
+
+**Sound.** The pause keeps vanilla's master-volume mute. Its menu cues key on
+with `PsyX_SPUAL_SetKeyOnMasterExempt`, which mixes those voices after master.
+It covers only key-ons from the game thread, so sequencer notes stay muted.
+Opened from the pause, Save / Load / Options keep the mute and arm the same
+exemption for their own cues (`Pc_PauseMenu_AwayUpdate`). Any exit other than
+back to the pause lifts the mute. Opened any other way, they are vanilla.
+
+**Title EXIT.** `MainMenuEntry_Exit` (a port row) now asks "QUIT THE GAME?"
+before `exit(0)`. The prompt is drawn with the rows' own `Gfx_String` path on
+the first row's place, and it holds the attract timer while open.
