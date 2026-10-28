@@ -18,6 +18,10 @@ unsigned PmMenu_EnabledMask(const PmMenu* m);      /* bit i = row i selectable *
 /* hoverRow: row under the pointer or -1 (glue already masks disabled rows).
  * hoverAnswer: 0 = Yes, 1 = No, -1 = none; used only while confirm.open.
  * A click is in->mouseLeft with a valid hover. */
+/* Confirm-popup hover rule shared by the pause menu and the title EXIT popup:
+ * sets c->yes from the hovered answer on move or click, and returns the input
+ * to pass to NmConfirm_Update with a click turned into confirm. */
+NmInput PmConfirm_ApplyHover(NmConfirm* c, const NmInput* in, int hoverAnswer);
 PmAction PmMenu_Update(PmMenu* m, const NmInput* in, int hoverRow, int hoverAnswer);
 const char* PmBlock_Reason(PmBlock b);              /* NULL for PM_BLOCK_NONE */
 

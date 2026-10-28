@@ -12,6 +12,7 @@
 #include "pc_mouse_cursor.h"
 #include "pc_native_menu_draw.h"
 #include "pc_pause_menu.h"
+#include "pc_pause_menu_core.h"
 #include "pc_retroachievements.h"
 #endif
 
@@ -327,18 +328,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 
                 NmInput_FromGame(&in);
                 hoverAnswer = Pc_PauseMenu_ConfirmHover(&in, 104);
-                c           = in;
-                if (hoverAnswer == 0 || hoverAnswer == 1)
-                {
-                    if (in.mouseMoved || in.mouseLeft)
-                    {
-                        s_ExitConfirm.yes = (hoverAnswer == 0);
-                    }
-                    if (in.mouseLeft)
-                    {
-                        c.confirm = 1;
-                    }
-                }
+                c           = PmConfirm_ApplyHover(&s_ExitConfirm, &in, hoverAnswer);
 
                 res = NmConfirm_Update(&s_ExitConfirm, &c);
                 if (res == NM_CONFIRM_YES)

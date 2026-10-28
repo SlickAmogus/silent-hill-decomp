@@ -42,17 +42,23 @@ static int Step(const PmMenu* m, int dir)
     return m->sel;
 }
 
+NmInput PmConfirm_ApplyHover(NmConfirm* c, const NmInput* in, int hoverAnswer)
+{
+    NmInput out = *in;
+    if (hoverAnswer == 0 || hoverAnswer == 1) {
+        if (in->mouseMoved || in->mouseLeft) c->yes = (hoverAnswer == 0);
+        if (in->mouseLeft) out.confirm = 1;
+    }
+    return out;
+}
+
 PmAction PmMenu_Update(PmMenu* m, const NmInput* in, int hoverRow, int hoverAnswer)
 {
     unsigned mask = PmMenu_EnabledMask(m);
     int hoverOk;
 
     if (m->confirm.open) {
-        NmInput c = *in;
-        if (hoverAnswer == 0 || hoverAnswer == 1) {
-            if (in->mouseMoved || in->mouseLeft) m->confirm.yes = (hoverAnswer == 0);
-            if (in->mouseLeft) c.confirm = 1;
-        }
+        NmInput c = PmConfirm_ApplyHover(&m->confirm, in, hoverAnswer);
         switch (NmConfirm_Update(&m->confirm, &c)) {
         case NM_CONFIRM_YES: return PM_ACT_EXIT_YES;
         case NM_CONFIRM_NO:  return PM_ACT_EXIT_NO;

@@ -123,6 +123,25 @@ static void test_exit_confirm(void)
     assert(m.sel == PM_ROW_EXIT && m.confirm.open);
 }
 
+static void test_apply_hover(void)
+{
+    NmConfirm c; NmInput in, out;
+
+    NmConfirm_Open(&c);
+    in = none(); in.mouseMoved = 1;
+    out = PmConfirm_ApplyHover(&c, &in, 0);
+    assert(c.yes == 1 && !out.confirm);
+
+    in = none(); in.mouseLeft = 1;
+    out = PmConfirm_ApplyHover(&c, &in, 1);
+    assert(c.yes == 0 && out.confirm);
+
+    in = none(); in.mouseLeft = 1; in.mouseMoved = 1;
+    c.yes = 1;
+    out = PmConfirm_ApplyHover(&c, &in, -1);
+    assert(c.yes == 1 && !out.confirm);
+}
+
 static void test_reason(void)
 {
     assert(!strcmp(PmBlock_Reason(PM_BLOCK_BOSS), "Cannot_save_during_a_boss_fight"));
@@ -141,6 +160,7 @@ int main(void)
     test_idle_pointer_does_not_fight_pad();
     test_disabled_hover_ignored();
     test_exit_confirm();
+    test_apply_hover();
     test_reason();
     puts("OK");
     return 0;
