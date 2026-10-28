@@ -3366,7 +3366,15 @@ void MainLoop(void) // 0x80032EE0
              * g_PcWorldDrawnThisFrame already reflects THIS frame -- the hold
              * ends on the very first world frame and nothing is stretched at
              * all. Waiting for a second frame left two stretched ones. */
-            if (bg2dHeld && g_Pc2dBackgroundActive <= 0 && g_PcWorldDrawnThisFrame)
+            /* A presented freeze-frame is the world too: the captured frame is
+             * blitted over the whole window, so holding 4:3 here only framed
+             * the fade drawn over it. Coming back from the Save/Load/Option
+             * screens to the pause menu, the fade-in darkened the 4:3 middle
+             * while the frozen world sat at full brightness in the side bars
+             * for the 300ms the hold outlived the screen. */
+            extern int g_PsxPresentLastFrame;
+            if (bg2dHeld && g_Pc2dBackgroundActive <= 0 &&
+                (g_PcWorldDrawnThisFrame || g_PsxPresentLastFrame))
             {
                 s_bg2dHoldUntilMs = 0;
                 bg2dHeld          = 0;
@@ -4129,7 +4137,15 @@ void MainLoop(void) // 0x80032EE0
                                   g_SysWork.sysState == SysState_MapScreen   ||
                                   g_SysWork.sysState == SysState_SaveMenu0   ||
                                   g_SysWork.sysState == SysState_SaveMenu1;
-            const int uiIsMenu = uiMenuState && !uiWorldOnScreen;
+            /* While the fade is opaque it IS the image and the gate holds the
+             * framing the fade started under (see its fade branch); the frame
+             * was cleared with that framing too. Narrowing here anyway on the
+             * tick a menu screen took over left the opaque fade in the 4:3
+             * middle and the bars showing that clear, the stale fog colour, for
+             * a frame (entering OPTION from pause or from gameplay). */
+            const int uiFadeOpaque = (g_Screen_FadeStatus & 0x7) >= ScreenFadeState_ResetTimestep &&
+                                     (g_Screen_FadeStatus & 0x7) <= ScreenFadeState_FadeInStart;
+            const int uiIsMenu = uiMenuState && !uiWorldOnScreen && !uiFadeOpaque;
 
             g_PcHorPlusEnabled = uiIsMenu ? 0 : g_PcHorPlusGate;
             g_PsxUIOrthoPass   = 1;

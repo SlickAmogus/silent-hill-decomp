@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "game.h"
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/screen/screen_draw.h"
+#include "bodyprog/screen/screen_fade.h"
 #include "bodyprog/sound/sound_system.h"
 #include "bodyprog/text/text_draw.h"
 #include "sh_log.h"
@@ -31,6 +33,8 @@ static PmMenu s_menu;
 static int    s_open;
 static s32    s_blink;
 static int    s_returnPending;
+/* SAVE or LOAD chosen; carried out once the fade-out is black. */
+static PmAction s_fadeAct;
 
 /* Centred the way MainMenu_MainTextDraw centres the title rows. */
 static int MarkedLabelX(int cx, const char* label)
@@ -106,6 +110,7 @@ void Pc_PauseMenu_Reset(void)
     g_PsxFreezeCaptureHold = 0;
     s_open                 = 0;
     s_blink                = 0;
+    s_fadeAct              = PM_ACT_NONE;
 }
 
 static void PauseMenu_Draw(void)
@@ -139,6 +144,29 @@ static void PauseMenu_Draw(void)
     }
 }
 
+static void PauseMenu_Leave(PmAction act)
+{
+    SD_Call(4);
+    s_returnPending        = 1;
+    g_PsxFreezeCaptureHold = 1;
+    s_open                 = 0;
+    SH_DBG("[PAUSE] -> %s", s_RowLabels[s_menu.sel]);
+    if (act == PM_ACT_OPTION)
+    {
+        SysWork_StateSetNext(SysState_OptionsMenu);
+        return;
+    }
+    g_PsxPresentLastFrame = 0;
+    if (act == PM_ACT_SAVE)
+    {
+        Pc_QuickSave_OpenSaveScreen();
+    }
+    else
+    {
+        Pc_QuickSave_OpenLoadScreen();
+    }
+}
+
 void Pc_PauseMenu_Update(void)
 {
     const s_ControllerConfig* cfg = &g_GameWorkPtr->config.controllerConfig;
@@ -166,6 +194,19 @@ void Pc_PauseMenu_Update(void)
     }
 
     s_blink += g_DeltaTimeRaw;
+
+    if (s_fadeAct != PM_ACT_NONE)
+    {
+        if (ScreenFade_IsFinished())
+        {
+            act       = s_fadeAct;
+            s_fadeAct = PM_ACT_NONE;
+            PauseMenu_Leave(act);
+            return;
+        }
+        PauseMenu_Draw();
+        return;
+    }
 
     NmInput_FromGame(&in);
     /* A Pause bind that is not also a confirm button closes the menu like
@@ -220,27 +261,18 @@ void Pc_PauseMenu_Update(void)
 
         case PM_ACT_SAVE:
         case PM_ACT_LOAD:
+            /* SysState_OptionsMenu fades out before its screen; these open
+             * theirs directly, so fade here the same way first. */
+            SD_Call(Sfx_MenuConfirm);
+            ScreenFade_Start(true, false, false);
+            g_ScreenFadeTimestep = Q12(0.0f);
+            s_fadeAct            = act;
+            PauseMenu_Draw();
+            return;
+
         case PM_ACT_OPTION:
             SD_Call(Sfx_MenuConfirm);
-            SD_Call(4);
-            s_returnPending        = 1;
-            g_PsxFreezeCaptureHold = 1;
-            s_open                 = 0;
-            SH_DBG("[PAUSE] -> %s", s_RowLabels[s_menu.sel]);
-            if (act == PM_ACT_OPTION)
-            {
-                SysWork_StateSetNext(SysState_OptionsMenu);
-                return;
-            }
-            g_PsxPresentLastFrame = 0;
-            if (act == PM_ACT_SAVE)
-            {
-                Pc_QuickSave_OpenSaveScreen();
-            }
-            else
-            {
-                Pc_QuickSave_OpenLoadScreen();
-            }
+            PauseMenu_Leave(act);
             return;
 
         case PM_ACT_EXIT_YES:
