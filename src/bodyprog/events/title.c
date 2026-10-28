@@ -11,6 +11,7 @@
 #include "pc_ach_screen.h"
 #include "pc_mouse_cursor.h"
 #include "pc_native_menu_draw.h"
+#include "pc_pause_menu.h"
 #include "pc_retroachievements.h"
 #endif
 
@@ -86,6 +87,7 @@ static u32 g_MainMenu_VisibleEntryFlags = MAINMENU_BASE_ENTRY_FLAGS;
 static NmScroll s_MainMenu_Scroll;
 static s32      s_MainMenu_Order[MainMenuEntry_Count];
 static s32      s_MainMenu_RowCount;
+static NmConfirm s_ExitConfirm;
 
 static void MainMenu_LayoutSync(void)
 {
@@ -175,6 +177,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
      * the hand-off past the opening movie. Consumed at hand-off so a later warm
      * boot back to the title behaves normally. */
     static s32  skipToGameStep = 0;
+    bool        exitConfirmActive;
 
     if (skipToGameStep == 0 && g_PcConfig.skipIntros >= 2)
     {
@@ -198,6 +201,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
     /* Neither the gameplay demo nor the intro FMV may take the screen while the
      * achievements screen is up -- the player is reading, not idle. */
     playInGameDemo = g_PcConfig.attractDemos && g_MainMenuState != MenuState_Achievements &&
+                     !s_ExitConfirm.open &&
                      (((g_Demo_ReproducedCount + 1) % 3) != 0);
 #else
     playInGameDemo = ((g_Demo_ReproducedCount + 1) % 3) != 0;
@@ -312,6 +316,48 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 
             g_MainMenu_VisibleEntryFlags |= g_MainMenu_VisibleEntryFlags << MainMenuEntry_Count;
 
+#ifdef SH_PC_PORT
+            exitConfirmActive = s_ExitConfirm.open;
+            if (exitConfirmActive)
+            {
+                NmInput         in;
+                NmInput         c;
+                s32             hoverAnswer;
+                NmConfirmResult res;
+
+                NmInput_FromGame(&in);
+                hoverAnswer = Pc_PauseMenu_ConfirmHover(&in, 104);
+                c           = in;
+                if (hoverAnswer == 0 || hoverAnswer == 1)
+                {
+                    if (in.mouseMoved || in.mouseLeft)
+                    {
+                        s_ExitConfirm.yes = (hoverAnswer == 0);
+                    }
+                    if (in.mouseLeft)
+                    {
+                        c.confirm = 1;
+                    }
+                }
+
+                res = NmConfirm_Update(&s_ExitConfirm, &c);
+                if (res == NM_CONFIRM_YES)
+                {
+                    SH_DBG("[MENU] Exit selected — closing game");
+                    if (g_ShDebugLog)
+                        fflush(g_ShDebugLog);
+                    exit(0);
+                }
+                else if (res == NM_CONFIRM_NO)
+                {
+                    SD_Call(Sfx_MenuCancel);
+                }
+
+                g_Controller0->pulsedBtnFlags  = 0;
+                g_Controller0->clickedBtnFlags = 0;
+            }
+#endif
+
             if (g_Controller0->pulsedBtnFlags & (ControllerFlag_LStickUp | ControllerFlag_LStickDown))
             {
                 SD_Call(Sfx_MenuMove);
@@ -343,6 +389,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
              * to scroll. Rows are hit-tested where MainMenu_MainTextDraw puts them
              * after scrolling, so slot -> compact index -> entry id. */
             MainMenu_LayoutSync();
+            if (!exitConfirmActive)
             {
                 s32 mx, my;
                 s32 rowY  = MainMenu_RowY();
@@ -402,6 +449,14 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 g_MainMenu_SelectedEntry        = MainMenuEntry_Start;
                 g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.enter;
                 skipToGameStep                  = 2;
+            }
+
+            if (g_MainMenu_SelectedEntry == MainMenuEntry_Exit &&
+                (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.enter))
+            {
+                NmConfirm_Open(&s_ExitConfirm);
+                SD_Call(Sfx_MenuConfirm);
+                g_Controller0->clickedBtnFlags &= ~g_GameWorkPtr->config.controllerConfig.enter;
             }
 #endif
 
@@ -739,7 +794,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
     /* Hold the idle timer at zero while the achievements screen is up. Scrolling
      * a list is not idling, and at 1740 this loads STREAM.BIN and cuts to the
      * intro movie. */
-    if (g_MainMenuState == MenuState_Achievements)
+    if (g_MainMenuState == MenuState_Achievements || s_ExitConfirm.open)
     {
         g_SysWork.counters_1C[1] = 0;
     }
@@ -802,6 +857,13 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
         if (g_MainMenuState < 3)
 #endif
         {
+#ifdef SH_PC_PORT
+            if (s_ExitConfirm.open)
+            {
+                Pc_PauseMenu_ConfirmDraw("Quit_the_game?", s_ExitConfirm.yes, 104);
+            }
+            else
+#endif
             MainMenu_MainTextDraw();
 #ifdef SH_PC_PORT
             Pc_MouseCursor_Show();
