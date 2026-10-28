@@ -206,7 +206,7 @@ void Pc_PauseMenu_Update(void)
             break;
 
         case PM_ACT_RESUME:
-            SD_Call(in.cancel ? Sfx_MenuCancel : Sfx_MenuConfirm);
+            SD_Call((in.cancel || in.mouseRight) ? Sfx_MenuCancel : Sfx_MenuConfirm);
             SD_Call(4);
             /* Releasing on this tick showed one bare fog-colored frame: the world
              * draw is still gated off by the BgmStatusFlag_Pause that

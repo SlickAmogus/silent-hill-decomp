@@ -9,6 +9,14 @@
 
 static NmInput none(void) { NmInput i; memset(&i, 0, sizeof i); return i; }
 
+/* Opens and runs the opening tick, which ignores the pointer. */
+static void open_settled(PmMenu* m, PmBlock block)
+{
+    NmInput in = none();
+    PmMenu_Open(m, block);
+    assert(PmMenu_Update(m, &in, -1, -1) == PM_ACT_NONE);
+}
+
 static void test_open_resets(void)
 {
     PmMenu m; PmMenu_Open(&m, PM_BLOCK_NONE);
@@ -61,7 +69,7 @@ static void test_cancel_resumes(void)
 static void test_hover_and_click(void)
 {
     PmMenu m; NmInput in = none();
-    PmMenu_Open(&m, PM_BLOCK_NONE);
+    open_settled(&m, PM_BLOCK_NONE);
     in.mouseMoved = 1;
     assert(PmMenu_Update(&m, &in, PM_ROW_LOAD, -1) == PM_ACT_MOVED && m.sel == PM_ROW_LOAD);
     in.mouseLeft = 1;
@@ -79,10 +87,53 @@ static void test_idle_pointer_does_not_fight_pad(void)
 static void test_disabled_hover_ignored(void)
 {
     PmMenu m; NmInput in = none();
-    PmMenu_Open(&m, PM_BLOCK_BOSS);
+    open_settled(&m, PM_BLOCK_BOSS);
     in.mouseLeft = 1; in.mouseMoved = 1;
     assert(PmMenu_Update(&m, &in, PM_ROW_SAVE, -1) == PM_ACT_NONE);
     assert(m.sel == PM_ROW_CONTINUE);
+}
+
+static void test_opening_tick_ignores_pointer(void)
+{
+    PmMenu m; NmInput in;
+    int pass;
+
+    /* Second pass: shown again after coming back from Save/Load/Option. */
+    for (pass = 0; pass < 2; pass++) {
+        PmMenu_Open(&m, PM_BLOCK_NONE);
+        in = none(); in.mouseOk = 1; in.mouseMoved = 1; in.mouseLeft = 1;
+        assert(PmMenu_Update(&m, &in, PM_ROW_OPTION, -1) == PM_ACT_NONE);
+        assert(m.sel == PM_ROW_CONTINUE);
+        in = none(); in.mouseOk = 1; in.mouseMoved = 1;
+        assert(PmMenu_Update(&m, &in, PM_ROW_OPTION, -1) == PM_ACT_MOVED);
+        assert(m.sel == PM_ROW_OPTION);
+    }
+
+    PmMenu_Open(&m, PM_BLOCK_NONE);
+    in = none(); in.confirm = 1;
+    assert(PmMenu_Update(&m, &in, PM_ROW_OPTION, -1) == PM_ACT_RESUME);
+    PmMenu_Open(&m, PM_BLOCK_NONE);
+    in = none(); in.cancel = 1;
+    assert(PmMenu_Update(&m, &in, -1, -1) == PM_ACT_RESUME);
+}
+
+static void test_right_click_cancels(void)
+{
+    PmMenu m; NmInput in;
+
+    open_settled(&m, PM_BLOCK_NONE);
+    m.sel = PM_ROW_LOAD;
+    in = none(); in.mouseRight = 1;
+    assert(PmMenu_Update(&m, &in, PM_ROW_LOAD, -1) == PM_ACT_RESUME);
+
+    open_settled(&m, PM_BLOCK_NONE);
+    m.sel = PM_ROW_EXIT;
+    in = none(); in.confirm = 1;
+    assert(PmMenu_Update(&m, &in, -1, -1) == PM_ACT_EXIT_ASK);
+    m.confirm.yes = 1;
+    in = none(); in.mouseRight = 1;
+    assert(PmMenu_Update(&m, &in, -1, 0) == PM_ACT_EXIT_NO);
+    assert(!m.confirm.open && m.sel == PM_ROW_EXIT);
 }
 
 static void ask_exit(PmMenu* m)
@@ -140,6 +191,10 @@ static void test_apply_hover(void)
     c.yes = 1;
     out = PmConfirm_ApplyHover(&c, &in, -1);
     assert(c.yes == 1 && !out.confirm);
+
+    in = none(); in.mouseRight = 1;
+    out = PmConfirm_ApplyHover(&c, &in, -1);
+    assert(out.cancel && NmConfirm_Update(&c, &out) == NM_CONFIRM_NO);
 }
 
 static void test_reason(void)
@@ -159,6 +214,8 @@ int main(void)
     test_hover_and_click();
     test_idle_pointer_does_not_fight_pad();
     test_disabled_hover_ignored();
+    test_opening_tick_ignores_pointer();
+    test_right_click_cancels();
     test_exit_confirm();
     test_apply_hover();
     test_reason();

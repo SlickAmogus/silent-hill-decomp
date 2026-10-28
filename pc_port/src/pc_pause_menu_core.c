@@ -7,6 +7,7 @@ void PmMenu_Open(PmMenu* m, PmBlock block)
     m->block = block;
     m->confirm.open = 0;
     m->confirm.yes = 0;
+    m->opening = 1;
 }
 
 unsigned PmMenu_EnabledMask(const PmMenu* m)
@@ -49,13 +50,22 @@ NmInput PmConfirm_ApplyHover(NmConfirm* c, const NmInput* in, int hoverAnswer)
         if (in->mouseMoved || in->mouseLeft) c->yes = (hoverAnswer == 0);
         if (in->mouseLeft) out.confirm = 1;
     }
+    if (in->mouseRight) out.cancel = 1;
     return out;
 }
 
-PmAction PmMenu_Update(PmMenu* m, const NmInput* in, int hoverRow, int hoverAnswer)
+PmAction PmMenu_Update(PmMenu* m, const NmInput* rawIn, int hoverRow, int hoverAnswer)
 {
     unsigned mask = PmMenu_EnabledMask(m);
+    NmInput pin = *rawIn;
+    const NmInput* in = &pin;
     int hoverOk;
+
+    if (m->opening) {
+        m->opening = 0;
+        pin.mouseMoved = 0;
+        pin.mouseLeft = 0;
+    }
 
     if (m->confirm.open) {
         NmInput c = PmConfirm_ApplyHover(&m->confirm, in, hoverAnswer);
@@ -66,7 +76,7 @@ PmAction PmMenu_Update(PmMenu* m, const NmInput* in, int hoverRow, int hoverAnsw
         }
     }
 
-    if (in->cancel) return PM_ACT_RESUME;
+    if (in->cancel || in->mouseRight) return PM_ACT_RESUME;
 
     hoverOk = hoverRow >= 0 && hoverRow < PM_ROW_COUNT && (mask & (1u << hoverRow));
     if (hoverOk && in->mouseLeft) {
