@@ -845,6 +845,14 @@ if(BUILD_TESTING)
     target_include_directories(pc_native_menu_test PRIVATE include)
     add_test(NAME pc_native_menu_test COMMAND pc_native_menu_test)
 
+    # Pause menu model (rows, disabled SAVE/LOAD, exit confirm).
+    add_executable(pc_pause_menu_test
+        tests/pc_pause_menu_test.c
+        src/pc_pause_menu_core.c
+        src/pc_native_menu.c)
+    target_include_directories(pc_pause_menu_test PRIVATE include)
+    add_test(NAME pc_pause_menu_test COMMAND pc_pause_menu_test)
+
     # Achievements screen model (list order, refresh, badge slot cache).
     add_executable(pc_ach_model_test
         tests/pc_ach_model_test.c
