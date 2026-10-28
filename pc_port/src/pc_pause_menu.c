@@ -107,11 +107,37 @@ int Pc_PauseMenu_TakeReturn(void)
 
 void Pc_PauseMenu_Reset(void)
 {
+    /* Away on a screen the pause opened, the pause's SD_Call(3) mute is still
+     * held (PauseMenu_Leave); every way off that path that is not back to the
+     * pause must lift it, as the pause's own exits do. */
+    if (s_returnPending)
+    {
+        SD_Call(4);
+    }
+    PsyX_SPUAL_SetKeyOnMasterExempt(0);
     s_returnPending        = 0;
     g_PsxFreezeCaptureHold = 0;
     s_open                 = 0;
     s_blink                = 0;
     s_fadeAct              = PM_ACT_NONE;
+}
+
+void Pc_PauseMenu_AwayUpdate(void)
+{
+    s32 state    = g_GameWork.gameState;
+    int onScreen = state == GameState_SaveScreen || state == GameState_LoadSavegameScreen ||
+                   state == GameState_OptionScreen;
+
+    if (s_returnPending && !onScreen && state != GameState_InGame)
+    {
+        Pc_PauseMenu_Reset();
+    }
+
+    /* Those screens' own cues key on from this thread, as the pause menu's do;
+     * nothing else does while they are up (the world is not updated, and BGM
+     * notes key on from the sequencer thread), so arming for the whole screen
+     * leaves the game's audio under the mute. */
+    PsyX_SPUAL_SetKeyOnMasterExempt(s_returnPending && onScreen);
 }
 
 static void PauseMenu_Draw(void)
@@ -156,11 +182,14 @@ static void PauseMenu_Sfx(u16 sfxId)
     PsyX_SPUAL_SetKeyOnMasterExempt(0);
 }
 
+/* SAVE, LOAD and OPTION keep the pause's mute up on their screens and back in
+ * the pause; CONTINUE's SD_Call(4) lifts it, and Pc_PauseMenu_Reset does on
+ * any other way out. */
 static void PauseMenu_Leave(PmAction act)
 {
-    SD_Call(4);
     if (act == PM_ACT_EXIT_YES)
     {
+        SD_Call(4);
         Pc_PauseMenu_Reset();
         g_SysWork.sysFlags |= SysFlag_DoWarmReset;
         SH_DBG("[PAUSE] exit to title");

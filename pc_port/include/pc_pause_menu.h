@@ -15,6 +15,10 @@ int  Pc_PauseMenu_ReturnPending(void);
 int  Pc_PauseMenu_TakeReturn(void);
 /* Clears the pending return and the freeze-frame capture hold. */
 void Pc_PauseMenu_Reset(void);
+/* Once per tick, after the game-state update: while away on a screen the pause
+ * opened, arms its cues to sound over the held mute for the next tick, and
+ * resets when the game has gone anywhere but that screen or back. */
+void Pc_PauseMenu_AwayUpdate(void);
 
 /* Pause EXIT Yes/No prompt. 320x240 space, both screen
  * modes. `yes` = Yes is highlighted; the answers sit on row y + 24. */

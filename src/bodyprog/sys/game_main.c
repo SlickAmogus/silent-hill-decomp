@@ -2682,6 +2682,7 @@ void MainLoop(void) // 0x80032EE0
             {
                 Pc_PauseMenu_Reset();
             }
+            Pc_PauseMenu_AwayUpdate();
         }
 #endif
 
