@@ -158,17 +158,9 @@ void GameState_InGame_Update(void) // 0x80038BD4
     }
 
 #ifdef SH_PC_PORT
-    /* Back from a screen the pause menu opened. Every one of them returns
-     * through Game_StateSetNext, which leaves sysState at Gameplay, so this has
-     * to land before the Gameplay branch below or the world gets a tick. Not
-     * on the way out: OptionsMenu still runs here during its fade. */
-    if (g_SysWork.sysState == SysState_Gameplay && Pc_PauseMenu_TakeReturn())
-    {
-        SysWork_StateSetNext(SysState_GamePaused);
-    }
     /* Pause left by a route other than its own exits (death, the debug save
      * combo): the next pause must open fresh, and the capture must run again. */
-    else if (g_SysWork.sysState != SysState_GamePaused && !Pc_PauseMenu_ReturnPending())
+    if (g_SysWork.sysState != SysState_GamePaused && !Pc_PauseMenu_ReturnPending())
     {
         Pc_PauseMenu_Reset();
     }

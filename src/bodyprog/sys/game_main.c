@@ -2653,10 +2653,25 @@ void MainLoop(void) // 0x80032EE0
             }
 
             /* Pause -> OPTION holds the frozen frame through SysState_OptionsMenu's
-             * fade; the options screen itself must not draw over it. */
+             * fade; once the options, save or load screen takes over, the held
+             * capture must not be presented under it. */
             if (Pc_PauseMenu_ReturnPending() && g_GameWork.gameState != GameState_InGame)
             {
                 g_PsxPresentLastFrame = 0;
+            }
+
+            /* Back from a screen the pause menu opened. Every one of them returns
+             * through Game_StateSetNext, which leaves sysState at Gameplay. Taken
+             * here, on the screen's last tick, so neither the next tick's hooks
+             * above (quick save, mouse-look grab, extra actions) nor InGame's
+             * Gameplay branch ever see Gameplay. Not on the way out: Pause ->
+             * OPTION fades in SysState_OptionsMenu, and SAVE/LOAD leave InGame
+             * on the same tick. */
+            if (g_GameWork.gameState == GameState_InGame &&
+                g_SysWork.sysState == SysState_Gameplay &&
+                Pc_PauseMenu_TakeReturn())
+            {
+                SysWork_StateSetNext(SysState_GamePaused);
             }
 
             /* A load that went through, or the way back to the title: nothing is
