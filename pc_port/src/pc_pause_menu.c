@@ -26,7 +26,7 @@ extern int g_PcFreezeReleasePending;
 #define PM_TEXT_H    16
 
 static const char* const s_RowLabels[PM_ROW_COUNT] = { "CONTINUE", "SAVE", "LOAD", "OPTION", "EXIT" };
-static const char* const s_AnswerLabels[2]         = { "Yes", "No" };
+static const char* const s_AnswerLabels[2]         = { "YES", "NO" };
 static const int         s_AnswerCx[2]             = { 120, 200 };
 
 static PmMenu s_menu;
@@ -121,7 +121,7 @@ static void PauseMenu_Draw(void)
 
     if (s_menu.confirm.open)
     {
-        Pc_PauseMenu_ConfirmDraw("Return_to_the_title_screen?", s_menu.confirm.yes, PM_CONFIRM_Y);
+        Pc_PauseMenu_ConfirmDraw("RETURN_TO_THE_TITLE_SCREEN?", s_menu.confirm.yes, PM_CONFIRM_Y);
         return;
     }
 

@@ -117,7 +117,7 @@ static s32 MainMenu_RowY(void)
  * takes the first row's place and the answers the row below it. */
 #define MAINMENU_COLUMN_X 158
 
-static const char* const s_ExitConfirmLabels[2] = { "Yes", "No" };
+static const char* const s_ExitConfirmLabels[2] = { "YES", "NO" };
 static const s32         s_ExitConfirmCx[2]     = { MAINMENU_COLUMN_X - 40, MAINMENU_COLUMN_X + 40 };
 
 static s32 MainMenu_ExitConfirmY(void)
@@ -142,8 +142,8 @@ static void MainMenu_ExitConfirmDraw(void)
     s32 i;
 
     Gfx_StringSetColor(StringColorId_White);
-    Gfx_StringSetPosition(MAINMENU_COLUMN_X - (MainMenu_TextWidth("Quit_the_game?") >> 1), y);
-    Gfx_StringDraw("Quit_the_game?", DEFAULT_MAP_MESSAGE_LENGTH);
+    Gfx_StringSetPosition(MAINMENU_COLUMN_X - (MainMenu_TextWidth("QUIT_THE_GAME?") >> 1), y);
+    Gfx_StringDraw("QUIT_THE_GAME?", DEFAULT_MAP_MESSAGE_LENGTH);
 
     for (i = 0; i < 2; i++)
     {
