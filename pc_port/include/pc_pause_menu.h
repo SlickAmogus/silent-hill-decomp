@@ -16,7 +16,7 @@ int  Pc_PauseMenu_TakeReturn(void);
 /* Clears the pending return and the freeze-frame capture hold. */
 void Pc_PauseMenu_Reset(void);
 
-/* Shared Yes/No prompt (pause EXIT, title EXIT). 320x240 space, both screen
+/* Pause EXIT Yes/No prompt. 320x240 space, both screen
  * modes. `yes` = Yes is highlighted; the answers sit on row y + 24. */
 void Pc_PauseMenu_ConfirmDraw(const char* question, int yes, int y);
 /* -1 none, 0 Yes, 1 No. Reads in->mouseOk/mouseX/mouseY (already 320x240 on

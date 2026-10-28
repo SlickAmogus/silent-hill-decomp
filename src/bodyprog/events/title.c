@@ -11,7 +11,6 @@
 #include "pc_ach_screen.h"
 #include "pc_mouse_cursor.h"
 #include "pc_native_menu_draw.h"
-#include "pc_pause_menu.h"
 #include "pc_pause_menu_core.h"
 #include "pc_retroachievements.h"
 #endif
@@ -111,6 +110,79 @@ static void MainMenu_LayoutSync(void)
 static s32 MainMenu_RowY(void)
 {
     return (s_MainMenu_RowCount > MAINMENU_WINDOW_SLOTS) ? MAINMENU_SCROLL_ROW_Y : MAINMENU_ROW_Y;
+}
+
+/* The Exit prompt is drawn with the rows' own Gfx_String path, not the native
+ * menu font, so it keeps the title's vertically squashed glyphs. The question
+ * takes the first row's place and the answers the row below it. */
+#define MAINMENU_COLUMN_X 158
+
+static const char* const s_ExitConfirmLabels[2] = { "Yes", "No" };
+static const s32         s_ExitConfirmCx[2]     = { MAINMENU_COLUMN_X - 40, MAINMENU_COLUMN_X + 40 };
+
+static s32 MainMenu_ExitConfirmY(void)
+{
+    MainMenu_LayoutSync();
+    return MainMenu_RowY() + (Nm_SlotBase(s_MainMenu_RowCount, MAINMENU_WINDOW_SLOTS) * MAINMENU_ROW_PITCH);
+}
+
+static s32 MainMenu_TextWidth(const char* str)
+{
+    return Pc_LangMenuTextWidth(Pc_LangMenuText(str));
+}
+
+static s32 MainMenu_MarkedX(s32 cx, const char* label)
+{
+    return cx - ((MainMenu_TextWidth(label) + MainMenu_TextWidth("[")) >> 1);
+}
+
+static void MainMenu_ExitConfirmDraw(void)
+{
+    s32 y = MainMenu_ExitConfirmY();
+    s32 i;
+
+    Gfx_StringSetColor(StringColorId_White);
+    Gfx_StringSetPosition(MAINMENU_COLUMN_X - (MainMenu_TextWidth("Quit_the_game?") >> 1), y);
+    Gfx_StringDraw("Quit_the_game?", DEFAULT_MAP_MESSAGE_LENGTH);
+
+    for (i = 0; i < 2; i++)
+    {
+        s32 sel = (i == 0) ? (s_ExitConfirm.yes != 0) : (s_ExitConfirm.yes == 0);
+
+        Gfx_StringSetPosition(MainMenu_MarkedX(s_ExitConfirmCx[i], s_ExitConfirmLabels[i]), y + MAINMENU_ROW_PITCH);
+        Gfx_StringDraw(sel ? "[" : "_", DEFAULT_MAP_MESSAGE_LENGTH);
+        Gfx_StringDraw(s_ExitConfirmLabels[i], DEFAULT_MAP_MESSAGE_LENGTH);
+        if (sel)
+        {
+            Gfx_StringDraw("]", DEFAULT_MAP_MESSAGE_LENGTH);
+        }
+    }
+}
+
+/* -1 none, 0 Yes, 1 No. */
+static s32 MainMenu_ExitConfirmHover(void)
+{
+    s32 mx, my;
+    s32 top = MainMenu_ExitConfirmY() + MAINMENU_ROW_PITCH - 3;
+    s32 i;
+
+    if (!Pc_MouseCursor_UiPos(&mx, &my) || my < top || my >= top + MAINMENU_ROW_PITCH)
+    {
+        return -1;
+    }
+
+    for (i = 0; i < 2; i++)
+    {
+        const char* label = s_ExitConfirmLabels[i];
+        s32         x     = MainMenu_MarkedX(s_ExitConfirmCx[i], label);
+        s32         w     = MainMenu_TextWidth("[") + MainMenu_TextWidth(label) + MainMenu_TextWidth("]");
+
+        if (mx >= x && mx < x + w)
+        {
+            return i;
+        }
+    }
+    return -1;
 }
 
 /* True from the Achievements pick through both fades, which the screen's own
@@ -327,7 +399,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 NmConfirmResult res;
 
                 NmInput_FromGame(&in);
-                hoverAnswer = Pc_PauseMenu_ConfirmHover(&in, 104);
+                hoverAnswer = MainMenu_ExitConfirmHover();
                 c           = PmConfirm_ApplyHover(&s_ExitConfirm, &in, hoverAnswer);
 
                 res = NmConfirm_Update(&s_ExitConfirm, &c);
@@ -850,7 +922,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 #ifdef SH_PC_PORT
             if (s_ExitConfirm.open)
             {
-                Pc_PauseMenu_ConfirmDraw("Quit_the_game?", s_ExitConfirm.yes, 104);
+                MainMenu_ExitConfirmDraw();
             }
             else
 #endif
