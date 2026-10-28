@@ -33,7 +33,7 @@ static PmMenu s_menu;
 static int    s_open;
 static s32    s_blink;
 static int    s_returnPending;
-/* SAVE or LOAD chosen; carried out once the fade-out is black. */
+/* SAVE, LOAD or EXIT -> Yes chosen; carried out once the fade-out is black. */
 static PmAction s_fadeAct;
 
 /* Centred the way MainMenu_MainTextDraw centres the title rows. */
@@ -119,7 +119,8 @@ static void PauseMenu_Draw(void)
     const char* reason;
     int         i;
 
-    if (s_menu.confirm.open)
+    /* Yes closed the popup, but it stays on screen to fade out with the frame. */
+    if (s_menu.confirm.open || s_fadeAct == PM_ACT_EXIT_YES)
     {
         Pc_PauseMenu_ConfirmDraw("Return_to_the_title_screen?", s_menu.confirm.yes, PM_CONFIRM_Y);
         return;
@@ -147,6 +148,13 @@ static void PauseMenu_Draw(void)
 static void PauseMenu_Leave(PmAction act)
 {
     SD_Call(4);
+    if (act == PM_ACT_EXIT_YES)
+    {
+        Pc_PauseMenu_Reset();
+        g_SysWork.sysFlags |= SysFlag_DoWarmReset;
+        SH_DBG("[PAUSE] exit to title");
+        return;
+    }
     s_returnPending        = 1;
     g_PsxFreezeCaptureHold = 1;
     s_open                 = 0;
@@ -261,8 +269,9 @@ void Pc_PauseMenu_Update(void)
 
         case PM_ACT_SAVE:
         case PM_ACT_LOAD:
-            /* SysState_OptionsMenu fades out before its screen; these open
-             * theirs directly, so fade here the same way first. */
+        case PM_ACT_EXIT_YES:
+            /* SysState_OptionsMenu fades out before its screen; the save and
+             * load screens and the title would cut in, so fade here first. */
             SD_Call(Sfx_MenuConfirm);
             ScreenFade_Start(true, false, false);
             g_ScreenFadeTimestep = Q12(0.0f);
@@ -273,14 +282,6 @@ void Pc_PauseMenu_Update(void)
         case PM_ACT_OPTION:
             SD_Call(Sfx_MenuConfirm);
             PauseMenu_Leave(act);
-            return;
-
-        case PM_ACT_EXIT_YES:
-            SD_Call(Sfx_MenuConfirm);
-            SD_Call(4);
-            Pc_PauseMenu_Reset();
-            g_SysWork.sysFlags |= SysFlag_DoWarmReset;
-            SH_DBG("[PAUSE] exit to title");
             return;
 
         default:
