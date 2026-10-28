@@ -16,6 +16,7 @@
 extern int g_PsxPresentLastFrame;
 extern int g_PsxFreezeCaptureHold;
 extern int g_PcFreezeReleasePending;
+extern void PsyX_SPUAL_SetKeyOnMasterExempt(int on);
 
 #define PM_HEADER_Y  64
 #define PM_ROW_Y     96
@@ -144,6 +145,17 @@ static void PauseMenu_Draw(void)
     }
 }
 
+/* The pause keeps the game's SD_Call(3) master fade, which takes everything to
+ * silence; the menu's own cues key on outside the master so they still sound.
+ * The voice stays exempt until it is next keyed, so a cue that outlives the
+ * menu (CONTINUE's, under the SD_Call(4) fade back up) is not cut or faded. */
+static void PauseMenu_Sfx(u16 sfxId)
+{
+    PsyX_SPUAL_SetKeyOnMasterExempt(1);
+    SD_Call(sfxId);
+    PsyX_SPUAL_SetKeyOnMasterExempt(0);
+}
+
 static void PauseMenu_Leave(PmAction act)
 {
     SD_Call(4);
@@ -241,19 +253,19 @@ void Pc_PauseMenu_Update(void)
     switch (act)
     {
         case PM_ACT_MOVED:
-            SD_Call(Sfx_MenuMove);
+            PauseMenu_Sfx(Sfx_MenuMove);
             break;
 
         case PM_ACT_EXIT_ASK:
-            SD_Call(Sfx_MenuConfirm);
+            PauseMenu_Sfx(Sfx_MenuConfirm);
             break;
 
         case PM_ACT_EXIT_NO:
-            SD_Call(Sfx_MenuCancel);
+            PauseMenu_Sfx(Sfx_MenuCancel);
             break;
 
         case PM_ACT_RESUME:
-            SD_Call((in.cancel || in.mouseRight) ? Sfx_MenuCancel : Sfx_MenuConfirm);
+            PauseMenu_Sfx((in.cancel || in.mouseRight) ? Sfx_MenuCancel : Sfx_MenuConfirm);
             SD_Call(4);
             /* Releasing on this tick showed one bare fog-colored frame: the world
              * draw is still gated off by the BgmStatusFlag_Pause that
@@ -277,7 +289,7 @@ void Pc_PauseMenu_Update(void)
              * evenly under the subtract long after the dark world had gone
              * black, which read as an alpha overlay. The opener loads again
              * after its VRAM clear, as item_screens_2.c's SAVE does. */
-            SD_Call(Sfx_MenuConfirm);
+            PauseMenu_Sfx(Sfx_MenuConfirm);
             if (act != PM_ACT_EXIT_YES)
             {
                 GameFs_SaveLoadBinLoad();
@@ -288,7 +300,7 @@ void Pc_PauseMenu_Update(void)
             return;
 
         case PM_ACT_OPTION:
-            SD_Call(Sfx_MenuConfirm);
+            PauseMenu_Sfx(Sfx_MenuConfirm);
             PauseMenu_Leave(act);
             return;
 
