@@ -119,8 +119,7 @@ static void PauseMenu_Draw(void)
     const char* reason;
     int         i;
 
-    /* Yes closed the popup, but it stays on screen to fade out with the frame. */
-    if (s_menu.confirm.open || s_fadeAct == PM_ACT_EXIT_YES)
+    if (s_menu.confirm.open)
     {
         Pc_PauseMenu_ConfirmDraw("Return_to_the_title_screen?", s_menu.confirm.yes, PM_CONFIRM_Y);
         return;
@@ -212,7 +211,6 @@ void Pc_PauseMenu_Update(void)
             PauseMenu_Leave(act);
             return;
         }
-        PauseMenu_Draw();
         return;
     }
 
@@ -272,11 +270,21 @@ void Pc_PauseMenu_Update(void)
         case PM_ACT_EXIT_YES:
             /* SysState_OptionsMenu fades out before its screen; the save and
              * load screens and the title would cut in, so fade here first. */
+            /* As the game's own exits to these screens (the save point's
+             * "Save?" prompt, OPTION): the prompt goes on the confirm and the
+             * screen's files load under the fade, which Screen_FadeUpdate
+             * paces by the queue length. Left on screen, the white text dimmed
+             * evenly under the subtract long after the dark world had gone
+             * black, which read as an alpha overlay. The opener loads again
+             * after its VRAM clear, as item_screens_2.c's SAVE does. */
             SD_Call(Sfx_MenuConfirm);
+            if (act != PM_ACT_EXIT_YES)
+            {
+                GameFs_SaveLoadBinLoad();
+            }
             ScreenFade_Start(true, false, false);
             g_ScreenFadeTimestep = Q12(0.0f);
             s_fadeAct            = act;
-            PauseMenu_Draw();
             return;
 
         case PM_ACT_OPTION:
