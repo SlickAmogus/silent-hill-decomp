@@ -6,8 +6,16 @@
 #ifndef _VERSION_H_
 #define _VERSION_H_
 
+#if defined(_MSC_VER)
+/* MSVC's preprocessor does not evaluate a defined() produced by macro
+ * expansion (the XDK build). -DVER_xxx gives the selected macro the value 1;
+ * an undefined one reads as 0 under #if. */
+#define VERSION_IS(release) (VER_##release + 0)
+#define VERSION_REGION_IS(region) (VERSION_##region + 0)
+#else
 #define VERSION_IS(release) defined(VER_##release)
 #define VERSION_REGION_IS(region) defined(VERSION_##region)
+#endif
 #define VERSION_EQUAL_OR_NEWER(release) (VERSION_DATE >= VERSION_DATE_##release)
 #define VERSION_EQUAL_OR_OLDER(release) (VERSION_DATE <= VERSION_DATE_##release)
 

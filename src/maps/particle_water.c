@@ -656,7 +656,7 @@ void sharedFunc_800CCE60_1_s02(void)
                     }
                 }
 
-                *(s32*)&ptr->field_12C = (((var_fp >> 4) - (u16)ptr->field_0.field_0.vx) & 0xFFFF) + (((sp18 >> 4) - ptr->field_0.field_0.vy) << 16);
+                PSX_ST_XY(ptr, field_12C, (((var_fp >> 4) - (u16)ptr->field_0.field_0.vx) & 0xFFFF) + (((sp18 >> 4) - ptr->field_0.field_0.vy) << 16));
                 ptr->field_12C.vz      = (sp1C >> 4) - ptr->field_0.field_0.vz;
 
                 gte_ldv0(&ptr->field_12C);

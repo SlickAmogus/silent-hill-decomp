@@ -228,7 +228,7 @@ static McFileHandle s_handles[16] = { 0 };
  * literally called "save\0.MCD" in the parent directory, which cannot be
  * created -- every card_info/card_clear returned IOE, and the memory-card state
  * machine then wedged in state 3 forever, which is what stopped the boot. */
-#ifdef SH_XBOX360_PORT
+#if defined(SH_XBOX360_PORT) && !defined(SH_XBOX360_XDK)
 #define MC_PATH_SEP "/"
 #else
 #define MC_PATH_SEP "\\"

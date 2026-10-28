@@ -813,6 +813,18 @@ bool Fs_QueueUpdatePostLoad(s_FsQueueEntry* entry)
             switch (postLoad)
             {
                 case FsQueuePostLoadType_None:
+#ifdef SH_XBOX360_PORT
+                    /* A plain read of an .ANM (Harry's per-map HB_M bank via
+                     * FS_BUFFER_4, the weapon banks via FS_BUFFER_12) never
+                     * reaches Fs_QueuePostLoadAnm, so its header stayed
+                     * little-endian: keyframeCount read 14338 for 568 and the
+                     * animator walked 20 MB past the buffer. The swap validates
+                     * the header itself, so headerless banks are untouched. */
+                    if (entry->info != NULL && entry->info->type == FileType_Anm)
+                    {
+                        Anm_SwapForBigEndian(entry->data != NULL ? entry->data : (void*)entry->externalData);
+                    }
+#endif
                     result = true;
                     break;
 
@@ -1266,6 +1278,10 @@ bool Fs_QueuePostLoadAnm(s_FsQueueEntry* entry)
      * buffer -- so convert the header once here, before anything reads a field.
      * Idempotent, and it validates before touching anything, because Harry's
      * headerless HB_WEP and HB_M banks must be left alone. */
+#ifdef SH_XBOX360_PORT
+    SH_DBG("[ANM] post-load dest=%p charaId=%d idx=%d", (void*)entry->externalData,
+           (int)entry->extra.anm.charaId, (int)entry->extra.anm.field_0);
+#endif
     Anm_SwapForBigEndian((void*)entry->externalData);
     Fs_CharaAnimDataUpdate(entry->extra.anm.field_0, entry->extra.anm.charaId, entry->externalData, entry->extra.anm.coords_8);
     return true;

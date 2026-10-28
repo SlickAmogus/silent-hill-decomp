@@ -1335,14 +1335,14 @@ void sharedFunc_800E5EC4_2_s00(s_SubCharacter* groaner, s_AnmHeader* anmHdr, GsC
         groanerProps.flexAngle = CLAMP_HIGH(angle0, groanerProps.flexAngle + angle1);
     }
 
-    *(s32*)&ptr->field_0 = (groanerProps.flexAngle >> 2) << 16;
+    PSX_ST_XY(ptr, field_0, (groanerProps.flexAngle >> 2) << 16);
     ptr->field_0.vz      = 0;
 
     Math_RotMatrixZxyNegGte(&ptr->field_0, &ptr->field_8);
     MulMatrix(&coords[3].coord, &ptr->field_8);
     MulMatrix(&coords[4].coord, &ptr->field_8);
 
-    *(s32*)&ptr->field_0.vx = groanerProps.flexAngle << 16;
+    PSX_ST_XY(ptr, field_0.vx, groanerProps.flexAngle << 16);
     ptr->field_0.vz         = 0;
 
     Math_RotMatrixZxyNegGte(&ptr->field_0, &ptr->field_8);

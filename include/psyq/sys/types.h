@@ -69,7 +69,12 @@ typedef	long	swblk_t;
 typedef	unsigned int size_t;
 #endif
 
+/* The MSVC CRT (XDK build) has already defined time_t as a 64-bit type by
+ * the time this header is reached, and sets this guard when it does. */
+#ifndef _TIME_T_DEFINED
+#define _TIME_T_DEFINED
 typedef	long	time_t;
+#endif
 typedef	short	dev_t;
 typedef	long	off_t;
 typedef	u_short	uid_t;

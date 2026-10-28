@@ -429,10 +429,20 @@ void Ipd_CloseRangeChunksInit(void) // 0x8003C3AC
         pos1.vz = CLAMP(pos1.vz, temp_a2 + 1, temp_a2 + (Q12(2.5f) - 1));
     }
 
-#ifdef SH_PC_PORT
+#if defined(SH_XBOX360_PORT)
+    /* Once/sec: where the streamer is being told the player is. The first
+     * 360 hardware run streamed chunks around a point that drifted away from
+     * Harry's cell within a second of the new game starting, with no pad
+     * input, so the suspect is the position/rotation math feeding this. */
     {
-        static s32 closeRangeLogCD = 0;
-        if ((closeRangeLogCD++ % 300) == 0) {
+        static s32 s_posLogCD = 0;
+        if ((s_posLogCD++ % 60) == 0) {
+            SH_DBG("[POS] chara=(%d,%d,%d) rotY=%d pos0=(%d,%d) pos1=(%d,%d) cell=(%d,%d)",
+                   (int)(chara->position.vx >> 12), (int)(chara->position.vy >> 12), (int)(chara->position.vz >> 12),
+                   (int)chara->rotation.vy,
+                   (int)(pos0.vx >> 12), (int)(pos0.vz >> 12), (int)(pos1.vx >> 12), (int)(pos1.vz >> 12),
+                   (int)FLOOR_TO_STEP(Q12_TO_Q8(pos1.vx), Q12_TO_Q8(CHUNK_CELL_SIZE)),
+                   (int)FLOOR_TO_STEP(Q12_TO_Q8(pos1.vz), Q12_TO_Q8(CHUNK_CELL_SIZE)));
         }
     }
 #endif

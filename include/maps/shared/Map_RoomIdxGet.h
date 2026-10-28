@@ -1,5 +1,15 @@
 #if !defined(M2CTX) // Inlines cause issues with M2C context.
 
+#if defined(_MSC_VER)
+/* MSVC (the Xbox 360 XDK build) has no statement expressions. Same single
+ * evaluation of `axis`, through a function instead of a block. */
+static inline s32 CheckRange_Impl(s32 val, s32 low, s32 high)
+{
+    return low <= val && val <= high;
+}
+#define CheckRange(axis, low, high)      CheckRange_Impl((axis), (low), (high))
+#define CheckNotInRange(axis, low, high) (!CheckRange_Impl((axis), (low), (high)))
+#else
 #define CheckRange(axis, low, high)    \
 ({                                     \
     s32 val = (axis);                  \
@@ -11,6 +21,7 @@
     s32 val = (axis);                     \
     !((low) <= (val) && (val) <= (high)); \
 })
+#endif
 
 #ifdef MAP5_S01
 static inline u32 GetXIdx(q19_12 x, q19_12 z)

@@ -132,11 +132,11 @@
 
 /** Model of an item held in the player's hand. */
 #define HELD_ITEM_LM_BUFFER \
-    (s_LmHeader*)((HARRY_LM_BUFFER) + Fs_GetFileSize(FILE_CHARA_HERO_ILM))
+    (s_LmHeader*)((u8*)(HARRY_LM_BUFFER) + Fs_GetFileSize(FILE_CHARA_HERO_ILM))
 
 /** Up to 4 chara models used in a map. */
 #define MAP_CHARA_LM_BUFFER \
-    (s_LmHeader*)((MAP_CHARA_BASE) + Fs_GetFileSize(FILE_CHARA_HERO_ILM))
+    (s_LmHeader*)((u8*)(MAP_CHARA_BASE) + Fs_GetFileSize(FILE_CHARA_HERO_ILM))
 
 /** @brief `FsQueue::state`s when processing a read operation (`Fs_QueueUpdateRead`).
  *

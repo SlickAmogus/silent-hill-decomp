@@ -23,7 +23,14 @@
  *
  * @param release Release identifier (JAP0, USA, JAP1, EUR, JAP2).
  */
+#if defined(_MSC_VER)
+/* MSVC's preprocessor does not evaluate a defined() produced by macro
+ * expansion (the XDK build). Every build passes -DVER_xxx, which gives the
+ * selected macro the value 1, and an undefined one reads as 0 under #if. */
+#define VERSION_IS(release) (VER_##release + 0)
+#else
 #define VERSION_IS(release) defined(VER_##release)
+#endif
 
 /** @brief Checks if the build target matches a given region.
  *

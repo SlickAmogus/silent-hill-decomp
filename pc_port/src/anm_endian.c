@@ -83,12 +83,16 @@ void Anm_SwapForBigEndian(void* addr)
 
     if (dataOffset != ANM_DATA_OFFSET)
         return;                                  /* headerless keyframe bank */
-    if (kfSize != (uint16_t)(rotBC * 9 + transBC * 3))
-        return;
     want = (uint32_t)dataOffset + (uint32_t)kfSize * (uint32_t)kfCount;
     want = (want + 3u) & ~3u;
-    if (fileSize != want)
+    if (kfSize != (uint16_t)(rotBC * 9 + transBC * 3) || fileSize != want) {
+        /* A header that passes the magic but not the arithmetic is worth a
+         * line: left unswapped it is read as garbage downstream. */
+        SH_DBG("[ANM] swap REJECTED at %p: kfSize=%u (rot %u*9 + trans %u*3 = %u) kfCount=%u fileSize=%u want=%u",
+               addr, (unsigned)kfSize, (unsigned)rotBC, (unsigned)transBC, (unsigned)(rotBC * 9 + transBC * 3),
+               (unsigned)kfCount, (unsigned)fileSize, (unsigned)want);
         return;
+    }
 
     /* Only the five multi-byte fields; every byte field and the whole payload
      * is already correct. */
@@ -97,6 +101,7 @@ void Anm_SwapForBigEndian(void* addr)
     { uint32_t* v = (uint32_t*)(p +  8); *v = Swap32(*v); }   /* activeBones */
     { uint32_t* v = (uint32_t*)(p + 12); *v = Swap32(*v); }   /* fileSize    */
     { uint16_t* v = (uint16_t*)(p + 16); *v = Swap16(*v); }   /* kfCount     */
+    SH_DBG("[ANM] swapped %p: kfSize=%u kfCount=%u fileSize=%u", addr, (unsigned)kfSize, (unsigned)kfCount, (unsigned)fileSize);
 }
 
 #else

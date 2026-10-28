@@ -2303,7 +2303,7 @@ void sharedFunc_800D6970_0_s00(s_SubCharacter* stalker, s_AnmHeader* animHdr, Gs
     }
 
     ptr->field_30.vz         = 0;
-    *(s32*)&ptr->field_30.vx = ptr->angle_44 << 16;
+    PSX_ST_XY(ptr, field_30.vx, ptr->angle_44 << 16);
 
     Math_RotMatrixZxyNegGte(&ptr->field_30, &ptr->field_0);
     MulMatrix(&coord[3].coord, &ptr->field_0);

@@ -549,7 +549,7 @@ void func_800EC4B4(s32 arg0) // 0x800EC4B4
     {
         for (j = 0; j < 17; j++)
         {
-            *(s32*)&ptr->field_44[0] = ((j << 8) - 0x800) & 0xFFFF;
+            PSX_ST_XY(ptr, field_44[0], ((j << 8) - 0x800) & 0xFFFF);
             ptr->field_44[0].vz      = 0x800 - (i << 8);
 
             if (arg0 < D_800F0084[j][i].vx * 4)

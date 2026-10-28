@@ -2273,7 +2273,7 @@ void func_80053898(s32 arg0, s32 arg1) // JPN0 0x80053898
     setSprt(sprt);
 
     setRGBC0(sprt, 0x80, 0x80, 0x80, 0x64);
-    *(u32*)&sprt->w = (arg0 * 12) + (16 << 16); // setWHFast(sprt, (arg0 * 12), 16);
+    setWHWord(sprt, (arg0 * 12) + (16 << 16)); // setWHFast(sprt, (arg0 * 12), 16);
     setXY0Fast(sprt, -92, 88);
 
     if (arg1 & 1)
@@ -2306,11 +2306,11 @@ void func_800539A0(s32 arg0, s32 arg1) // JPN0 0x800539A0
 
     if (arg0 != 0)
     {
-        *(u32*)&sprt->w = (D_800AE18E * 12) + (16 << 16); // setWHFast(sprt, (D_800AE18E * 12), 16);
+        setWHWord(sprt, (D_800AE18E * 12) + (16 << 16)); // setWHFast(sprt, (D_800AE18E * 12), 16);
     }
     else
     {
-        *(u32*)&sprt->w = (D_800AE18C * 12) + (16 << 16); // setWHFast(sprt, (D_800AE18C * 12), 16);
+        setWHWord(sprt, (D_800AE18C * 12) + (16 << 16)); // setWHFast(sprt, (D_800AE18C * 12), 16);
     }
 
     setXY0Fast(sprt, -120, 116 + (arg0 * 20));

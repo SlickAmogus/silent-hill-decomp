@@ -1389,7 +1389,7 @@ void sharedFunc_800E8A40_2_s02(s_SubCharacter* romper, s_AnmHeader* anmHdr, GsCO
         romperProps.field_EE = CLAMP_HIGH(unkAngle, romperProps.field_EE + temp_v0_4);
     }
 
-    *(s32*)&ptr->field_20 = romperProps.field_EE << 16;
+    PSX_ST_XY(ptr, field_20, romperProps.field_EE << 16);
     ptr->field_20.vz      = 0;
 
     Math_RotMatrixZxyNegGte(&ptr->field_20, &ptr->field_0);

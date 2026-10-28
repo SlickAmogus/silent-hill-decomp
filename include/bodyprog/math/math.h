@@ -221,6 +221,18 @@
  * @param x X component.
  * @param y Y component.
  */
+/* The one-word forms compose the halves in LITTLE-ENDIAN field order (x in the
+ * low half), which is the PSX's memory image. On a big-endian host the same
+ * store lands x in vy and y in vx -- the Xbox 360 title menu drew every entry
+ * at (y, x). Field-wise stores there; the PSX build keeps its word stores. */
+#if defined(__BIG_ENDIAN__) || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+#define Math_DVectorSetFast(vec, x, y) \
+    ((vec)->vx = (s16)(x), (vec)->vy = (s16)(y))
+#define Math_SetSVectorFast(vec, x, y, z) \
+    ((vec)->vx = (s16)(x), (vec)->vy = (s16)(y), (vec)->vz = (s16)(z))
+#define Math_SetSVectorFastSum(vec, x, y, z) \
+    ((vec)->vx = (s16)(x), (vec)->vy = (s16)(y), (vec)->vz = (s16)(z))
+#else
 #define Math_DVectorSetFast(vec, x, y) \
     *((s32*)&(vec)->vx) = ((x) & 0xFFFF) + ((y) << 16)
 
@@ -245,6 +257,7 @@
 #define Math_SetSVectorFastSum(vec, x, y, z)                      \
     *(s32*)&((vec)->vx) = (s32)((x) & 0xFFFF) + (s32)((y) << 16); \
     ((vec)->vz) = (z)
+#endif
 
 /** @brief Clears an `SVECTOR`'s components.
  *

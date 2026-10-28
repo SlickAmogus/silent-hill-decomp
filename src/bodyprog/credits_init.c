@@ -68,7 +68,7 @@ void func_800917C0(void* arg0, s32 arg1, s_FsImageDesc* img) // 0x800917C0
 
     if (arg1 != 0)
     {
-        arg0 -= ALIGN(Fs_GetFileSize(FILE_TIM_FONT24_TIM), 0x800);
+        arg0 = (u8*)arg0 - ALIGN(Fs_GetFileSize(FILE_TIM_FONT24_TIM), 0x800);
     }
 
     Fs_QueueStartReadTim(FILE_TIM_FONT24_TIM, arg0, img);

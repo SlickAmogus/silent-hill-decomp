@@ -10,7 +10,15 @@
 #ifndef SH_HWPERF_H
 #define SH_HWPERF_H
 
-#if defined(__powerpc__) || defined(__PPC__)
+#if defined(_XBOX)
+
+/* XDK build: MSVC for PowerPC has no inline asm; the same two instructions
+ * are intrinsics. Same time base caveat as the libXenon branch below. */
+#include <ppcintrinsics.h>
+#define SH_STORE_BARRIER() __lwsync()
+#define SH_CYCLES()        ((unsigned long long)__mftb())
+
+#elif defined(__powerpc__) || defined(__PPC__)
 
 #include <ppc/timebase.h>
 

@@ -314,7 +314,7 @@ bool sharedFunc_800CD1F8_0_s01(POLY_FT4** poly, s32 idx)
 
     temp_s1_3 = sharedData_800DFB7C_0_s00[idx].field_A - 23;
 
-    *(s32*)&ptr->field_158[0].vx = (u16)sharedData_800DFB7C_0_s00[idx].field_0.s_0.field_2 + (sharedData_800DFB7C_0_s00[idx].field_4.s_0.field_2 << 16);
+    PSX_ST_XY(ptr, field_158[0].vx, (u16)sharedData_800DFB7C_0_s00[idx].field_0.s_0.field_2 + (sharedData_800DFB7C_0_s00[idx].field_4.s_0.field_2 << 16));
     ptr->field_158[0].vz         = 0;
 
     Math_RotMatrixZxyNegGte(&ptr->field_158[0], &ptr->field_138);

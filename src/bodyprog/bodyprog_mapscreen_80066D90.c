@@ -1136,9 +1136,9 @@ bool func_80068E0C(s32 arg0, s32 idx, s32 arg2, s32 shade, u16 arg4, u16 arg5, u
 
             // Set polygon UVs.
             temp                       = (ptr->field_4.field_1 << 8) + 0x80;
-            *((s32*)&ptr->field_0->u0) = ptr->field_4.field_0 + temp + (getClut(g_PaperMapMarkingAtlasImg.clutX, g_PaperMapMarkingAtlasImg.clutY) << 16);
+            PSX_ST_UV(ptr->field_0, u0, ptr->field_4.field_0 + temp + (getClut(g_PaperMapMarkingAtlasImg.clutX, g_PaperMapMarkingAtlasImg.clutY) << 16));
             temp2                      = ptr->field_4.field_2 + 0x80;
-            *((s32*)&ptr->field_0->u1) = ptr->field_4.field_0 + temp2 + (ptr->field_4.field_1 << 8) + 0x470000;
+            PSX_ST_UV(ptr->field_0, u1, ptr->field_4.field_0 + temp2 + (ptr->field_4.field_1 << 8) + 0x470000);
             sp0                        = ((ptr->field_4.field_1 + ptr->field_4.field_3) << 8) + 0x80;
             *((s16*)&ptr->field_0->u2) = ptr->field_4.field_0 + sp0;
             *((s16*)&ptr->field_0->u3) = ptr->field_4.field_2 + (ptr->field_4.field_0 + 0x80) + ((ptr->field_4.field_1 + ptr->field_4.field_3) << 8);

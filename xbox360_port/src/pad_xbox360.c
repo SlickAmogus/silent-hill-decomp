@@ -136,8 +136,12 @@ void Pad_Poll(void)
 
     s_padBuf[0] = 0x00;
     s_padBuf[1] = 0x41;
-    s_padBuf[2] = (unsigned char)(psx & 0xFF);
-    s_padBuf[3] = (unsigned char)((psx >> 8) & 0xFF);
+    /* digitalButtons is a u16 the game reads natively, and this machine is
+     * big-endian: the HIGH byte goes first. The little-endian order the
+     * Original Xbox used swapped bits 0-7 with 8-15 -- d-pad acted as the
+     * face buttons and vice versa (first hardware test, 2026-10-28). */
+    s_padBuf[2] = (unsigned char)((psx >> 8) & 0xFF);
+    s_padBuf[3] = (unsigned char)(psx & 0xFF);
 
     /* Right stick -> PSX rightX/rightY (0..255, 128 = centre) for the shared
      * TPS/free-look camera. Deadzone applied HERE, not only in the camera:

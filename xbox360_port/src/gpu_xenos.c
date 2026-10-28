@@ -578,6 +578,12 @@ void GpuNv2a_BindPaletted(const void* page, const void* palette)
      * above may have produced different pixels at the same address. */
     s_texAddr = NULL;
     GpuNv2a_BindTexture(s_palComposed, GPU_TEX_MAX, GPU_TEX_MAX);
+    /* gpu_xbox.c pre-scales the UVs of paletted pages to 0..1 (PAL_UV_SCALE,
+     * an NV2A palette-texture convention), so the shader must NOT normalise
+     * them again. Found on the XDK build, whose first pictures showed exactly
+     * this: logos invisible, world black, every paletted prim sampling (0,0). */
+    s_texScale[0] = 1.0f;
+    s_texScale[1] = 1.0f;
 }
 
 void GpuNv2a_BindTexture(const void* addr, int w, int h)

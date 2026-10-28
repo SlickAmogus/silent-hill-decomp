@@ -66,7 +66,13 @@ static unsigned long long gs_vcount_start = 0;
 static int gs_vcount_active = 0;
 
 /* High-resolution monotonic counter, abstracted per platform. */
-#if defined(SH_XBOX360_PORT)
+#if defined(SH_XBOX360_XDK)
+#include <ppcintrinsics.h>
+/* The 360 time base runs at 50 MHz regardless of core clock; this is the
+ * constant libXenon's PPC_TIMEBASE_FREQ carries too. */
+static unsigned long long Gs_PerfCounter(void) { return (unsigned long long)__mftb(); }
+static unsigned long long Gs_PerfFreq(void)    { return 50000000ULL; }
+#elif defined(SH_XBOX360_PORT)
 #include <ppc/timebase.h>
 static unsigned long long Gs_PerfCounter(void) { return mftb(); }
 static unsigned long long Gs_PerfFreq(void)    { return PPC_TIMEBASE_FREQ; }

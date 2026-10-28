@@ -133,16 +133,20 @@ void func_80057228(MATRIX* mat, s32 alpha, SVECTOR* arg2, VECTOR3* arg3);
 /* Compute fog factor (0-127) from a single screenZ value. Used for character
  * prims which don't have a precomputed field_252[] fog ramp array. Reads the
  * world's fog ramp at the index derived from screenZ. */
-#define PC_SCREEN_Z_TO_FOG(z) ({ \
-    s32 _z = (s32)(z); s32 _fb; \
-    if (!g_WorldEnvWork.isFogEnabled) { _fb = 0; } \
-    else if (_z < (1 << g_WorldEnvWork.fog.depthShift)) { \
-        s32 _idx = (_z << 7) >> g_WorldEnvWork.fog.depthShift; \
-        if (_idx < 0) _idx = 0; if (_idx > 127) _idx = 127; \
-        _fb = g_WorldEnvWork.fogRamp[_idx]; \
-    } else { _fb = 255; } \
-    (u8)((_fb * 127) >> 8); \
-})
+/* A function rather than a gcc statement expression, so the MSVC-based Xbox
+ * 360 XDK build can compile it. */
+extern s_WorldEnvWork g_WorldEnvWork;
+static inline u8 PC_SCREEN_Z_TO_FOG(s32 _z)
+{
+    s32 _fb;
+    if (!g_WorldEnvWork.isFogEnabled) { _fb = 0; }
+    else if (_z < (1 << g_WorldEnvWork.fog.depthShift)) {
+        s32 _idx = (_z << 7) >> g_WorldEnvWork.fog.depthShift;
+        if (_idx < 0) _idx = 0; if (_idx > 127) _idx = 127;
+        _fb = g_WorldEnvWork.fogRamp[_idx];
+    } else { _fb = 255; }
+    return (u8)((_fb * 127) >> 8);
+}
 #else
 #define FOG_FAR_DIST() (g_WorldEnvWork.fog.farDistance)
 #define VTXCOL_LDDP(dp) gte_lddp(dp)
@@ -3637,7 +3641,7 @@ void func_80059E34(u32 arg0, s_MeshHeader* meshHdr, s_GteScratchData* scratchDat
 
         PSX_ST_RGBC(poly, packedColor);
         *(s32*)&poly->u0 = *(s32*)&prim->field_0;
-        *(s32*)&poly->u1 = ((*(u32*)&prim->field_4 & 0x1FFFFF) | (var_a2 << 16)); // Maybe `field_4` is bitfield
+        PSX_ST_UV(poly, u1, ((*(u32*)&prim->field_4 & 0x1FFFFF) | (var_a2 << 16))); // Maybe `field_4` is bitfield
         *(u16*)&poly->u2 = prim->field_8;
         *(u16*)&poly->u3 = prim->field_A;
 

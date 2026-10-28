@@ -168,10 +168,27 @@ void Anim_BoneUpdate(s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords, s32 keyfram
     if (keyframe0 < 0) keyframe0 = 0;
     if (keyframe1 < 0) keyframe1 = 0;
 #endif
+#ifdef SH_XBOX360_PORT
+    /* The 360 builds hit a read far outside any buffer from here (Xenia:
+     * frame1 data 20 MB past frame0). Refuse a header whose fields cannot be
+     * real and say what they were, instead of faulting with no evidence. */
+    if (anmHdr->keyframeDataSize > 8192 || keyframe0 > 4096 || keyframe1 > 4096 ||
+        anmHdr->boneCount > 64 || anmHdr->translationBoneCount > 64) {
+        static int s_told;
+        if (s_told < 8) {
+            s_told++;
+            SH_DBG("[ANM-GUARD] anmHdr=%p boneCount=%d keyframeCount=%d keyframeDataSize=%d dataOffset=%d transBones=%d kf0=%d kf1=%d",
+                   (void*)anmHdr, (int)anmHdr->boneCount, (int)anmHdr->keyframeCount,
+                   (int)anmHdr->keyframeDataSize, (int)anmHdr->dataOffset,
+                   (int)anmHdr->translationBoneCount, (int)keyframe0, (int)keyframe1);
+        }
+        return;
+    }
+#endif
     frame0Data    = ((u8*)anmHdr + anmHdr->dataOffset) + (anmHdr->keyframeDataSize * keyframe0);
-    frame0RotData = frame0Data + (anmHdr->translationBoneCount * 3);
+    frame0RotData = (u8*)frame0Data + (anmHdr->translationBoneCount * 3);
     frame1Data    = ((u8*)anmHdr + anmHdr->dataOffset) + (anmHdr->keyframeDataSize * keyframe1);
-    frame1RotData = frame1Data + (anmHdr->translationBoneCount * 3);
+    frame1RotData = (u8*)frame1Data + (anmHdr->translationBoneCount * 3);
 
     // For player, use inverted mask of `extra.disabledAnimBones` to facilitate masking of upper and lower body.
     isPlayer = boneCoords == &g_SysWork.playerBoneCoords[HarryBone_Root];
@@ -202,8 +219,8 @@ void Anim_BoneUpdate(s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords, s32 keyfram
             if (boneTranslationDataIdx >= 0)
             {
                 // 3-byte vector translation.
-                frame0TranslationData = frame0Data + (boneTranslationDataIdx * 3);
-                frame1TranslationData = frame1Data + (boneTranslationDataIdx * 3);
+                frame0TranslationData = (u8*)frame0Data + (boneTranslationDataIdx * 3);
+                frame1TranslationData = (u8*)frame1Data + (boneTranslationDataIdx * 3);
 
                 // Interpolate XYZ translation components.
                 for (i = 0; i < 3; i++)
@@ -226,8 +243,8 @@ void Anim_BoneUpdate(s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords, s32 keyfram
             if (boneRotationDataIdx >= 0)
             {
                 // 9-byte rotation matrix.
-                frame0RotationData = frame0RotData + (boneRotationDataIdx * 9);
-                frame1RotationData = frame1RotData + (boneRotationDataIdx * 9);
+                frame0RotationData = (u8*)frame0RotData + (boneRotationDataIdx * 9);
+                frame1RotationData = (u8*)frame1RotData + (boneRotationDataIdx * 9);
 
                 // Interpolate rotation matrix.
                 for (i = 0; i < 3; i++)
