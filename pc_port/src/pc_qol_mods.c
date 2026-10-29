@@ -15,7 +15,10 @@
  * row of the list that opens a page of their own, so a long run of them does
  * not bury the rest. Lists scroll by wheel, keys or drag; a tap or click acts
  * on release, and not at all if it became a drag.
- * Installed ids are kept in gamedata/qol_installed.txt. Unticking an
+ * Installed ids are kept in gamedata/qol_installed.txt, each with the sha256
+ * of the zip it came from. The first time a new build reaches the title, an
+ * installed character mod whose catalog zip has changed is downloaded again,
+ * so a pack that gains characters reaches everyone who has it. Unticking an
  * installed mod removes it: the catalog lists, per mod, the files it puts
  * under gamedata/, so removal needs neither the zip nor a record made at
  * install time (mods installed before removal existed have none).
@@ -53,6 +56,7 @@
 #include "pc_mod_registry.h"
 #include "pc_mouse_cursor.h"
 #include "sh_log.h"
+#include "sh_build_info.h"
 
 #if defined(__EMSCRIPTEN__)
 #include <emscripten.h>
@@ -67,6 +71,7 @@
 #define QM_TMP_DIR      "gamedata/.qol"
 #define QM_INSTALLED    "gamedata/qol_installed.txt"
 #define QM_OFFERED_KEY  "qol_mods_offered"
+#define QM_CHECKED_KEY  "qol_mods_checked_build"
 
 #if defined(__ANDROID__)
 #define QM_PLATFORM_OPTIONS "Android Options"
@@ -99,6 +104,8 @@ typedef struct
     char      file[96];
     char      url[256];
     char      kind[24];  /* "character" = folded under Additional Characters */
+    char      sha256[72];
+    char      instSha[72]; /* the zip it was installed from; "" if from before that was kept */
     long long size;
     char*     files;     /* '\n'-separated paths under gamedata/, from the catalog */
     int       installed;
@@ -127,6 +134,7 @@ static float  s_ptrX, s_ptrY;
 static int    s_btnSel;       /* selected button on the button bar */
 static int    s_infoIdx;      /* QM_INFO: which mod */
 static int    s_offeredThisRun;
+static int    s_autoTried, s_auto, s_autoNotice, s_autoShown; /* the update after a new build */
 static int    s_titleFrames;
 static char   s_message[512]; /* QM_ERROR / QM_DONE body */
 
@@ -181,11 +189,14 @@ static void qm_tmp_path(char* out, size_t sz, const char* file)
 
 static void qm_load_installed(void)
 {
-    char  line[128];
+    char  line[160];
     FILE* f = fopen(QM_INSTALLED, "rb");
     int   i;
     for (i = 0; i < s_modCount; i++)
+    {
         s_mods[i].installed = 0;
+        s_mods[i].instSha[0] = '\0';
+    }
     if (f)
     {
         while (fgets(line, sizeof(line), f))
@@ -193,9 +204,15 @@ static void qm_load_installed(void)
             size_t n = strlen(line);
             while (n && (line[n - 1] == '\n' || line[n - 1] == '\r' || line[n - 1] == ' '))
                 line[--n] = '\0';
+            char* sha = strchr(line, ' ');
+            if (sha)
+                *sha++ = '\0';
             for (i = 0; i < s_modCount; i++)
                 if (n && strcmp(line, s_mods[i].id) == 0)
+                {
                     s_mods[i].installed = 1;
+                    snprintf(s_mods[i].instSha, sizeof(s_mods[i].instSha), "%s", sha ? sha : "");
+                }
         }
         fclose(f);
     }
@@ -203,19 +220,27 @@ static void qm_load_installed(void)
         s_mods[i].want = s_mods[i].installed;
 }
 
-static void qm_mark_installed(const s_QmMod* m)
+static void qm_unmark_installed(const s_QmMod* m);
+
+static void qm_mark_installed(s_QmMod* m)
 {
-    FILE* f = fopen(QM_INSTALLED, "ab");
+    FILE* f;
+    qm_unmark_installed(m);
+    f = fopen(QM_INSTALLED, "ab");
     if (f)
     {
-        fprintf(f, "%s\n", m->id);
+        if (m->sha256[0])
+            fprintf(f, "%s %s\n", m->id, m->sha256);
+        else
+            fprintf(f, "%s\n", m->id);
         fclose(f);
     }
+    snprintf(m->instSha, sizeof(m->instSha), "%s", m->sha256);
 }
 
 static void qm_unmark_installed(const s_QmMod* m)
 {
-    char  line[128], keep[2048];
+    char  line[160], keep[8192];
     size_t used = 0;
     FILE* f = fopen(QM_INSTALLED, "rb");
     keep[0] = '\0';
@@ -226,7 +251,8 @@ static void qm_unmark_installed(const s_QmMod* m)
         size_t n = strlen(line);
         while (n && (line[n - 1] == '\n' || line[n - 1] == '\r' || line[n - 1] == ' '))
             line[--n] = '\0';
-        if (n && strcmp(line, m->id) != 0 && used + n + 2 < sizeof(keep))
+        size_t idn = strcspn(line, " ");
+        if (n && !(idn == strlen(m->id) && strncmp(line, m->id, idn) == 0) && used + n + 2 < sizeof(keep))
         {
             memcpy(keep + used, line, n);
             used += n;
@@ -365,6 +391,7 @@ static int qm_parse_catalog(const char* json)
             else if (!strcmp(key, "file"))        snprintf(m.file,   sizeof(m.file),   "%s", val);
             else if (!strcmp(key, "url"))         snprintf(m.url,    sizeof(m.url),    "%s", val);
             else if (!strcmp(key, "kind"))        snprintf(m.kind,   sizeof(m.kind),   "%s", val);
+            else if (!strcmp(key, "sha256"))      snprintf(m.sha256, sizeof(m.sha256), "%s", val);
             else if (!strcmp(key, "size"))        m.size = atoll(val);
         }
         /* The file name becomes a path, so nothing that could leave the tmp dir. */
@@ -552,7 +579,7 @@ static void qm_task_after(int status)
         return;
     }
     {
-        const s_QmMod* m = &s_mods[s_taskMod];
+        s_QmMod* m = &s_mods[s_taskMod];
         long long sz = qm_file_size(s_taskPath);
         if (m->size > 0 && sz != m->size)
         {
@@ -902,6 +929,70 @@ static void qm_begin_apply(void)
     qm_task_start(s_queue[0]);
 }
 
+/* After a new build: download again the character mods whose catalog zip
+ * changed since they were installed. One installed before the sha256 was kept
+ * is taken as current. The build is only marked checked once nothing failed,
+ * so a failed download is tried again next launch. */
+static void qm_auto_queue(void)
+{
+    int i;
+    s_auto = 0;
+    if (!s_taskOk)
+        return;
+    qm_load_installed();
+    s_queueLen = s_queuePos = s_installedNow = s_removedNow = s_failedNow = 0;
+    s_failNames[0] = '\0';
+    for (i = 0; i < s_modCount; i++)
+    {
+        s_QmMod* m = &s_mods[i];
+        if (!m->installed || !qm_grouped(m) || !m->sha256[0])
+            continue;
+        if (!m->instSha[0])
+            qm_mark_installed(m);
+        else if (strcmp(m->instSha, m->sha256) != 0)
+            s_queue[s_queueLen++] = i;
+    }
+    if (s_queueLen == 0)
+    {
+        PcConfig_SaveKeyValue(QM_CHECKED_KEY, SH_BUILD_GIT_HASH);
+        return;
+    }
+    SH_DBG("[QOL] updating %d character mod(s) for build " SH_BUILD_GIT_HASH, s_queueLen);
+    s_auto = 1;
+    qm_task_start(s_queue[0]);
+}
+
+static void qm_auto_show(void)
+{
+    s_autoNotice = 0;
+    s_autoShown = 1;
+    qm_done_after_save();
+}
+
+static void qm_auto_finish(void)
+{
+    s_auto = 0;
+    if (s_failedNow == 0)
+        PcConfig_SaveKeyValue(QM_CHECKED_KEY, SH_BUILD_GIT_HASH);
+    if (s_installedNow == 0)
+    {
+        /* Only failures: nothing to restart for, but a list opened meanwhile
+         * is on the busy screen and needs the result. */
+        if (s_mode == QM_BUSY)
+        {
+            qm_finish_message();
+            qm_auto_show();
+        }
+        return;
+    }
+    snprintf(s_message, sizeof(s_message), "Your Additional Characters were updated (%d mod%s). %s",
+             s_installedNow, s_installedNow == 1 ? "" : "s", QM_RESTART_TEXT);
+    /* Shown at the title, not over the game. */
+    s_autoNotice = 1;
+    if (s_mode == QM_BUSY)
+        qm_auto_show();
+}
+
 /* Button bar per mode. LIST adds "Install (n)" and "Close" after its rows. */
 static int qm_buttons(const char* labels[3])
 {
@@ -970,6 +1061,12 @@ static void qm_press_button(int b)
                 break;
             }
 #endif
+            if (s_autoShown)
+            {
+                s_autoShown = 0;
+                qm_close();
+                break;
+            }
             qm_load_installed();
             qm_set_mode(QM_LIST);
             s_sel = 0;
@@ -1006,6 +1103,12 @@ static void qm_step(void)
 
     if (s_taskMod < 0)
     {
+        if (s_auto && s_mode == QM_CLOSED)
+        {
+            qm_auto_queue();
+            return;
+        }
+        s_auto = 0;
         if (s_mode != QM_LOADING)
             return;
         if (s_taskOk)
@@ -1044,6 +1147,11 @@ static void qm_step(void)
         return;
     }
 
+    if (s_auto)
+    {
+        qm_auto_finish();
+        return;
+    }
     qm_finish_message();
     if (s_mode == QM_BUSY)
         qm_done_after_save();
@@ -1100,6 +1208,27 @@ int Pc_QolMods_Frame(int atTitle, int up, int down, int left, int right, int con
                 qm_set_mode(QM_PROMPT);
                 Pc_MouseCursor_Show();
                 return 1;
+            }
+        }
+        if (s_autoNotice && s_taskState == QT_IDLE)
+        {
+            qm_auto_show();
+            Pc_MouseCursor_Show();
+            return 1;
+        }
+        if (!s_autoTried && s_offeredThisRun && s_taskState == QT_IDLE)
+        {
+            const char* v = Pc_ModConfig_Value(QM_CHECKED_KEY);
+            s_autoTried = 1;
+            if (!(v && strcmp(v, SH_BUILD_GIT_HASH) == 0))
+            {
+                if (qm_file_size(QM_INSTALLED) > 0)
+                {
+                    s_auto = 1;
+                    qm_task_start(-1);
+                }
+                else
+                    PcConfig_SaveKeyValue(QM_CHECKED_KEY, SH_BUILD_GIT_HASH);
             }
         }
         return 0;
