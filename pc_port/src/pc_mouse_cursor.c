@@ -91,7 +91,12 @@ static int   s_wheelStep;    /* +1/-1 on a new wheel notch this frame, else 0 */
 static int   s_wheelNotches; /* every notch this frame, signed */
 static int   s_prevWheelTotal;
 static int   s_prevWheelUp, s_prevWheelDown;
-static int   s_showReq;     /* a screen asked for the pointer since the last draw */
+/* Presents left that still draw the pointer since a screen last asked for it.
+ * More than one: a slow frame (the browser, mostly) presents again before the
+ * game has run its draw, and a request good for one present only blinked the
+ * pointer off on every such frame. */
+#define MC_SHOW_PRESENTS 3
+static int   s_showReq;
 
 static GLuint s_glProg, s_glVao, s_glVbo, s_glTex;
 static int    s_glState; /* 0 untried, 1 ready, -1 failed */
@@ -591,7 +596,7 @@ static int Mc_HiddenForPad(void)
 
 void Pc_MouseCursor_Show(void)
 {
-    s_showReq = 1;
+    s_showReq = MC_SHOW_PRESENTS;
 }
 
 /* The game's own arrow pointer -- the 32x32 sprite every cursor puzzle passes
@@ -728,8 +733,9 @@ void Pc_MouseCursor_GlDraw(void)
     GLboolean prevBlend, prevDepth, prevCull, prevScissor;
     int       show, scale, size, left, top;
 
-    show      = s_showReq || Pc_QuickOptions_IsOpen() || Pc_ConfirmDialog_IsOpen() || Pc_BindPanel_IsOpen();
-    s_showReq = 0;
+    show = s_showReq > 0 || Pc_QuickOptions_IsOpen() || Pc_ConfirmDialog_IsOpen() || Pc_BindPanel_IsOpen();
+    if (s_showReq > 0)
+        s_showReq--;
     if (!show || !Mc_Enabled() || !s_inView || Mc_HiddenForPad() || s_glState < 0)
         return;
 #if defined(__ANDROID__) || defined(SH_IOS)
