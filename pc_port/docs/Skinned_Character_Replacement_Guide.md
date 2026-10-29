@@ -19,9 +19,12 @@ for whole-character swaps. Use that guide only when you want to edit the origina
 | --- | --- |
 | Harry | `gamedata/load/CHARA/HERO.glb` |
 | Cybil | `gamedata/load/CHARA/SIBYL.glb` |
+| Monster Cybil | `gamedata/load/CHARA/MSB.glb` (optional) |
 
 The steps below use Harry's `HERO`. For Cybil, use `SIBYL` in every file name. The game
-spells her model file that way. The same file is used in her ending scene.
+spells her model file that way. The same file is used in her ending scene, and for Monster
+Cybil when there is no `MSB.glb`, so one Cybil model covers all three. Add an `MSB.glb` only
+if you want the possessed Cybil to look different.
 
 ## Quick start
 
