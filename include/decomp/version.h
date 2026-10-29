@@ -36,7 +36,16 @@
  *
  * @param region Region identifier (NTSC, NTSCJ, PAL).
  */
+#if defined(_MSC_VER)
+/* Same MSVC limitation as VERSION_IS above: a defined() produced by macro
+ * expansion is never evaluated, so this read FALSE for every region on the
+ * XDK build -- the US title picture (GameFs_TitleGfxLoad, NTSC-guarded) was
+ * never loaded and the title screen showed no logo. VERSION_<region> is
+ * defined to 1 below, so an arithmetic test is exact. */
+#define VERSION_REGION_IS(region) (VERSION_##region + 0)
+#else
 #define VERSION_REGION_IS(region) defined(VERSION_##region)
+#endif
 
 /** @brief Checks if the build target version is equal to or newer than the given release.
  *

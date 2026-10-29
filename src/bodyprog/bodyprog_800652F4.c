@@ -217,8 +217,8 @@ void func_80065B94(VECTOR3* arg0, s16 arg1) // 0x80065B94
     setPolyFT4(ptr->field_0);
     PSX_ST_UV(ptr->field_0, u0, 0x014C4020);
     PSX_ST_UV(ptr->field_0, u1, 0x2C403F);
-    *(u16*)&ptr->field_0->u2 = 0x5F20;
-    *(u16*)&ptr->field_0->u3 = 0x5F3F;
+    do { u32 _pv = (u32)(0x5F20); (ptr->field_0)->u2 = (u8)_pv; (ptr->field_0)->v2 = (u8)(_pv >> 8); } while (0);
+    do { u32 _pv = (u32)(0x5F3F); (ptr->field_0)->u3 = (u8)_pv; (ptr->field_0)->v3 = (u8)(_pv >> 8); } while (0);
     setSemiTrans(ptr->field_0, true);
 
     temp_fp = ptr->field_38 * (s32)Q12_MULT_PRECISE((arg1 >> 1) + 0x800, 0x100) / ptr->field_40;
@@ -245,7 +245,7 @@ void func_80065B94(VECTOR3* arg0, s16 arg1) // 0x80065B94
         setXY2Fast(ptr->field_0, (u16)ptr->field_3C.vx + (u16)ptr->field_44.vy, ptr->field_3C.vy + ptr->field_48.vy);
         setXY3Fast(ptr->field_0, (u16)ptr->field_44.vy + ((u16)ptr->field_3C.vx + (u16)ptr->field_44.vx), ptr->field_3C.vy + ptr->field_48.vx + ptr->field_48.vy);
 
-        *(u16*)&ptr->field_0->r0 = ((128 - (temp2 >> 5)) << 8) - (((temp2 * 5) >> 7) - 160);
+        do { u32 _pv = (u32)(((128 - (temp2 >> 5)) << 8) - (((temp2 * 5) >> 7) - 160)); (ptr->field_0)->r0 = (u8)_pv; (ptr->field_0)->g0 = (u8)(_pv >> 8); } while (0);
         ptr->field_0->b0         = 96 - ((temp2 * 3) >> 7);
 
         addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[ptr->field_40 >> 3], ptr->field_0);
@@ -329,13 +329,13 @@ void func_80066184(void) // 0x80066184
                                     func_80055D78(Q12(22.7f), Q12(0.0f), Q12(-22.1f)), Q12_SHIFT),
                         0xFF);
 
-    *(u16*)&ptr->field_0->r0 = ptr->field_6C + (ptr->field_6C << 8);
+    do { u32 _pv = (u32)(ptr->field_6C + (ptr->field_6C << 8)); (ptr->field_0)->r0 = (u8)_pv; (ptr->field_0)->g0 = (u8)(_pv >> 8); } while (0);
     ptr->field_0->b0         = ptr->field_6C;
-    *(u16*)&ptr->field_0->r1 = ptr->field_70 + (ptr->field_70 << 8);
+    do { u32 _pv = (u32)(ptr->field_70 + (ptr->field_70 << 8)); (ptr->field_0)->r1 = (u8)_pv; (ptr->field_0)->g1 = (u8)(_pv >> 8); } while (0);
     ptr->field_0->b1         = ptr->field_70;
-    *(u16*)&ptr->field_0->r2 = ptr->field_74 + (ptr->field_74 << 8);
+    do { u32 _pv = (u32)(ptr->field_74 + (ptr->field_74 << 8)); (ptr->field_0)->r2 = (u8)_pv; (ptr->field_0)->g2 = (u8)(_pv >> 8); } while (0);
     ptr->field_0->b2         = ptr->field_74;
-    *(u16*)&ptr->field_0->r3 = ptr->field_78 + (ptr->field_78 << 8);
+    do { u32 _pv = (u32)(ptr->field_78 + (ptr->field_78 << 8)); (ptr->field_0)->r3 = (u8)_pv; (ptr->field_0)->g3 = (u8)(_pv >> 8); } while (0);
     ptr->field_0->b3         = ptr->field_78;
 
     setSemiTrans(ptr->field_0, true);
@@ -345,8 +345,8 @@ void func_80066184(void) // 0x80066184
 
     PSX_ST_UV(ptr->field_0, u0, 0xE0000);
     PSX_ST_UV(ptr->field_0, u1, 0x2D003F);
-    *(u16*)&ptr->field_0->u2 = 0x3F00;
-    *(u16*)&ptr->field_0->u3 = 0x3F3F;
+    do { u32 _pv = (u32)(0x3F00); (ptr->field_0)->u2 = (u8)_pv; (ptr->field_0)->v2 = (u8)(_pv >> 8); } while (0);
+    do { u32 _pv = (u32)(0x3F3F); (ptr->field_0)->u3 = (u8)_pv; (ptr->field_0)->v3 = (u8)(_pv >> 8); } while (0);
 
     addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_5C + ptr->field_60 + ptr->field_64 + ptr->field_68) >> 5], ptr->field_0);
 
@@ -354,8 +354,8 @@ void func_80066184(void) // 0x80066184
 
     PSX_ST_UV(ptr->field_0, u0, 0xE0000);
     PSX_ST_UV(ptr->field_0, u1, 0x4D003F);
-    *(u16*)&ptr->field_0->u2 = 0x3F00;
-    *(u16*)&ptr->field_0->u3 = 0x3F3F;
+    do { u32 _pv = (u32)(0x3F00); (ptr->field_0)->u2 = (u8)_pv; (ptr->field_0)->v2 = (u8)(_pv >> 8); } while (0);
+    do { u32 _pv = (u32)(0x3F3F); (ptr->field_0)->u3 = (u8)_pv; (ptr->field_0)->v3 = (u8)(_pv >> 8); } while (0);
 
     ptr->field_6C = MIN(FP_MULTIPLY(CLAMP_LOW_THEN_MIN(D_800AE73C - Q12(1.0f), Q12(0.0f), Q12(1.0f)),
                                     func_80055D78(Q12(22.7f), Q12(0.0), Q12(-22.1f)), Q12_SHIFT - 1),
@@ -373,13 +373,13 @@ void func_80066184(void) // 0x80066184
                                     func_80055D78(Q12(22.7f), Q12(0.0), Q12(-22.1f)), Q12_SHIFT - 1),
                         0xFF);
 
-    *(u16*)&ptr->field_0->r0 = ptr->field_6C + (ptr->field_6C << 8);
+    do { u32 _pv = (u32)(ptr->field_6C + (ptr->field_6C << 8)); (ptr->field_0)->r0 = (u8)_pv; (ptr->field_0)->g0 = (u8)(_pv >> 8); } while (0);
     ptr->field_0->b0         = ptr->field_6C;
-    *(u16*)&ptr->field_0->r1 = ptr->field_70 + (ptr->field_70 << 8);
+    do { u32 _pv = (u32)(ptr->field_70 + (ptr->field_70 << 8)); (ptr->field_0)->r1 = (u8)_pv; (ptr->field_0)->g1 = (u8)(_pv >> 8); } while (0);
     ptr->field_0->b1         = ptr->field_70;
-    *(u16*)&ptr->field_0->r2 = ptr->field_74 + (ptr->field_74 << 8);
+    do { u32 _pv = (u32)(ptr->field_74 + (ptr->field_74 << 8)); (ptr->field_0)->r2 = (u8)_pv; (ptr->field_0)->g2 = (u8)(_pv >> 8); } while (0);
     ptr->field_0->b2         = ptr->field_74;
-    *(u16*)&ptr->field_0->r3 = ptr->field_78 + (ptr->field_78 << 8);
+    do { u32 _pv = (u32)(ptr->field_78 + (ptr->field_78 << 8)); (ptr->field_0)->r3 = (u8)_pv; (ptr->field_0)->g3 = (u8)(_pv >> 8); } while (0);
     ptr->field_0->b3         = ptr->field_78;
 
     addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_5C + ptr->field_60 + ptr->field_64 + ptr->field_68) >> 5], ptr->field_0);

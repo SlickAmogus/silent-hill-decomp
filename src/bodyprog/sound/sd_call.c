@@ -2104,7 +2104,7 @@ void Sd_TaskPoolDrain(void)
      * next frames (Sd_TaskPoolExecute also advances one task/frame). A freshly-
      * spawned enemy's sound may lag a couple frames instead of stalling. */
     unsigned long long _t0 = ShxSdRdtsc();
-    const unsigned long long _budget = 4ULL * 733000ULL; /* ~4ms at 733MHz */
+    const unsigned long long _budget = 4ULL * SH_CYCLES_PER_MS; /* ~4ms at 733MHz */
 #endif
 
     if (g_Sd_AudioWork.xaAudioIdx_4 != 0)

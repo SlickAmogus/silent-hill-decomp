@@ -73,13 +73,48 @@ typedef unsigned int SH_PACK_U32;
 #define PSX_ST_XY(p, f, w)   (*(SH_PACK_U32*)&(p)->f = (SH_PACK_U32)((((SH_PACK_U32)(w)) << 16) | \
                                                     (((SH_PACK_U32)(w)) >> 16)))
 
+/* Same destination, but `w` was READ as a word from memory already holding
+ * {s16 x, s16 y} (a DVECTOR pun, a gte_stsxy / RotTransPers result, a
+ * screenXy_0 slot): its memory image is right as it is, so the halves must
+ * NOT be swapped. Using PSX_ST_XY on such a word exchanged x and y for every
+ * world polygon on the 360 (Gfx_MeshDraw): the street drew mirrored across
+ * the diagonal -- "turned sideways" -- while characters, whose drawer stores
+ * the word plainly, stood upright. */
+#define PSX_ST_XYW(p, f, w)  (*(SH_PACK_U32*)&(p)->f = (SH_PACK_U32)(w))
+
 #else
 
 #define PSX_ST_RGBC(p, w)    (*(SH_PACK_U32*)&(p)->r0 = (SH_PACK_U32)(w))
 #define PSX_ST_RGB(p, f, w)  (*(SH_PACK_U32*)&(p)->f  = (SH_PACK_U32)(w))
 #define PSX_ST_UV(p, f, w)   (*(SH_PACK_U32*)&(p)->f  = (SH_PACK_U32)(w))
 #define PSX_ST_XY(p, f, w)   (*(SH_PACK_U32*)&(p)->f  = (SH_PACK_U32)(w))
+#define PSX_ST_XYW(p, f, w)  (*(SH_PACK_U32*)&(p)->f  = (SH_PACK_U32)(w))
 
 #endif /* big-endian */
+
+/* Read a 4-byte colour record {r, g, b, pad} out of memory as the LE-composed
+ * word the PSX_ST_* macros expect. The decomp copies colours quartet-to-quartet
+ * with `*(s32*)&dst->r0 = *(s32*)&src`, which needs BOTH halves converting on
+ * big-endian: this is the load side, PSX_ST_RGBC/PSX_ST_RGB the store side.
+ *
+ * The store side matters most for the r0 group, because PSX_PRIM_CMD declares
+ * it MSB-first there -- `&p->r0` is the LAST byte of the quartet, so a raw
+ * 4-byte write through it lands three bytes in x0/y0 and leaves g0/b0 stale.
+ * Measured on PS3 as a population of polys at r=0 g=255 b=255, i.e. the flat
+ * teal that covered the screen. */
+#define PSX_LD_RGBC(p)       SH_BSWAP32_LE(*(const SH_PACK_U32*)(const void*)(p))
+
+#if defined(__BIG_ENDIAN__) || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+#define SH_BSWAP32_LE(v)     SH_BSWAP32(v)
+#else
+#define SH_BSWAP32_LE(v)     ((SH_PACK_U32)(v))
+#endif
+
+/* (u8 u, u8 v) written from ONE little-endian-composed halfword -- the shape of
+ * `*(u16*)&poly->u2 = prim->field_8;`. Needs no endian split: naming the two
+ * bytes is what makes it portable, and it compiles to the same two stores
+ * everywhere. `w` is LE-composed, i.e. u in the low byte. */
+#define PSX_ST_UV2(p, uf, vf, w) \
+    ((p)->uf = (unsigned char)(w), (p)->vf = (unsigned char)(((SH_PACK_U32)(w)) >> 8))
 
 #endif /* PSX_PACK_H */

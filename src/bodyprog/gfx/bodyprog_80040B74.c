@@ -57,6 +57,15 @@ bool Chara_ModelLoadedCheck(e_CharaId charaId) // 0x80040B74
 // ========================================
 
 #define D_800BFBF0_STRIDE (sizeof(DR_TPAGE) * 2 + sizeof(POLY_G4) * 16 * 3 + sizeof(POLY_G3) * 16 + sizeof(POLY_F4) * 16)
+
+#ifdef SH_PC_PORT
+/* World-draw census, reset by the [IPD-DRAW] probe each time it logs. Shared
+ * with func_80057090 in bodyprog_80055028.c, which owns the submit counters. */
+int g_IpdDbgBufs = 0, g_IpdDbgBranch = 0;
+int g_IpdDbgCalls = 0, g_IpdDbgEarly1 = 0, g_IpdDbgEarly2 = 0, g_IpdDbgQState = 0;
+int g_IpdDbgPvsRun = 0, g_IpdDbgPvsVis = 0;
+int g_IpdDbgSubmit = 0, g_IpdDbgNoField0 = 0;
+#endif
 PACKET D_800BFBF0[2][D_800BFBF0_STRIDE];
 
 #ifdef SH_PC_PORT
@@ -128,8 +137,8 @@ void func_80040BAC(void) // 0x80040BAC
             SetPolyF4(poly_f4);
             setSemiTrans(poly_f4, true);
 
-            PSX_ST_XY(poly_f4, x2, ptr[i % 16]);
-            PSX_ST_XY(poly_f4, x3, ptr[i % 16 + 1]);
+            PSX_ST_XYW(poly_f4, x2, ptr[i % 16]);
+            PSX_ST_XYW(poly_f4, x3, ptr[i % 16 + 1]);
         }
 
         poly_g4 = packet + (sizeof(DR_TPAGE) * 2) + (sizeof(POLY_G3) * 16);
@@ -393,16 +402,16 @@ void func_800414E0(GsOT* arg0, VECTOR3* arg1, s32 arg2, q19_12 angle0, q19_12 an
     {
         poly_g3->x0         = arg1->vx;
         poly_g3->y0         = arg1->vy;
-        PSX_ST_XY(poly_g3, x1, var_t0[j]);
-        PSX_ST_XY(poly_g3, x2, var_t0[j + 1]);
+        PSX_ST_XYW(poly_g3, x1, var_t0[j]);
+        PSX_ST_XYW(poly_g3, x2, var_t0[j + 1]);
 
 #ifdef SH_PC_PORT
         if (!g_PsyX_FlashlightActive)
 #endif
             addPrim(arg0->org, poly_g3);
 
-        PSX_ST_XY(poly_f4, x0, var_t0[j + 51]);
-        PSX_ST_XY(poly_f4, x1, var_t0[j + 52]);
+        PSX_ST_XYW(poly_f4, x0, var_t0[j + 51]);
+        PSX_ST_XYW(poly_f4, x1, var_t0[j + 52]);
 
         addPrim(&arg0->org[1], poly_f4);
     }
@@ -416,10 +425,10 @@ void func_800414E0(GsOT* arg0, VECTOR3* arg1, s32 arg2, q19_12 angle0, q19_12 an
 
         for (j = 0; j < 16; j++, poly_g4++)
         {
-            PSX_ST_XY(poly_g4, x0, var_a1_3[j]);
-            PSX_ST_XY(poly_g4, x1, var_a1_3[j + 1]);
-            PSX_ST_XY(poly_g4, x2, var_a1_3[17 + j]);
-            PSX_ST_XY(poly_g4, x3, var_a1_3[(17 + j) + 1]);
+            PSX_ST_XYW(poly_g4, x0, var_a1_3[j]);
+            PSX_ST_XYW(poly_g4, x1, var_a1_3[j + 1]);
+            PSX_ST_XYW(poly_g4, x2, var_a1_3[17 + j]);
+            PSX_ST_XYW(poly_g4, x3, var_a1_3[(17 + j) + 1]);
 
             addPrim(&arg0->org[1], poly_g4);
         }
@@ -949,7 +958,9 @@ void Ipd_ActiveChunksClear(s_MapTerrain* map, s32 arg1) // 0x80042300
             }
             else
             {
-#ifdef SH_XBOX_PORT
+#if defined(SH_XBOX_PORT) && !defined(SH_XBOX360_PORT)
+                /* (Not the 360: 512MB, and it preloads exteriors like the PC,
+                 * which addresses every one of the 256 slots.) */
                 /* THE 64MB killer (2026-07-16 log): this eager calloc runs for
                  * ALL 256 slots (PC_MAX_IPD_CHUNKS) at every map init — ~22MB
                  * attempted. On Xbox it drained the remaining ~9MB of RAM
@@ -2568,14 +2579,27 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
 
     queueState = Fs_QueueEntryLoadStatusGet(g_Map.globalLm.queueIdx);
 
+#ifdef SH_PC_PORT
+    /* The world draw reached its end only ~100 times in ~1500 frames, so it is
+     * bailing at one of the two gates below on most frames. Count which. */
+    g_IpdDbgCalls++;
+    g_IpdDbgQState = queueState;
+#endif
+
     if (queueState == ChunkLoadState_Unloaded)
     {
+#ifdef SH_PC_PORT
+        g_IpdDbgEarly1++;
+#endif
         return;
     }
 
     if (!(queueState == ChunkLoadState_Invalid ||
           (queueState == ChunkLoadState_Loaded && g_Map.globalLm.lmHdr->isLoaded)))
     {
+#ifdef SH_PC_PORT
+        g_IpdDbgEarly2++;
+#endif
         return;
     }
 
@@ -2754,17 +2778,48 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
         {
             playerCellDrawn = (cellMatchChunks != 0);
         }
-        if ((cellMatchChunks == 0 || !playerCellDrawn) && (SDL_GetTicks() - s_lastDrawLogMs) > 1000)
+        /* Logged EVERY second, not only when the world is void. Gated on the
+         * failure it made "no line" ambiguous: silence could equally mean the
+         * chunks resolved or that this function stopped being reached, and on
+         * PS3 those two were indistinguishable for a whole debugging round. */
+        if ((SDL_GetTicks() - s_lastDrawLogMs) > 1000)
         {
             s_lastDrawLogMs = SDL_GetTicks();
-            SH_DBG("[IPD-DRAW] VOID playerCellDrawn=%d total=%d loaded=%d cellMatch=%d mapCell=(%d,%d) tag=%s",
-                   playerCellDrawn, totalChunks, loadedChunks, cellMatchChunks,
+            SH_DBG("[IPD-DRAW] %s playerCellDrawn=%d total=%d loaded=%d cellMatch=%d drawn=%d mapCell=(%d,%d) tag=%s",
+                   (cellMatchChunks == 0 || !playerCellDrawn) ? "VOID" : "ok",
+                   playerCellDrawn, totalChunks, loadedChunks, cellMatchChunks, drawCount,
                    (int)g_Map.cellX, (int)g_Map.cellZ, g_Map.mapTag);
+            /* The cell is derived from the player position, so a garbage cell is
+             * only ever a symptom -- print the position it came from. */
+            SH_DBG("[IPD-DRAW]   branch=%d bufs=%d submit=%d noField0=%d | calls=%d early1=%d early2=%d qState=%d",
+                   g_IpdDbgBranch, g_IpdDbgBufs, g_IpdDbgSubmit, g_IpdDbgNoField0,
+                   g_IpdDbgCalls, g_IpdDbgEarly1, g_IpdDbgEarly2, g_IpdDbgQState);
+            { extern int g_DrawerA, g_DrawerB;
+              SH_DBG("[IPD-DRAW]   pvsRun=%d pvsVisible=%d | meshDraw=%d altDraw=%d",
+                     g_IpdDbgPvsRun, g_IpdDbgPvsVis, g_DrawerA, g_DrawerB);
+              g_DrawerA = g_DrawerB = 0; }
+            g_IpdDbgPvsRun = g_IpdDbgPvsVis = 0;
+            g_IpdDbgBufs = g_IpdDbgSubmit = g_IpdDbgNoField0 = 0;
+            g_IpdDbgCalls = g_IpdDbgEarly1 = g_IpdDbgEarly2 = 0;
+            SH_DBG("[IPD-DRAW]   playerPos=(%d,%d,%d) raw=(%08x,%08x) mapPos=(%d,%d)",
+                   (int)g_SysWork.playerWork.player.position.vx,
+                   (int)g_SysWork.playerWork.player.position.vy,
+                   (int)g_SysWork.playerWork.player.position.vz,
+                   (unsigned)g_SysWork.playerWork.player.position.vx,
+                   (unsigned)g_SysWork.playerWork.player.position.vz,
+                   (int)g_Map.positionX, (int)g_Map.positionZ);
             {
                 s_Chunk* c;
                 for (c = &g_Map.activeChunks[0]; c < &g_Map.activeChunks[g_Map.activeChunkCount]; c++)
                 {
                     if (c->queueIdx == NO_VALUE) continue;
+                    /* With preload_chunks every one of the 256 slots is
+                     * occupied; listing them all once a second was 10k log
+                     * lines per 300 frames (and a USB write on the console).
+                     * Keep the first four (the PSX residency) and whatever is
+                     * actually textured. */
+                    if ((c - g_Map.activeChunks) >= 4 &&
+                        IpdHeader_LoadStateGet(c) < StaticModelLoadState_Loaded) continue;
                     SH_DBG("[IPD-DRAW]   slot=%d cell=(%d,%d) loadState=%d qState=%d isLoaded=%d",
                            (int)(c - g_Map.activeChunks), (int)c->cellX, (int)c->cellZ,
                            (int)IpdHeader_LoadStateGet(c),
@@ -3103,6 +3158,18 @@ void Ipd_ChunkDraw(s_IpdHeader* ipdHdr, q19_12 posX, q19_12 posZ, GsOT* ot, bool
     modelCoord.super       = NULL;
 
 #ifdef SH_PC_PORT
+    /* Which branch this chunk takes and how much it actually hands to the model
+     * draw. "chunks drawn=3" above and zero textured prims in the OT can only be
+     * separated here: either the buffer walk selects nothing, or the instances
+     * have no modelHdr, or func_80057090 drops them. */
+    {
+        g_IpdDbgBranch = (g_DebugCamEnabled || g_PcConfig.disableCulling || Pc_WholeMapDrawActive())
+                         ? 1 : (!g_Map.isExterior ? 2 : 3);
+        g_IpdDbgBufs += ipdHdr->modelBufferCount;
+    }
+#endif
+
+#ifdef SH_PC_PORT
     /* NOTE (Xbox): an earlier fix routed ALL exteriors through this draw-all
      * path, blaming the subcell PVS for "world vanishes when fighting the air
      * screamer". That was wrong and was reverted: draw-all cost the 733MHz CPU
@@ -3182,12 +3249,28 @@ void Ipd_ChunkDraw(s_IpdHeader* ipdHdr, q19_12 posX, q19_12 posZ, GsOT* ot, bool
 #endif
     {
     temp_fp = &ipdHdr->textureCount + (subcellZ * 10) + (subcellX * 2);
+#ifdef SH_PC_PORT
+    /* The exterior PVS picks a [start,count) run out of modelOrderList for the
+     * player's subcell. Only ~3 model instances per frame reach the draw, so
+     * either the run is short or the per-buffer visibility test rejects it. */
+    {
+        extern int g_MeshDbgBudget, g_IpdDbgPvsRun, g_IpdDbgPvsVis;
+        g_IpdDbgPvsRun += temp_fp[1];
+        if (g_MeshDbgBudget > 0 && g_GameWork.gameState == GameState_InGame)
+            SH_DBG("[PVS] sub=(%d,%d) start=%d count=%d bufs=%d orderCnt=%d",
+                   (int)subcellX, (int)subcellZ, (int)temp_fp[0], (int)temp_fp[1],
+                   (int)ipdHdr->modelBufferCount, (int)ipdHdr->modelOrderCount);
+    }
+#endif
     for (i = temp_fp[0]; i < (temp_fp[1] + temp_fp[0]); i++)
     {
         ipdModelBuf = &ipdHdr->modelBuffers[ipdHdr->modelOrderList[i]];
 
         if (Gfx_ChunkSubcellVisibleCheck(ipdModelBuf, geomX - cellBoundX, geomZ - cellBoundZ, cellBoundX, cellBoundZ))
         {
+#ifdef SH_PC_PORT
+            { extern int g_IpdDbgPvsVis; g_IpdDbgPvsVis++; }
+#endif
             for (curBufC = ipdModelBuf->modelInstances; curBufC < &ipdModelBuf->modelInstances[ipdModelBuf->modelInstanceCount]; curBufC++)
             {
                 modelInfo.modelHdr = curBufC->modelHdr;

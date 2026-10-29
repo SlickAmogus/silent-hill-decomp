@@ -175,6 +175,9 @@ s32 Fs_QueueEnqueue(e_FsFile fileIdx, u8 op, u8 postLoad, u8 alloc, void* data, 
     }
 #endif
 
+    if (fileIdx == 1980) /* FILE_TIM_TITLE_E_TIM */
+        SH_DBG("[TITLEQ] enqueue op=%d postLoad=%d alloc=%d data=%p qlen=%d",
+               (int)op, (int)postLoad, (int)alloc, data, (int)Fs_QueueGetLength());
     // Wait for space in queue.
     while (Fs_QueueGetLength() >= FS_QUEUE_LENGTH)
     {

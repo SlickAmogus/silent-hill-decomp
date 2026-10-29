@@ -57,6 +57,11 @@ static int s_diagEnv[8];                /* disp x,y,w,h, ofs x,y, scale*1000 x,y
 /* Output geometry from gpu_nv2a.c: content rect (4:3) within the framebuffer.
  * At 720p content is 960x720 at x=160 (pillarboxed); 640x480 is identity. */
 extern int g_Nv2aFbW, g_Nv2aFbH, g_Nv2aContentX, g_Nv2aContentW, g_Nv2aContentH;
+#if defined(SH_XBOX360_PORT)
+extern int g_Nv2aViewW;   /* visible width in content units (Hor+ > ContentW) */
+#else
+#define g_Nv2aViewW g_Nv2aContentW
+#endif
 
 /* Currently-bound NV2A texture (bind-dedup in ProcessPoly); reset each DrawOTag.
  * -1 = unknown, forcing a bind on the first prim of the walk. */
@@ -97,9 +102,19 @@ static int s_cnGt = 0, s_cnFogged = 0;    /* GT prims / with nonzero fog pads */
 static int s_cnPadMin = 999, s_cnPadMax = -1;
 static int s_cnAbr[4];                    /* semi-trans prims per ABR mode */
 static int s_cnLines = 0, s_cnUnk = 0;    /* line prims / unknown-code skips */
-/* Prims rejected by PolyOversized. Nothing counted this, so "1320 parsed, 1
- * emitted" gave no way to tell a cull from a decode failure. */
-static int s_cnOversize = 0;
+static int s_cnType[16];                  /* prims per code>>4 (see [PTYPE]) */
+static unsigned char s_cnCodeSeen[256];   /* which exact codes the walk saw     */
+static int s_cnOversized = 0;             /* polys PolyOversized threw away     */
+/* Vertex-colour census. "Everything renders black" is invisible to every other
+ * counter here -- prims, binds and bboxes all look healthy while the GTE hands
+ * back zeroed colours -- so accumulate what the polys are actually tinted. */
+static unsigned s_cnRgbSum[3];
+static int      s_cnRgbN, s_cnRgbMaxC[3];
+/* Prims that fell back to the WHITE texture because TexLookup returned 0.
+ * A white bind renders as the flat vertex colour, which is indistinguishable
+ * from 'untextured' by eye but obvious here. */
+static int      s_cnWhite, s_cnTexed;
+static int      s_wedgeLogged;
 static int s_bbMinX = 99999, s_bbMaxX = -99999, s_bbMinY = 99999, s_bbMaxY = -99999;
 static int s_unkLogged = 0;               /* [PRIM?] one-shot budget per boot */
 
@@ -132,6 +147,24 @@ static unsigned           s_primCount;    /* prims that reached the emit path */
 /* Timed wrapper around the texture-cache lookup. It is called PER PRIMITIVE and
  * can trigger a 256KB decode, so it is the first thing to rule in or out when
  * accounting for the half of drawMs that is not GPU submission. */
+/* Does the BACKEND consume an 8-bit index page + palette?
+ *
+ * The paletted cache is preferred below because it is far cheaper: one 64KB
+ * index page per tpage shared by every CLUT, instead of a 256KB ARGB decode per
+ * (tpage,clut) pair. But it is an NV2A feature -- a palette register plus a
+ * swizzled index page -- and a backend without it has nowhere to put the
+ * palette. GpuNv2a_BindPaletted is then a no-op, and because the bind cannot
+ * report failure the prim simply keeps whatever texture was bound before it.
+ *
+ * On PS3 that meant EVERY 4/8-bit page (i.e. essentially all of them) silently
+ * failed to bind: texbind counted 81 per frame while Ps3Rsx_BindTexture was
+ * never once reached, and every model drew in flat vertex-lit grey. The
+ * decision has to be made HERE, at lookup time, because by bind time the ARGB
+ * page has not been decoded.
+ *
+ * Default 1 (NV2A/Xbox). A backend without the feature clears it at init. */
+int g_GpuPalettedSupported = 1;
+
 /* Palette for the page TexLookup just returned (0 = ARGB page, no palette). */
 static const void* s_pendingPal;
 
@@ -181,7 +214,9 @@ static inline unsigned int* TexLookup(int tpage, int clut)
              * pre-decoded images) get a look. */
             {
                 const void* pal = 0;
-                unsigned int* res = (unsigned int*)PsxVram_GetPaletted(tpage, clut, &pal);
+                unsigned int* res = g_GpuPalettedSupported
+                                  ? (unsigned int*)PsxVram_GetPaletted(tpage, clut, &pal)
+                                  : 0;
                 if (res) {
                     s_pendingPal  = pal;
                     s_pendingTexW = 256;
@@ -215,10 +250,22 @@ static inline unsigned int* TexLookup(int tpage, int clut)
     /* Prefer the paletted cache: one 64KB index page per tpage, shared by every
      * CLUT. Falls back to the ARGB cache for 16-bit direct pages (not
      * palettizable) or if its allocation failed. */
-    r = (unsigned int*)PsxVram_GetPaletted(tpage, clut, &pal);
+    r = g_GpuPalettedSupported ? (unsigned int*)PsxVram_GetPaletted(tpage, clut, &pal) : 0;
     if (!r) {
         pal = 0;
         r   = PsxVram_GetTexture(tpage, clut);
+    }
+    if (!r) {
+        /* A NULL here becomes a WHITE bind, which on screen is identical to
+         * 'untextured'. Name the page/clut once per distinct pair. */
+        static int s_fLogged; static int s_fSeen[16]; int _k;
+        int _key = ((tpage & 0xFFFF) << 16) | (clut & 0xFFFF);
+        for (_k = 0; _k < s_fLogged; _k++) if (s_fSeen[_k] == _key) break;
+        if (_k == s_fLogged && s_fLogged < 16) {
+            s_fSeen[s_fLogged++] = _key;
+            SH_DBG("[TEXNULL] tpage=%04x clut=%04x tp=%d clutRow=%d",
+                   (unsigned)tpage, (unsigned)clut, (tpage >> 7) & 3, (clut >> 6) & 0x3FF);
+        }
     }
     s_pendingPal = pal;
     if (pal) { s_pendingUvX = PAL_UV_SCALE; s_pendingUvY = PAL_UV_SCALE; }
@@ -731,24 +778,11 @@ static int PolyOversized(const VERTTYPE* xy, int stridePairs, int n)
         if (y < minY) minY = y;
         if (y > maxY) maxY = y;
     }
-#ifdef SH_XBOX360_PORT
-    /* Name the coordinates rather than inferring them. 21507 of 31560 prims are
-     * being rejected here with a census bbox of -320..2240 on a 640-wide screen,
-     * and these values are computed at runtime by the software GTE -- there is
-     * no file to read them out of, so a bounded dump is the only way to see
-     * them. One-shot budget: this sits in the per-primitive hot path. */
-    {
-        static int s_dumped = 0;
-        if (s_dumped < 12 && ((maxX - minX) >= 1024 || (maxY - minY) >= 512)) {
-            s_dumped++;
-            SH_DBG("[OVERSIZE] n=%d span=(%d,%d) x=[%d..%d] y=[%d..%d] v0=(%d,%d) v1=(%d,%d)",
-                   n, maxX - minX, maxY - minY, minX, maxX, minY, maxY,
-                   (int)xy[0], (int)xy[1],
-                   (int)xy[stridePairs], (int)xy[stridePairs + 1]);
-        }
+    if ((maxX - minX) >= 1024 || (maxY - minY) >= 512) {
+        s_cnOversized++;
+        return 1;
     }
-#endif
-    return (maxX - minX) >= 1024 || (maxY - minY) >= 512;
+    return 0;
     /* REVERTED: a speculative "GTE-rail backstop" used to drop any prim with a
      * vertex exactly at the +-1023/-1024 saturation rail whose span exceeded
      * 400x300. It did NOT fix the reported flicker, and it can silently delete
@@ -777,7 +811,7 @@ static int ProcessPoly(P_TAG* tag)
         /* POLY_F3 / POLY_F4 */
         POLY_F4* p = (POLY_F4*)tag;
         const VERTTYPE* xy = &p->x0;
-        if (PolyOversized(xy, 2, quad ? 4 : 3)) { s_cnOversize++; return primLen; }
+        if (PolyOversized(xy, 2, quad ? 4 : 3)) { s_cnOversized++; return primLen; }
         for (i = 0; i < (quad ? 4 : 3); i++)
             PutVert(&v[i], xy[i * 2], xy[i * 2 + 1], p->r0, p->g0, p->b0);
     } else if (!gouraud && textured) {
@@ -794,7 +828,7 @@ static int ProcessPoly(P_TAG* tag)
         s_curTpage = blendTpage = p->tpage;   /* SPRTs inherit the latest tpage */
         {
             const VERTTYPE xy[8] = { p->x0, p->y0, p->x1, p->y1, p->x2, p->y2, p->x3, p->y3 };
-            if (PolyOversized(xy, 2, quad ? 4 : 3)) { s_cnOversize++; return primLen; }
+            if (PolyOversized(xy, 2, quad ? 4 : 3)) { s_cnOversized++; return primLen; }
         }
         if (quad && s_diagFt4N < 2) {
             /* Glyph-sized FT4s only: the hi-res text path emits these. */
@@ -820,7 +854,7 @@ static int ProcessPoly(P_TAG* tag)
         POLY_G4* p = (POLY_G4*)tag;
         {
             const VERTTYPE xy[8] = { p->x0, p->y0, p->x1, p->y1, p->x2, p->y2, p->x3, p->y3 };
-            if (PolyOversized(xy, 2, quad ? 4 : 3)) { s_cnOversize++; return primLen; }
+            if (PolyOversized(xy, 2, quad ? 4 : 3)) { s_cnOversized++; return primLen; }
         }
         PutVert(&v[0], p->x0, p->y0, p->r0, p->g0, p->b0);
         PutVert(&v[1], p->x1, p->y1, p->r1, p->g1, p->b1);
@@ -832,13 +866,55 @@ static int ProcessPoly(P_TAG* tag)
         POLY_GT4* p4 = (POLY_GT4*)tag;
         POLY_GT3* p3 = (POLY_GT3*)tag;
         s_cnGt++;
+        s_cnRgbSum[0] += p4->r0; s_cnRgbSum[1] += p4->g0; s_cnRgbSum[2] += p4->b0;
+        s_cnRgbN++;
+        if (p4->r0 > s_cnRgbMaxC[0]) s_cnRgbMaxC[0] = p4->r0;
+        if (p4->g0 > s_cnRgbMaxC[1]) s_cnRgbMaxC[1] = p4->g0;
+        if (p4->b0 > s_cnRgbMaxC[2]) s_cnRgbMaxC[2] = p4->b0;
         if (quad) {
             s_curTpage = blendTpage = p4->tpage;
             {
                 const VERTTYPE xy[8] = { p4->x0, p4->y0, p4->x1, p4->y1, p4->x2, p4->y2, p4->x3, p4->y3 };
-                if (PolyOversized(xy, 2, 4)) { s_cnOversize++; return primLen; }
+                if (PolyOversized(xy, 2, 4)) { s_cnOversized++; return primLen; }
             }
             texAddr = TexLookup(p4->tpage, p4->clut);
+            {   /* Is the decoded page itself flat? Sample it at this prim's own
+                 * UVs plus a spread across the page. A uniform result means the
+                 * DECODE is wrong, a varied one means the sampling is. */
+                static int s_texDump;
+                if (texAddr && s_texDump < 4) {
+                    const unsigned* t = (const unsigned*)texAddr;
+                    s_texDump++;
+                    SH_DBG("[TEXPIX] tp=%04x cl=%04x uv0=(%d,%d) px=%08x %08x %08x %08x",
+                           (unsigned)p4->tpage, (unsigned)p4->clut,
+                           (int)p4->u0, (int)p4->v0,
+                           t[(p4->v0 & 255) * 256 + (p4->u0 & 255)],
+                           t[0], t[128 * 256 + 128], t[255 * 256 + 255]);
+                    SH_DBG("[TEXPIX] row64: %08x %08x %08x %08x %08x %08x",
+                           t[64 * 256 + 8], t[64 * 256 + 40], t[64 * 256 + 72],
+                           t[64 * 256 + 104], t[64 * 256 + 136], t[64 * 256 + 200]);
+                }
+            }
+            {   /* The visible defect is a handful of hugely stretched quads.
+             * Sample THOSE: everything else in the frame is well-formed. */
+                int mnx = p4->x0, mxx = p4->x0, mny = p4->y0, mxy = p4->y0;
+                int xs[3], ys[3], k;
+                xs[0]=p4->x1; ys[0]=p4->y1; xs[1]=p4->x2; ys[1]=p4->y2;
+                xs[2]=p4->x3; ys[2]=p4->y3;
+                for (k = 0; k < 3; k++) {
+                    if (xs[k] < mnx) mnx = xs[k]; if (xs[k] > mxx) mxx = xs[k];
+                    if (ys[k] < mny) mny = ys[k]; if (ys[k] > mxy) mxy = ys[k];
+                }
+                if (((mxx - mnx) > 400 || (mxy - mny) > 400) && s_wedgeLogged < 8) {
+                    s_wedgeLogged++;
+                    SH_DBG("[WEDGE] xy=(%d,%d)(%d,%d)(%d,%d)(%d,%d) uv=(%d,%d)(%d,%d)(%d,%d)(%d,%d) tp=%04x cl=%04x tex=%p",
+                           (int)p4->x0,(int)p4->y0,(int)p4->x1,(int)p4->y1,
+                           (int)p4->x2,(int)p4->y2,(int)p4->x3,(int)p4->y3,
+                           (int)p4->u0,(int)p4->v0,(int)p4->u1,(int)p4->v1,
+                           (int)p4->u2,(int)p4->v2,(int)p4->u3,(int)p4->v3,
+                           (unsigned)p4->tpage,(unsigned)p4->clut,(void*)texAddr);
+                }
+            }
             PutVertUV(&v[0], p4->x0, p4->y0, p4->r0, p4->g0, p4->b0, p4->u0, p4->v0);
             PutVertUV(&v[1], p4->x1, p4->y1, p4->r1, p4->g1, p4->b1, p4->u1, p4->v1);
             PutVertUV(&v[2], p4->x2, p4->y2, p4->r2, p4->g2, p4->b2, p4->u2, p4->v2);
@@ -855,7 +931,7 @@ static int ProcessPoly(P_TAG* tag)
             s_curTpage = blendTpage = p3->tpage;
             {
                 const VERTTYPE xy[6] = { p3->x0, p3->y0, p3->x1, p3->y1, p3->x2, p3->y2 };
-                if (PolyOversized(xy, 2, 3)) { s_cnOversize++; return primLen; }
+                if (PolyOversized(xy, 2, 3)) { s_cnOversized++; return primLen; }
             }
             texAddr = TexLookup(p3->tpage, p3->clut);
             PutVertUV(&v[0], p3->x0, p3->y0, p3->r0, p3->g0, p3->b0, p3->u0, p3->v0);
@@ -890,7 +966,7 @@ static int ProcessPoly(P_TAG* tag)
             if (Y < mny) mny = Y;
             if (Y > mxy) mxy = Y;
         }
-        if ((mxx - mnx) >= g_Nv2aContentW || (mxy - mny) >= g_Nv2aContentH) {
+        if ((mxx - mnx) >= g_Nv2aViewW || (mxy - mny) >= g_Nv2aContentH) {
             static unsigned s_big;
             if ((s_big++ & 0x1F) == 0)
                 SH_DBG("[BIGPRIM] code=0x%02x tp=0x%x span=%dx%d at(%d,%d)",
@@ -932,7 +1008,7 @@ static int ProcessPoly(P_TAG* tag)
             if (X < mnx) mnx = X; if (X > mxx) mxx = X;
             if (Y < mny) mny = Y; if (Y > mxy) mxy = Y;
         }
-        if ((mxx - mnx) >= 2 * g_Nv2aContentW || (mxy - mny) >= 2 * g_Nv2aContentH) {
+        if ((mxx - mnx) >= 2 * g_Nv2aViewW || (mxy - mny) >= 2 * g_Nv2aContentH) {
             static unsigned s_fx;
             if ((s_fx++ & 0x3F) == 0)
                 SH_DBG("[FXDROP] code=0x%02x abr=%d tp=0x%x span=%dx%d",
@@ -965,9 +1041,23 @@ static int ProcessPoly(P_TAG* tag)
      * texture-pipeline slowdown. s_curTex is reset per DrawOTag. */
     if (texAddr != s_curTex || s_pendingPal != s_curPal) {
         if (texAddr) {
+            s_cnTexed++;
             if (s_pendingPal) GpuNv2a_BindPaletted(texAddr, s_pendingPal);
             else              GpuNv2a_BindTexture(texAddr, s_pendingTexW, s_pendingTexH);
         } else {
+            s_cnWhite++;
+            {   /* Name the textures that fail to resolve -- a white bind is
+                 * indistinguishable from 'untextured' on screen. One line per
+                 * distinct tpage/clut, capped. */
+                static int s_wLogged; static int s_wSeen[16]; int _k, _key;
+                _key = ((blendTpage & 0xFFFF) << 16) | (s_curTpage & 0xFFFF);
+                for (_k = 0; _k < s_wLogged; _k++) if (s_wSeen[_k] == _key) break;
+                if (_k == s_wLogged && s_wLogged < 16) {
+                    s_wSeen[s_wLogged++] = _key;
+                    SH_DBG("[TEXFAIL] tpage=%04x curTpage=%04x",
+                           (unsigned)blendTpage, (unsigned)s_curTpage);
+                }
+            }
             GpuNv2a_BindWhite();
         }
         s_curTex = texAddr;
@@ -1105,6 +1195,16 @@ static int ProcessSprtTile(P_TAG* tag)
         if (u0 + uw > 255) uw = 255 - u0;
         if (v0 + vh > 255) vh = 255 - v0;
         texAddr = TexLookup(s_curTpage, clut);
+        {   /* [TITLESPR] the title image's sprites (clut 0x3CE = (224,15)):
+             * geometry, page, and whether the page resolved. Capped. */
+            static int s_tsLog;
+            if (clut == 0x3CE && s_tsLog < 12) {
+                s_tsLog++;
+                SH_DBG("[TITLESPR] xy=(%d,%d) wh=(%d,%d) uv=(%d,%d) tpage=0x%x clut=0x%x rgb=%d,%d,%d tex=%p pal=%p",
+                       x0, y0, w, h, u0, v0, (unsigned)s_curTpage, (unsigned)clut, r, g, b,
+                       texAddr, (const void*)s_pendingPal);
+            }
+        }
         PutVertUV(&v[0], x0,     y0,     r, g, b, u0,      v0);
         PutVertUV(&v[1], x0 + w, y0,     r, g, b, u0 + uw, v0);
         PutVertUV(&v[2], x0,     y0 + h, r, g, b, u0,      v0 + vh);
@@ -1135,9 +1235,23 @@ static int ProcessSprtTile(P_TAG* tag)
     }
     if (texAddr != s_curTex || s_pendingPal != s_curPal) {
         if (texAddr) {
+            s_cnTexed++;
             if (s_pendingPal) GpuNv2a_BindPaletted(texAddr, s_pendingPal);
             else              GpuNv2a_BindTexture(texAddr, s_pendingTexW, s_pendingTexH);
         } else {
+            s_cnWhite++;
+            {   /* Name the textures that fail to resolve -- a white bind is
+                 * indistinguishable from 'untextured' on screen. One line per
+                 * distinct tpage/clut, capped. */
+                static int s_wLogged; static int s_wSeen[16]; int _k, _key;
+                _key = ((s_curTpage & 0xFFFF) << 16) | (s_curTpage & 0xFFFF);
+                for (_k = 0; _k < s_wLogged; _k++) if (s_wSeen[_k] == _key) break;
+                if (_k == s_wLogged && s_wLogged < 16) {
+                    s_wSeen[s_wLogged++] = _key;
+                    SH_DBG("[TEXFAIL] tpage=%04x curTpage=%04x",
+                           (unsigned)s_curTpage, (unsigned)s_curTpage);
+                }
+            }
             GpuNv2a_BindWhite();
         }
         s_curTex = texAddr;
@@ -1225,6 +1339,8 @@ static int ParsePrim(P_TAG* tag)
     const int primType = tag->code & 0xF0;
 
     s_cnPrims++;
+    s_cnType[primType >> 4]++;
+    s_cnCodeSeen[tag->code & 0xFF] = 1;
 
     switch (primType) {
     case 0x00: {
@@ -1308,8 +1424,49 @@ void DrawOTag(u_long* p)
                    s_bbMinX, s_bbMaxX, s_bbMinY, s_bbMaxY);
             SH_DBG("[FOGPAD] gt=%d fogged=%d padMin=%d padMax=%d",
                    s_cnGt, s_cnFogged, s_cnPadMin > 128 ? -1 : s_cnPadMin, s_cnPadMax);
-            SH_DBG("[ABR] avg=%d add=%d sub=%d q=%d lines=%d unk=%d oversize=%d",
-                   s_cnAbr[0], s_cnAbr[1], s_cnAbr[2], s_cnAbr[3], s_cnLines, s_cnUnk, s_cnOversize);
+            SH_DBG("[TEXW] textured=%d white=%d", s_cnTexed, s_cnWhite);
+            /* fogColor*f is ADDED to every fogged vertex, so a wrong colour
+             * washes the whole world to a flat tint regardless of texture. */
+            SH_DBG("[FOGCOL] rgb=%d,%d,%d (x255)",
+                   (int)(g_PsyX_FogColor[0] * 255.0f),
+                   (int)(g_PsyX_FogColor[1] * 255.0f),
+                   (int)(g_PsyX_FogColor[2] * 255.0f));
+            s_cnTexed = s_cnWhite = 0;
+            SH_DBG("[RGB] n=%d avg=%d,%d,%d max=%d,%d,%d", s_cnRgbN,
+                   s_cnRgbN ? (int)(s_cnRgbSum[0] / (unsigned)s_cnRgbN) : -1,
+                   s_cnRgbN ? (int)(s_cnRgbSum[1] / (unsigned)s_cnRgbN) : -1,
+                   s_cnRgbN ? (int)(s_cnRgbSum[2] / (unsigned)s_cnRgbN) : -1,
+                   s_cnRgbMaxC[0], s_cnRgbMaxC[1], s_cnRgbMaxC[2]);
+            s_cnRgbSum[0] = s_cnRgbSum[1] = s_cnRgbSum[2] = 0;
+            s_cnRgbN = 0;
+            s_cnRgbMaxC[0] = s_cnRgbMaxC[1] = s_cnRgbMaxC[2] = 0;
+            SH_DBG("[ABR] avg=%d add=%d sub=%d q=%d lines=%d unk=%d",
+                   s_cnAbr[0], s_cnAbr[1], s_cnAbr[2], s_cnAbr[3], s_cnLines, s_cnUnk);
+            /* Which code group the walk actually saw. prims >> nodes means the
+             * inner packet loop is desynchronising and re-parsing padding, and
+             * the group it lands in says what it is reading. */
+            SH_DBG("[PTYPE] 0x00=%d 0x20=%d 0x30=%d 0x60=%d 0x70=%d 0xA0=%d 0xE0=%d oversized=%d",
+                   s_cnType[0x0], s_cnType[0x2], s_cnType[0x3], s_cnType[0x6],
+                   s_cnType[0x7], s_cnType[0xA], s_cnType[0xE], s_cnOversized);
+            /* The exact command bytes, not just their group: "gt=0 but 26400
+             * polys" is either untextured geometry or a misread code byte, and
+             * only the low nibble tells the two apart. */
+            {
+                static const char HEX[] = "0123456789abcdef";
+                char buf[160];
+                int  n = 0, c;
+                for (c = 0; c < 256 && n < (int)sizeof(buf) - 4; c++) {
+                    if (!s_cnCodeSeen[c]) continue;
+                    buf[n++] = HEX[(c >> 4) & 0xF];
+                    buf[n++] = HEX[c & 0xF];
+                    buf[n++] = ' ';
+                }
+                buf[n] = '\0';
+                SH_DBG("[PCODE] %s", buf);
+            }
+            memset(s_cnType, 0, sizeof(s_cnType));
+            memset(s_cnCodeSeen, 0, sizeof(s_cnCodeSeen));
+            s_cnOversized = 0;
             /* Where the render frame goes: walk = the whole DrawOTag(s) (parse +
              * transform + emit + submit); draw = just the GPU-command submission
              * (FlushBatch); parse ~= walk - draw. One frame's totals (reset each
@@ -1330,15 +1487,15 @@ void DrawOTag(u_long* p)
                 unsigned long long oth  = s_walkCycles > acct ? s_walkCycles - acct : 0;
                 unsigned           pr   = s_primCount ? s_primCount : 1;
                 SH_DBG("[OTT] walkUs=%d texUs=%d emitUs=%d submitUs=%d otherUs=%d prims=%u usPerPrim=%d",
-                       (int)(s_walkCycles / 733ULL), (int)(s_texCycles / 733ULL),
-                       (int)(s_emitCycles / 733ULL), (int)(sub / 733ULL),
-                       (int)(oth / 733ULL), s_primCount,
-                       (int)(s_walkCycles / 733ULL / pr));
+                       (int)(s_walkCycles / SH_CYCLES_PER_US), (int)(s_texCycles / SH_CYCLES_PER_US),
+                       (int)(s_emitCycles / SH_CYCLES_PER_US), (int)(sub / SH_CYCLES_PER_US),
+                       (int)(oth / SH_CYCLES_PER_US), s_primCount,
+                       (int)(s_walkCycles / SH_CYCLES_PER_US / pr));
             }
             s_cnPrims = 0; s_cnGt = 0; s_cnFogged = 0;
             s_cnPadMin = 999; s_cnPadMax = -1;
             s_cnAbr[0] = s_cnAbr[1] = s_cnAbr[2] = s_cnAbr[3] = 0;
-            s_cnLines = 0; s_cnUnk = 0; s_cnCallsMax = 0; s_cnOversize = 0;
+            s_cnLines = 0; s_cnUnk = 0; s_cnCallsMax = 0; s_cnOversized = 0;
             s_bbMinX = 99999; s_bbMaxX = -99999; s_bbMinY = 99999; s_bbMaxY = -99999;
         }
         /* Per-frame reset: these hold ONE frame's totals for the snapshot above. */

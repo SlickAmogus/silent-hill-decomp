@@ -154,6 +154,91 @@ typedef enum _WorldModelLocation
 } e_WorldModelLocation;
 
 // Something related to enemies attacks.
+#if defined(__BIG_ENDIAN__) || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+/* Big-endian: every sub-view of these unions aliases a 32-bit value (the
+ * timer field_10.field_0, field_C.field_0, vx_0/vz_4) that the particle code
+ * also reads and writes whole. Members are reversed so each half / byte
+ * aliases the same part of the value as on the PSX. Without it the muzzle
+ * smoke timer ran in the high half and the smoke quads ballooned into the
+ * white flash on every shot (Xbox 360 run 026). */
+typedef struct
+{
+    union
+    {
+        q19_12 vx_0; // Displacement offset.
+        struct
+        {
+            s16 field_2;
+            s16 field_0;
+        } s_0;
+        struct
+        {
+            u16 field_2;
+            u16 field_0;
+        } s_1;
+    } field_0;
+    union
+    {
+        q19_12 vz_4;
+        struct
+        {
+            s16 field_2;
+            s16 field_0;
+        } s_0;
+    } field_4;
+    q3_12 vy_8;
+    u8    field_A;
+    u8    field_B; // Flags?
+    union
+    {
+        s32 field_0;
+        struct
+        {
+            q3_12 field_2; // Angle.
+            q3_12 field_0; // Angle.
+        } s_0;
+        struct
+        {
+            u8 field_3;
+            u8 field_2;
+            u8 field_1;
+            u8 field_0;
+        } s_1;
+        struct
+        {
+            u16   field_2;
+            q4_12 field_0;
+        } s_2;
+    } field_C;
+    union
+    {
+        q20_12 field_0; // Timer.
+        struct
+        {
+            s16 field_2;
+            s16 field_0;
+        } s_0;
+        struct
+        {
+            u8  field_3;
+            u8  field_2;
+            s16 field_0;
+        } s_1;
+        struct
+        {
+            u8 field_3;
+            u8 field_2;
+            u8 field_1;
+            u8 field_0;
+        } s_2;
+        struct
+        {
+            u16 field_2;
+            u16 field_0;
+        } s_3;
+    } field_10;
+} s_MapHdr_field_4C;
+#else
 typedef struct
 {
     union
@@ -231,6 +316,7 @@ typedef struct
         } s_3;
     } field_10;
 } s_MapHdr_field_4C;
+#endif
 STATIC_ASSERT_SIZEOF(s_MapHdr_field_4C, 20);
 
 /** @brief Speed zone. Defines a volume used for player speed modulation. */

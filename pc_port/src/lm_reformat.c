@@ -22,6 +22,7 @@
 #include <string.h>
 
 #include "bodyprog/bodyprog.h"
+#include "lm_endian.h"
 
 #define PSX_SIZEOF_LM_HEADER    20
 #define PSX_SIZEOF_MODEL_HEADER 16
@@ -95,6 +96,11 @@ static void ParseMeshHeader(s_MeshHeader* dst, const u8* src, u8* base)
     dst->verticesZ      = (s16*)(base + rd32(&src[12]));
     dst->normals       = (s_Normal*)(base + rd32(&src[16]));
     dst->unkPtr_14        = base + rd32(&src[20]);
+
+    /* Everything above aims INTO the raw disc buffer rather than parsing it, so
+     * on a big-endian host the payload is still little-endian. Convert it here,
+     * where the counts and the pointers are both in hand. No-op on LE. */
+    Lm_SwapMeshPayload(dst);
 }
 
 static void ParseModelHeader(s_ModelHeader* dst, const u8* src, u8* base)
@@ -192,6 +198,10 @@ void LmHeader_FixOffsets_PC(s_LmHeader* lmHdr)
     /* Free the prior parse of THIS buffer before re-allocating (leak fix). */
     LmTrack_FreePrior(raw);
 #endif
+
+    /* Opens the already-swapped set for this buffer; ParseMeshHeader converts
+     * each mesh payload as it resolves the pointers into it. */
+    Lm_SwapPayloadBegin();
 
     /* Parse materials (PSX stride = 24 bytes) into heap allocation */
     s_Material* mats = NULL;

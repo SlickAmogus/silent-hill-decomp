@@ -119,7 +119,12 @@ static const ShadowEntry* Shadow_Get(const void* addr)
     for (i = 0; i < 16; i++) {
         const ShadowEntry* e = &s_shadow[(s + i) & SHADOW_MASK];
         if (e->key == k)
-            return (e->gen == s_pgxpGen) ? e : 0;
+            /* Current OR previous generation: the OT a DrawOTag walks was built
+             * (GTE stores) before the VSync whose FrameEnd advanced the
+             * generation, so a strict match made every world lookup miss on the
+             * 360 D3D path ([PGXP] cov full=0, Xenia 066). The value check in
+             * the callers still rejects genuinely stale entries. */
+            return (e->gen == s_pgxpGen || e->gen + 1 == s_pgxpGen) ? e : 0;
         if (e->key == 0)
             return 0;
     }

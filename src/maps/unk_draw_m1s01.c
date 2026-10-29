@@ -138,8 +138,8 @@ bool sharedFunc_800CBB30_1_s01(POLY_FT4** poly, s32 idx)
 
     PSX_ST_UV((*poly), u0, (((sharedData_800DFB7C_0_s00[idx].field_B << 5) + 160) << 8) + 0x011300E0);
     PSX_ST_UV((*poly), u1, (((sharedData_800DFB7C_0_s00[idx].field_B << 5) + 160) << 8) + 0x2B00FF);
-    *(u16*)&(*poly)->u2 = (((sharedData_800DFB7C_0_s00[idx].field_B << 5) + 191) << 8) + 0xE0;
-    *(u16*)&(*poly)->u3 = (((sharedData_800DFB7C_0_s00[idx].field_B << 5) + 191) << 8) + 0xFF;
+    do { u32 _pv = (u32)((((sharedData_800DFB7C_0_s00[idx].field_B << 5) + 191) << 8) + 0xE0); ((*poly))->u2 = (u8)_pv; ((*poly))->v2 = (u8)(_pv >> 8); } while (0);
+    do { u32 _pv = (u32)((((sharedData_800DFB7C_0_s00[idx].field_B << 5) + 191) << 8) + 0xFF); ((*poly))->u3 = (u8)_pv; ((*poly))->v3 = (u8)(_pv >> 8); } while (0);
 
     temp_v1_2 = 0x40 - (sharedData_800DFB7C_0_s00[idx].field_C.field_0 >> 6);
     if (temp_v1_2 >= 0)

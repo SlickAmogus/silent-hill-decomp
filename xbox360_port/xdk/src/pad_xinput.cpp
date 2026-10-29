@@ -14,6 +14,7 @@
  */
 #include <xtl.h>
 #include <string.h>
+#include <stdio.h>
 
 extern "C" {
 #include "sh_log.h"
@@ -41,6 +42,59 @@ extern "C" {
 static unsigned char* s_padBuf = 0;
 static int            s_lStickArmed = 0;
 static unsigned short s_lastButtons = 0xFFFF;
+
+/* Scripted input for unattended test runs: game:\silenthill\autoplay.txt,
+ * one "<frame> <BUTTON>" per line (START SELECT CROSS CIRCLE SQUARE TRIANGLE
+ * UP DOWN LEFT RIGHT L1 R1 L2 R2), each held AUTO_HOLD frames from that poll.
+ * Needed because Xenia on a locked desktop takes no keyboard input and the
+ * new-game path (not the attract demo) is where the big-endian world bugs
+ * showed. Absent file = no effect. */
+#define AUTO_MAX  32
+#define AUTO_HOLD 12
+struct AutoKey { int frame; int bit; int fired; int hold; };
+static AutoKey s_auto[AUTO_MAX];
+static int     s_autoN = -1;
+static int     s_autoFrame = 0;
+
+static int Auto_BitFor(const char* n)
+{
+    static const struct { const char* name; int bit; } T[] = {
+        { "START", PSX_START }, { "SELECT", PSX_SELECT }, { "CROSS", PSX_CROSS },
+        { "CIRCLE", PSX_CIRCLE }, { "SQUARE", PSX_SQUARE }, { "TRIANGLE", PSX_TRIANGLE },
+        { "UP", PSX_UP }, { "DOWN", PSX_DOWN }, { "LEFT", PSX_LEFT }, { "RIGHT", PSX_RIGHT },
+        { "L1", PSX_L1 }, { "R1", PSX_R1 }, { "L2", PSX_L2 }, { "R2", PSX_R2 },
+    };
+    for (int i = 0; i < (int)(sizeof(T) / sizeof(T[0])); i++)
+        if (_stricmp(T[i].name, n) == 0) return T[i].bit;
+    return -1;
+}
+
+static void Auto_Load(void)
+{
+    s_autoN = 0;
+    FILE* f = fopen("game:\\silenthill\\autoplay.txt", "r");
+    if (!f)
+        return;
+    char line[64];
+    char name[32];
+    int  fr, hold;
+    /* "<frame> <BUTTON> [hold frames]" - the third field lets a run walk. */
+    while (s_autoN < AUTO_MAX && fgets(line, sizeof(line), f)) {
+        hold = AUTO_HOLD;
+        if (sscanf(line, "%d %31s %d", &fr, name, &hold) < 2)
+            continue;
+        int bit = Auto_BitFor(name);
+        if (bit >= 0) {
+            s_auto[s_autoN].frame = fr;
+            s_auto[s_autoN].bit   = bit;
+            s_auto[s_autoN].fired = 0;
+            s_auto[s_autoN].hold  = hold > 0 ? hold : AUTO_HOLD;
+            s_autoN++;
+        }
+    }
+    fclose(f);
+    SH_DBG("[PAD] autoplay: %d scripted presses", s_autoN);
+}
 
 extern "C" void Pad_FillIdle(unsigned char* b)
 {
@@ -74,17 +128,14 @@ extern "C" void Pad_Poll(void)
 {
     XINPUT_STATE   st;
     unsigned short psx = 0xFFFF;
+    int            rx = 0, ry = 0;
 
     if (!s_padBuf)
         return;
 
-    if (XInputGetState(0, &st) != ERROR_SUCCESS) {
-        Pad_FillIdle(s_padBuf);
-        return;
-    }
-    {
+    #define PRESS(bit) (psx &= (unsigned short)~(1u << (bit)))
+    if (XInputGetState(0, &st) == ERROR_SUCCESS) {
         const XINPUT_GAMEPAD& g = st.Gamepad;
-        #define PRESS(bit) (psx &= (unsigned short)~(1u << (bit)))
         if (g.wButtons & XINPUT_GAMEPAD_DPAD_UP)        PRESS(PSX_UP);
         if (g.wButtons & XINPUT_GAMEPAD_DPAD_DOWN)      PRESS(PSX_DOWN);
         if (g.wButtons & XINPUT_GAMEPAD_DPAD_LEFT)      PRESS(PSX_LEFT);
@@ -115,29 +166,39 @@ extern "C" void Pad_Poll(void)
             if (g.sThumbLX < -STICK_DZ) PRESS(PSX_LEFT);
             if (g.sThumbLX >  STICK_DZ) PRESS(PSX_RIGHT);
         }
-        #undef PRESS
-
-        s_padBuf[0] = 0x00;
-        s_padBuf[1] = 0x41;
-        /* digitalButtons is a u16 the game reads natively, and this machine is
-         * big-endian: the HIGH byte goes first. The little-endian order the
-         * Original Xbox used swapped bits 0-7 with 8-15 -- d-pad acted as the
-         * face buttons and vice versa (first hardware test, 2026-10-28). */
-        s_padBuf[2] = (unsigned char)((psx >> 8) & 0xFF);
-        s_padBuf[3] = (unsigned char)(psx & 0xFF);
-
         /* Right stick -> PSX rightX/rightY for the shared TPS/free-look camera.
          * Deadzone applied here too, not only in the camera. */
-        {
-            int rx = g.sThumbRX, ry = g.sThumbRY;
-            if (rx > -STICK_DZ && rx < STICK_DZ) rx = 0;
-            if (ry > -STICK_DZ && ry < STICK_DZ) ry = 0;
-            s_padBuf[4] = (unsigned char)(128 + (rx >> 8));
-            s_padBuf[5] = (unsigned char)(128 - (ry >> 8));
-            s_padBuf[6] = 0x80;
-            s_padBuf[7] = 0x80;
+        rx = g.sThumbRX; ry = g.sThumbRY;
+        if (rx > -STICK_DZ && rx < STICK_DZ) rx = 0;
+        if (ry > -STICK_DZ && ry < STICK_DZ) ry = 0;
+    }
+
+    if (s_autoN < 0)
+        Auto_Load();
+    s_autoFrame++;
+    for (int i = 0; i < s_autoN; i++) {
+        if (s_autoFrame >= s_auto[i].frame && s_autoFrame < s_auto[i].frame + s_auto[i].hold) {
+            if (!s_auto[i].fired) {
+                s_auto[i].fired = 1;
+                SH_DBG("[PAD] autoplay frame %d: bit %d", s_autoFrame, s_auto[i].bit);
+            }
+            PRESS(s_auto[i].bit);
         }
     }
+    #undef PRESS
+
+    s_padBuf[0] = 0x00;
+    s_padBuf[1] = 0x41;
+    /* digitalButtons is a u16 the game reads natively, and this machine is
+     * big-endian: the HIGH byte goes first. The little-endian order the
+     * Original Xbox used swapped bits 0-7 with 8-15 -- d-pad acted as the
+     * face buttons and vice versa (first hardware test, 2026-10-28). */
+    s_padBuf[2] = (unsigned char)((psx >> 8) & 0xFF);
+    s_padBuf[3] = (unsigned char)(psx & 0xFF);
+    s_padBuf[4] = (unsigned char)(128 + (rx >> 8));
+    s_padBuf[5] = (unsigned char)(128 - (ry >> 8));
+    s_padBuf[6] = 0x80;
+    s_padBuf[7] = 0x80;
 
     if (psx != s_lastButtons) {
         SH_DBG("[PAD] buttons=%04X", (unsigned)psx);

@@ -328,6 +328,22 @@ STATIC_ASSERT_SIZEOF(s_PlayerCombat, 20);
 typedef union
 {
     s32 field_0; // Flags?
+/* The s32 VALUE is the authoritative view: callers test `field_0.field_0 & 3`
+ * for the same flags that s_field_0.field_0 exposes as a byte, so byte 0 has to
+ * be the s32's LOW byte. That only holds on little-endian, so the members run
+ * the other way here -- otherwise s_field_0.field_2 (which selects the world
+ * lighting pass, 0/1/2) read 255 on PS3, no lighting function ran at all, and
+ * every vertex kept its raw model byte instead of a computed light value.
+ * Measured as u32=0000ff00 giving field_2=255 where PC reads field_2=0. */
+#if defined(__BIG_ENDIAN__) || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+    struct
+    {
+        u8 unk_3;
+        u8 field_2;
+        u8 field_1;
+        u8 field_0; // Flags.
+    } s_field_0;
+#else
     struct
     {
         u8 field_0; // Flags.
@@ -335,6 +351,7 @@ typedef union
         u8 field_2;
         u8 unk_3;
     } s_field_0;
+#endif
 } u_Unk0;
 
 /** @brief Map effects info. */

@@ -17,6 +17,7 @@
 #include "tex_pack.h"
 #include "tim_endian.h"
 #include "anm_endian.h"
+#include "bodyprog/demo.h"
 #include "sh_log.h"
 
 #ifndef _WIN32

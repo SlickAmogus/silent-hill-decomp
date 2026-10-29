@@ -783,6 +783,30 @@ void MemCard_Process_Load(s_MemCard_Process* statusPtr)
             else
             {
                 memcpy(g_SavegamePtr, &g_MemCard_SaveWork.savegame.savegame, sizeof(s_Savegame));
+#if defined(SH_XBOX360_PORT)
+                /* Saves written by 360 builds before 2026-10-29 can hold item
+                 * slots with their four bytes reversed (the inventory sort used
+                 * a composed 32-bit store). An id below the first real item
+                 * (32) with a real item id sitting in field_3 is that pattern
+                 * and nothing else; put the bytes back. */
+                {
+                    s32 k, fixed = 0;
+                    for (k = 0; k < INV_ITEM_COUNT_MAX; k++)
+                    {
+                        s_InventoryItem* it = &g_SavegamePtr->items[k];
+                        if (it->id_0 != 0 && it->id_0 != 0xFF && it->id_0 < 32 &&
+                            it->field_3 >= 32 && it->field_3 != 0xFF)
+                        {
+                            s_InventoryItem t = *it;
+                            it->id_0 = t.field_3; it->count_1 = t.command_2;
+                            it->command_2 = t.count_1; it->field_3 = t.id_0;
+                            fixed++;
+                        }
+                    }
+                    if (fixed)
+                        SH_DBG("[SAVEFIX] %d reversed inventory slot(s) repaired on load", fixed);
+                }
+#endif
             }
             break;
     }

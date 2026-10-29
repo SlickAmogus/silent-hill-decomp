@@ -17,6 +17,10 @@
 #include <xtl.h>
 #include <stdio.h>
 
+/* ms-since-boot for the C HAL files (xa_xbox.c's inter-line gap timer,
+ * fmv_xbox.c's 15 fps pacing), which cannot include xtl.h themselves. */
+extern "C" unsigned int Sh360_TickMs(void) { return (unsigned int)GetTickCount(); }
+
 extern "C" {
 #include "sh_log.h"
 #include "fs_xbox360.h"
@@ -27,6 +31,7 @@ extern const char* g_ShLogPath;
 extern void        SH_DebugLogFlush(void);
 
 extern char g_CdBinPath[];
+extern int  g_PcWidescreenMode;   /* xbox_pcfeature_stubs.c */
 extern void Cd_XboxInit(void);
 extern int  Cd_XboxSelfTest(char* idOut, int idOutSize);
 
@@ -201,12 +206,51 @@ static void Boot(void)
     _snprintf(cfgPath, sizeof(cfgPath), "%ssilenthill.cfg", Sh360Fs_DataRoot());
     cfgPath[sizeof(cfgPath) - 1] = '\0';
     SH_DBG("[CFG] config file: %s", cfgPath);
+    /* 360 default BEFORE the file is read (PcConfig_Load only overrides keys
+     * it finds): keep the PSX subcell visibility tables. Drawing every buffer
+     * of every textured chunk (the PC default) put 300k+ prims per frame into
+     * the ordering table during the street cutscene -- fine on a desktop,
+     * seconds per frame for this CPU's OT walk. disable_culling = 1 in the
+     * cfg still turns it on. */
+    /* -1 = "not in the cfg": resolved after the load from widescreen_mode
+     * (Hor+ shows the sides the PSX cropped, which the PVS never populated). */
+    g_PcConfig.disableCulling = -1;
     PcConfig_Load(cfgPath);
+    if (g_PcConfig.disableCulling < 0)
+        g_PcConfig.disableCulling = (g_PcConfig.widescreenMode == 1) ? 1 : 0;
 
     /* MUST run after PcConfig_Load: pins the settings whose PC defaults are
      * sized for a desktop (texture caches, chara pool, preload) to console
      * values. */
-    XboxConfig_ApplyOverrides();
+    {
+        /* Two of those pins are Original-Xbox (64MB / 733MHz) economies that
+         * this console does not need, and they cost the whole street: with
+         * PSX streaming (preloadChunks=0) only 4 chunks are resident and the
+         * exterior PVS (disableCulling=0) draws nothing for a viewer standing
+         * in a cell that has no IPD of its own -- which is exactly where the
+         * intro cutscene walks Harry (THR cell (-2,6) has no file; hardware
+         * run 022 and Xenia alike: pvsVisible=0, "Harry in a teal void").
+         * The PC port the user knows preloads every exterior chunk and draws
+         * every buffer of each; keep whatever PcConfig_Load produced (the cfg
+         * keys preload_chunks / disable_culling, PC default 1/1). */
+        const int preload = g_PcConfig.preloadChunks;
+        const int noCull  = g_PcConfig.disableCulling;
+        const int wide    = g_PcConfig.widescreenMode;
+        XboxConfig_ApplyOverrides();
+        g_PcConfig.preloadChunks  = preload;
+        g_PcConfig.disableCulling = noCull;
+        g_PcConfig.widescreenMode = wide;
+        /* widescreen_mode 1 = Hor+ at 720p (the PC default): the world is
+         * drawn into the full 16:9 frame at the 4:3 scale, menus and other 2D
+         * screens stay 4:3 (gpu_d3d360.cpp follows g_PcHorPlusEnabled, which
+         * game_main.c raises only for in-game frames). The game's own fog
+         * overlay widens itself from windowWidth/Height. */
+        g_PcWidescreenMode = (wide == 1) ? 1 : 0;
+        g_PcConfig.windowWidth  = g_PcWidescreenMode ? 1280 : 960;
+        g_PcConfig.windowHeight = 720;
+        SH_DBG("[CFG] 360: preload_chunks=%d disable_culling=%d widescreen_mode=%d",
+               preload, noCull, g_PcWidescreenMode);
+    }
 
     Gte_SelfTest();
 
@@ -235,9 +279,17 @@ static void Boot(void)
     SH_DBG("[BOOT] subsystems up; entering MainLoop");
     SH_DebugLogFlush();
 
-    /* Draw a known image before the game gets a chance to hand the renderer
-     * anything: proves the whole D3D path independently of game data. */
-    Gpu360_SelfTest();
+    /* The ~4 s colour-bar renderer test (Gpu360_SelfTest) is no longer run at
+     * boot: the D3D path is proven, and it only delayed the Konami logo. A
+     * file named "gputest" beside the disc image brings it back. */
+    {
+        char  tp[SH360_PATH_MAX * 2];
+        FILE* tf;
+        _snprintf(tp, sizeof(tp), "%sgputest", Sh360Fs_DataRoot());
+        tp[sizeof(tp) - 1] = 0;
+        tf = fopen(tp, "rb");
+        if (tf) { fclose(tf); Gpu360_SelfTest(); }
+    }
 
     GpuNv2a_FrameBegin();
     MainLoop();

@@ -88,14 +88,17 @@ collect_srcs() {
         case "$(basename "$f")" in
             crash_xbox.c|dbg_overlay_xbox.c|dsound_bridge.c|dsound_xbox.c|\
             gpu_nv2a.c|net_xbox.c|pad_xbox.c|ra_badge_xbox.c|sdl_compat_xbox.c|\
-            sh_log_xbox.c|xa_xbox.c|cd_xbox.c|fs_xbox.c|main_xbox.c|\
-            ra_xbox.c|msvc_compat.c|fmv_xbox.c|map7_s03_boss_motion.c) ;;
+            sh_log_xbox.c|cd_xbox.c|fs_xbox.c|main_xbox.c|\
+            ra_xbox.c|msvc_compat.c|map7_s03_boss_motion.c) ;;
             # map7_s03_boss_motion.c: its sub-table aliases are gcc .set asm at
             #   offsets into one pool, which MSVC cannot express. Final-boss
             #   motion scripts; needs a C-only rewrite before map7_s03 links.
             *) echo "$f" ;;
         esac
     done
+    # FMV: STR demux + MDEC decoder (fmv_xbox.c's MDEC path).
+    echo "$PCPORT/src/fmv/mdec.c"
+    echo "$PCPORT/src/fmv/str_demux.c"
     echo "$PSYCROSS/src/psx/inline_c.c"
     echo "$PSYCROSS/src/psx/libgte.c"
     echo "$PSYCROSS/src/psx/abs.c"

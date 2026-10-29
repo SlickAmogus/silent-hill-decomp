@@ -267,6 +267,25 @@ void GameState_InGame_Update(void) // 0x80038BD4
     Demo_DemoRandSeedRestore();
     Demo_DemoRandSeedRestore();
 
+#ifdef SH_PC_PORT
+    /* This gate gates the WHOLE gameplay tick -- player update, Harry's draw and
+     * Gfx_InGameDraw (hence the world). Ipd_ChunkCheckDraw was reached only ~100
+     * times in 2820 frames, so it is skipping ~96% of them; print how often and
+     * with which flags. */
+    {
+        static unsigned s_gpTick, s_gpRun;
+        s_gpTick++;
+        if (!(g_SysWork.bgmStatusFlags & BgmStatusFlag_Pause)) s_gpRun++;
+        if ((s_gpTick % 30) == 0) {
+            extern unsigned g_VSyncCalls;
+            static unsigned s_prevVs;
+            unsigned d = g_VSyncCalls - s_prevVs;
+            s_prevVs = g_VSyncCalls;
+            SH_DBG("[GPTICK] ticks=%u ran=%u bgmFlags=0x%x vsyncDelta=%u over 30 ticks (%u/tick)",
+                   s_gpTick, s_gpRun, (unsigned)g_SysWork.bgmStatusFlags, d, d / 30);
+        }
+    }
+#endif
     if (!(g_SysWork.bgmStatusFlags & BgmStatusFlag_Pause))
     {
         World_NearbyPlayerCollisionTriggersGet();

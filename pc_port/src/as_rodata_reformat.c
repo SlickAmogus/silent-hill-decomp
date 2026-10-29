@@ -109,17 +109,41 @@ void AsRodata_Reformat(void)
         a->endKeyframeIdx   = rds16(&p[14]);
     }
 
-    /* field_380[301][2] — direct copy (s32 array, identical on PSX/PC). */
-    memcpy(dst->field_380, &src[0x380], 301 * 2 * 4);
+    /* field_380[301][2] — s32 array, read element-wise so a big-endian host
+     * gets native values (the raw bytes are PSX little-endian). */
+    {
+        int i;
+        for (i = 0; i < 301 * 2; i++)
+            ((s32*)dst->field_380)[i] = rds32(&src[0x380 + i * 4]);
+    }
 
-    /* sfxVolumes_CE8[11] — 4 B per entry on both layouts. */
-    memcpy(dst->sfxVolumes_CE8, &src[0xCE8], 11 * 4);
+    /* sfxVolumes_CE8[11] — u16 id + u16/u8 volume union, 4 B per entry. */
+    {
+        int i;
+        for (i = 0; i < 11; i++)
+        {
+            dst->sfxVolumes_CE8[i].id_0           = rd16(&src[0xCE8 + i * 4]);
+            dst->sfxVolumes_CE8[i].volume_2.val16 = rd16(&src[0xCE8 + i * 4 + 2]);
+        }
+    }
 
-    /* properties_D14[4] — u_Property union, 4 B on both layouts. */
-    memcpy(dst->properties_D14, &src[0xD14], 4 * 4);
+    /* properties_D14[4] — u_Property union, 4 B each; air_screamer.c reads
+     * val16[0] / val16[1], i.e. the two little-endian halfwords in order. */
+    {
+        int i;
+        for (i = 0; i < 4; i++)
+        {
+            dst->properties_D14[i].val16[0] = rds16(&src[0xD14 + i * 4]);
+            dst->properties_D14[i].val16[1] = rds16(&src[0xD14 + i * 4 + 2]);
+        }
+    }
 
     /* field_D24[2][3][2] — 24 B u16 array. */
-    memcpy(dst->field_D24, &src[0xD24], 2 * 3 * 2 * sizeof(u16));
+    {
+        int i;
+        for (i = 0; i < 2 * 3 * 2; i++)
+            ((u16*)dst->field_D24)[i] = rd16(&src[0xD24 + i * 2]);
+    }
 
     /* field_D3C[2][6] — 12 B u8 array. */
     memcpy(dst->field_D3C, &src[0xD3C], 2 * 6);

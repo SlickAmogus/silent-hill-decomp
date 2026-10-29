@@ -8,7 +8,8 @@
  * Override all affected macros to match PSX value-passing behavior. */
 
 #undef gte_lddp
-#define gte_lddp( r0 ) { uint _v = (uint)(r0); MTC2(_v, 8); }
+/* IR0 is 16-bit and read through PAIR.sw.l -- see GTE_MT16 in inline_c.h. */
+#define gte_lddp( r0 ) { uint _v = GTE_MT16(r0); MTC2(_v, 8); }
 
 #undef gte_ldsxy0
 #define gte_ldsxy0( r0 ) { MTC2((uint)(r0), 12); }
@@ -17,6 +18,14 @@
 #define gte_ldsxy3( r0, r1, r2 ) \
     { MTC2((uint)(r0), 12); MTC2((uint)(r2), 14); MTC2((uint)(r1), 13); }
 
+/* Raw word loads/stores DELIBERATELY. The GTE register halfword accessors
+ * (.sw.l/.sw.h in gtereg.h) are NOT flipped for big-endian, so a raw word load
+ * of an s16 pair puts the first component where .sw.l reads it -- the two
+ * wrongs cancel. Composing the word "correctly" here breaks that and is the
+ * same mistake as flipping the union's halfword views, which the GTE self-test
+ * already caught once (sx=447 where 352 was expected). Only the BYTE views are
+ * flipped, which is why the colour path needs PSX_LD_CVEC and this one does
+ * not. */
 #undef gte_ldv3c
 #define gte_ldv3c( r0 ) do { \
     uint *_p = (uint*)((char*)(r0)); \

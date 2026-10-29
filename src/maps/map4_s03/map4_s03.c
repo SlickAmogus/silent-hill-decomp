@@ -855,7 +855,7 @@ void func_800D1D3C(GsOT_TAG* tag, SVECTOR3* arg1, MATRIX* arg2, s32 arg3) // 0x8
     *(s32*)&poly2->x1 = *(s32*)&sp50;
     *(s32*)&poly2->x2 = *(s32*)&sp54;
     *(s32*)&poly2->x3 = *(s32*)&sp58;
-    *(s32*)&poly2->r0 = *(s32*)&sp48;
+    PSX_ST_RGBC(poly2, PSX_LD_RGBC(&sp48));
 
     setPolyFT4(poly2);
     setSemiTrans(poly2, true);
@@ -887,7 +887,7 @@ void func_800D1D3C(GsOT_TAG* tag, SVECTOR3* arg1, MATRIX* arg2, s32 arg3) // 0x8
     *(s32*)&poly->x1 = *(s32*)&sp50;
     *(s32*)&poly->x2 = *(s32*)&sp54;
     *(s32*)&poly->x3 = *(s32*)&sp58;
-    *(s32*)&poly->r0 = *(s32*)&sp48;
+    PSX_ST_RGBC(poly, PSX_LD_RGBC(&sp48));
 
     setPolyFT4(poly);
     setSemiTrans(poly, true);

@@ -28,7 +28,10 @@ extern void PGXP_StoreAddr(void* addr, int slot);
  * Override all affected macros to match PSX value-passing behavior. */
 
 #undef gte_lddp
-#define gte_lddp( r0 ) { uint _v = (uint)(r0); MTC2(_v, 8); }
+/* IR0 is 16-bit and read through PAIR.sw.l -- a scalar has to be PLACED on
+ * big-endian or the register reads 0 and every depth-cued colour comes out
+ * black. See GTE_MT16 in PsyCross's inline_c.h. */
+#define gte_lddp( r0 ) { uint _v = GTE_MT16(r0); MTC2(_v, 8); }
 
 #undef gte_ldsxy0
 #define gte_ldsxy0( r0 ) { MTC2((uint)(r0), 12); }
@@ -40,6 +43,10 @@ extern void PGXP_StoreAddr(void* addr, int slot);
 /* gte_ldv3c - Load 3 vertices (6 regs: VXY0,VZ0, VXY1,VZ1, VXY2,VZ2)
  * from a contiguous array of 3 SVECTORs (24 bytes).
  * PSX: lwc2 $0-$5 from r0. PsyCross doesn't define this. */
+/* Raw word loads DELIBERATELY -- see gtereg.h. The GTE register HALFWORD
+ * accessors are not flipped for big-endian, so a raw word load of an s16 pair
+ * lands the first component where .sw.l reads it and the two wrongs cancel.
+ * Only the BYTE views are flipped (hence PSX_LD_CVEC on the colour path). */
 #undef gte_ldv3c
 #define gte_ldv3c( r0 ) do { \
     uint *_p = (uint*)((char*)(r0)); \
@@ -146,5 +153,51 @@ extern void PGXP_StoreAddr(void* addr, int slot);
     _w[1] = (int)(MFC2(18) & 0xFFFF); \
     _w[2] = (int)(MFC2(19) & 0xFFFF); \
 } while(0)
+
+/* gte_stsz3 - store SZ1/SZ2/SZ3 (swc2 17,18,19: three WORD stores whose low
+ * halfword is the depth). Its only callers (func_80057B7C / func_8005759C in
+ * bodyprog_80055028.c) aim the first two at the s16 slots m[0][2] and m[2][0]
+ * of the packed MATRIX and read them back as s16, and the third at the s32
+ * t[0]. On little-endian a word store satisfies both readers. On big-endian
+ * the depth of a word store lands in the SECOND halfword, so m[0][2] and
+ * m[2][0] read 0: two of every three world vertices had depth 0, the
+ * ordering table sorted them to the front and fogged them wrong, and the
+ * alley drew as intact pieces stacked in the wrong order ("turned at an
+ * angle"; hardware 021/022, Xenia alike; [GTE3] z=(0,0,373)). Store the two
+ * s16 slots as halfwords there; t[0] keeps the word store. */
+#if defined(__BIG_ENDIAN__) || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+#undef gte_stsz3
+#define gte_stsz3( r0, r1, r2 ) do { \
+    *(ushort*)((char*)(r0)) = (ushort)MFC2(17); \
+    *(ushort*)((char*)(r1)) = (ushort)MFC2(18); \
+    *(uint*)((char*)(r2))   = MFC2(19); \
+} while(0)
+#endif
+
+/* gte_stsxy / stsxy0 / stsxy1 / stsxy3 - the single-vertex screen-XY stores.
+ *
+ * inline_c.h composes these with SH_PACK_SXY = (sy << 16) | sx, the PSX BIT
+ * layout, and stores that word over a {s16 vx, s16 vy} pair. On big-endian
+ * that puts sy at offset 0: every RotTransPers caller that reads the result
+ * BY FIELD (the match flame, the tree/grass billboards, item pickups, the
+ * shadow projector in func_8005A478, map effects...) got x and y exchanged.
+ * The GTE register itself (gtereg.h PAIR.sw.l/.h) already holds x in the
+ * high half on big-endian precisely so a raw word store lands in memory
+ * order -- which is what gte_stsxy3c (the world) and func_8005AC50 (the
+ * characters) do, and why those were right. Store the raw register here too.
+ * Consumers that decode the word with shifts (the [GTE] self-test) must use
+ * the fields instead on this build. */
+#if defined(__BIG_ENDIAN__) || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+#undef gte_stsxy
+#undef gte_stsxy0
+#undef gte_stsxy1
+#undef gte_stsxy2
+#undef gte_stsxy3
+#define gte_stsxy( r0 )  do { *(uint*)((char*)(r0)) = MFC2(14); } while(0)
+#define gte_stsxy0( r0 ) do { *(uint*)((char*)(r0)) = MFC2(12); } while(0)
+#define gte_stsxy1( r0 ) do { *(uint*)((char*)(r0)) = MFC2(13); } while(0)
+#define gte_stsxy2( r0 ) gte_stsxy(r0)
+#define gte_stsxy3( r0, r1, r2 ) do {     *(uint*)((char*)(r0)) = MFC2(12);     *(uint*)((char*)(r1)) = MFC2(13);     *(uint*)((char*)(r2)) = MFC2(14); } while(0)
+#endif
 
 #endif

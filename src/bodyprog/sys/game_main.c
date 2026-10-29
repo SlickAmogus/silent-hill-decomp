@@ -2216,12 +2216,12 @@ void MainLoop(void) // 0x80032EE0
             _updT0 = ShxLoopRdtsc();
             g_GameStateUpdateFuncs[g_GameWork.gameState]();
             {
-                unsigned stateMs  = (unsigned)((ShxLoopRdtsc() - _updT0) / 733000ULL);
-                unsigned worldMs  = (unsigned)(g_XbWorldDrawCycles / 733000ULL);
-                unsigned streamMs = (unsigned)(g_XbStreamCycles    / 733000ULL);
-                unsigned chunkMs  = (unsigned)(g_XbChunkDrawCycles / 733000ULL);
-                unsigned charaMs  = (unsigned)(g_XbCharaCycles     / 733000ULL);
-                unsigned fx2dMs   = (unsigned)(g_Xb2dFxCycles      / 733000ULL);
+                unsigned stateMs  = (unsigned)((ShxLoopRdtsc() - _updT0) / SH_CYCLES_PER_MS);
+                unsigned worldMs  = (unsigned)(g_XbWorldDrawCycles / SH_CYCLES_PER_MS);
+                unsigned streamMs = (unsigned)(g_XbStreamCycles    / SH_CYCLES_PER_MS);
+                unsigned chunkMs  = (unsigned)(g_XbChunkDrawCycles / SH_CYCLES_PER_MS);
+                unsigned charaMs  = (unsigned)(g_XbCharaCycles     / SH_CYCLES_PER_MS);
+                unsigned fx2dMs   = (unsigned)(g_Xb2dFxCycles      / SH_CYCLES_PER_MS);
                 unsigned drawMs   = worldMs + streamMs + chunkMs + charaMs + fx2dMs;
                 unsigned simMs    = (stateMs > drawMs) ? stateMs - drawMs : 0;
                 static unsigned s_updSample;
@@ -2359,7 +2359,7 @@ void MainLoop(void) // 0x80032EE0
         XaPlayer_Update();
 #endif
 #ifdef SH_XBOX_PORT
-        _postAudioMs = (unsigned)((ShxLoopRdtsc() - _a0) / 733000ULL);
+        _postAudioMs = (unsigned)((ShxLoopRdtsc() - _a0) / SH_CYCLES_PER_MS);
         }
 #endif
 
@@ -2380,7 +2380,7 @@ void MainLoop(void) // 0x80032EE0
         {
             unsigned long long _f0 = ShxLoopRdtsc();
             Fs_QueueUpdate();
-            _postFsMs = (unsigned)((ShxLoopRdtsc() - _f0) / 733000ULL);
+            _postFsMs = (unsigned)((ShxLoopRdtsc() - _f0) / SH_CYCLES_PER_MS);
         }
 #else
         Fs_QueueUpdate();
@@ -2399,7 +2399,7 @@ void MainLoop(void) // 0x80032EE0
         func_8008D78C(); // Camera update?
 #ifdef SH_XBOX_PORT
         {
-            unsigned postMs = (unsigned)((ShxLoopRdtsc() - _post0) / 733000ULL);
+            unsigned postMs = (unsigned)((ShxLoopRdtsc() - _post0) / SH_CYCLES_PER_MS);
             if (postMs > 6)
                 SH_DBG("[POST] postMs=%u audio=%u fs=%u", postMs, _postAudioMs, _postFsMs);
         }
@@ -2410,15 +2410,15 @@ void MainLoop(void) // 0x80032EE0
             unsigned long long _syncT0 = ShxLoopRdtsc();
             DrawSync(SyncMode_Wait);
             {
-                unsigned syncMs = (unsigned)((ShxLoopRdtsc() - _syncT0) / 733000ULL);
+                unsigned syncMs = (unsigned)((ShxLoopRdtsc() - _syncT0) / SH_CYCLES_PER_MS);
                 if (syncMs > 8)
                     SH_DBG("[UPD] drawSyncMs=%u (readback)", syncMs);
                 /* Whole-frame chunk-streaming split: how much of the fs cost is disk
                  * READ vs REFORMAT, and how many of each ran this frame. */
                 if (g_FsReadCount || g_FsReformatCount)
                     SH_DBG("[FSQ] readMs=%u n=%u | reformatMs=%u n=%u",
-                           (unsigned)(g_FsReadCycles / 733000ULL), g_FsReadCount,
-                           (unsigned)(g_FsReformatCycles / 733000ULL), g_FsReformatCount);
+                           (unsigned)(g_FsReadCycles / SH_CYCLES_PER_MS), g_FsReadCount,
+                           (unsigned)(g_FsReformatCycles / SH_CYCLES_PER_MS), g_FsReformatCount);
             }
         }
 #else

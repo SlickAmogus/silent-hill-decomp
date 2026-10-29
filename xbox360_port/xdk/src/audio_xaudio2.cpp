@@ -25,16 +25,20 @@
 extern "C" {
 #include "sh_log.h"
 void Audio_RenderInto(short* out, int frames);
+void Xa_XboxPump(void);   /* xa_xbox.c: decode XA ahead of the mixer */
 }
 
 #define OUT_HZ        48000
 #define CHUNK_FRAMES  256                      /* ~5.3 ms per submit */
 #define CHUNK_SAMPLES (CHUNK_FRAMES * 2)       /* interleaved stereo */
-#define TARGET_QUEUED 6                        /* chunks kept in flight */
+/* chunks kept in flight: ~85 ms. The queue is topped up once per game frame,
+ * and a cutscene frame on hardware can take 30+ ms (run 026 logged queued=2,
+ * i.e. ~10 ms left); at the old 6 (~32 ms) the voice lines crackled. */
+#define TARGET_QUEUED 16
 /* XAudio2 reads a submitted buffer asynchronously, so a chunk must outlive
  * its submission: a ring deeper than the queue target is reused only after
  * the voice has consumed it. */
-#define RING          16
+#define RING          24
 
 static IXAudio2*               s_xa;
 static IXAudio2MasteringVoice* s_master;
@@ -85,11 +89,15 @@ extern "C" void Audio_XboxPump(void)
     if (!s_ready)
         return;
 
+    /* Decode XA (voice lines / FMV audio) ahead of the render below; the
+     * mixer pulls it through Xa_XboxMixInto. Same place dsound_xbox.c did it. */
+    Xa_XboxPump();
+
     s_voice->GetState(&st);
     queued = (int)st.BuffersQueued;
     /* Bounded: a stalled or mis-reporting queue must not spin the main loop
      * forever rendering audio nobody is consuming. */
-    while (queued < TARGET_QUEUED && guard++ < 8) {
+    while (queued < TARGET_QUEUED && guard++ < TARGET_QUEUED) {
         XAUDIO2_BUFFER b;
         short* chunk = s_ring[s_ringPos];
         s_ringPos = (s_ringPos + 1) % RING;
@@ -122,10 +130,12 @@ extern "C" void Audio_XboxPump(void)
     }
 }
 
-/* XA streaming (the CD audio track mixer) lives in xa_xbox.c, which is
- * nxdk-bound and not ported yet. Contributing silence means BGM is simply
- * absent rather than the mix being corrupted by an unwritten accumulator. */
-extern "C" void Xa_XboxMixInto(int* accL, int* accR, int* accC)
+/* XaPlayer_Stop: drop what is already rendered but not yet heard, or the tail
+ * of the stopped line plays over the start of the next one (doubled cutscene
+ * voices). The decode ring is cleared by the caller; this is the ~32 ms of
+ * chunks sitting in XAudio2's queue. */
+extern "C" void Audio360_DropQueued(void)
 {
-    (void)accL; (void)accR; (void)accC;
+    if (s_ready)
+        s_voice->FlushSourceBuffers();
 }

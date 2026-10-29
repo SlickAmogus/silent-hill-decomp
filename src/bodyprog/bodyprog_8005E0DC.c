@@ -1313,14 +1313,14 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
         {
             func_80055A90(&ptr->field_130, &ptr->field_134, 0x40, ptr->field_140 * 16);
 
-            *(u16*)&(*poly)->r0 = ptr->field_130.r + (ptr->field_130.g << 8);
+            do { u32 _pv = (u32)(ptr->field_130.r + (ptr->field_130.g << 8)); ((*poly))->r0 = (u8)_pv; ((*poly))->g0 = (u8)(_pv >> 8); } while (0);
             (*poly)->b0         = ptr->field_130.b;
 
             PSX_ST_UV((*poly), u0, (((ptr->field_164 << 5) + ptr->field_154) << 8) + 0x930000 + ((ptr->field_150 << 5) + ptr->field_168));
 
             *(*poly + 1) = **poly;
 
-            *(u16*)&(*poly + 1)->r0 = ptr->field_134.r + ((ptr->field_134.g >> 4) << 8);
+            do { u32 _pv = (u32)(ptr->field_134.r + ((ptr->field_134.g >> 4) << 8)); ((*poly + 1))->r0 = (u8)_pv; ((*poly + 1))->g0 = (u8)(_pv >> 8); } while (0);
             (*poly + 1)->b0         = ptr->field_134.b >> 4;
             (*poly + 1)->clut       = (g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_2 << 6) | 0x13;
 
@@ -1358,7 +1358,7 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
             }
             func_80055A90(&ptr->field_130, &ptr->field_134, var_a2, ptr->field_140 * 16);
 
-            *(u16*)&(*poly)->r0 = ptr->field_130.r + (ptr->field_130.g << 8);
+            do { u32 _pv = (u32)(ptr->field_130.r + (ptr->field_130.g << 8)); ((*poly))->r0 = (u8)_pv; ((*poly))->g0 = (u8)(_pv >> 8); } while (0);
             (*poly)->b0         = ptr->field_130.b;
 
             PSX_ST_UV((*poly), u0, (((ptr->field_164 << 5) + ptr->field_154) << 8) + 0x930000 + ((ptr->field_150 << 5) + ptr->field_168));
@@ -1373,7 +1373,7 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
              * SetPriority DR_MODE prims; each POLY_FT4 carries its own ABR.
              * Garbage-size + OOB-bucket guards stay. */
             *(*poly + 3) = *(*poly + 2) = *(*poly + 1) = **poly;
-            *(u16*)&(*poly + 1)->r0 = ptr->field_134.r + (ptr->field_134.g << 8);
+            do { u32 _pv = (u32)(ptr->field_134.r + (ptr->field_134.g << 8)); ((*poly + 1))->r0 = (u8)_pv; ((*poly + 1))->g0 = (u8)(_pv >> 8); } while (0);
             (*poly + 1)->b0         = ptr->field_134.b;
             (*poly)->tpage          = 43;
             (*poly + 1)->clut       = (g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_2 << 6) | 0x13;
@@ -1412,7 +1412,7 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
 #else
             *(*poly + 3) = *(*poly + 2) = *(*poly + 1) = **poly;
 
-            *(u16*)&(*poly + 1)->r0 = ptr->field_134.r + (ptr->field_134.g << 8);
+            do { u32 _pv = (u32)(ptr->field_134.r + (ptr->field_134.g << 8)); ((*poly + 1))->r0 = (u8)_pv; ((*poly + 1))->g0 = (u8)(_pv >> 8); } while (0);
             (*poly + 1)->b0         = ptr->field_134.b;
             (*poly)->tpage          = 43;
             (*poly + 1)->clut       = (g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_2 << 6) | 0x13;
@@ -1437,7 +1437,7 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
     if (g_GameWork.config.extraBloodColor == 14)
     {
         temp_s0             = func_80055D78(g_MapOverlayHdr.unkTable1_4C[idx].field_0.vx_0, g_MapOverlayHdr.unkTable1_4C[idx].vy_8, g_MapOverlayHdr.unkTable1_4C[idx].field_4.vz_4);
-        *(u16*)&(*poly)->r0 = temp_s0 + (func_80055D78(g_MapOverlayHdr.unkTable1_4C[idx].field_0.vx_0, g_MapOverlayHdr.unkTable1_4C[idx].vy_8, g_MapOverlayHdr.unkTable1_4C[idx].field_4.vz_4) << 8);
+        do { u32 _pv = (u32)(temp_s0 + (func_80055D78(g_MapOverlayHdr.unkTable1_4C[idx].field_0.vx_0, g_MapOverlayHdr.unkTable1_4C[idx].vy_8, g_MapOverlayHdr.unkTable1_4C[idx].field_4.vz_4) << 8)); ((*poly))->r0 = (u8)_pv; ((*poly))->g0 = (u8)(_pv >> 8); } while (0);
         (*poly)->b0         = func_80055D78(g_MapOverlayHdr.unkTable1_4C[idx].field_0.vx_0, g_MapOverlayHdr.unkTable1_4C[idx].vy_8, g_MapOverlayHdr.unkTable1_4C[idx].field_4.vz_4);
     }
     else
@@ -1447,7 +1447,7 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
         {
             var_a2 = 0;
         }
-        *(u16*)&(*poly)->r0 = var_a2 + (var_a2 << 8);
+        do { u32 _pv = (u32)(var_a2 + (var_a2 << 8)); ((*poly))->r0 = (u8)_pv; ((*poly))->g0 = (u8)(_pv >> 8); } while (0);
         (*poly)->b0         = var_a2;
     }
 
@@ -1830,7 +1830,7 @@ bool func_800611C0(POLY_FT4** poly, s32 idx) // 0x800611C0
     {
         PSX_ST_UV((*poly), u0, ((ptr->field_190 + ptr->field_194) << 8) + 0x930000 + (ptr->field_17C + ptr->field_180));
         func_80055A90(&ptr->field_12C, &ptr->field_130, var_t0, ptr->field_158 * 16);
-        *(u16*)&(*poly)->r0 = ptr->field_12C.r + (ptr->field_12C.g << 8);
+        do { u32 _pv = (u32)(ptr->field_12C.r + (ptr->field_12C.g << 8)); ((*poly))->r0 = (u8)_pv; ((*poly))->g0 = (u8)(_pv >> 8); } while (0);
         (*poly)->b0         = ptr->field_12C.b;
 
 #ifdef SH_PC_PORT
@@ -1883,7 +1883,7 @@ bool func_800611C0(POLY_FT4** poly, s32 idx) // 0x800611C0
 
         (*poly)->tpage          = 0x2B;
         (*poly + 1)->clut       = (g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_2 << 6) | 0x13;
-        *(u16*)&(*poly + 1)->r0 = ptr->field_130.r + (ptr->field_130.g << 8);
+        do { u32 _pv = (u32)(ptr->field_130.r + (ptr->field_130.g << 8)); ((*poly + 1))->r0 = (u8)_pv; ((*poly + 1))->g0 = (u8)(_pv >> 8); } while (0);
         (*poly + 1)->b0         = ptr->field_130.b;
 
         addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[ptr->field_158 >> 3], *poly);
@@ -1897,7 +1897,7 @@ bool func_800611C0(POLY_FT4** poly, s32 idx) // 0x800611C0
     {
         PSX_ST_UV((*poly), u0, (((g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_2 << 6) | 0x13) << 16) +
                               ((ptr->field_190 + ptr->field_194) << 8) + (ptr->field_17C + ptr->field_180));
-        *(u16*)&(*poly)->r0 = var_t0 + (var_t0 << 8);
+        do { u32 _pv = (u32)(var_t0 + (var_t0 << 8)); ((*poly))->r0 = (u8)_pv; ((*poly))->g0 = (u8)(_pv >> 8); } while (0);
         (*poly)->b0         = var_t0;
 
 #ifdef SH_PC_PORT
@@ -2217,14 +2217,14 @@ bool func_80062708(POLY_FT4** poly, s32 idx) // 0x80062708
                  * that the setaddr macro parenthesizes its addr arg (PsyCross) —
                  * the missing parens were what corrupted multi-prim emits.
                  * poly[0] color = field_12C (func_80055A90 above). */
-                *(u16*)&(*poly)->r0 = ptr->field_12C.r + (ptr->field_12C.g << 8);
+                do { u32 _pv = (u32)(ptr->field_12C.r + (ptr->field_12C.g << 8)); ((*poly))->r0 = (u8)_pv; ((*poly))->g0 = (u8)(_pv >> 8); } while (0);
                 (*poly)->b0         = ptr->field_12C.b;
 
                 *(*poly + 2) = *(*poly + 1) = **poly;
 
                 (*poly)->tpage          = 43;
                 (*poly)->clut           = (*poly + 2)->clut = 147;
-                *(u16*)&(*poly + 1)->r0 = ptr->field_130.r + (ptr->field_130.g << 8);
+                do { u32 _pv = (u32)(ptr->field_130.r + (ptr->field_130.g << 8)); ((*poly + 1))->r0 = (u8)_pv; ((*poly + 1))->g0 = (u8)(_pv >> 8); } while (0);
                 (*poly + 1)->b0         = ptr->field_130.b;
 
                 /* Cap the ADDITIVE layer color (poly[0]) so a bright per-map
@@ -2252,14 +2252,14 @@ bool func_80062708(POLY_FT4** poly, s32 idx) // 0x80062708
                 }
                 *poly = *poly + 3;
 #else
-                *(u16*)&(*poly)->r0 = ptr->field_12C.r + (ptr->field_12C.g << 8);
+                do { u32 _pv = (u32)(ptr->field_12C.r + (ptr->field_12C.g << 8)); ((*poly))->r0 = (u8)_pv; ((*poly))->g0 = (u8)(_pv >> 8); } while (0);
                 (*poly)->b0         = ptr->field_12C.b;
 
                 *(*poly + 2) = *(*poly + 1) = **poly;
 
                 (*poly)->tpage = 43;
                 (*poly)->clut = (*poly + 2)->clut = 147;
-                *(u16*)&(*poly + 1)->r0           = ptr->field_130.r + (ptr->field_130.g << 8);
+                do { u32 _pv = (u32)(ptr->field_130.r + (ptr->field_130.g << 8)); ((*poly + 1))->r0 = (u8)_pv; ((*poly + 1))->g0 = (u8)(_pv >> 8); } while (0);
                 (*poly + 1)->b0                   = ptr->field_130.b;
 
                 addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_20C + var_s7) >> 3], *poly);
@@ -2271,7 +2271,7 @@ bool func_80062708(POLY_FT4** poly, s32 idx) // 0x80062708
             }
             else
             {
-                *(u16*)&(*poly)->r0 = temp_s2 + (temp_s2 << 8);
+                do { u32 _pv = (u32)(temp_s2 + (temp_s2 << 8)); ((*poly))->r0 = (u8)_pv; ((*poly))->g0 = (u8)(_pv >> 8); } while (0);
                 (*poly)->b0         = temp_s2;
 
 #ifdef SH_PC_PORT
@@ -2653,9 +2653,9 @@ bool func_80063A50(POLY_FT4** poly, s32 idx) // 0x80063A50
         PSX_ST_UV((*poly), u0, g_MapOverlayHdr.unkTable1_4C[idx].field_B ? 0xD380FF : 0xD380E0);
         PSX_ST_UV((*poly), u1, (g_MapOverlayHdr.unkTable1_4C[idx].field_B ? 0xFF : 0xE0) +
                               (g_MapOverlayHdr.unkTable1_4C[idx].field_B ? 0x2B7FE1 : 0x2B801F));
-        *(u16*)&(*poly)->u2 = g_MapOverlayHdr.unkTable1_4C[idx].field_B ? 0x9FFF : 0x9FE0;
-        *(u16*)&(*poly)->u3 = (g_MapOverlayHdr.unkTable1_4C[idx].field_B ? 0xFF : 0xE0) -
-                              (g_MapOverlayHdr.unkTable1_4C[idx].field_B ? 0x611F : 0x60E1);
+        do { u32 _pv = (u32)(g_MapOverlayHdr.unkTable1_4C[idx].field_B ? 0x9FFF : 0x9FE0); ((*poly))->u2 = (u8)_pv; ((*poly))->v2 = (u8)(_pv >> 8); } while (0);
+        do { u32 _pv = (u32)((g_MapOverlayHdr.unkTable1_4C[idx].field_B ? 0xFF : 0xE0) -
+                              (g_MapOverlayHdr.unkTable1_4C[idx].field_B ? 0x611F : 0x60E1)); ((*poly))->u3 = (u8)_pv; ((*poly))->v3 = (u8)(_pv >> 8); } while (0);
 
 #ifdef SH_PC_PORT
         /* PC: PsyCross's prim dispatcher crashes on unknown code bytes
@@ -2809,8 +2809,8 @@ bool func_80064334(POLY_FT4** poly, s32 idx) // 0x80064334
 
     PSX_ST_UV((*poly), u0, (((g_MapOverlayHdr.unkTable1_4C[idx].field_B << 5) + 160) << 8) + 0x011300E0);
     PSX_ST_UV((*poly), u1, (((g_MapOverlayHdr.unkTable1_4C[idx].field_B << 5) + 160) << 8) + 0x2B00FF);
-    *(u16*)&(*poly)->u2 = (((g_MapOverlayHdr.unkTable1_4C[idx].field_B << 5) + 191) << 8) + 0xE0;
-    *(u16*)&(*poly)->u3 = (((g_MapOverlayHdr.unkTable1_4C[idx].field_B << 5) + 191) << 8) + 0xFF;
+    do { u32 _pv = (u32)((((g_MapOverlayHdr.unkTable1_4C[idx].field_B << 5) + 191) << 8) + 0xE0); ((*poly))->u2 = (u8)_pv; ((*poly))->v2 = (u8)(_pv >> 8); } while (0);
+    do { u32 _pv = (u32)((((g_MapOverlayHdr.unkTable1_4C[idx].field_B << 5) + 191) << 8) + 0xFF); ((*poly))->u3 = (u8)_pv; ((*poly))->v3 = (u8)(_pv >> 8); } while (0);
 
     setSemiTrans(*poly, true);
 
@@ -2853,7 +2853,7 @@ bool func_80064334(POLY_FT4** poly, s32 idx) // 0x80064334
             u8 dr = (u8)((ptr->field_130.r * 5) >> 3);
             u8 dg = (u8)((ptr->field_130.g * 5) >> 3);
             u8 db = (u8)((ptr->field_130.b * 5) >> 3);
-            *(u16*)&(*poly)->r0 = dr + (dg << 8);
+            do { u32 _pv = (u32)(dr + (dg << 8)); ((*poly))->r0 = (u8)_pv; ((*poly))->g0 = (u8)(_pv >> 8); } while (0);
             (*poly)->b0         = db;
         }
 
@@ -2873,10 +2873,10 @@ bool func_80064334(POLY_FT4** poly, s32 idx) // 0x80064334
 
         (*poly + 1)->clut = 0x93;
 
-        *(u16*)&(*poly)->r0 = ptr->field_130.r + (ptr->field_130.g << 8);
+        do { u32 _pv = (u32)(ptr->field_130.r + (ptr->field_130.g << 8)); ((*poly))->r0 = (u8)_pv; ((*poly))->g0 = (u8)(_pv >> 8); } while (0);
         (*poly)->b0         = ptr->field_130.b;
 
-        *(u16*)&(*poly + 1)->r0 = ptr->field_134.r + (ptr->field_134.g << 8);
+        do { u32 _pv = (u32)(ptr->field_134.r + (ptr->field_134.g << 8)); ((*poly + 1))->r0 = (u8)_pv; ((*poly + 1))->g0 = (u8)(_pv >> 8); } while (0);
         (*poly + 1)->b0         = ptr->field_134.b;
 
         ptr->field_12C = (PACKET*)(*poly) + 0x50;
@@ -2895,7 +2895,7 @@ bool func_80064334(POLY_FT4** poly, s32 idx) // 0x80064334
     else
     {
         func_80055E90(&ptr->field_130, ptr->field_15C);
-        *(u16*)&(*poly)->r0 = ptr->field_130.r + (ptr->field_130.g << 8);
+        do { u32 _pv = (u32)(ptr->field_130.r + (ptr->field_130.g << 8)); ((*poly))->r0 = (u8)_pv; ((*poly))->g0 = (u8)(_pv >> 8); } while (0);
         (*poly)->b0         = ptr->field_130.b;
 
         {
@@ -2991,15 +2991,15 @@ bool func_80064FC0(POLY_FT4** polys, s32 idx) // 0x80064FC0
     setXY1Fast(*polys, (u16)ptr->field_13C.vx + (u16)ptr->field_144, ptr->field_13C.vy + ptr->field_144);
     setXY2Fast(*polys, (u16)ptr->field_13C.vx - (u16)ptr->field_144, ptr->field_13C.vy - ptr->field_144);
     setXY3Fast(*polys, (u16)ptr->field_13C.vx + (u16)ptr->field_144, ptr->field_13C.vy - ptr->field_144);
-    *(u16*)&(*polys)->r0 = 0x1020;
+    do { u32 _pv = (u32)(0x1020); ((*polys))->r0 = (u8)_pv; ((*polys))->g0 = (u8)(_pv >> 8); } while (0);
     (*polys)->b0         = 0x10;
 
     setSemiTrans((*polys), true);
 
     PSX_ST_UV((*polys), u0, 0x018C0000);
     PSX_ST_UV((*polys), u1, 0x2C003F);
-    *(u16*)&(*polys)->u2 = 0x3F00;
-    *(u16*)&(*polys)->u3 = 0x3F3F;
+    do { u32 _pv = (u32)(0x3F00); ((*polys))->u2 = (u8)_pv; ((*polys))->v2 = (u8)(_pv >> 8); } while (0);
+    do { u32 _pv = (u32)(0x3F3F); ((*polys))->u3 = (u8)_pv; ((*polys))->v3 = (u8)(_pv >> 8); } while (0);
 
 #ifdef SH_PC_PORT
     /* Bounds-clamp OT bucket. func_80064FC0 (case 31, spark/glow) only

@@ -30,6 +30,16 @@ typedef struct _IpdCollSurface
     /* 0x0    */ q7_8 field_0;           // Relative X.
     /* 0x2    */ q7_8 baseGroundHeight;  // Base ground height with slope unaccounted for?
     /* 0x4    */ q7_8 field_4;           // Relative Z.
+#if defined(__BIG_ENDIAN__) || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+    /* Disc data: ipd_endian.c swaps each u16 in place, and a big-endian
+     * compiler allocates bitfields from the MSB down, so the same bits need
+     * the fields declared high-to-low (bit 15 is unused on the PSX). */
+    /* 0x6+15 */ u16  __pad_6_15    : 1;
+    /* 0x6+11 */ u16  field_6_11    : 4;
+    /* 0x6+8  */ u16  field_6_8     : 3;
+    /* 0x6+5  */ u16  disableHeight : 3;
+    /* 0x6+0  */ u16  groundType    : 5;
+#else
     /* 0x6+0  */ u16  groundType    : 5; /** `e_GroundType` */
     /* 0x6+5  */ u16  disableHeight : 3; /** `bool` */
     /* 0x6+8  */ u16  field_6_8     : 3; // Causes special collision triggers to behave differently.
@@ -41,6 +51,7 @@ typedef struct _IpdCollSurface
                                          // only ever give a value up to 4, but some dev didn't paid attention
                                          // and assigned 3 instead.
     /* 0x6+11 */ u16  field_6_11    : 4; /** `bool` | Indicates the surface has a slope? */
+#endif
     /* 0x8    */ q7_8 tiltAngleX;
     /* 0xA    */ q7_8 tiltAngleZ;
 } s_IpdCollSurface;
@@ -49,10 +60,18 @@ STATIC_ASSERT_SIZEOF(s_IpdCollSurface, 12);
 /** @brief IPD file collision subcell containing two split surfaces. */
 typedef struct _IpdCollSubcell
 {
+#if defined(__BIG_ENDIAN__) || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+    /* Same rule as s_IpdCollSurface: swapped in place, declared high-to-low. */
+    /* 0x0+14 */ u16  field_0_14 : 2;
+    /* 0x0+0  */ q7_8 field_0_0  : 14;
+    /* 0x2+14 */ u16  field_2_14 : 2;
+    /* 0x2+0  */ q7_8 field_2_0  : 14;
+#else
     /* 0x0+0  */ q7_8 field_0_0  : 14; // X. }
-    /* 0x0+14 */ u16  field_0_14 : 2;  // ID Values? } 
+    /* 0x0+14 */ u16  field_0_14 : 2;  // ID Values? }
     /* 0x2+0  */ q7_8 field_2_0  : 14; // Y. }
     /* 0x2+14 */ u16  field_2_14 : 2;  // ID Values? } See `func_8006B318` definition for further explanation.
+#endif
     /* 0x4    */ q7_8 field_4;         // Z. }
     /* 0x6    */ u8   splitVertexIdx0; // `s_IpdCollisionData::splitVertices` index.
     /* 0x7    */ u8   splitVertexIdx1; // `s_IpdCollisionData::splitVertices` index.
@@ -63,11 +82,20 @@ STATIC_ASSERT_SIZEOF(s_IpdCollSubcell, 10);
 
 typedef struct _IpdCollisionData_18
 {
+#if defined(__BIG_ENDIAN__) || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+    /* Same rule as s_IpdCollSurface: swapped in place, declared high-to-low. */
+    /* 0x0+15 */ u16      field_0_15    : 1;
+    /* 0x0+12 */ u16      field_0_12    : 3;
+    /* 0x0+8  */ u16      field_0_8     : 4;
+    /* 0x0+5  */ u16      disableHeight : 3;
+    /* 0x0+0  */ u16      groundType    : 5;
+#else
     /* 0x0+0  */ u16      groundType    : 5; /** `e_GroundType` */
     /* 0x0+5  */ u16      disableHeight : 3; /** `bool` */
     /* 0x0+8  */ u16      field_0_8     : 4;
     /* 0x0+12 */ u16      field_0_12    : 3;
     /* 0x0+15 */ u16      field_0_15    : 1;
+#endif
     /* 0x2    */ SVECTOR3 offset;            /** Q7.8 */
     /* 0x8    */ q7_8     field_8;
 } s_IpdCollisionData_18;

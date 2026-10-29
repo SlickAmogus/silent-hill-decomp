@@ -198,8 +198,8 @@ bool sharedFunc_800CB040_1_s05(POLY_FT4** poly, s32 idx)
     {
         PSX_ST_UV((*poly), u0, 0x024E7800);
         PSX_ST_UV((*poly), u1, 0x4D7807);
-        *(u16*)&(*poly)->u2 = 0x7F00;
-        *(u16*)&(*poly)->u3 = 0x7F07;
+        do { u32 _pv = (u32)(0x7F00); ((*poly))->u2 = (u8)_pv; ((*poly))->v2 = (u8)(_pv >> 8); } while (0);
+        do { u32 _pv = (u32)(0x7F07); ((*poly))->u3 = (u8)_pv; ((*poly))->v3 = (u8)(_pv >> 8); } while (0);
 
         setRGBC0(*poly, 0x78, 0x80, 0x80, PRIM_POLY | RECT_BLEND | RECT_TEXTURE | RECT_SIZE_1);
     }
@@ -344,8 +344,8 @@ bool sharedFunc_800CB884_1_s05(POLY_FT4** poly, s32 idx) // 0x800CCF50
     {
         PSX_ST_UV((*poly), u0, 0x024EC000);
         PSX_ST_UV((*poly), u1, 0x4DC03F);
-        *(u16*)&(*poly)->u2 = 0xFF00;
-        *(u16*)&(*poly)->u3 = 0xFF3F;
+        do { u32 _pv = (u32)(0xFF00); ((*poly))->u2 = (u8)_pv; ((*poly))->v2 = (u8)(_pv >> 8); } while (0);
+        do { u32 _pv = (u32)(0xFF3F); ((*poly))->u3 = (u8)_pv; ((*poly))->v3 = (u8)(_pv >> 8); } while (0);
 
         ptr->field_144 = (sharedData_800DFB7C_0_s00[idx].field_C.s_2.field_0 >> 6) + 0x24;
 
@@ -357,8 +357,8 @@ bool sharedFunc_800CB884_1_s05(POLY_FT4** poly, s32 idx) // 0x800CCF50
     {
         PSX_ST_UV((*poly), u0, 0x020E7800);
         PSX_ST_UV((*poly), u1, 0xD7807);
-        *(u16*)&(*poly)->u2 = 0x7F00;
-        *(u16*)&(*poly)->u3 = 0x7F07;
+        do { u32 _pv = (u32)(0x7F00); ((*poly))->u2 = (u8)_pv; ((*poly))->v2 = (u8)(_pv >> 8); } while (0);
+        do { u32 _pv = (u32)(0x7F07); ((*poly))->u3 = (u8)_pv; ((*poly))->v3 = (u8)(_pv >> 8); } while (0);
 
         ptr->field_144 = 2;
 

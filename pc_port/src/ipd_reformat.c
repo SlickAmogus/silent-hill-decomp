@@ -31,6 +31,7 @@
 #include "sh_log.h"
 
 #include "bodyprog/bodyprog.h"
+#include "ipd_endian.h"
 
 /* PSX struct sizes */
 #define PSX_IPD_HEADER_SIZE       0x54  /* header before collision */
@@ -55,7 +56,11 @@ static inline s32 rds32(const u8* p) { return (s32)rd32(p); }
  * crash. Track each parse's allocations by buffer base and free the prior set
  * when the SAME buffer streams a new chunk (reused buffer => old chunk gone;
  * same proven contract as lm_reformat.c's LmTrack). */
+#if defined(SH_XBOX360_PORT)
+#define IPD_TRACK_MAX 256 /* preloaded exteriors: one owned buffer per slot */
+#else
 #define IPD_TRACK_MAX 128
+#endif
 typedef struct {
     void*             raw;
     s_IpdModelInfo*   modelInfos;
@@ -148,6 +153,31 @@ static void ParseIpdModelBufferC(s_IpdModelInstance* dst, const u8* src)
         dst->mat.t[1] = rds32(&msrc[24]);
         dst->mat.t[2] = rds32(&msrc[28]);
     }
+#if defined(SH_XBOX360_PORT)
+    /* [IPD-INST] probe: the disc bytes of the first instance matrices next to
+     * what this parse made of them. World pieces come out rolled about the
+     * view axis on the 360 while characters stand upright, so the question is
+     * whether a street piece's matrix on disc is the Y-rotation it should be
+     * in THIS element order. */
+    {
+        static int s_n = 0;
+        if (s_n < 6)
+        {
+            const u8* m = &src[4];
+            s_n++;
+            SH_DBG("[IPD-INST] model=%u raw=%02x%02x %02x%02x %02x%02x | %02x%02x %02x%02x %02x%02x | %02x%02x %02x%02x %02x%02x | pad %02x%02x t=%02x%02x%02x%02x %02x%02x%02x%02x %02x%02x%02x%02x",
+                   (unsigned)modelIdx,
+                   m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8], m[9], m[10], m[11],
+                   m[12], m[13], m[14], m[15], m[16], m[17], m[18], m[19],
+                   m[20], m[21], m[22], m[23], m[24], m[25], m[26], m[27], m[28], m[29], m[30], m[31]);
+            SH_DBG("[IPD-INST] parsed R=[%d %d %d][%d %d %d][%d %d %d] T=[%d %d %d]",
+                   dst->mat.m[0][0], dst->mat.m[0][1], dst->mat.m[0][2],
+                   dst->mat.m[1][0], dst->mat.m[1][1], dst->mat.m[1][2],
+                   dst->mat.m[2][0], dst->mat.m[2][1], dst->mat.m[2][2],
+                   (int)dst->mat.t[0], (int)dst->mat.t[1], (int)dst->mat.t[2]);
+        }
+    }
+#endif
 }
 
 static void ParseIpdModelBuffer(s_IpdModelBuffer* dst, const u8* src, u8* base)
@@ -192,6 +222,11 @@ static void ParseIpdModelBuffer(s_IpdModelBuffer* dst, const u8* src, u8* base)
 
     /* subcellPositions: SVECTOR bounding box array, field_2 entries */
     dst->subcellPositions = (SVECTOR*)(base + field14_off);
+
+    /* Both of the above aim INTO the raw disc buffer rather than parsing it,
+     * so on a big-endian host their s16s are still little-endian. Convert here,
+     * where the counts and the pointers are both in hand. No-op on LE. */
+    Ipd_SwapModelBufferPayload(dst);
 }
 
 static void ParseIpdCollisionData(s_IpdCollisionData* dst, const u8* collraw, u8* collbase)
@@ -353,6 +388,9 @@ static void IpdColl_RelocateClobbered(s_IpdCollisionData* dst, const u8* collraw
  * retry on a later frame instead of dereferencing a garbage lmHdr. */
 bool IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr)
 {
+    /* Opens the already-swapped set for this buffer; ParseIpdModelBuffer
+     * converts each payload as it resolves the pointers into it. */
+    Ipd_SwapPayloadBegin();
     u8* raw = (u8*)ipdHdr;
 
     /* "Already reformatted" is now decided by the caller (IpdHeader_FixOffsets)
@@ -409,6 +447,7 @@ bool IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr)
     memset(&collParsed, 0, sizeof(collParsed));
     ParseIpdCollisionData(&collParsed, collraw, collbase);
     IpdColl_RelocateClobbered(&collParsed, collraw, collbase, lmHdrOff);
+    Ipd_SwapCollisionPayload(&collParsed, collraw, lmHdrOff);
 
     /* Parse model info array (PSX stride = 16 bytes) */
     s_IpdModelInfo* modelInfos = NULL;

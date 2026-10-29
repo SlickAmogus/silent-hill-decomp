@@ -49,18 +49,29 @@
  * 320x240 = exact fit), and oversized AVIs are rejected to MDEC instead of
  * decoded (640x480 texture cap; JPEG decode at 733 MHz).
  */
+#if defined(SH_XBOX360_PORT)
+/* 360: C translation units do not pull in xtl.h; the HAL exports the clock. */
+typedef unsigned int DWORD;
+extern unsigned int Sh360_TickMs(void);
+#define GetTickCount Sh360_TickMs
+#else
 #include <windows.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
 #include <setjmp.h>
 
+#if !defined(SH_XBOX360_PORT)
 #include <jpeglib.h>        /* nxdk libjpeg-turbo (lib/libjpeg; linked by nxdk core) */
+#endif
 
 #include "fmv/mdec.h"       /* pc_port/src/fmv (on the include path via -Ipc_port/src) */
 #include "fmv/str_demux.h"
+#if !defined(SH_XBOX360_PORT)
 #include "avi_read.h"       /* xbox_port/include — C port of pc_port ReadAVI */
+#endif
 #include "gpu_nv2a.h"
 #include "sh_log.h"
 
@@ -196,7 +207,9 @@ static void Fmv_UploadRgb(uint32_t* dst, const uint8_t* src, int pixels)
     for (i = 0; i < pixels; i++, src += 3)
         dst[i] = 0xFF000000u | ((uint32_t)src[0] << 16)
                | ((uint32_t)src[1] << 8) | (uint32_t)src[2];
-    __asm__ __volatile__("sfence" ::: "memory");
+#if !defined(SH_XBOX360_PORT)
+    __asm__ __volatile__("sfence" ::: "memory");   /* nxdk: write-combined texture memory */
+#endif
 }
 
 /* --- fullscreen video quad ----------------------------------------------------
@@ -258,6 +271,7 @@ static void Fmv_OnAudioSector(const uint8_t* sector, void* user)
     Xa_XboxStreamFeedSector(sector);
 }
 
+#if !defined(SH_XBOX360_PORT)   /* AVI override: no libjpeg on the 360 (MDEC path only) */
 /* ===========================================================================
  * AVI override path (MJPG video + PCM audio) — PC player parity
  * ===========================================================================*/
@@ -575,6 +589,8 @@ static int Fmv_PlayAvi(const FmvFileEntry* e, int file_idx, const char* path,
     return 0;
 }
 
+#endif /* !SH_XBOX360_PORT */
+
 int FMV_Play(int file_idx, int max_frames)
 {
     const FmvFileEntry* e;
@@ -596,6 +612,7 @@ int FMV_Play(int file_idx, int max_frames)
     }
     e = &s_fmvFiles[table_idx];
 
+#if !defined(SH_XBOX360_PORT)
     /* AVI override first (PC parity): a usable D:\fmv\<name>.avi (or
      * D:\gamedata\fmv\<name>.avi) replaces the disc movie; an unusable one
      * (bad parse / codec / size) falls through to the MDEC/BIN path. */
@@ -614,6 +631,7 @@ int FMV_Play(int file_idx, int max_frames)
             }
         }
     }
+#endif
 
     Cd_XboxInit();
     bin = Cd_XboxGetBinFile();

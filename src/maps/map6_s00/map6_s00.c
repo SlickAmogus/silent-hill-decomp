@@ -779,8 +779,8 @@ void func_800EC4B4(s32 arg0) // 0x800EC4B4
 
                         PSX_ST_UV(ptr->field_0, u0, (var_a3_2 + var_t1_2) + (var_t0_2 << 8) + (ptr->field_8C << 16));
                         PSX_ST_UV(ptr->field_0, u1, ((var_a3_2 + var_t1_2) - var_t1_2) + (var_t0_2 << 8) + (ptr->field_8E << 16));
-                        *(u16*)&ptr->field_0->u2 = (var_a3_2 + var_t1_2) + ((var_t0_2 + var_t3) << 8);
-                        *(u16*)&ptr->field_0->u3 = ((var_a3_2 + var_t1_2) - var_t1_2) + ((var_t0_2 + var_t3) << 8);
+                        do { u32 _pv = (u32)((var_a3_2 + var_t1_2) + ((var_t0_2 + var_t3) << 8)); (ptr->field_0)->u2 = (u8)_pv; (ptr->field_0)->v2 = (u8)(_pv >> 8); } while (0);
+                        do { u32 _pv = (u32)(((var_a3_2 + var_t1_2) - var_t1_2) + ((var_t0_2 + var_t3) << 8)); (ptr->field_0)->u3 = (u8)_pv; (ptr->field_0)->v3 = (u8)(_pv >> 8); } while (0);
                     }
                     else
                     {
@@ -796,8 +796,8 @@ void func_800EC4B4(s32 arg0) // 0x800EC4B4
 
                         PSX_ST_UV(ptr->field_0, u0, var_a3_2 + (var_t0_2 << 8) + (ptr->field_8C << 16));
                         PSX_ST_UV(ptr->field_0, u1, (var_a3_2 + var_t1_2) + (var_t0_2 << 8) + (ptr->field_8E << 16));
-                        *(u16*)&ptr->field_0->u2 = var_a3_2 + ((var_t0_2 + var_t3) << 8);
-                        *(u16*)&ptr->field_0->u3 = (var_a3_2 + var_t1_2) + ((var_t0_2 + var_t3) << 8);
+                        do { u32 _pv = (u32)(var_a3_2 + ((var_t0_2 + var_t3) << 8)); (ptr->field_0)->u2 = (u8)_pv; (ptr->field_0)->v2 = (u8)(_pv >> 8); } while (0);
+                        do { u32 _pv = (u32)((var_a3_2 + var_t1_2) + ((var_t0_2 + var_t3) << 8)); (ptr->field_0)->u3 = (u8)_pv; (ptr->field_0)->v3 = (u8)(_pv >> 8); } while (0);
                     }
 
                     addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_88 + 0x80) >> 3], ptr->field_0);

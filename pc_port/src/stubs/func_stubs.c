@@ -5,14 +5,36 @@
 #include <inline_c.h>
 #include <string.h>
 
+/* Each light-matrix control register packs TWO s16 coefficients, and the GTE
+ * core reaches them through PAIR.sw.l / .sw.h. gtereg.h deliberately leaves
+ * those halfword views unflipped on big-endian (so RAW PACKED WORD LOADS cancel
+ * out), which makes .sw.l physically the HIGH half -- so CFC2 hands back
+ * (first<<16)|second there, the opposite of the little-endian order this
+ * unpacks by hand.
+ *
+ * Left unswapped, every pair of the light matrix comes back transposed. That
+ * scrambled the billboard basis vectors Gfx_BillboardDraw builds from
+ * sp70.m[0][*], and the PS3 drew world billboards as huge stretched diamonds
+ * across the screen -- measured as xy=(-70,-687)(142,-555)(-282,-555) where X
+ * was sane and Y was 5-8x too large.
+ *
+ * Re-halving the word first keeps the unpacking below identical on both hosts. */
+#if defined(__BIG_ENDIAN__) || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+#define GTE_CFC2_PAIR(reg)  ((CFC2(reg) << 16) | (CFC2(reg) >> 16))
+#else
+#define GTE_CFC2_PAIR(reg)  (CFC2(reg))
+#endif
+
 /* ReadLightMatrix - read GTE light matrix (control regs 8-12) into MATRIX */
 void ReadLightMatrix(MATRIX *m)
 {
     unsigned int r;
-    r = CFC2(8);  m->m[0][0] = (short)(r & 0xFFFF); m->m[0][1] = (short)(r >> 16);
-    r = CFC2(9);  m->m[0][2] = (short)(r & 0xFFFF); m->m[1][0] = (short)(r >> 16);
-    r = CFC2(10); m->m[1][1] = (short)(r & 0xFFFF); m->m[1][2] = (short)(r >> 16);
-    r = CFC2(11); m->m[2][0] = (short)(r & 0xFFFF); m->m[2][1] = (short)(r >> 16);
+    r = GTE_CFC2_PAIR(8);  m->m[0][0] = (short)(r & 0xFFFF); m->m[0][1] = (short)(r >> 16);
+    r = GTE_CFC2_PAIR(9);  m->m[0][2] = (short)(r & 0xFFFF); m->m[1][0] = (short)(r >> 16);
+    r = GTE_CFC2_PAIR(10); m->m[1][1] = (short)(r & 0xFFFF); m->m[1][2] = (short)(r >> 16);
+    r = GTE_CFC2_PAIR(11); m->m[2][0] = (short)(r & 0xFFFF); m->m[2][1] = (short)(r >> 16);
+    /* reg 12 is the lone L33 coefficient, not a pair -- CFC2 returns it as a
+     * plain value in both orders. */
     r = CFC2(12); m->m[2][2] = (short)(r & 0xFFFF);
 }
 

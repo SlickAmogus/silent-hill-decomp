@@ -899,7 +899,7 @@ void func_800E2C28(s_800F4B40_118* arg0, s32 colCount, s32 rowCount, s32 zDepth,
             colData = &arg0[(row * colCount) + col];
 
             *(s32*)&poly->x0 = *(s32*)&colData[0].x_0;
-            *(s32*)&poly->r0 = *(s32*)&colData[0].color_4;
+            PSX_ST_RGBC(poly, PSX_LD_RGBC(&colData[0].color_4));
             *(s32*)&poly->x1 = *(s32*)&colData[1].x_0;
             *(s32*)&poly->r1 = *(s32*)&colData[1].color_4;
 

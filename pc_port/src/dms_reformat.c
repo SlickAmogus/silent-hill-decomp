@@ -114,6 +114,29 @@ s_DmsHeader* Dms_HeapHeaderForBuffer(void* buf)
 static inline u32 rd32(const u8* p) { return p[0] | (p[1] << 8) | (p[2] << 16) | ((u32)p[3] << 24); }
 static inline s16 rd16s(const u8* p) { return (s16)(p[0] | (p[1] << 8)); }
 
+/* The header and entries above are parsed field by field from disc order, but
+ * the arrays they point at -- hold ranges (3 x s16), segments (2 x s16),
+ * camera keyframes (8 x s16: two SVECTOR3 + angle + projection distance) and
+ * character keyframes (6 x s16) -- are memcpy'd as they lie on disc. That is
+ * little-endian. On a big-endian host nothing else converts them, so the
+ * opening cutscene's camera read garbage targets and a garbage projection
+ * distance: every world polygon projected off the +-1024 rails and the OT
+ * walker threw them away as oversized (Xenia and console: "Cheryl, where
+ * could you be?" over bare fog, [PTYPE] oversized=10916..33840 per window),
+ * and Harry walked a byte-reversed track. Every one of these arrays is pure
+ * s16, so one halfword swap over the heap copy is the whole conversion. */
+#if defined(__BIG_ENDIAN__) || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+static void DmsSwap16(void* p, s32 bytes)
+{
+    u8* b = (u8*)p;
+    s32 i;
+    if (b == NULL) return;
+    for (i = 0; i + 1 < bytes; i += 2) { u8 t = b[i]; b[i] = b[i + 1]; b[i + 1] = t; }
+}
+#else
+#define DmsSwap16(p, bytes) ((void)0)
+#endif
+
 static void ParseDmsEntry(s_DmsEntry* dst, const u8* src, u8* base)
 {
     dst->keyframeCount = rd16s(&src[0]);
@@ -134,6 +157,7 @@ static void ParseDmsEntry(s_DmsEntry* dst, const u8* src, u8* base)
     dst->holdRanges = (SVECTOR3*)malloc(svecBytes);
     memcpy(dst->holdRanges, base + svecOff, svecBytes);
 #endif
+    DmsSwap16(dst->holdRanges, svecBytes);
 
     /* Keyframe size depends on whether this is a camera or character entry.
      * We don't know yet, so store raw pointer temporarily — the caller
@@ -247,6 +271,7 @@ void Dms_HeaderFixOffsets_PC(s_DmsHeader* dmsHdr)
 #else
         memcpy(intervals, raw + intervalOff, intervalCount * sizeof(s_DmsSegment));
 #endif
+        DmsSwap16(intervals, intervalCount * (s32)sizeof(s_DmsSegment));
     }
 
     /* Heap-copy camera keyframes */
@@ -259,6 +284,30 @@ void Dms_HeaderFixOffsets_PC(s_DmsHeader* dmsHdr)
 #else
         memcpy(camKfHeap, camera.keyframes.camera, camKfBytes);
 #endif
+#if defined(SH_XBOX360_PORT)
+        /* [DMS-RAW] disc bytes of the first camera keyframes BEFORE the swap,
+         * and of the first character's keyframes, plus the header origin. A
+         * walking track changes by a few units per keyframe, so decoding these
+         * both ways says which byte order is real. */
+        {
+            const u8* r = (const u8*)camera.keyframes.camera;
+            int k;
+            SH_DBG("[DMS-RAW] origin=(%d,%d,%d) camKf=%d charN=%d", originVx, originVy, originVz, (int)camera.keyframeCount, (int)characterCount);
+            for (k = 0; k < 3 && k < camera.keyframeCount; k++)
+                SH_DBG("[DMS-RAW] cam[%d] %02x%02x %02x%02x %02x%02x | %02x%02x %02x%02x %02x%02x | %02x%02x %02x%02x", k,
+                       r[k*16+0], r[k*16+1], r[k*16+2], r[k*16+3], r[k*16+4], r[k*16+5], r[k*16+6], r[k*16+7],
+                       r[k*16+8], r[k*16+9], r[k*16+10], r[k*16+11], r[k*16+12], r[k*16+13], r[k*16+14], r[k*16+15]);
+            if (characterCount > 0 && characters[0].keyframeCount > 0)
+            {
+                const u8* c = (const u8*)characters[0].keyframes.character;
+                for (k = 0; k < 4 && k < characters[0].keyframeCount; k++)
+                    SH_DBG("[DMS-RAW] chr[%d] %02x%02x %02x%02x %02x%02x | %02x%02x %02x%02x %02x%02x  name=%.4s", k,
+                           c[k*12+0], c[k*12+1], c[k*12+2], c[k*12+3], c[k*12+4], c[k*12+5],
+                           c[k*12+6], c[k*12+7], c[k*12+8], c[k*12+9], c[k*12+10], c[k*12+11], characters[0].name);
+            }
+        }
+#endif
+        DmsSwap16(camKfHeap, camera.keyframeCount * (s32)sizeof(s_DmsKeyframeCamera));
         camera.keyframes.camera = camKfHeap;
     }
 
@@ -273,6 +322,7 @@ void Dms_HeaderFixOffsets_PC(s_DmsHeader* dmsHdr)
 #else
         memcpy(charKfHeap, characters[i].keyframes.character, charKfBytes);
 #endif
+        DmsSwap16(charKfHeap, characters[i].keyframeCount * (s32)sizeof(s_DmsKeyframeCharacter));
         characters[i].keyframes.character = charKfHeap;
     }
 

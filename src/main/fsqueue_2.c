@@ -1,3 +1,4 @@
+#include "sh_log.h"
 #include "main/fsqueue.h"
 #ifdef SH_PC_PORT
 #include <stdio.h>
@@ -57,6 +58,8 @@ bool Fs_QueueUpdateRead(s_FsQueueEntry* entry)
             break;
 
         case FsQueueReadState_Read:
+            if (entry->info == &g_FileTable[1980])
+                SH_DBG("[TITLEQ] read tick data=%p sectors=%u", entry->data, (unsigned)entry->info->startSector);
             switch (Fs_QueueTickRead(entry))
             {
                 // `CdRead` failed, reset CD and retry.

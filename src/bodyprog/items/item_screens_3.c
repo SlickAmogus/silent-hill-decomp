@@ -2044,6 +2044,19 @@ void Gfx_Inventory_ItemDescriptionDraw(s32* selectedItemId) // 0x8005192C
     if (D_800AE185 != INV_ITEM_GROUP(g_SavegamePtr->items[idx].id_0) - 1 ||
         D_800AE186 != INV_ITEM_GROUP_ID(g_SavegamePtr->items[idx].id_0))
     {
+        {   /* [INVSLOT] what the selection sees: slot idx, its item bytes and
+             * the first ten slots. Capped. */
+            static int s_invLog;
+            if (s_invLog < 12) {
+                const s_InventoryItem* it = g_SavegamePtr->items;
+                s_invLog++;
+                SH_DBG("[INVSLOT] idx=%d id=%u cnt=%u cmd=%u f3=%u slots=%u equip=%u | ids: %u %u %u %u %u %u %u %u %u %u",
+                       (int)idx, it[idx].id_0, it[idx].count_1, it[idx].command_2, it[idx].field_3,
+                       (unsigned)g_SavegamePtr->inventorySlotCount, (unsigned)g_SavegamePtr->equippedWeapon,
+                       it[0].id_0, it[1].id_0, it[2].id_0, it[3].id_0, it[4].id_0,
+                       it[5].id_0, it[6].id_0, it[7].id_0, it[8].id_0, it[9].id_0);
+            }
+        }
         SysWork_StateStepSet(1, 0);
         g_Inventory_ItemNameTimer        = 0;
         g_Inventory_DescriptionRollTimer = 0;

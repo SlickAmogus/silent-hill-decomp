@@ -17,6 +17,13 @@
 #include "main/fsqueue.h"
 #ifdef SH_PC_PORT
 #include <math.h>
+
+/* Attack-table bytes read as a LITTLE-ENDIAN u16 pair (field_6|unk_7<<8 etc.),
+ * as the PSX's lhu did. A native u16 load on big-endian puts the first byte in
+ * the HIGH half: every range / hitbox size came out x256 -- the knife hit
+ * enemies across the room and the pistol's hit box was garbage (Xbox 360 run
+ * 026). Byte-composed, so it is the same value on every host. */
+#define SH_LE16(p) ((u16)(((const u8*)(p))[0] | (((const u8*)(p))[1] << 8)))
 #endif
 
 s16 D_800AFD1C[] = // Used by `func_8008A3E0`.
@@ -516,7 +523,7 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
         {
             sp3C = chara->field_44.field_3;
             sp40 = chara->field_44.field_4;
-            sp34 = *(u16*)&sp1C->field_6;
+            sp34 = SH_LE16(&sp1C->field_6);
 
             sp54 = sp1C->field_0;
 
@@ -1936,9 +1943,9 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
         sp4C = temp_a0;
     }
 
-    temp_v1   = *(u16*)&arg2->field_6;
-    temp_a0_2 = *(u16*)&arg2->field_8;
-    temp_a2   = *(u16*)&arg2->field_A;
+    temp_v1   = SH_LE16(&arg2->field_6);
+    temp_a0_2 = SH_LE16(&arg2->field_8);
+    temp_a2   = SH_LE16(&arg2->field_A);
 
     var_v0    = (sp38 - sp44);
     temp_v0_7 = (sp3C - sp48);
@@ -1946,20 +1953,20 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
 
     if (var_v0 < temp_v1)
     {
-        sp38 += *(u16*)&arg2->field_6 >> 1;
-        sp44 -= *(u16*)&arg2->field_6 >> 1;
+        sp38 += SH_LE16(&arg2->field_6) >> 1;
+        sp44 -= SH_LE16(&arg2->field_6) >> 1;
     }
 
     if (temp_v0_7 < temp_a0_2)
     {
-        sp3C += *(u16*)&arg2->field_8 >> 1;
-        sp48 -= *(u16*)&arg2->field_8 >> 1;
+        sp3C += SH_LE16(&arg2->field_8) >> 1;
+        sp48 -= SH_LE16(&arg2->field_8) >> 1;
     }
 
     if (var_v0_6 < temp_a2)
     {
-        sp40 += *(u16*)&arg2->field_A >> 1;
-        sp4C -= *(u16*)&arg2->field_A >> 1;
+        sp40 += SH_LE16(&arg2->field_A) >> 1;
+        sp4C -= SH_LE16(&arg2->field_A) >> 1;
     }
 
     if (chara == &g_SysWork.playerWork.player)

@@ -1698,18 +1698,15 @@ s32 func_8004F190(s_Savegame* save) // 0x8004F190
         {
             if (savePtr->items[i].field_3 > savePtr->items[j].field_3)
             {
-                *(s32*)&tempItem                 = savePtr->items[i].id_0 +
-                                                   (savePtr->items[i].count_1 << 8) +
-                                                   (savePtr->items[i].command_2 << 16) +
-                                                   (savePtr->items[i].field_3 << 24);
-                *(s32*)&savePtr->items[i].id_0 = savePtr->items[j].id_0 +
-                                                   (savePtr->items[j].count_1 << 8) +
-                                                   (savePtr->items[j].command_2 << 16) +
-                                                   (savePtr->items[j].field_3 << 24);
-                *(s32*)&savePtr->items[j].id_0 = tempItem.id_0 +
-                                                   (tempItem.count_1 << 8) +
-                                                   (tempItem.command_2 << 16) +
-                                                   (tempItem.field_3 << 24);
+                /* Struct copies, not composed 32-bit stores: the composition
+                 * id | count<<8 | cmd<<16 | field_3<<24 is the little-endian
+                 * memory image, so on a big-endian host the word store put the
+                 * item id in field_3 and field_3 in the id -- every sorted slot
+                 * read back as item 3 and the inventory went blank (Xbox 360
+                 * run 025, slot 0 = [03 0b 0f a0] for the handgun 0xa0). */
+                tempItem          = savePtr->items[i];
+                savePtr->items[i] = savePtr->items[j];
+                savePtr->items[j] = tempItem;
             }
         }
     }

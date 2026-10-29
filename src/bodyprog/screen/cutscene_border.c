@@ -162,6 +162,22 @@ static void Screen_BlackBorderDraw(POLY_G4* poly, s32 color)
         color1 = Q8_CLAMPED(1.0f);
     }
 
+#if defined(SH_XBOX360_PORT)
+    /* Hor+ (widescreen_mode 1): the bars were authored +-160 wide, which on
+     * a 16:9 frame left the sides of each bar open. Span the visible width,
+     * sized from the same window aspect the fog overlay uses. */
+    {
+        extern int g_PcHorPlusEnabled, g_PcWidescreenMode;
+        s16 halfW = 160;
+        if (g_PcHorPlusEnabled && g_PcWidescreenMode == 1 && g_PcConfig.windowHeight > 0)
+            halfW = (s16)(120.0f * (float)g_PcConfig.windowWidth / (float)g_PcConfig.windowHeight + 10.0f);
+        for (i = 0; i < 2; i++)
+        {
+            poly[i * 2].x0 = -halfW; poly[i * 2].x1 = halfW;
+            poly[i * 2].x2 = -halfW; poly[i * 2].x3 = halfW;
+        }
+    }
+#endif
     for (i = 0; i < 2; i++)
     {
         poly[i * 2].r0 = color0;

@@ -308,9 +308,9 @@ bool sharedFunc_800CD1F8_0_s01(POLY_FT4** poly, s32 idx)
     temp_v0_23          = sharedData_800DFB7C_0_s00[idx].field_B;
     PSX_ST_UV((*poly), u1, ((temp_v0_23 & 3) << 4) + 15 + (((temp_v0_23 << 0xA) & 0x3000)) + 0x2D0000);
     temp_v0_24          = sharedData_800DFB7C_0_s00[idx].field_B;
-    *(u16*)&(*poly)->u2 = ((temp_v0_24 & 3) << 4) + ((((temp_v0_24 * 4) & 0x30) + 15) << 8);
+    do { u32 _pv = (u32)(((temp_v0_24 & 3) << 4) + ((((temp_v0_24 * 4) & 0x30) + 15) << 8)); ((*poly))->u2 = (u8)_pv; ((*poly))->v2 = (u8)(_pv >> 8); } while (0);
     temp_v0_25          = sharedData_800DFB7C_0_s00[idx].field_B;
-    *(u16*)&(*poly)->u3 = ((temp_v0_25 & 3) << 4) + 15 + ((((temp_v0_25 * 4) & 0x30) + 15) << 8);
+    do { u32 _pv = (u32)(((temp_v0_25 & 3) << 4) + 15 + ((((temp_v0_25 * 4) & 0x30) + 15) << 8)); ((*poly))->u3 = (u8)_pv; ((*poly))->v3 = (u8)(_pv >> 8); } while (0);
 
     temp_s1_3 = sharedData_800DFB7C_0_s00[idx].field_A - 23;
 

@@ -175,12 +175,19 @@ static void (*s_vsyncCb)(void) = 0;   /* the game's per-vblank callback */
  * hold it for N vblanks, then open the next frame (FrameBegin). The registered
  * VSyncCallback (Screen_VSyncCallback: boot-logo timers counters_1C[] + MIDI pump)
  * is fired once per real vblank — we have no vblank IRQ, so this is its tick. */
+/* Presents-per-gameplay-tick accounting: the PS3 was issuing ~12 presents for
+ * every game update, so world geometry (submitted on the tick) only appeared
+ * in one frame out of twelve. */
+unsigned g_VSyncCalls;
+
 int VSync(int mode)
 {
     int n, i;
 
     if (mode < 0)
         return s_vblanks;
+
+    g_VSyncCalls++;
 
     /* One present per call, N vblanks held. Do NOT try to be clever about
      * skipping the present when "nothing was drawn": the FMV player, the boot

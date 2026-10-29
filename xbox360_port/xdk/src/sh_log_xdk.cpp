@@ -35,6 +35,15 @@ int Sh_LogAllow(const char* fmt)
         "[FOGST]", "[WALLSTOP]",
         "[WALL-HIT]", "[RAIN]", "[FSQ]", "[SS]", "[FXDROP]", "[BATCH]", "[STORE]",
         "[BIGPRIM]", "[ZETA]", "[ITEMZ]", "[FLEX]", "[FONTDUMP]", "[TXTPG]", "[TXSPR]",
+        /* the 360 bring-up probes: periodic, ~10k lines a session on hardware
+         * (run 027), each a USB write the render loop waits on */
+        "[IPD-DRAW]", "[WMAT]", "[MESHDRAW]", "[ALTCULL]", "[A900]", "[POS]",
+        "[CAMCHAIN]", "[RTPT]", "[VWMAT]", "[WEDGE]", "[TEXW]", "[RGB]", "[PTYPE]",
+        "[PCODE]", "[OTS]", "[FOGPAD]", "[FOGCOL]", "[ABR]", "[TEXVRAM]", "[CHARA-TEX]",
+        "[WOBJ]", "[VCOPY]", "[MESH]", "[CHNK]", "[WSMAT]", "[MELEEDMG]", "[MELEE-SS0]",
+        "[MUZZLE]", "[ATTACK-DONE]", "[BOOT0/TIM]", "[TITLELOAD]", "[TITLEPAL]",
+        "[TITLEPAGE]", "[TITLESPR]", "[TITLEQ]", "[INVSLOT]", "[IPD-INST]", "[LM-SWAP]",
+        "[DMS-RAW]", "[EFFECTS]", "[DPCL]", "[GP-STATE-TXN]", "[PAD] buttons",
     };
     int i;
     if (g_XboxLogDiag)          return 1;
@@ -129,7 +138,16 @@ void SH_DebugLogFlush(void)
      * with the power button, so push it to the medium as well. Same lesson
      * the libXenon build learned with an empty first log. */
     fflush(g_ShDebugLog);
-    FlushFileBuffers((HANDLE)_get_osfhandle(_fileno(g_ShDebugLog)));
+    /* Committing to the medium is a synchronous FAT update on a USB stick --
+     * tens of ms -- and this runs from VSync once a second: a steady hitch
+     * (run 027). Commit every 10th call (~10 s) instead. Boot, crash and quit
+     * paths flush through their own fflush; the worst case on power-off is
+     * the last ~10 s of log. */
+    {
+        static unsigned s_calls;
+        if ((s_calls++ % 10) == 0)
+            FlushFileBuffers((HANDLE)_get_osfhandle(_fileno(g_ShDebugLog)));
+    }
 }
 
 unsigned Xbox_MemFreeKB(void)

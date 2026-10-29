@@ -17,6 +17,9 @@
 #include <ppcintrinsics.h>
 #define SH_STORE_BARRIER() __lwsync()
 #define SH_CYCLES()        ((unsigned long long)__mftb())
+/* Xenon time base: ~49.875 MHz, not core clock. */
+#define SH_CYCLES_PER_US   50ULL
+#define SH_CYCLES_PER_MS   49875ULL
 
 #elif defined(__powerpc__) || defined(__PPC__)
 
@@ -30,6 +33,8 @@
  * (~49.875 MHz), not core clock. Only RATIOS between readings carry across
  * platforms -- any absolute "cycles -> ms" divisor is x86-only. */
 #define SH_CYCLES() ((unsigned long long)mftb())
+#define SH_CYCLES_PER_US   50ULL
+#define SH_CYCLES_PER_MS   49875ULL
 
 #elif defined(__i386__) || defined(__x86_64__)
 
@@ -42,11 +47,16 @@ static inline unsigned long long sh_cycles_(void)
     return ((unsigned long long)hi << 32) | lo;
 }
 #define SH_CYCLES() sh_cycles_()
+/* Original Xbox: 733 MHz rdtsc. */
+#define SH_CYCLES_PER_US   733ULL
+#define SH_CYCLES_PER_MS   733000ULL
 
 #else
 
 #define SH_STORE_BARRIER() __sync_synchronize()
 #define SH_CYCLES()        0ULL
+#define SH_CYCLES_PER_US   1ULL
+#define SH_CYCLES_PER_MS   1ULL
 
 #endif
 

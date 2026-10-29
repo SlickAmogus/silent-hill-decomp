@@ -45,12 +45,15 @@ Output main(Input input)
 {
     Output output;
 
-    output.pos.x = input.pos.x * gViewport.x + gViewport.z;
-    output.pos.y = input.pos.y * gViewport.y + gViewport.w;
     // Depth is resolved by the ordering table (painter order), not by a Z test,
-    // so everything sits on one plane and W stays 1.
+    // so everything sits on one plane. W is 1 for the affine PSX look; with
+    // PGXP on (use_pgxp), gpu_xbox.c feeds the real per-vertex view depth, and
+    // pre-multiplying the already-projected clip position by it makes the
+    // rasteriser interpolate colour/UV perspective-correctly (and clip W <= 0).
+    output.pos.x = (input.pos.x * gViewport.x + gViewport.z) * input.pos.w;
+    output.pos.y = (input.pos.y * gViewport.y + gViewport.w) * input.pos.w;
     output.pos.z = 0.0f;
-    output.pos.w = 1.0f;
+    output.pos.w = input.pos.w;
 
     output.col  = input.col;
     output.uv   = input.uv * gTexScale.xy;

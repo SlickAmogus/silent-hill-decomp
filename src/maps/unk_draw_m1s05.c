@@ -115,8 +115,8 @@ bool sharedFunc_800CBF74_1_s05(POLY_FT4** poly, s32 idx)
 
     PSX_ST_UV((*poly), u0, 0x530000);
     PSX_ST_UV((*poly), u1, 0x6B001F);
-    *(u16*)&(*poly)->u2 = 0x1F00;
-    *(u16*)&(*poly)->u3 = 0x1F1F;
+    do { u32 _pv = (u32)(0x1F00); ((*poly))->u2 = (u8)_pv; ((*poly))->v2 = (u8)(_pv >> 8); } while (0);
+    do { u32 _pv = (u32)(0x1F1F); ((*poly))->u3 = (u8)_pv; ((*poly))->v3 = (u8)(_pv >> 8); } while (0);
 
     var_v1 = ((u32)func_80055D78(sharedData_800DFB7C_0_s00[idx].field_0.vx_0, sharedData_800DFB7C_0_s00[idx].vy_8, sharedData_800DFB7C_0_s00[idx].field_4.vz_4) * 0x31) >> 5;
     var_v1 = MIN(var_v1, 0xC4);
@@ -346,8 +346,8 @@ bool sharedFunc_800CC618_1_s05(POLY_FT4** poly, s32 idx)
 
     PSX_ST_UV((*poly), u0, ptr->field_16C + ptr->field_170 + ((ptr->field_180 + ptr->field_184) << 8) + 0x530000);
     PSX_ST_UV((*poly), u1, ptr->field_16C + ptr->field_174 + ((ptr->field_180 + ptr->field_188) << 8) + 0x6B0000);
-    *(u16*)&(*poly)->u2 = ptr->field_16C + ptr->field_178 + ((ptr->field_180 + ptr->field_18C) << 8);
-    *(u16*)&(*poly)->u3 = ptr->field_16C + ptr->field_17C + ((ptr->field_180 + ptr->field_190) << 8);
+    do { u32 _pv = (u32)(ptr->field_16C + ptr->field_178 + ((ptr->field_180 + ptr->field_18C) << 8)); ((*poly))->u2 = (u8)_pv; ((*poly))->v2 = (u8)(_pv >> 8); } while (0);
+    do { u32 _pv = (u32)(ptr->field_16C + ptr->field_17C + ((ptr->field_180 + ptr->field_190) << 8)); ((*poly))->u3 = (u8)_pv; ((*poly))->v3 = (u8)(_pv >> 8); } while (0);
 
     setRGBC0(*poly, ptr->field_160, ptr->field_160, ptr->field_160, PRIM_POLY | RECT_BLEND | RECT_TEXTURE | RECT_SIZE_1);
     addPrimFast(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_14C.vx - 16) >> 3], *poly, 9);
@@ -492,8 +492,8 @@ bool sharedFunc_800CCF30_1_s05(POLY_FT4** poly, s32 idx)
 
     PSX_ST_UV((*poly), u0, (sharedData_800DFB7C_0_s00[idx].field_B * 0xC00) + 0x010E4000);
     PSX_ST_UV((*poly), u1, (sharedData_800DFB7C_0_s00[idx].field_B * 0xC00) + 0x6D407F);
-    *(u16*)&(*poly)->u2 = (sharedData_800DFB7C_0_s00[idx].field_B * 0xC00) + 0x4B00;
-    *(u16*)&(*poly)->u3 = (sharedData_800DFB7C_0_s00[idx].field_B * 0xC00) + 0x4B7F;
+    do { u32 _pv = (u32)((sharedData_800DFB7C_0_s00[idx].field_B * 0xC00) + 0x4B00); ((*poly))->u2 = (u8)_pv; ((*poly))->v2 = (u8)(_pv >> 8); } while (0);
+    do { u32 _pv = (u32)((sharedData_800DFB7C_0_s00[idx].field_B * 0xC00) + 0x4B7F); ((*poly))->u3 = (u8)_pv; ((*poly))->v3 = (u8)(_pv >> 8); } while (0);
 
     temp = func_80055D78(((sharedData_800DFB7C_0_s00[idx].field_0.vx_0 + sharedData_800DFB7C_0_s00[temp_s3].field_0.vx_0) * 16) >> 1,
                          (sharedData_800DFB7C_0_s00[idx].vy_8 + sharedData_800DFB7C_0_s00[temp_s3].vy_8) * 8,

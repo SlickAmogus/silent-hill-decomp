@@ -14,6 +14,18 @@
 #include <psyq/strings.h>
 
 #include "bodyprog/bodyprog.h"
+/* The character mesh-variant tables below (D_800A9ECC..) are s32 constants that
+ * func_80045468 / Bone_ModelIdxGet walk as s8 BYTE lists: {model idx.., -3,
+ * .., -2 end}. The PSX/PC little-endian word 0xFE16FD13 is the byte sequence
+ * 13 FD 16 FE. On a big-endian host the same word is FE 16 FD 13, so the list
+ * began with the -2 terminator and no variant part was ever hidden -- every
+ * one of Harry's hand meshes (empty, lighter, pistol grip, ...) drew at once,
+ * nested inside each other. Reverse the bytes so the MEMORY image matches. */
+#if defined(__BIG_ENDIAN__) || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+#define SH_BYTELIST32(w) ((s32)((((u32)(w) & 0xFFu) << 24) | (((u32)(w) & 0xFF00u) << 8) |                                 (((u32)(w) >> 8) & 0xFF00u) | (((u32)(w) >> 24) & 0xFFu)))
+#else
+#define SH_BYTELIST32(w) ((s32)(w))
+#endif
 #include "bodyprog/gfx/map_effects.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/memcard.h"
@@ -508,7 +520,7 @@ void Gfx_InGameDraw(bool arg0) // 0x8003C878
          * each Fs_QueueUpdate, and one texture LoadImage can be 79ms) — this kills
          * the MULTI-entry drains, not the rare single-texture spike. */
         unsigned long long _st0 = ShxWdRdtsc();
-        unsigned long long _budget = 8ULL * 733000ULL; /* ~8ms at 733MHz */
+        unsigned long long _budget = 8ULL * SH_CYCLES_PER_MS; /* ~8ms at 733MHz */
         Ipd_CloseRangeChunksInit();
         while (Fs_QueueGetLength() > 0 && (ShxWdRdtsc() - _st0) < _budget)
         {
@@ -1754,15 +1766,15 @@ void func_8003DE60(s_Skeleton* skel, s32 arg1) // 0x8003DE60
 {
     s32 idx;
 
-    static s32 D_800A9ECC = 0xFE16FD13;
-    static s32 D_800A9ED0 = 0x0000FE13;
-    static s32 D_800A9ED4 = 0x0000FE14;
-    static s32 D_800A9ED8 = 0x0000FE15;
-    static s32 D_800A9EDC = 0x0000FE16;
-    static s32 D_800A9EE0 = 0x000000FE;
-    static s32 D_800A9EE4 = 0x00FE1211;
-    static s32 D_800A9EE8 = 0x0000FE11;
-    static s32 D_800A9EEC = 0x0000FE12;
+    static s32 D_800A9ECC = SH_BYTELIST32(0xFE16FD13);
+    static s32 D_800A9ED0 = SH_BYTELIST32(0x0000FE13);
+    static s32 D_800A9ED4 = SH_BYTELIST32(0x0000FE14);
+    static s32 D_800A9ED8 = SH_BYTELIST32(0x0000FE15);
+    static s32 D_800A9EDC = SH_BYTELIST32(0x0000FE16);
+    static s32 D_800A9EE0 = SH_BYTELIST32(0x000000FE);
+    static s32 D_800A9EE4 = SH_BYTELIST32(0x00FE1211);
+    static s32 D_800A9EE8 = SH_BYTELIST32(0x0000FE11);
+    static s32 D_800A9EEC = SH_BYTELIST32(0x0000FE12);
 
     // Process first masked value.
     idx = MODEL_BONE_MESH_VARIANT_IDX_GET(arg1);
@@ -1817,10 +1829,10 @@ void func_8003DF84(s_Skeleton* skel, s32 arg1) // 0x8003DF84
 {
     s32 idx;
 
-    static s32 D_800A9EF0 = 0x0000FE14;
-    static s32 D_800A9EF4 = 0x00FE1514;
-    static s32 D_800A9EF8 = 0x0000FE12;
-    static s32 D_800A9EFC = 0x00FE1312;
+    static s32 D_800A9EF0 = SH_BYTELIST32(0x0000FE14);
+    static s32 D_800A9EF4 = SH_BYTELIST32(0x00FE1514);
+    static s32 D_800A9EF8 = SH_BYTELIST32(0x0000FE12);
+    static s32 D_800A9EFC = SH_BYTELIST32(0x00FE1312);
 
     idx = MODEL_BONE_MESH_VARIANT_IDX_GET(arg1);
     if (idx != 0)
@@ -1861,10 +1873,10 @@ void func_8003E08C(s_Skeleton* skel, s32 arg1) // 0x8003E08C
 {
     s32 maskedVal;
 
-    static s32 D_800A9F00 = 0x0000FE02;
-    static s32 D_800A9F04 = 0x0000FE03;
-    static s32 D_800A9F08 = 0x0000FE00;
-    static s32 D_800A9F0C = 0x00FE0100;
+    static s32 D_800A9F00 = SH_BYTELIST32(0x0000FE02);
+    static s32 D_800A9F04 = SH_BYTELIST32(0x0000FE03);
+    static s32 D_800A9F08 = SH_BYTELIST32(0x0000FE00);
+    static s32 D_800A9F0C = SH_BYTELIST32(0x00FE0100);
 
     maskedVal = MODEL_BONE_MESH_VARIANT_IDX_GET(arg1);
     if (maskedVal != 0)
@@ -1905,10 +1917,10 @@ void func_8003E194(s_Skeleton* skel, s32 arg1) // 0x8003E194
 {
     s32 maskedVal;
 
-    static s32 D_800A9F10 = 0xFE03FD00;
-    static s32 D_800A9F14 = 0x0000FE00;
-    static s32 D_800A9F18 = 0x00FE0201;
-    static s32 D_800A9F1C = 0x0000FE03;
+    static s32 D_800A9F10 = SH_BYTELIST32(0xFE03FD00);
+    static s32 D_800A9F14 = SH_BYTELIST32(0x0000FE00);
+    static s32 D_800A9F18 = SH_BYTELIST32(0x00FE0201);
+    static s32 D_800A9F1C = SH_BYTELIST32(0x0000FE03);
 
     maskedVal = MODEL_BONE_MESH_VARIANT_IDX_GET(arg1);
     if (maskedVal != 0)
@@ -1941,15 +1953,15 @@ void func_8003E238(s_Skeleton* skel, s32 arg1) // 0x8003E238
      * byte-walker run off the end into the neighbouring static (the invisible-
      * parasite / stacked-neck-variant bug). Byte-identical to two adjacent s32.
      * Matches the PC fix (0065c7a0f). */
-    static s32 D_800A9F20[2] = { 0x06050403, 0x000000FE };
-    static s32 D_800A9F28 = 0x0000FE03;
-    static s32 D_800A9F2C = 0x0000FE04;
-    static s32 D_800A9F30 = 0x00FE0504;
-    static s32 D_800A9F34 = 0x00FE0603;
-    static s32 D_800A9F38 = 0xFE020100;
-    static s32 D_800A9F3C = 0x0000FE00;
-    static s32 D_800A9F40 = 0x0000FE01;
-    static s32 D_800A9F44 = 0x00FE0201;
+    static s32 D_800A9F20[2] = { SH_BYTELIST32(0x06050403), SH_BYTELIST32(0x000000FE) };
+    static s32 D_800A9F28 = SH_BYTELIST32(0x0000FE03);
+    static s32 D_800A9F2C = SH_BYTELIST32(0x0000FE04);
+    static s32 D_800A9F30 = SH_BYTELIST32(0x00FE0504);
+    static s32 D_800A9F34 = SH_BYTELIST32(0x00FE0603);
+    static s32 D_800A9F38 = SH_BYTELIST32(0xFE020100);
+    static s32 D_800A9F3C = SH_BYTELIST32(0x0000FE00);
+    static s32 D_800A9F40 = SH_BYTELIST32(0x0000FE01);
+    static s32 D_800A9F44 = SH_BYTELIST32(0x00FE0201);
 
     maskedVal = MODEL_BONE_MESH_VARIANT_IDX_GET(arg1);
     if (maskedVal != 0)
@@ -2003,8 +2015,8 @@ void func_8003E388(s_Skeleton* skel, s32 arg1) // 0x8003E388
 {
     s32 maskedVal;
 
-    static s32 D_800A9F48 = 0x0000FE05;
-    static s32 D_800A9F4C = 0x0000FE06;
+    static s32 D_800A9F48 = SH_BYTELIST32(0x0000FE05);
+    static s32 D_800A9F4C = SH_BYTELIST32(0x0000FE06);
 
     maskedVal = MODEL_BONE_MESH_VARIANT_IDX_GET(arg1);
     if (maskedVal != 0)
@@ -2028,8 +2040,8 @@ void func_8003E414(s_Skeleton* skel, s32 arg1) // 0x8003E414
 {
     s32 maskedVal;
 
-    static s32 D_800A9F50 = 0xFE19FD11;
-    static s32 D_800A9F54 = 0xFE22FD1A;
+    static s32 D_800A9F50 = SH_BYTELIST32(0xFE19FD11);
+    static s32 D_800A9F54 = SH_BYTELIST32(0xFE22FD1A);
 
     maskedVal = arg1 & 0x3;
     if (maskedVal == 0)
@@ -2057,10 +2069,10 @@ void func_8003E4A0(s_Skeleton* skel, s32 arg1) // 0x8003E4A0
 
     /* 0x05040302 list continues + terminates (0xFE) in the next word — one array
      * so -O2 can't drop the terminator (Puppet Nurse back-parasite). See D_800A9F20. */
-    static s32 D_800A9F58[2] = { 0x05040302, 0x00FE0706 };
-    static s32 D_800A9F60 = 0x00FE0502;
-    static s32 D_800A9F64 = 0x00FE0603;
-    static s32 D_800A9F68 = 0x00FE0704;
+    static s32 D_800A9F58[2] = { SH_BYTELIST32(0x05040302), SH_BYTELIST32(0x00FE0706) };
+    static s32 D_800A9F60 = SH_BYTELIST32(0x00FE0502);
+    static s32 D_800A9F64 = SH_BYTELIST32(0x00FE0603);
+    static s32 D_800A9F68 = SH_BYTELIST32(0x00FE0704);
 
     maskedVal = MODEL_BONE_MESH_VARIANT_IDX_GET(arg1);
     if (maskedVal != 0)
@@ -2090,10 +2102,10 @@ void func_8003E544(s_Skeleton* skel, s32 arg1) // 0x8003E544
 
     /* 0x05040302 list continues + terminates (0xFE) in the next word — one array
      * so -O2 can't drop the terminator (Puppet Doctor back-parasite). See D_800A9F20. */
-    static s32 D_800A9F6C[2] = { 0x05040302, 0x00FE0706 };
-    static s32 D_800A9F74 = 0x00FE0502;
-    static s32 D_800A9F78 = 0x00FE0603;
-    static s32 D_800A9F7C = 0x00FE0704;
+    static s32 D_800A9F6C[2] = { SH_BYTELIST32(0x05040302), SH_BYTELIST32(0x00FE0706) };
+    static s32 D_800A9F74 = SH_BYTELIST32(0x00FE0502);
+    static s32 D_800A9F78 = SH_BYTELIST32(0x00FE0603);
+    static s32 D_800A9F7C = SH_BYTELIST32(0x00FE0704);
 
     maskedVal = MODEL_BONE_MESH_VARIANT_IDX_GET(arg1);
     if (maskedVal == 0)

@@ -145,8 +145,8 @@ bool sharedFunc_800CB1B0_4_s03(POLY_FT4** poly, s32 idx)
 
         PSX_ST_UV((*poly), u0, ((i & 1) << 6) + ((i & 2) ? 0xE4000 : 0xE0000));
         PSX_ST_UV((*poly), u1, ((i & 1) ? 0x7F : 0x3F) + ((i & 2) ? 0x2D4000 : 0x2D0000));
-        *(u16*)&(*poly)->u2 = (!(i & 1) ? 0 : 1 << 6) + ((i & 2) ? 0x7F00 : 0x3F00);
-        *(u16*)&(*poly)->u3 = ((i & 1) ? 0x7F : 0x3F) + (!(i & 2) ? 0x3F00 : 0x7F00);
+        do { u32 _pv = (u32)((!(i & 1) ? 0 : 1 << 6) + ((i & 2) ? 0x7F00 : 0x3F00)); ((*poly))->u2 = (u8)_pv; ((*poly))->v2 = (u8)(_pv >> 8); } while (0);
+        do { u32 _pv = (u32)(((i & 1) ? 0x7F : 0x3F) + (!(i & 2) ? 0x3F00 : 0x7F00)); ((*poly))->u3 = (u8)_pv; ((*poly))->v3 = (u8)(_pv >> 8); } while (0);
 
         next  = *poly + 1;
         *next = *(*poly);
@@ -336,11 +336,11 @@ bool sharedFunc_800CC004_4_s03(POLY_FT4** poly, s32 idx)
     PSX_ST_UV((*poly), u1, (!(sharedData_800DFB7C_0_s00[idx].field_10.s_2.field_0 & 1) ? 0x7F : 0x3F) +
                           (!(sharedData_800DFB7C_0_s00[idx].field_10.s_2.field_0 & 2) ? 0x2D4000 : 0x2D0000));
 
-    *(u16*)&(*poly)->u2 = (((sharedData_800DFB7C_0_s00[idx].field_10.s_2.field_0 & 1) == 0) << 6) |
-                          (!(sharedData_800DFB7C_0_s00[idx].field_10.s_2.field_0 & 2) ? 0x7F00 : 0x3F00);
+    do { u32 _pv = (u32)((((sharedData_800DFB7C_0_s00[idx].field_10.s_2.field_0 & 1) == 0) << 6) |
+                          (!(sharedData_800DFB7C_0_s00[idx].field_10.s_2.field_0 & 2) ? 0x7F00 : 0x3F00)); ((*poly))->u2 = (u8)_pv; ((*poly))->v2 = (u8)(_pv >> 8); } while (0);
 
-    *(u16*)&(*poly)->u3 = (!(sharedData_800DFB7C_0_s00[idx].field_10.s_2.field_0 & 1) ? 0x7F : 0x3F) |
-                          (!(sharedData_800DFB7C_0_s00[idx].field_10.s_2.field_0 & 2) ? 0x7F00 : 0x3F00);
+    do { u32 _pv = (u32)((!(sharedData_800DFB7C_0_s00[idx].field_10.s_2.field_0 & 1) ? 0x7F : 0x3F) |
+                          (!(sharedData_800DFB7C_0_s00[idx].field_10.s_2.field_0 & 2) ? 0x7F00 : 0x3F00)); ((*poly))->u3 = (u8)_pv; ((*poly))->v3 = (u8)(_pv >> 8); } while (0);
 
     if (sharedData_800DFB7C_0_s00[idx].field_B != 0)
     {

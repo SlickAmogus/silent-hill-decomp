@@ -17,10 +17,21 @@
 
 /** MIDI-related header magic. */
 
+/* Compared against the file's first word loaded as an s32, so the values are
+ * the little-endian reading of the tag bytes. On a big-endian host the same
+ * bytes load reversed: without these the 360 rejected every KDT1 music file
+ * ("SdSeqOpen: magic mismatch") and the game had no BGM at all. */
+#if defined(__BIG_ENDIAN__) || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+#define SD_MAGIC_SEQp 0x70514553
+#define SD_MAGIC_MThd 0x4D546864
+#define SD_MAGIC_KDT  0x4B445420
+#define SD_MAGIC_KDT1 0x4B445431
+#else
 #define SD_MAGIC_SEQp 0x53455170
 #define SD_MAGIC_MThd 0x6468544D
 #define SD_MAGIC_KDT  0x2054444B
 #define SD_MAGIC_KDT1 0x3154444B
+#endif
 
 typedef enum _SMF_STAT
 {

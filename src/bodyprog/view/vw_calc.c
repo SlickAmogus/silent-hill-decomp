@@ -337,6 +337,40 @@ void vbSetWorldScreenMatrix(GsCOORDINATE2* coord) // 0x800497E4
     Vw_CoordHierarchyMatrixCompute(coord, &D_800C3868);
     TransposeMatrix(&D_800C3868, &work);
     MulMatrix0(&work, &GsIDMATRIX2, &VbWvsMatrix);
+#if defined(SH_XBOX360_PORT)
+    /* [CAMCHAIN] the camera coord's own matrix, its hierarchy result and the
+     * world-to-view matrix, once a second in-game. The world draws through a
+     * pitch-less VbWvs while Harry draws pitched, so the question is where
+     * the camera's pitch goes between `coord` and VbWvs. */
+    {
+        static unsigned s_cc;
+        if (g_GameWork.gameState == GameState_InGame && (++s_cc % 60) == 0)
+            SH_DBG("[CAMCHAIN] super=%p flg=%d coord R0=[%d %d %d] R1=[%d %d %d] R2=[%d %d %d] t=[%d %d %d] | hier R1=[%d %d %d] R2=[%d %d %d] | wvs R1=[%d %d %d]",
+                   (void*)coord->super, (int)coord->flg,
+                   coord->coord.m[0][0], coord->coord.m[0][1], coord->coord.m[0][2],
+                   coord->coord.m[1][0], coord->coord.m[1][1], coord->coord.m[1][2],
+                   coord->coord.m[2][0], coord->coord.m[2][1], coord->coord.m[2][2],
+                   (int)coord->coord.t[0], (int)coord->coord.t[1], (int)coord->coord.t[2],
+                   D_800C3868.m[1][0], D_800C3868.m[1][1], D_800C3868.m[1][2],
+                   D_800C3868.m[2][0], D_800C3868.m[2][1], D_800C3868.m[2][2],
+                   VbWvsMatrix.m[1][0], VbWvsMatrix.m[1][1], VbWvsMatrix.m[1][2]);
+    }
+#endif
+#ifdef SH_PC_PORT
+    /* VbWvsMatrix (the world-to-view matrix everything else multiplies by) came
+     * out all-zero on PS3. Print its two inputs to say whether the camera coord
+     * hierarchy or MulMatrix0 itself is at fault. */
+    {
+        extern int g_MeshDbgBudget;
+        if (g_MeshDbgBudget > 0)
+            SH_DBG("[WSMAT] cam=[%d %d %d][%d %d %d] work=[%d %d %d] out=[%d %d %d][%d %d %d]",
+                   (int)D_800C3868.m[0][0], (int)D_800C3868.m[0][1], (int)D_800C3868.m[0][2],
+                   (int)D_800C3868.m[1][0], (int)D_800C3868.m[1][1], (int)D_800C3868.m[1][2],
+                   (int)work.m[0][0], (int)work.m[0][1], (int)work.m[0][2],
+                   (int)VbWvsMatrix.m[0][0], (int)VbWvsMatrix.m[0][1], (int)VbWvsMatrix.m[0][2],
+                   (int)VbWvsMatrix.m[1][0], (int)VbWvsMatrix.m[1][1], (int)VbWvsMatrix.m[1][2]);
+    }
+#endif
 
     VbWvsMatrix.t[2] = Q8(0.0f);
     VbWvsMatrix.t[1] = Q8(0.0f);
@@ -360,6 +394,35 @@ void vbSetWorldScreenMatrix(GsCOORDINATE2* coord) // 0x800497E4
 
 void vbSetRefView(VbRVIEW* rview) // 0x800498D8
 {
+#ifdef SH_PC_PORT
+    /* One-shot GTE unit test. Everything that multiplies matrices goes through
+     * MulMatrix0 -> gte_SetRotMatrix + gte_ldv0 + gte_rtv0 + gte_stsv, and the
+     * camera matrix came out all-zero while a short-circuited (flg=1) model
+     * matrix was fine. Multiplying two identities isolates the GTE path from
+     * every caller: identity in, identity out, or the emulation is at fault. */
+    {
+        static int s_gteTested = 0;
+        if (!s_gteTested)
+        {
+            MATRIX a, b, o;
+            int i, j;
+            s_gteTested = 1;
+            for (i = 0; i < 3; i++)
+                for (j = 0; j < 3; j++)
+                    a.m[i][j] = b.m[i][j] = (i == j) ? 4096 : 0;
+            a.t[0] = a.t[1] = a.t[2] = 0;
+            b.t[0] = b.t[1] = b.t[2] = 0;
+            for (i = 0; i < 3; i++)
+                for (j = 0; j < 3; j++)
+                    o.m[i][j] = -1;
+            MulMatrix0(&a, &b, &o);
+            SH_DBG("[GTETEST] MulMatrix0(I,I) = [%d %d %d][%d %d %d][%d %d %d] (expect 4096 diag)",
+                   (int)o.m[0][0], (int)o.m[0][1], (int)o.m[0][2],
+                   (int)o.m[1][0], (int)o.m[1][1], (int)o.m[1][2],
+                   (int)o.m[2][0], (int)o.m[2][1], (int)o.m[2][2]);
+        }
+    }
+#endif
     GsCOORDINATE2 coord;
     SVECTOR       rot; // Q3.12
     SVECTOR       pos; // Q3.12
@@ -375,6 +438,29 @@ void vbSetRefView(VbRVIEW* rview) // 0x800498D8
     coord.coord.t[0] = rview->vp.vx;
     coord.coord.t[1] = rview->vp.vy;
     coord.coord.t[2] = rview->vp.vz;
+#if defined(SH_PC_PORT) && !defined(SH_XBOX360_PORT)
+    {
+        /* Periodic, FOREVER: every budgeted sample landed during boot, where vp
+         * is legitimately zero. The steady state is what matters. */
+        static unsigned s_rvTick;
+        if ((++s_rvTick % 30) == 0)
+            SH_DBG("[REFVIEW] cam.coord=[%d %d %d][%d %d %d] super=%p vp=(%d,%d,%d)",
+                   (int)coord.coord.m[0][0], (int)coord.coord.m[0][1], (int)coord.coord.m[0][2],
+                   (int)coord.coord.m[1][0], (int)coord.coord.m[1][1], (int)coord.coord.m[1][2],
+                   (void*)coord.super,
+                   (int)rview->vp.vx, (int)rview->vp.vy, (int)rview->vp.vz);
+            if (coord.super != NULL)
+                SH_DBG("[REFVIEW] parent flg=%d workm=[%d %d %d][%d %d %d] coord=[%d %d %d] super=%p",
+                       (int)coord.super->flg,
+                       (int)coord.super->workm.m[0][0], (int)coord.super->workm.m[0][1],
+                       (int)coord.super->workm.m[0][2],
+                       (int)coord.super->workm.m[1][0], (int)coord.super->workm.m[1][1],
+                       (int)coord.super->workm.m[1][2],
+                       (int)coord.super->coord.m[0][0], (int)coord.super->coord.m[1][1],
+                       (int)coord.super->coord.m[2][2],
+                       (void*)coord.super->super);
+    }
+#endif
     vbSetWorldScreenMatrix(&coord);
 }
 
@@ -389,7 +475,18 @@ void Vw_CoordHierarchyMatrixCompute(GsCOORDINATE2* rootCoord, MATRIX* transformM
      * truncated/uninitialised PSX pointer shows up as ~0 / non-canonical and
      * derefs to a wild read (the bad-ending crash: super == -1). Treat any
      * non-canonical link as end-of-chain instead of crashing. */
-    #if defined(SH_XBOX360_PORT)
+    #if defined(SH_XBOX360_XDK)
+    /* XDK build: the XEX image sits at 0x82000000 but the CRT heap and the PSX
+     * arena come from the 0x40000000 physical/virtual range (log: arena
+     * buf0=40100030) and thread stacks elsewhere again, so the libXenon window
+     * below rejected every heap-, arena- and stack-resident coord. Every model
+     * placed through such a coord lost the camera from its view matrix and sat
+     * at its WORLD position in view space -- off-screen or behind the eye --
+     * which left the alley with only the few statically-placed models drawn.
+     * The MSVC CRT never hands out non-canonical pointers; alignment is all the
+     * guard needs here. */
+    #define COORD_PTR_OK(p) ((p) != NULL && (((uintptr_t)(p) & 3) == 0))
+    #elif defined(SH_XBOX360_PORT)
     /* The 360 defines SH_XBOX_PORT too, so it MUST be tested first or it
      * inherits the Original Xbox ranges below -- which reject every valid 360
      * pointer. That is not theoretical: it is what this build did. libXenon maps
@@ -404,7 +501,7 @@ void Vw_CoordHierarchyMatrixCompute(GsCOORDINATE2* rootCoord, MATRIX* transformM
     #define COORD_PTR_OK(p) ((uintptr_t)(p) >= 0x80000000u && \
                              (uintptr_t)(p) <  0xA0000000u && \
                              (((uintptr_t)(p) & 3) == 0))
-    #elif defined(SH_XBOX_PORT)
+    #elif defined(SH_XBOX_PORT) && !defined(SH_PS3_PORT)
     /* 32-bit Xbox: the 64-bit canonical test in the #else folds to compile-time
      * TRUE here (uintptr_t is 32 bits), which let a garbage super (0xfffff948)
      * through and crashed writing parentCoord->sub into kernel space. Valid
@@ -566,6 +663,26 @@ void Vw_CoordToWorldAndViewMatrices(GsCOORDINATE2* rootCoord, MATRIX* worldMat, 
     worldMat->t[2] -= D_800C3868.t[2];
 
     Vw_MultiplyAndTransformMatrix(&VbWvsMatrix, worldMat, viewMat);
+#ifdef SH_PC_PORT
+    /* viewMat came out all-zero on PS3, which is what collapsed every RTPT.
+     * Print both inputs to say whether the model's own matrix or the camera
+     * matrix is the degenerate one. */
+    {
+        extern int g_MeshDbgBudget;
+        if (g_MeshDbgBudget > 0)
+        {
+            SH_DBG("[VWMAT] src=[%d %d %d] world=[%d %d %d] t=[%d %d %d]",
+                   (int)rootCoord->workm.m[0][0], (int)rootCoord->workm.m[0][1],
+                   (int)rootCoord->workm.m[0][2],
+                   (int)worldMat->m[0][0], (int)worldMat->m[0][1], (int)worldMat->m[0][2],
+                   (int)worldMat->t[0], (int)worldMat->t[1], (int)worldMat->t[2]);
+            SH_DBG("[VWMAT] wvs=[%d %d %d][%d %d %d] view=[%d %d %d]",
+                   (int)VbWvsMatrix.m[0][0], (int)VbWvsMatrix.m[0][1], (int)VbWvsMatrix.m[0][2],
+                   (int)VbWvsMatrix.m[1][0], (int)VbWvsMatrix.m[1][1], (int)VbWvsMatrix.m[1][2],
+                   (int)viewMat->m[0][0], (int)viewMat->m[0][1], (int)viewMat->m[0][2]);
+        }
+    }
+#endif
     worldMat->t[0] += D_800C3868.t[0];
     worldMat->t[1] += D_800C3868.t[1];
     worldMat->t[2] += D_800C3868.t[2];

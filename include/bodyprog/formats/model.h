@@ -11,9 +11,22 @@ typedef struct _Primitive
                {
                          struct
                          {
+/* Reversed under big-endian, where the first-declared member takes the HIGH
+ * bits. The bit numbers in the offset comments are the PSX ones, and the
+ * aliased `flags` view below depends on them literally: func_8005AC50 and the
+ * GT3/GT4 code writers test `flags & 0x8000` and `flags >> 15` for
+ * isTransparent, which is only bit 15 when it is declared last on a
+ * little-endian host. lm_endian.c byte-swaps this u16 out of disc order, so
+ * with the group reversed here both views mean exactly what they mean on PC. */
+#if defined(__BIG_ENDIAN__) || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+                             /* 0x6+17 */ u8 isTransparent : 1; /** `bool` */
+                             /* 0x6+8  */ s8 materialIdx   : 7;
+                             /* 0x6+0  */ u8 field_6_0     : 8; // Set to `s_Material::field_E`.
+#else
                              /* 0x6+0  */ u8 field_6_0     : 8; // Set to `s_Material::field_E`.
                              /* 0x6+8  */ s8 materialIdx   : 7;
                              /* 0x6+17 */ u8 isTransparent : 1; /** `bool` */
+#endif
                          } bits;
                /* 0x0 */ u16 flags; // @hack `func_8005AC50` accesses `isTransparent` above with some weird shifts, haven't found how to make it work with bitfield yet.
     /* 0x6  */ } field_6;

@@ -373,7 +373,10 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
         poly            = (POLY_G4*)GsOUT_PACKET_P;
         GsOUT_PACKET_P += sizeof(POLY_G4);
 
-        color2           = *(s32*)&g_WorldEnvWork.fog.color;
+        /* Memory-order CVECTOR pun -> read it as the LE-composed word the
+         * PSX_ST_RGB* stores expect (on big-endian the pun reversed the
+         * quartet: the fog quad over the sky came out teal, not fog grey). */
+        color2           = PSX_LD_RGBC(&g_WorldEnvWork.fog.color);
         PSX_ST_RGB(poly, r3, color2);
         PSX_ST_RGB(poly, r2, color2);
         PSX_ST_RGB(poly, r1, color2);
@@ -414,7 +417,7 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
     poly           = (POLY_G4*)(packet + 0xC);
     GsOUT_PACKET_P = packet + 0x30;
 
-    color2           = *(s32*)&g_WorldEnvWork.fog.color;
+    color2           = PSX_LD_RGBC(&g_WorldEnvWork.fog.color);
     PSX_ST_RGB(poly, r3, color2);
     PSX_ST_RGB(poly, r2, color2);
     PSX_ST_RGB(poly, r1, color2);
@@ -1771,8 +1774,15 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat
     }
 #endif
 
+#ifdef SH_PC_PORT
+    { extern int g_IpdDbgSubmit; g_IpdDbgSubmit++; }
+#endif
+
     if (modelInfo->field_0 < 0)
     {
+#ifdef SH_PC_PORT
+        { extern int g_IpdDbgNoField0; g_IpdDbgNoField0++; }
+#endif
         return;
     }
 
@@ -1934,6 +1944,18 @@ void func_800574D4(s_MeshHeader* meshHdr, s_GteScratchData* scratchData) // 0x80
         *(u32*)screenXy++ = *(u32*)vertexXy++;
     }
 
+#ifdef SH_PC_PORT
+    {
+        extern int g_MeshDbgBudget;
+        if (g_MeshDbgBudget > 0 && g_GameWork.gameState == GameState_InGame)
+            SH_DBG("[VCOPY] 574D4 n=%d f18C=%d,%d srcZ=%d,%d dst=%p",
+                   (int)meshHdr->vertexCount,
+                   (int)scratchData->field_18C[0], (int)scratchData->field_18C[1],
+                   (int)meshHdr->verticesZ[0], (int)meshHdr->verticesZ[1],
+                   (void*)&scratchData->field_18C[0]);
+    }
+#endif
+
     unkPtr     = &meshHdr->unkPtr_14[0];
     unkPtrDest = &scratchData->field_2B8[0];
 
@@ -1964,6 +1986,19 @@ void func_8005759C(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, s32 ver
         *screenXyPtr++  = *vertexXyPtr++;
         *field_18CPtr++ = *vertexZPtr++;
     }
+
+#ifdef SH_PC_PORT
+    {
+        extern int g_MeshDbgBudget;
+        if (g_MeshDbgBudget > 0 && g_GameWork.gameState == GameState_InGame)
+            SH_DBG("[VCOPY] 5759C n=%d vofs=%d f18C=%d,%d srcZ=%d,%d dst=%p",
+                   (int)meshHdr->vertexCount, (int)vertOffset,
+                   (int)scratchData->field_18C[vertOffset],
+                   (int)scratchData->field_18C[vertOffset + 1],
+                   (int)meshHdr->verticesZ[0], (int)meshHdr->verticesZ[1],
+                   (void*)&scratchData->field_18C[vertOffset]);
+    }
+#endif
 
     field_14Ptr  = meshHdr->unkPtr_14;
     field_2B8Ptr = &scratchData->field_2B8[normalOffset];
@@ -2172,8 +2207,45 @@ void func_80057B7C(s_MeshHeader* meshHdr, s32 offset, s_GteScratchData* scratchD
         (((u16)(zv)) < (1u << temp_s2) ? g_WorldEnvWork.fogRamp[(((u32)(u16)(zv)) << 7) >> temp_s2] : 0xFF)
 #endif
 
+#ifdef SH_PC_PORT
+    {
+        extern int g_MeshDbgBudget;
+        /* The budget is spent here as well: without it this pair of lines
+         * fired per mesh forever (7000+ lines a minute on the 360). */
+        if (g_MeshDbgBudget > 0 && g_GameWork.gameState == GameState_InGame && g_MeshDbgBudget-- > 0)
+        {
+            SH_DBG("[RTPT] entry f18C=%d,%d,%d ofs=%d",
+                   (int)scratchData->field_18C[0], (int)scratchData->field_18C[1],
+                   (int)scratchData->field_18C[2], (int)offset);
+            /* RTPT returns zeros from valid vertices, so the other input is the
+             * matrix. A degenerate rotation or a translation putting everything
+             * behind the eye both read as SZ=0. */
+            SH_DBG("[RTPT] mat R=[%d %d %d][%d %d %d][%d %d %d] T=[%d %d %d]",
+                   (int)mat->m[0][0], (int)mat->m[0][1], (int)mat->m[0][2],
+                   (int)mat->m[1][0], (int)mat->m[1][1], (int)mat->m[1][2],
+                   (int)mat->m[2][0], (int)mat->m[2][1], (int)mat->m[2][2],
+                   (int)mat->t[0], (int)mat->t[1], (int)mat->t[2]);
+        }
+    }
+#endif
+
     SetRotMatrix(mat);
     SetTransMatrix(mat);
+#if defined(SH_XBOX360_PORT)
+    /* [WMAT] the full view matrix a world mesh is projected with, every 600
+     * meshes in-game, to set beside [A900]'s (character) one from the same
+     * second: the world draws rolled 90 degrees about the view axis while
+     * characters stand upright, so one of the two must differ in row 1. */
+    {
+        static unsigned s_wm;
+        if (g_GameWork.gameState == GameState_InGame && (++s_wm % 600) == 0)
+            SH_DBG("[WMAT] R0=[%d %d %d] R1=[%d %d %d] R2=[%d %d %d] T=[%d %d %d] n=%d v0=(%d,%d,%d)",
+                   mat->m[0][0], mat->m[0][1], mat->m[0][2], mat->m[1][0], mat->m[1][1], mat->m[1][2],
+                   mat->m[2][0], mat->m[2][1], mat->m[2][2], (int)mat->t[0], (int)mat->t[1], (int)mat->t[2],
+                   (int)meshHdr->vertexCount, (int)meshHdr->verticesXy[0].vx, (int)meshHdr->verticesXy[0].vy,
+                   (int)meshHdr->verticesZ[0]);
+    }
+#endif
 
     screenXy = &scratchData->screenXy_0[offset];
 
@@ -2198,6 +2270,38 @@ void func_80057B7C(s_MeshHeader* meshHdr, s32 offset, s_GteScratchData* scratchD
     temp_a2[0] = scratchData->field_380.field_0.m[0][2];
     temp_a2[1] = scratchData->field_380.field_0.m[2][0];
     temp_a2[2] = scratchData->field_380.field_0.t[0];
+
+#ifdef SH_PC_PORT
+    /* Both RTPT outputs came back zero on PS3 (screen xy AND depth), which can
+     * only mean the inputs were zero or the op did not run. Print what actually
+     * went in: the source vertex array, and the packed matrix gte_ldv3c reads. */
+    {
+        extern int g_MeshDbgBudget;
+        if (g_MeshDbgBudget > 0 && g_GameWork.gameState == GameState_InGame)
+        {
+            g_MeshDbgBudget--;
+            SH_DBG("[RTPT] src=%p n=%d v0=(%d,%d) v1=(%d,%d) z0=%d",
+                   (void*)meshHdr->verticesXy, (int)meshHdr->vertexCount,
+                   (int)meshHdr->verticesXy[0].vx, (int)meshHdr->verticesXy[0].vy,
+                   (int)meshHdr->verticesXy[1].vx, (int)meshHdr->verticesXy[1].vy,
+                   (int)meshHdr->verticesZ[0]);
+            SH_DBG("[RTPT] in m00=%d m01=%d m02=%d | out sxy0=(%d,%d) sz0=%d",
+                   (int)scratchData->field_380.field_0.m[0][0],
+                   (int)scratchData->field_380.field_0.m[0][1],
+                   (int)scratchData->field_380.field_0.m[0][2],
+                   (int)screenXy[0].vx, (int)screenXy[0].vy, (int)temp_a2[0]);
+            SH_DBG("[RTPT] dst=%p scratch=%p", (void*)&scratchData->field_18C[0], (void*)scratchData);
+            SH_DBG("[RTPT] ofs=%d f18C[ofs..+2]=%d,%d,%d f18C[0]=%d srcZ=%d,%d,%d",
+                   (int)offset,
+                   (int)scratchData->field_18C[offset],
+                   (int)scratchData->field_18C[offset + 1],
+                   (int)scratchData->field_18C[offset + 2],
+                   (int)scratchData->field_18C[0],
+                   (int)meshHdr->verticesZ[0], (int)meshHdr->verticesZ[1],
+                   (int)meshHdr->verticesZ[2]);
+        }
+    }
+#endif
 
     screenXy += 3;
     var_t1  += 3;
@@ -2272,8 +2376,18 @@ void func_80057B7C(s_MeshHeader* meshHdr, s32 offset, s_GteScratchData* scratchD
     }
 }
 
+#ifdef SH_PC_PORT
+int g_MeshDbgBudget = 40;
+/* Which mesh drawer each model takes: func_80057090 picks func_80057344
+ * (Gfx_MeshDraw) or func_8005A21C (func_8005AC50) on modelHdr->field_B_0. */
+int g_DrawerA = 0, g_DrawerB = 0;
+#endif
+
 void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG* tag, bool arg3) // 0x8005801C
 {
+#ifdef SH_PC_PORT
+    g_DrawerA++;
+#endif
     s32          sp10;
     s32          sp14;
     s32          sp18;
@@ -2401,6 +2515,22 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
 
     prim = meshHdr->primitives;
 
+#ifdef SH_PC_PORT
+    /* Which of Gfx_MeshDraw's branches this mesh takes, and how many prims it
+     * has to give. Without this, "no [MESH] depth lines" is ambiguous between
+     * "the branch was not taken" and "the loop never ran". */
+    {
+        extern int g_MeshDbgBudget;
+        if (g_MeshDbgBudget > 0 && g_GameWork.gameState == GameState_InGame)
+        {
+            SH_DBG("[MESH] enter prims=%d wenv0=%d fog=%d cond=0x%x",
+                   (int)meshHdr->primitiveCount, (int)g_WorldEnvWork.field_0,
+                   (int)g_WorldEnvWork.isFogEnabled,
+                   (unsigned)(*(u32*)&scratchData->field_380.s_0.field_C & 0xFFFFFF));
+        }
+    }
+#endif
+
     if (g_WorldEnvWork.field_0 != 0)
     {
         if (g_WorldEnvWork.isFogEnabled != 0)
@@ -2440,6 +2570,25 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                     }
 
                     SH_WHOLEMAP_DEPTH_RESCUE(scratchData->field_380.s_0.field_18, arg3);
+#ifdef SH_PC_PORT
+                    /* The polygon's view depth decides both the <=0 / >far
+                     * rejects and the OT bucket, so it is the one number that
+                     * separates "nothing was submitted" from "everything was
+                     * rejected". Budgeted, in-game only. */
+                    {
+                        extern int g_MeshDbgBudget;
+                        if (g_MeshDbgBudget > 0 && g_GameWork.gameState == GameState_InGame)
+                        {
+                            g_MeshDbgBudget--;
+                            SH_DBG("[MESH] z=%d far=%d sxy0=(%d,%d) idx=%d",
+                                   (int)scratchData->field_380.s_0.field_18,
+                                   (int)scratchData->field_380.s_0.field_1C,
+                                   (int)scratchData->screenXy_0[scratchData->field_380.s_0.field_10].vx,
+                                   (int)scratchData->screenXy_0[scratchData->field_380.s_0.field_10].vy,
+                                   (int)scratchData->field_380.s_0.field_10);
+                        }
+                    }
+#endif
                     if (scratchData->field_380.s_0.field_18 <= 0)
                     {
                         continue;
@@ -2512,14 +2661,14 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                     if ((s16)temp_a2 + temp_a3 < temp_t0 || (s16)temp_a1 + temp_a3 < temp_t0 ||
                         (s16)temp_a0 + temp_a3 < temp_t0 || (s16)temp_v1_5 + temp_a3 < temp_t0)
                     {
-                        PSX_ST_XY(poly3, x0, temp_a2_2);
-                        PSX_ST_XY(poly1, x0, temp_a2_2);
-                        PSX_ST_XY(poly3, x1, temp_a1);
-                        PSX_ST_XY(poly1, x1, temp_a1);
-                        PSX_ST_XY(poly3, x2, temp_a0);
-                        PSX_ST_XY(poly1, x2, temp_a0);
-                        PSX_ST_XY(poly3, x3, temp_v1_5);
-                        PSX_ST_XY(poly1, x3, temp_v1_5);
+                        PSX_ST_XYW(poly3, x0, temp_a2_2);
+                        PSX_ST_XYW(poly1, x0, temp_a2_2);
+                        PSX_ST_XYW(poly3, x1, temp_a1);
+                        PSX_ST_XYW(poly1, x1, temp_a1);
+                        PSX_ST_XYW(poly3, x2, temp_a0);
+                        PSX_ST_XYW(poly1, x2, temp_a0);
+                        PSX_ST_XYW(poly3, x3, temp_v1_5);
+                        PSX_ST_XYW(poly1, x3, temp_v1_5);
 #ifdef SH_PC_PORT
                         SH_PGXP_PROP4(scratchData, poly3,
                             scratchData->field_380.s_0.field_10, scratchData->field_380.s_0.field_11,
@@ -2544,6 +2693,35 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                         gte_ldrgb(&scratchData->field_380.s_0.field_8);
                         gte_dpcl();
                         PSX_ST_RGBC(poly3, MFC2(22));
+#ifdef SH_PC_PORT
+                        /* Red comes out 0 for every polygon while green and
+                         * blue are fine (the whole scene is teal). Print the
+                         * CVECTOR going in and the word coming out to say
+                         * whether the channel dies in the source or the GTE. */
+                        {
+                            extern int g_MeshDbgBudget;
+                            if (g_MeshDbgBudget > 0 && g_GameWork.gameState == GameState_InGame)
+                            {
+                                const u8* _c = (const u8*)&scratchData->field_380.s_0.field_8;
+                                SH_DBG("[DPCL] in=%02x %02x %02x %02x out=%08x r0=%d g0=%d b0=%d",
+                                       _c[0], _c[1], _c[2], _c[3], (unsigned)MFC2(22),
+                                       (int)poly3->r0, (int)poly3->g0, (int)poly3->b0);
+                                /* out is almost exactly in/16, so one of the two
+                                 * GTE light inputs is 16x low. IR1..3 come from
+                                 * field_2B8 (per-vertex, <<5) and IR0 from
+                                 * field_252 (<<4); print both with their indices
+                                 * and the count that fills field_2B8. */
+                                SH_DBG("[DPCL] i15=%d f2B8=%d (IR=%d) i11=%d f252=%d (dp=%d) unkCnt=%d vtx=%d",
+                                       (int)scratchData->field_380.s_0.field_15,
+                                       (int)scratchData->field_2B8[scratchData->field_380.s_0.field_15],
+                                       (int)(scratchData->field_2B8[scratchData->field_380.s_0.field_15] << 5),
+                                       (int)scratchData->field_380.s_0.field_11,
+                                       (int)scratchData->field_252[scratchData->field_380.s_0.field_11],
+                                       (int)(scratchData->field_252[scratchData->field_380.s_0.field_11] << 4),
+                                       (int)meshHdr->unkCount_3, (int)meshHdr->vertexCount);
+                            }
+                        }
+#endif
 
                         var_t3  = 0x1000 - scratchData->field_252[scratchData->field_380.s_0.field_11] * 16;
                         var_t3 -= scratchData->field_380.s_0.field_4;
@@ -2596,10 +2774,16 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                         gte_dpcl();
                         PSX_ST_RGB(poly3, r3, MFC2(22));
 
-                        *(s32*)&poly3->u0 = *(s32*)&prim->field_0;
-                        *(s32*)&poly3->u1 = *(s32*)&prim->field_4 & 0xFFFFFF;
-                        *(u16*)&poly3->u2 = prim->field_8;
-                        *(u16*)&poly3->u3 = prim->field_A;
+                        /* The UV quartets were four punned wide stores that
+                         * read straight across s_Primitive: field_0 with the
+                         * clut behind it, field_4 with the tpage byte masked
+                         * out of field_6. Both the load and the store were
+                         * little-endian-only. Composed explicitly now, from
+                         * fields lm_endian.c has already put in host order. */
+                        PSX_ST_UV(poly3, u0, (SH_PACK_U32)prim->field_0 | ((SH_PACK_U32)prim->field_2 << 16));
+                        PSX_ST_UV(poly3, u1, (SH_PACK_U32)prim->field_4 | ((SH_PACK_U32)(prim->field_6.flags & 0xFF) << 16));
+                        PSX_ST_UV2(poly3, u2, v2, prim->field_8);
+                        PSX_ST_UV2(poly3, u3, v3, prim->field_A);
 
                         setlen(poly3, 12);
                         setlen(poly1, 8);
@@ -2761,10 +2945,10 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                 if ((s16)temp_a2_3 + temp_a3_2 < temp_t0_2 || (s16)temp_a1_2 + temp_a3_2 < temp_t0_2 ||
                     (s16)temp_a0_5 + temp_a3_2 < temp_t0_2 || (s16)temp_v1_11 + temp_a3_2 < temp_t0_2)
                 {
-                    PSX_ST_XY(poly3, x0, temp2);
-                    PSX_ST_XY(poly3, x1, temp_a1_2);
-                    PSX_ST_XY(poly3, x2, temp_a0_5);
-                    PSX_ST_XY(poly3, x3, temp_v1_11);
+                    PSX_ST_XYW(poly3, x0, temp2);
+                    PSX_ST_XYW(poly3, x1, temp_a1_2);
+                    PSX_ST_XYW(poly3, x2, temp_a0_5);
+                    PSX_ST_XYW(poly3, x3, temp_v1_11);
 #ifdef SH_PC_PORT
                     SH_PGXP_PROP4(scratchData, poly3,
                         scratchData->field_380.s_0.field_10, scratchData->field_380.s_0.field_11,
@@ -2797,10 +2981,10 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                     gte_dpcl();
                     PSX_ST_RGB(poly3, r3, MFC2(22));
 
-                    *(s32*)&poly3->u0 = *(s32*)&prim->field_0;
-                    *(s32*)&poly3->u1 = *(s32*)&prim->field_4 & 0xFFFFFF;
-                    *(u16*)&poly3->u2 = prim->field_8;
-                    *(u16*)&poly3->u3 = prim->field_A;
+                    PSX_ST_UV(poly3, u0, (SH_PACK_U32)prim->field_0 | ((SH_PACK_U32)prim->field_2 << 16));
+                    PSX_ST_UV(poly3, u1, (SH_PACK_U32)prim->field_4 | ((SH_PACK_U32)(prim->field_6.flags & 0xFF) << 16));
+                    PSX_ST_UV2(poly3, u2, v2, prim->field_8);
+                    PSX_ST_UV2(poly3, u3, v3, prim->field_A);
 
                     setlen(poly3, 12);
 #ifdef SH_PC_PORT
@@ -2929,14 +3113,14 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
             if ((s16)temp_a2_5 + temp_a3_4 < temp_t0_4 || (s16)temp_a1_4 + temp_a3_4 < temp_t0_4 ||
                 (s16)temp_a0_9 + temp_a3_4 < temp_t0_4 || (s16)temp_v1_21 + temp_a3_4 < temp_t0_4)
             {
-                PSX_ST_XY(poly3, x0, temp_a2_6);
-                PSX_ST_XY(poly2, x0, temp_a2_6);
-                PSX_ST_XY(poly3, x1, temp_a1_4);
-                PSX_ST_XY(poly2, x1, temp_a1_4);
-                PSX_ST_XY(poly3, x2, temp_a0_9);
-                PSX_ST_XY(poly2, x2, temp_a0_9);
-                PSX_ST_XY(poly3, x3, temp_v1_21);
-                PSX_ST_XY(poly2, x3, temp_v1_21);
+                PSX_ST_XYW(poly3, x0, temp_a2_6);
+                PSX_ST_XYW(poly2, x0, temp_a2_6);
+                PSX_ST_XYW(poly3, x1, temp_a1_4);
+                PSX_ST_XYW(poly2, x1, temp_a1_4);
+                PSX_ST_XYW(poly3, x2, temp_a0_9);
+                PSX_ST_XYW(poly2, x2, temp_a0_9);
+                PSX_ST_XYW(poly3, x3, temp_v1_21);
+                PSX_ST_XYW(poly2, x3, temp_v1_21);
 #ifdef SH_PC_PORT
                 SH_PGXP_PROP4(scratchData, poly3,
                     scratchData->field_380.s_0.field_10, scratchData->field_380.s_0.field_11,
@@ -3007,10 +3191,10 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                 gte_dpcs();
                 PSX_ST_RGB(poly3, r3, MFC2(22));
 
-                *(s32*)&poly3->u0 = *(s32*)&prim->field_0;
-                *(s32*)&poly3->u1 = *(s32*)&prim->field_4 & 0xFFFFFF;
-                *(u16*)&poly3->u2 = prim->field_8;
-                *(u16*)&poly3->u3 = prim->field_A;
+                PSX_ST_UV(poly3, u0, (SH_PACK_U32)prim->field_0 | ((SH_PACK_U32)prim->field_2 << 16));
+                PSX_ST_UV(poly3, u1, (SH_PACK_U32)prim->field_4 | ((SH_PACK_U32)(prim->field_6.flags & 0xFF) << 16));
+                PSX_ST_UV2(poly3, u2, v2, prim->field_8);
+                PSX_ST_UV2(poly3, u3, v3, prim->field_A);
 
                 setlen(poly3, 12);
                 setlen(poly2, 8);
@@ -3191,10 +3375,10 @@ __block1530:
         if ((s16)temp_a2_4 + temp_a3_3 < temp_t0_3 || (s16)temp_a1_3 + temp_a3_3 < temp_t0_3 ||
             (s16)temp_a0_7 + temp_a3_3 < temp_t0_3 || (s16)temp_v1_16 + temp_a3_3 < temp_t0_3)
         {
-            PSX_ST_XY(poly0, x0, temp3);
-            PSX_ST_XY(poly0, x1, temp_a1_3);
-            PSX_ST_XY(poly0, x2, temp_a0_7);
-            PSX_ST_XY(poly0, x3, temp_v1_16);
+            PSX_ST_XYW(poly0, x0, temp3);
+            PSX_ST_XYW(poly0, x1, temp_a1_3);
+            PSX_ST_XYW(poly0, x2, temp_a0_7);
+            PSX_ST_XYW(poly0, x3, temp_v1_16);
 #ifdef SH_PC_PORT
             SH_PGXP_PROP4(scratchData, poly0,
                 scratchData->field_380.s_0.field_10, scratchData->field_380.s_0.field_11,
@@ -3251,10 +3435,10 @@ __block1530:
                 PSX_ST_RGB(poly0, r3, 0x3C000000);
             }
 
-            *(s32*)&poly0->u0 = *(s32*)&prim->field_0;
-            *(s32*)&poly0->u1 = *(s32*)&prim->field_4 & 0xFFFFFF;
-            *(u16*)&poly0->u2 = prim->field_8;
-            *(u16*)&poly0->u3 = prim->field_A;
+            PSX_ST_UV(poly0, u0, (SH_PACK_U32)prim->field_0 | ((SH_PACK_U32)prim->field_2 << 16));
+            PSX_ST_UV(poly0, u1, (SH_PACK_U32)prim->field_4 | ((SH_PACK_U32)(prim->field_6.flags & 0xFF) << 16));
+            PSX_ST_UV2(poly0, u2, v2, prim->field_8);
+            PSX_ST_UV2(poly0, u3, v3, prim->field_A);
 
 #ifdef SH_PC_PORT
             /* PSX command byte 0x3C lands in p1/p2/p3 which PsyCross reads as
@@ -3279,6 +3463,25 @@ __block1530:
     if (_b1530Log < 8 && _b1530Total > 0) {
         _b1530Log++;
     }
+    }
+#endif
+#if defined(SH_XBOX360_PORT)
+    /* [MESHDRAW] census: the street cutscene reaches this drawer thousands of
+     * times a second yet the ordering table receives 3 prims. Bytes emitted
+     * per 600 meshes, with the last mesh's depths against its far limit, say
+     * whether the depth test or something else drops them. */
+    {
+        static unsigned s_calls, s_bytes, s_verts;
+        s_bytes += (unsigned)((u8*)poly0 - (u8*)GsOUT_PACKET_P);
+        s_verts += meshHdr->vertexCount;
+        if (g_GameWork.gameState == GameState_InGame && (++s_calls % 600) == 0) {
+            SH_DBG("[MESHDRAW] meshes=600 bytes=%u verts=%u | last n=%d z=%d,%d,%d far=%d fog=%d halfW=%d",
+                   s_bytes, s_verts, (int)meshHdr->vertexCount,
+                   (int)scratchData->field_18C[0], (int)scratchData->field_18C[1], (int)scratchData->field_18C[2],
+                   (int)scratchData->field_380.s_0.field_1C, (int)g_WorldEnvWork.isFogEnabled,
+                   (int)scratchData->field_380.s_0.field_0);
+            s_bytes = s_verts = 0;
+        }
     }
 #endif
     GsOUT_PACKET_P = poly0;
@@ -3422,22 +3625,22 @@ __block19CC:
         if ((s16)temp_a2_7 + temp_a3_5 < temp_t0_5 || (s16)temp_a1_5 + temp_a3_5 < temp_t0_5 ||
             (s16)temp_a0_13 + temp_a3_5 < temp_t0_5 || (s16)temp_v1_27 + temp_a3_5 < temp_t0_5)
         {
-            PSX_ST_XY(poly4, x0, temp);
-            PSX_ST_XY(poly4, x1, temp_a1_5);
-            PSX_ST_XY(poly4, x2, temp_a0_13);
-            PSX_ST_XY(poly4, x3, temp_v1_27);
+            PSX_ST_XYW(poly4, x0, temp);
+            PSX_ST_XYW(poly4, x1, temp_a1_5);
+            PSX_ST_XYW(poly4, x2, temp_a0_13);
+            PSX_ST_XYW(poly4, x3, temp_v1_27);
 #ifdef SH_PC_PORT
             SH_PGXP_PROP4(scratchData, poly4,
                 scratchData->field_380.s_0.field_10, scratchData->field_380.s_0.field_11,
                 scratchData->field_380.s_0.field_12, scratchData->field_380.s_0.field_13);
 #endif
 
-            *(s32*)&poly4->r0 = *(s32*)&scratchData->field_380.s_0.field_8;
+            PSX_ST_RGBC(poly4, PSX_LD_RGBC(&scratchData->field_380.s_0.field_8));
 
-            *(s32*)&poly4->u0 = *(s32*)&prim->field_0;
-            *(s32*)&poly4->u1 = *(s32*)&prim->field_4 & 0xFFFFFF;
-            *(u16*)&poly4->u2 = prim->field_8;
-            *(u16*)&poly4->u3 = prim->field_A;
+            PSX_ST_UV(poly4, u0, (SH_PACK_U32)prim->field_0 | ((SH_PACK_U32)prim->field_2 << 16));
+            PSX_ST_UV(poly4, u1, (SH_PACK_U32)prim->field_4 | ((SH_PACK_U32)(prim->field_6.flags & 0xFF) << 16));
+            PSX_ST_UV2(poly4, u2, v2, prim->field_8);
+            PSX_ST_UV2(poly4, u3, v3, prim->field_A);
 
             setlen(poly4, 9);
 
@@ -3629,10 +3832,10 @@ void func_80059E34(u32 arg0, s_MeshHeader* meshHdr, s_GteScratchData* scratchDat
             continue;
         }
 
-        PSX_ST_XY(poly, x0, x0);
-        PSX_ST_XY(poly, x1, x1);
-        PSX_ST_XY(poly, x2, x2);
-        PSX_ST_XY(poly, x3, x3);
+        PSX_ST_XYW(poly, x0, x0);
+        PSX_ST_XYW(poly, x1, x1);
+        PSX_ST_XYW(poly, x2, x2);
+        PSX_ST_XYW(poly, x3, x3);
 #ifdef SH_PC_PORT
         SH_PGXP_PROP4(scratchData, poly,
             scratchData->field_380.s_0.field_10, scratchData->field_380.s_0.field_11,
@@ -3640,10 +3843,13 @@ void func_80059E34(u32 arg0, s_MeshHeader* meshHdr, s_GteScratchData* scratchDat
 #endif
 
         PSX_ST_RGBC(poly, packedColor);
-        *(s32*)&poly->u0 = *(s32*)&prim->field_0;
-        PSX_ST_UV(poly, u1, ((*(u32*)&prim->field_4 & 0x1FFFFF) | (var_a2 << 16))); // Maybe `field_4` is bitfield
-        *(u16*)&poly->u2 = prim->field_8;
-        *(u16*)&poly->u3 = prim->field_A;
+        PSX_ST_UV(poly, u0, (SH_PACK_U32)prim->field_0 | ((SH_PACK_U32)prim->field_2 << 16));
+        /* Same composed word as the other UV sites, then the original 21-bit
+         * mask and tpage merge applied to it. */
+        PSX_ST_UV(poly, u1, ((((SH_PACK_U32)prim->field_4 | ((SH_PACK_U32)(prim->field_6.flags & 0xFF) << 16)) & 0x1FFFFF)
+                             | ((SH_PACK_U32)var_a2 << 16)));
+        PSX_ST_UV2(poly, u2, v2, prim->field_8);
+        PSX_ST_UV2(poly, u3, v3, prim->field_A);
 
         setlen(poly, 9);
 
@@ -3941,6 +4147,25 @@ void func_8005A900(s_MeshHeader* meshHdr, s32 offset, s_GteScratchData* scratchD
         inXy  += 3;
         inZ   += 3;
     }
+#if defined(SH_XBOX360_PORT)
+    /* [A900] probe: the matrix the world meshes are transformed with and the
+     * first vertex in/out, every 600th mesh while in game. TPS camera leaves
+     * the alley almost empty (Xenia 064) and this says whether the transform
+     * or the per-primitive culls are to blame. */
+    {
+        static unsigned s_a900;
+        if (g_GameWork.gameState == GameState_InGame && (++s_a900 % 600) == 0)
+            SH_DBG("[A900] n=%d R0=[%d %d %d] R1=[%d %d %d] R2=[%d %d %d] T=[%d %d %d] in0=(%d,%d,%d) out0=(%d,%d) z0=%d",
+                   (int)meshHdr->vertexCount,
+                   (int)mat->m[0][0], (int)mat->m[0][1], (int)mat->m[0][2],
+                   (int)mat->m[1][0], (int)mat->m[1][1], (int)mat->m[1][2],
+                   (int)mat->m[2][0], (int)mat->m[2][1], (int)mat->m[2][2],
+                   (int)mat->t[0], (int)mat->t[1], (int)mat->t[2],
+                   (int)meshHdr->verticesXy[0].vx, (int)meshHdr->verticesXy[0].vy, (int)meshHdr->verticesZ[0],
+                   (int)scratchData->screenXy_0[offset].vx, (int)scratchData->screenXy_0[offset].vy,
+                   (int)scratchData->screenZ_168[offset]);
+    }
+#endif
 }
 
 u8 func_8005AA08(s_MeshHeader* meshHdr, s32 arg1, s_GteScratchData2* scratchData) // 0x8005AA08
@@ -3948,11 +4173,14 @@ u8 func_8005AA08(s_MeshHeader* meshHdr, s32 arg1, s_GteScratchData2* scratchData
     // Same as `gte_strgb3`, but takes `VECTOR3` pointer to store results.
     // Not sure why this was needed, the func that uses it also ends up calling the normal `gte_strgb3` too.
 #ifdef SH_PC_PORT
-    #define gte_strgb3_vec( r0 ) do { \
-        *(u32*)((char*)(r0) + 0) = MFC2(20); \
-        *(u32*)((char*)(r0) + 4) = MFC2(21); \
-        *(u32*)((char*)(r0) + 8) = MFC2(22); \
-    } while(0)
+    /* Through gte_strgb3 (PSX_ST_CVEC), NOT three raw word stores: the GTE
+     * colour registers are LE-composed words and field_21C is read back as
+     * {r,g,b,pad} memory quartets (PSX_LD_RGBC / quartet copies below). A raw
+     * store lands [pad,b,g,r] on big-endian, so every lit vertex but the last
+     * triple of each mesh had red and blue exchanged -- the cyan Harry and
+     * grey children under the lighter in alley 3 on the 360. */
+    #define gte_strgb3_vec( r0 ) \
+        gte_strgb3((char*)(r0) + 0, (char*)(r0) + 4, (char*)(r0) + 8)
 #else
     #define gte_strgb3_vec( r0 ) __asm__ volatile ( \
         "swc2    $20, 0( %0 );"                      \
@@ -4026,6 +4254,9 @@ u8 func_8005AA08(s_MeshHeader* meshHdr, s32 arg1, s_GteScratchData2* scratchData
 
 void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_TAG* ot, bool arg3) // 0x8005AC50
 {
+#ifdef SH_PC_PORT
+    { extern int g_DrawerB; g_DrawerB++; }
+#endif
     typedef union
     {
         POLY_GT3* gt3;
@@ -4138,7 +4369,7 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
                 if (PsyX_PGXP_TriBackface(&scratchData->screenXy_0[scratchData->u.s_1.field_0],
                                           &scratchData->screenXy_0[scratchData->u.s_1.field_1],
                                           &scratchData->screenXy_0[scratchData->u.s_1.field_2], r4))
-                    continue;
+                continue;
             }
 #else
             if (r4 <= 0)
@@ -4162,20 +4393,25 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
 
             if (var_a3 != 0)
             {
-                *(s32*)&poly.gt3->r0 = *(s32*)&scratchData->field_21C[scratchData->u.s_1.field_4];
+                PSX_ST_RGBC(poly.gt3, PSX_LD_RGBC(&scratchData->field_21C[scratchData->u.s_1.field_4]));
                 *(s32*)&poly.gt3->r1 = *(s32*)&scratchData->field_21C[scratchData->u.s_1.field_5];
                 *(s32*)&poly.gt3->r2 = *(s32*)&scratchData->field_21C[scratchData->u.s_1.field_6];
             }
             else
             {
-                *(s32*)&poly.gt3->r0 = *(s32*)&poly.gt3->r1 = *(s32*)&poly.gt3->r2 = *(s32*)&scratchData->field_3D8;
+                { SH_PACK_U32 _c = PSX_LD_RGBC(&scratchData->field_3D8); PSX_ST_RGBC(poly.gt3, _c); PSX_ST_RGB(poly.gt3, r1, _c); PSX_ST_RGB(poly.gt3, r2, _c); }
             }
 
             poly.gt3->code = ((prim->field_6.flags >> 15) * 2) | 0x34;
 
-            *(s32*)&poly.gt3->u0 = *(s32*)&prim->field_0 + scratchData->u.s_1.field_8;
-            *(s32*)&poly.gt3->u1 = *(s32*)&prim->field_4 & 0xFFFFFF;
-            *(u16*)&poly.gt3->u2 = prim->field_8;
+            /* Same shape as the UV quartets in Gfx_MeshDraw: composed across
+             * s_Primitive and stored into (u8,u8,u16), so both ends need to be
+             * explicit on big-endian. field_8 here is a UV offset added to the
+             * composed word, exactly as on PSX. */
+            PSX_ST_UV(poly.gt3, u0, ((SH_PACK_U32)prim->field_0 | ((SH_PACK_U32)prim->field_2 << 16))
+                                    + (SH_PACK_U32)scratchData->u.s_1.field_8);
+            PSX_ST_UV(poly.gt3, u1, (SH_PACK_U32)prim->field_4 | ((SH_PACK_U32)(prim->field_6.flags & 0xFF) << 16));
+            PSX_ST_UV2(poly.gt3, u2, v2, prim->field_8);
 
 #ifdef SH_PC_PORT
             /* Encode per-vertex fog so the shader can blend toward fog color
@@ -4228,7 +4464,7 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
                                            &scratchData->screenXy_0[scratchData->u.s_1.field_1],
                                            &scratchData->screenXy_0[scratchData->u.s_1.field_2],
                                            &scratchData->screenXy_0[scratchData->u.s_1.field_3], sp4, _sp4b))
-                    continue;
+                continue;
             }
 #else
             if (sp4 <= 0)
@@ -4262,22 +4498,58 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
 
             if (var_a3 != 0)
             {
-                *(s32*)&poly.gt4->r0 = *(s32*)&scratchData->field_21C[scratchData->u.s_1.field_4];
+                PSX_ST_RGBC(poly.gt4, PSX_LD_RGBC(&scratchData->field_21C[scratchData->u.s_1.field_4]));
                 *(s32*)&poly.gt4->r1 = *(s32*)&scratchData->field_21C[scratchData->u.s_1.field_5];
                 *(s32*)&poly.gt4->r2 = *(s32*)&scratchData->field_21C[scratchData->u.s_1.field_6];
                 *(s32*)&poly.gt4->r3 = *(s32*)&scratchData->field_21C[scratchData->u.s_1.field_7];
             }
             else
             {
-                *(s32*)&poly.gt4->r0 = *(s32*)&poly.gt4->r1 = *(s32*)&poly.gt4->r2 = *(s32*)&poly.gt4->r3 = *(s32*)&scratchData->field_3D8;
+                { SH_PACK_U32 _c = PSX_LD_RGBC(&scratchData->field_3D8); PSX_ST_RGBC(poly.gt4, _c); PSX_ST_RGB(poly.gt4, r1, _c); PSX_ST_RGB(poly.gt4, r2, _c); PSX_ST_RGB(poly.gt4, r3, _c); }
             }
 
             poly.gt4->code = ((prim->field_6.flags >> 15) * 2) | 0x3C;
 
-            *(s32*)&poly.gt4->u0 = *(s32*)&prim->field_0 + scratchData->u.s_1.field_8;
-            *(s32*)&poly.gt4->u1 = *(s32*)&prim->field_4 & 0xFFFFFF;
-            *(u16*)&poly.gt4->u2 = prim->field_8;
-            *(u16*)&poly.gt4->u3 = prim->field_A;
+            PSX_ST_UV(poly.gt4, u0, ((SH_PACK_U32)prim->field_0 | ((SH_PACK_U32)prim->field_2 << 16))
+                                    + (SH_PACK_U32)scratchData->u.s_1.field_8);
+            PSX_ST_UV(poly.gt4, u1, (SH_PACK_U32)prim->field_4 | ((SH_PACK_U32)(prim->field_6.flags & 0xFF) << 16));
+            PSX_ST_UV2(poly.gt4, u2, v2, prim->field_8);
+            PSX_ST_UV2(poly.gt4, u3, v3, prim->field_A);
+#ifdef SH_PC_PORT
+            {
+                extern int g_MeshDbgBudget;
+                /* Sample the ARTIFACT, not the first prims drawn: the visible
+                 * defect is a handful of hugely stretched wedges, so only log
+                 * polys whose screen span is far larger than any real one. */
+                int _xs[4], _ys[4], _k;
+                int _mnx, _mxx, _mny, _mxy;
+                _xs[0] = poly.gt4->x0; _ys[0] = poly.gt4->y0;
+                _xs[1] = poly.gt4->x1; _ys[1] = poly.gt4->y1;
+                _xs[2] = poly.gt4->x2; _ys[2] = poly.gt4->y2;
+                _xs[3] = poly.gt4->x3; _ys[3] = poly.gt4->y3;
+                _mnx = _mxx = _xs[0]; _mny = _mxy = _ys[0];
+                for (_k = 1; _k < 4; _k++) {
+                    if (_xs[_k] < _mnx) _mnx = _xs[_k];
+                    if (_xs[_k] > _mxx) _mxx = _xs[_k];
+                    if (_ys[_k] < _mny) _mny = _ys[_k];
+                    if (_ys[_k] > _mxy) _mxy = _ys[_k];
+                }
+                if (g_MeshDbgBudget > 0 && g_GameWork.gameState == GameState_InGame &&
+                    ((_mxx - _mnx) > 250 || (_mxy - _mny) > 250))
+                {
+                    g_MeshDbgBudget--;
+                    SH_DBG("[WPOLY] uv=(%d,%d)(%d,%d)(%d,%d)(%d,%d) clut=%04x tpage=%04x",
+                           (int)poly.gt4->u0, (int)poly.gt4->v0, (int)poly.gt4->u1, (int)poly.gt4->v1,
+                           (int)poly.gt4->u2, (int)poly.gt4->v2, (int)poly.gt4->u3, (int)poly.gt4->v3,
+                           (unsigned)poly.gt4->clut, (unsigned)poly.gt4->tpage);
+                    SH_DBG("[WPOLY] xy=(%d,%d)(%d,%d)(%d,%d)(%d,%d) rgb=%d,%d,%d code=%02x",
+                           (int)poly.gt4->x0, (int)poly.gt4->y0, (int)poly.gt4->x1, (int)poly.gt4->y1,
+                           (int)poly.gt4->x2, (int)poly.gt4->y2, (int)poly.gt4->x3, (int)poly.gt4->y3,
+                           (int)poly.gt4->r0, (int)poly.gt4->g0, (int)poly.gt4->b0,
+                           (unsigned)poly.gt4->code);
+                }
+            }
+#endif
 
 #ifdef SH_PC_PORT
             /* Encode per-vertex fog. PsyCross GT4 reads v0 fog from pad2,
@@ -4300,6 +4572,18 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
         }
     }
 
+#if defined(SH_XBOX360_PORT)
+    /* [ALTCULL] census: where the alt drawer's primitives go, per 600 meshes. */
+    {
+        static unsigned s_calls, s_tot, s_depth, s_oob, s_pass;
+        s_tot += _dbgPrimTotal; s_depth += _dbgPrimDepthFail; s_oob += _dbgPrimOobFail; s_pass += _dbgPrimPass;
+        if (g_GameWork.gameState == GameState_InGame && (++s_calls % 600) == 0) {
+            SH_DBG("[ALTCULL] meshes=600 prims=%u depthFail=%u backface=%u oob=%u pass=%u far=%d fog=%d",
+                   s_tot, s_depth, s_tot - s_depth - s_oob - s_pass, s_oob, s_pass, (int)var_t9, (int)g_WorldEnvWork.isFogEnabled);
+            s_tot = s_depth = s_oob = s_pass = 0;
+        }
+    }
+#endif
 #ifdef SH_PC_PORT
     {
         static int _primSummaryLog = 0;
@@ -4842,10 +5126,10 @@ void Gfx_BillboardDraw(s32 arg0, q19_12 posX, q19_12 posY, q19_12 posZ, GsOT* ot
             s32 clut  = 0x8C;
             temp_lo_2 = Q12(sp498) / temp_a0;
 
-            *(s32*)&poly_gt4->r0 = *(s32*)&sp58[0];
+            PSX_ST_RGBC(poly_gt4, PSX_LD_RGBC(&sp58[0]));
             *(s32*)&poly_gt4->r1 = *(s32*)&sp58[1];
             *(s32*)&poly_gt4->r2 = *(s32*)&sp58[2];
-            temp_a0              = *(s32*)&sp58[3];
+            temp_a0              = PSX_LD_RGBC(&sp58[3]);
 
             do {} while (0); // @hack
 
@@ -4856,8 +5140,12 @@ void Gfx_BillboardDraw(s32 arg0, q19_12 posX, q19_12 posY, q19_12 posZ, GsOT* ot
             poly_gt4->clut       = clut;
             PSX_ST_RGB(poly_gt4, r3, temp_a0);
             *(s16*)&poly_gt4->u0 = *(s16*)&temp_fp->field_8;
-            *(s16*)&poly_gt4->u1 = sp4A0;
-            *(s16*)&poly_gt4->u2 = sp4A8;
+            /* sp4A0/sp4A8 are COMPOSED u|(v<<8) words; a 16-bit store of a
+             * composed value lands v in u1 on big-endian. Field-wise. */
+            poly_gt4->u1 = temp_fp->field_A;
+            poly_gt4->v1 = temp_fp->field_9;
+            poly_gt4->u2 = temp_fp->field_8;
+            poly_gt4->v2 = temp_fp->field_B;
             *(s16*)&poly_gt4->u3 = *(s16*)&temp_fp->field_A;
 
             temp_a0_2 = Q12_MULT(curPtr->field_8, temp_lo_2);
@@ -4915,7 +5203,7 @@ void Gfx_BillboardDraw(s32 arg0, q19_12 posX, q19_12 posY, q19_12 posZ, GsOT* ot
                 gte_dpcs();
                 gte_strgb((CVECTOR*)&poly_g4->r0);
 
-                *(s32*)&poly_g4->r1 = *(s32*)&poly_g4->r2 = *(s32*)&poly_g4->r3 = *(s32*)&poly_g4->r0;
+                { SH_PACK_U32 _c = ((SH_PACK_U32)poly_g4->r0) | ((SH_PACK_U32)poly_g4->g0 << 8) | ((SH_PACK_U32)poly_g4->b0 << 16); PSX_ST_RGB(poly_g4, r1, _c); PSX_ST_RGB(poly_g4, r2, _c); PSX_ST_RGB(poly_g4, r3, _c); }
 
                 *(s32*)&poly_g4->x0 = *(s32*)&poly_gt4->x0;
                 *(s32*)&poly_g4->x1 = *(s32*)&poly_gt4->x1;

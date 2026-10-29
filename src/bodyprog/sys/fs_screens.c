@@ -1,4 +1,5 @@
 #include "game.h"
+#include "sh_log.h"
 
 #include <psyq/libetc.h>
 #include <psyq/libpad.h>
@@ -33,6 +34,7 @@ void GameFs_TitleGfxSeek(void) // 0x80032BD0
 
 void GameFs_TitleGfxLoad(void) // 0x80032BF0
 {
+    SH_DBG("[TITLEQ] GameFs_TitleGfxLoad region=%d", (int)g_GameRegion);
 #ifdef SH_PC_PORT
     if (g_GameRegion == Region_JPN)
     {

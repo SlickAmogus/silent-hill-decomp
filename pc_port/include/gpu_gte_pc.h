@@ -32,6 +32,32 @@ extern void PGXP_StoreAddr(void* addr, int slot);
 }
 #endif
 
+/* Big-endian placement helpers -- see the long note on GTE_MT16 in PsyCross's
+ * inline_c.h. Short version: the GTE's 16-bit data and control registers are
+ * read through PAIR.sw.l, which on big-endian is physically the HIGH half. The
+ * union is deliberately left that way so RAW PACKED WORD LOADS cancel out, but
+ * it means a value written as a plain SCALAR, or a pair COMPOSED here in
+ * little-endian order, lands where nothing reads it.
+ *
+ *   GTE_MT16(v)   place a scalar 16-bit value
+ *   GTE_MTXYW(w)  re-halve an already-LE-composed (hi<<16)|lo word
+ *
+ * Both are the identity on little-endian. This is why the PS3 rendered
+ * characters and world pure black: gte_ldsv_ feeds IR1..IR3 straight into
+ * gte_dpcl, and with IR=0 the depth-cue result is 0 for every vertex. */
+#ifndef GTE_MT16
+#if defined(__BIG_ENDIAN__) || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+#define GTE_MT16( v )   ((unsigned int)(unsigned short)(v) << 16)
+#else
+#define GTE_MT16( v )   ((unsigned int)(unsigned short)(v))
+#endif
+#endif
+#if defined(__BIG_ENDIAN__) || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+#define GTE_MTXYW( w )  ((((unsigned int)(w)) << 16) | (((unsigned int)(w)) >> 16))
+#else
+#define GTE_MTXYW( w )  ((unsigned int)(w))
+#endif
+
 /* gte_lddqa - Load DQA register (COP2 control reg 27) */
 #undef gte_lddqa
 #define gte_lddqa(r0) CTC2(r0, 27)
@@ -53,7 +79,7 @@ extern void PGXP_StoreAddr(void* addr, int slot);
      * negative vz (sign-extending put -1 into L21). */ \
     unsigned int _z = (unsigned int)(unsigned short)_sv->vz; \
     CTC2(_xy, 8); \
-    CTC2(_z, 9); \
+    CTC2(GTE_MT16(_z), 9); \
     CTC2(0, 10); \
     CTC2(0, 11); \
     CTC2(0, 12); \
@@ -62,7 +88,7 @@ extern void PGXP_StoreAddr(void* addr, int slot);
 /* gte_ldsv_ - Broadcast single value to universal vector (regs 9,10,11) */
 #undef gte_ldsv_
 #define gte_ldsv_(val) do { \
-    int _v = (int)(val); \
+    unsigned int _v = GTE_MT16(val); \
     MTC2(_v, 9); MTC2(_v, 10); MTC2(_v, 11); \
 } while(0)
 
@@ -78,20 +104,20 @@ static inline unsigned int gte_stIR1_func(void) { return MFC2(9); }
     unsigned int _xy = *(unsigned int*)&_sv->vx; \
     unsigned int _z = (unsigned int)_sv->vz; \
     MTC2(_xy, 0); \
-    MTC2(_z, 1); \
+    MTC2(GTE_MT16(_z), 1); \
 } while(0)
 
 /* gte_SetLightSourceXY - Set light source X,Y (COP2 control reg 8) */
 #undef gte_SetLightSourceXY
 #define gte_SetLightSourceXY(x, y) do { \
     unsigned int _val = ((unsigned int)(x) & 0xFFFF) | ((unsigned int)(y) << 16); \
-    CTC2(_val, 8); \
+    CTC2(GTE_MTXYW(_val), 8); \
 } while(0)
 
 /* gte_SetLightSourceZ - Set light source Z (COP2 control reg 9) + clear 10-12 */
 #undef gte_SetLightSourceZ
 #define gte_SetLightSourceZ(z) do { \
-    CTC2((z) & 0xFFFF, 9); \
+    CTC2(GTE_MT16(z), 9); \
     CTC2(0, 10); \
     CTC2(0, 11); \
     CTC2(0, 12); \
@@ -99,6 +125,9 @@ static inline unsigned int gte_stIR1_func(void) { return MFC2(9); }
 
 /* gte_SetRotMatrix_Row0_1 - Load rotation matrix rows 0 and 1 */
 #undef gte_SetRotMatrix_Row0_1
+/* Raw word loads DELIBERATELY -- see gtereg.h. The control registers' halfword
+ * accessors are not flipped for big-endian, so a raw word load of an s16 pair
+ * cancels out correctly. */
 #define gte_SetRotMatrix_Row0_1(r0) do { \
     unsigned int *_p = (unsigned int*)(r0); \
     CTC2(_p[0], 0); \
@@ -119,9 +148,9 @@ static inline unsigned int gte_stIR1_func(void) { return MFC2(9); }
 #define gte_LoadVector0_1_2_XYZ(xy, z) do { \
     unsigned int *_xy = (unsigned int*)(xy); \
     unsigned short *_z = (unsigned short*)(z); \
-    MTC2(_xy[0], 0); MTC2((unsigned int)_z[0], 1); \
-    MTC2(_xy[1], 2); MTC2((unsigned int)_z[1], 3); \
-    MTC2(_xy[2], 4); MTC2((unsigned int)_z[2], 5); \
+    MTC2(_xy[0], 0); MTC2(GTE_MT16(_z[0]), 1); \
+    MTC2(_xy[1], 2); MTC2(GTE_MT16(_z[1]), 3); \
+    MTC2(_xy[2], 4); MTC2(GTE_MT16(_z[2]), 5); \
 } while(0)
 
 /* gte_FetchScreen0_1_2_XYZ - Fetch 3 screen vertices and Z values */
@@ -152,19 +181,19 @@ static inline unsigned int gte_stIR1_func(void) { return MFC2(9); }
 #undef gte_SetRotMatrix_custom
 #define gte_SetRotMatrix_custom(mat) do { \
     short *_m = (short*)(mat); \
-    CTC2(((unsigned int)(unsigned short)_m[3] << 16) | (unsigned short)_m[0], 0); \
-    CTC2(((unsigned int)(unsigned short)_m[1] << 16) | (unsigned short)_m[6], 1); \
-    CTC2(((unsigned int)(unsigned short)_m[7] << 16) | (unsigned short)_m[4], 2); \
-    CTC2(((unsigned int)(unsigned short)_m[5] << 16) | (unsigned short)_m[2], 3); \
-    CTC2((unsigned int)(unsigned short)_m[8], 4); \
+    CTC2(GTE_MTXYW(((unsigned int)(unsigned short)_m[3] << 16) | (unsigned short)_m[0]), 0); \
+    CTC2(GTE_MTXYW(((unsigned int)(unsigned short)_m[1] << 16) | (unsigned short)_m[6]), 1); \
+    CTC2(GTE_MTXYW(((unsigned int)(unsigned short)_m[7] << 16) | (unsigned short)_m[4]), 2); \
+    CTC2(GTE_MTXYW(((unsigned int)(unsigned short)_m[5] << 16) | (unsigned short)_m[2]), 3); \
+    CTC2(GTE_MT16(_m[8]), 4); \
 } while(0)
 
 /* gte_LoadVector0_XYZ - Load individual x,y,z into Vector 0 */
 #undef gte_LoadVector0_XYZ
 #define gte_LoadVector0_XYZ(x, y, z) do { \
     unsigned int _val = ((unsigned int)(x) & 0xFFFF) | ((unsigned int)(y) << 16); \
-    MTC2(_val, 0); \
-    MTC2((int)(z), 1); \
+    MTC2(GTE_MTXYW(_val), 0); \
+    MTC2(GTE_MT16(z), 1); \
 } while(0)
 
 /* gte_ldvxy0_Zero / gte_ldvxy0 - Load VXY0 register */
@@ -172,7 +201,7 @@ static inline unsigned int gte_stIR1_func(void) { return MFC2(9); }
 #define gte_ldvxy0_Zero() MTC2(0, 0)
 
 #undef gte_ldvxy0
-#define gte_ldvxy0(val) MTC2(val, 0)
+#define gte_ldvxy0(val) MTC2(GTE_MTXYW(val), 0)
 
 /* gte_ldvz0 - Sets the GTE vz0 register to 0 (upstream renamed from gte_gte_ldvz0). */
 #undef gte_ldvz0
@@ -207,16 +236,16 @@ static inline unsigned int gte_stMAC2_func(void) { return MFC2(26); }
 /* gte_ldsv3_ - Load 3 values to universal vector */
 #undef gte_ldsv3_
 #define gte_ldsv3_(x, y, z) do { \
-    MTC2((int)(x), 9); MTC2((int)(y), 10); MTC2((int)(z), 11); \
+    MTC2(GTE_MT16(x), 9); MTC2(GTE_MT16(y), 10); MTC2(GTE_MT16(z), 11); \
 } while(0)
 
 /* gte_ldR13R21 - Load negated value to control reg 1 */
 #undef gte_ldR13R21
-#define gte_ldR13R21(val) CTC2(-(int)(val), 1)
+#define gte_ldR13R21(val) CTC2(GTE_MTXYW(-(int)(val)), 1)
 
 /* gte_ldR11R12 - Load value to control regs 0 and 2 */
 #undef gte_ldR11R12
-#define gte_ldR11R12(r0) do { CTC2(r0, 0); CTC2(r0, 2); } while(0)
+#define gte_ldR11R12(r0) do { CTC2(GTE_MTXYW(r0), 0); CTC2(GTE_MTXYW(r0), 2); } while(0)
 
 /* gte_IsDisabled - Always returns 0 (GTE is always available on PC) */
 #undef gte_IsDisabled
@@ -229,9 +258,9 @@ static inline unsigned int gte_stMAC2_func(void) { return MFC2(26); }
 /* gte_ldir_stbk - Copy background color (BK R/G/B) into IR1/IR2/IR3 */
 #undef gte_ldir_stbk
 #define gte_ldir_stbk() do { \
-    MTC2(CFC2(13), 9);  \
-    MTC2(CFC2(14), 10); \
-    MTC2(CFC2(15), 11); \
+    MTC2(GTE_MT16(CFC2(13)), 9);  \
+    MTC2(GTE_MT16(CFC2(14)), 10); \
+    MTC2(GTE_MT16(CFC2(15)), 11); \
 } while(0)
 
 /* gte_ldmac_stir - Copy MAC1/MAC2/MAC3 into background color (BK R/G/B) */

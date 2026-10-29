@@ -10,34 +10,9 @@
  */
 #include <stdint.h>
 
-#include "sh_log.h"
-
-/* ---- XA / CD audio (xa_xbox.c) ------------------------------------------- */
-
-void XaPlayer_Play(uint16_t xaIdx)
-{
-    static uint16_t s_lastIdx = 0xFFFF;
-    if (xaIdx != s_lastIdx) {
-        SH_DBG("[XA] stub: track %u requested, no CD audio backend yet", (unsigned)xaIdx);
-        s_lastIdx = xaIdx;
-    }
-}
-
-void XaPlayer_SetVolume(int16_t volLeft, int16_t volRight) { (void)volLeft; (void)volRight; }
-void XaPlayer_Stop(void)   { }
-void XaPlayer_Update(void) { }
-
-int Xa_IsVoiceAudioDraining(void) { return 0; }
-int Xa_VoiceGapHold(void)         { return 0; }
-
-/* ---- FMV (fmv_xbox.c) ---------------------------------------------------- */
-
-int FMV_Play(int file_idx, int max_frames)
-{
-    (void)max_frames;
-    SH_DBG("[FMV] stub: movie %d skipped, no 360 decoder yet", file_idx);
-    return 0;
-}
+/* XA (xa_xbox.c) and FMV (fmv_xbox.c) are real on this build now: the
+ * shared players compile for the 360 with a ms clock and an XAudio2 flush
+ * from the HAL (see their SH_XBOX360_PORT blocks). */
 
 /* ---- RetroAchievements (ra_xbox.c, ra_badge_xbox.c) ---------------------- */
 

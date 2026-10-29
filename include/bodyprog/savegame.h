@@ -40,6 +40,16 @@ typedef struct _Savegame
     /* 0x250    */ q20_12          gameplayTimer;
     /* 0x254    */ q20_12          runDistance;
     /* 0x258    */ q20_12          walkDistance;
+/* Reversed under big-endian, where the first-declared member takes the HIGH
+ * bits of the storage unit instead of the low ones. The offset comments give
+ * the PSX bit positions, which are the on-disc ones: this group arrives inside
+ * a demo blob or a save file (see demo_endian.c) and a one-byte group cannot be
+ * corrected by byte-swapping. */
+#if defined(__BIG_ENDIAN__) || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+    /* 0x25C+3  */ u8              pickedUpSpecialItemCount : 5;
+    /* 0x25C+1  */ u8              add290Hours              : 2;
+    /* 0x25C+0  */ u8              isNextFearMode           : 1;
+#else
     /* 0x25C+0  */ u8              isNextFearMode           : 1; /** `bool` | Makes savegame entry text gold. */
     /* 0x25C+1  */ u8              add290Hours              : 2; /** Adds 290 hours per 1 bit, i.e. 290, 580, 870. */
     /* 0x25C+3  */ u8              pickedUpSpecialItemCount : 5; /** Red/None: 0?, Yellow: 8, Green: 16, @unused Rainbow: 24. */
@@ -57,11 +67,21 @@ typedef struct _Savegame
                                                                   * special items than normal by additionally reading one of the two bits
                                                                   * for the Hyper Blaster beam color.
                                                                   */
+#endif
     /* 0x25D    */ u8              meleeKillCount;
     /* 0x25E    */ u8              meleeKillCountB; // Can't be packed if used as `u16`.
     /* 0x25F    */ u8              rangedKillCount;
+/* Reversed under big-endian for the same reason as the 0x25C group. This one is
+ * a 32-bit unit, so demo_endian.c byte-swaps the word and the reversal here is
+ * what makes the two agree -- swapping alone would leave gameDifficulty in the
+ * low nibble. */
+#if defined(__BIG_ENDIAN__) || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+    /* 0x260+28 */ s32             gameDifficulty : 4;  /** `e_GameDifficulty` */
+    /* 0x260+0  */ u32             field_260      : 28;
+#else
     /* 0x260+0  */ u32             field_260      : 28;
     /* 0x260+28 */ s32             gameDifficulty : 4;  /** `e_GameDifficulty` */
+#endif
     /* 0x264    */ u16             firedShotCount;      /** Missed shot count = firedShotCount - (closeRangeShotCount + midRangeShotCount + longRangeShotCount). */
     /* 0x266    */ u16             closeRangeShotCount; /** Only hits counted. */
     /* 0x268    */ u16             midRangeShotCount;   /** Only hits counted. */

@@ -63,8 +63,19 @@ typedef union
 typedef struct _AnalogController
 {
     u8  status;
+/* Reversed under big-endian, where the first-declared member takes the HIGH
+ * nibble. This struct is not only filled by the pad HAL -- it is also read
+ * straight off the disc as the first 8 bytes of every s_DemoFrameData record
+ * in MISC/PLAY****.DAT (see demo_endian.c), and a nibble pair cannot be put
+ * right by byte-swapping. Both accessors are named-field, so live input is
+ * unaffected either way. */
+#if defined(__BIG_ENDIAN__) || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+    u8  terminal_type  : 4; /** `e_PadTerminalType` */
+    u8  received_bytes : 4; /** Number of bytes received / 2. */
+#else
     u8  received_bytes : 4; /** Number of bytes received / 2. */
     u8  terminal_type  : 4; /** `e_PadTerminalType` */
+#endif
     u16 digitalButtons;
     u8  rightX;
     u8  rightY;

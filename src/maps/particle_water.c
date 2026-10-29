@@ -449,10 +449,10 @@ bool sharedFunc_800CBDA8_1_s02(POLY_FT4** poly, s32 idx)
     PSX_ST_UV((*poly), u1, ((temp_v1_14 & 0x2) * 16) + 0x5F + ((ptr->field_17C + ((temp_v1_14 & 0x1) << 6)) << 8) + 0x2D0000);
 
     temp_v1_15          = sharedData_800DFB7C_0_s00[idx].field_C.s_1.field_0;
-    *(u16*)&(*poly)->u2 = ((temp_v1_15 & 0x2) * 16) + 0x40 + ((ptr->field_17D + (ptr->field_17C + ((temp_v1_15 & 1) << 6))) << 8);
+    do { u32 _pv = (u32)(((temp_v1_15 & 0x2) * 16) + 0x40 + ((ptr->field_17D + (ptr->field_17C + ((temp_v1_15 & 1) << 6))) << 8)); ((*poly))->u2 = (u8)_pv; ((*poly))->v2 = (u8)(_pv >> 8); } while (0);
 
     temp_v1_16          = sharedData_800DFB7C_0_s00[idx].field_C.s_1.field_0;
-    *(u16*)&(*poly)->u3 = ((temp_v1_16 & 0x2) * 16) + 0x5F + ((ptr->field_17D + (ptr->field_17C + ((temp_v1_16 & 1) << 6))) << 8);
+    do { u32 _pv = (u32)(((temp_v1_16 & 0x2) * 16) + 0x5F + ((ptr->field_17D + (ptr->field_17C + ((temp_v1_16 & 1) << 6))) << 8)); ((*poly))->u3 = (u8)_pv; ((*poly))->v3 = (u8)(_pv >> 8); } while (0);
 
     setSemiTrans(*poly, 1);
     ptr->field_180 = (ptr->field_180 * func_80055D78(sharedData_800DFB7C_0_s00[idx].field_0.vx_0, sharedData_800DFB7C_0_s00[idx].vy_8, sharedData_800DFB7C_0_s00[idx].field_4.vz_4)) >> 7;
@@ -738,8 +738,8 @@ void sharedFunc_800CCE60_1_s02(void)
 
             PSX_ST_UV(poly, u0, ((var_t2_2 << 8) + 64) + (ptr->field_260 << 16));
             PSX_ST_UV(poly, u1, ((var_t2_2 << 8) + 95) + (ptr->field_262 << 16));
-            *(u16*)&poly->u2 = ((var_t2_2 + var_t3_2) << 8) + 64;
-            *(u16*)&poly->u3 = ((var_t2_2 + var_t3_2) << 8) + 95;
+            do { u32 _pv = (u32)(((var_t2_2 + var_t3_2) << 8) + 64); (poly)->u2 = (u8)_pv; (poly)->v2 = (u8)(_pv >> 8); } while (0);
+            do { u32 _pv = (u32)(((var_t2_2 + var_t3_2) << 8) + 95); (poly)->u3 = (u8)_pv; (poly)->v3 = (u8)(_pv >> 8); } while (0);
 
             addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[(((ptr->field_1BC[k][0] + ptr->field_1BC[k][1] + ptr->field_1BC[k + 1][0] + ptr->field_1BC[k + 1][1]) >> 2) + 0x100) >> 3], poly);
             poly++;

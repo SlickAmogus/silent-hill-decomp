@@ -33,7 +33,16 @@
  */
 #include <string.h>
 #include <stdint.h>
+#if defined(SH_XBOX360_PORT)
+/* 360: no nxdk kernel header. The HAL exports a ms-since-boot clock
+ * (main_xdk.cpp, GetTickCount) and an output-queue flush (audio_xaudio2.cpp). */
+extern unsigned int Sh360_TickMs(void);
+extern void         Audio360_DropQueued(void);
+#define KeTickCount          (Sh360_TickMs())
+#define DSound_XboxDropQueued Audio360_DropQueued
+#else
 #include <xboxkrnl/xboxkrnl.h>   /* KeTickCount: kernel ms-since-boot clock */
+#endif
 
 #include "xa_player.h"   /* the exact prototypes sd_call.c/game_main.c compile against */
 #include "sh_log.h"
@@ -56,6 +65,20 @@ extern unsigned int g_FileXaLoc[];
 /* Mirror of the decomp's s_XaItemData (sound_system.h) — same local copy the
  * PC player uses. GNU bitfield layout (-mno-ms-bitfields) => 12 bytes:
  * fileIdx @0, sector @4..6, group idx @7, length @8..10, group @11. */
+#if defined(SH_XBOX360_PORT)
+/* MSVC-PPC does not pack a u32:24 and a u8:8 bitfield into one unit, so the
+ * GNU 12-byte mirror below would read the wrong bytes. Declare the struct
+ * EXACTLY as include/bodyprog/sound/sound_system.h does; the table is compiled
+ * by the same compiler, so by-name access is right whatever the layout is. */
+typedef struct {
+    uint8_t  xaFileIdx_0;
+    int8_t   __pad_1[3];
+    uint32_t sector_4_bits      : 24;
+    uint8_t  field_4_24         : 8;
+    uint32_t audioLength_8_bits : 24;
+    uint8_t  field_8_24         : 8;
+} s_XaItemData;
+#else
 typedef struct {
     uint8_t  xaFileIdx_0;
     uint8_t  pad_1[3];
@@ -64,6 +87,7 @@ typedef struct {
     uint32_t audioLength_8_bits : 24;
     uint8_t  field_8_24;
 } s_XaItemData;
+#endif
 
 extern s_XaItemData g_XaItemData[727];
 
@@ -591,7 +615,11 @@ void XaPlayer_Stop(void)
      * ring), or the tail of this line plays over the start of the next one --
      * the doubled cutscene voices. Clearing the decode ring above is not
      * enough; that audio has already left it. */
+#if defined(SH_XBOX360_PORT)
+    Audio360_DropQueued();
+#else
     { extern void DSound_XboxDropQueued(void); DSound_XboxDropQueued(); }
+#endif
 
     /* Clear the streaming-state flags Sd_AudioStreamingCheck consults. Safe
      * for the queued Stop-before-Play in Sd_XaAudioPlayTaskAdd: the upcoming

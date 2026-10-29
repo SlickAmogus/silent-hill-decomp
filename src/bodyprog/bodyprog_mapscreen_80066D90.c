@@ -968,7 +968,7 @@ s32 func_80067914(s32 paperMapIdx, u16 arg1, u16 arg2, u16 arg3) // 0x80067914
     setXY1Fast(line, sp10[2], sp10[3]);
     setXY2Fast(line, sp10[4], sp10[5]);
     setXY3Fast(line, sp10[0], sp10[1]);
-    *(u16*)&line->r0 = 0x1010; // TODO: Use packing macro?
+    do { u32 _pv = (u32)(0x1010); (line)->r0 = (u8)_pv; (line)->g0 = (u8)(_pv >> 8); } while (0); // TODO: Use packing macro?
     line->b0         = 0x10;
 
     addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[2], line);
@@ -978,11 +978,11 @@ s32 func_80067914(s32 paperMapIdx, u16 arg1, u16 arg2, u16 arg3) // 0x80067914
     setXY0Fast(poly, sp10[0], sp10[1]);
     setXY1Fast(poly, sp10[2], sp10[3]);
     setXY2Fast(poly, sp10[4], sp10[5]);
-    *(u16*)&poly->r0 = 0x0000;
+    do { u32 _pv = (u32)(0x0000); (poly)->r0 = (u8)_pv; (poly)->g0 = (u8)(_pv >> 8); } while (0);
     poly->b0         = 0xFF;
-    *(u16*)&poly->r1 = 0xFF00;
+    do { u32 _pv = (u32)(0xFF00); (poly)->r1 = (u8)_pv; (poly)->g1 = (u8)(_pv >> 8); } while (0);
     poly->b1         = 0x00;
-    *(u16*)&poly->r2 = 0xFF00;
+    do { u32 _pv = (u32)(0xFF00); (poly)->r2 = (u8)_pv; (poly)->g2 = (u8)(_pv >> 8); } while (0);
     poly->b2         = 0x00;
 
     addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[2], poly);
@@ -1017,11 +1017,11 @@ bool func_80068CC0(s32 arg0) // 0x80068CC0
                 setXY2Fast(poly,  8, -200);
             }
 
-            *(u16*)&poly->r0 = 0x1010;
+            do { u32 _pv = (u32)(0x1010); (poly)->r0 = (u8)_pv; (poly)->g0 = (u8)(_pv >> 8); } while (0);
             poly->b0         = 0xC4;
-            *(u16*)&poly->r1 = 0x8080;
+            do { u32 _pv = (u32)(0x8080); (poly)->r1 = (u8)_pv; (poly)->g1 = (u8)(_pv >> 8); } while (0);
             poly->b1         = 0xC4;
-            *(u16*)&poly->r2 = 0x8080;
+            do { u32 _pv = (u32)(0x8080); (poly)->r2 = (u8)_pv; (poly)->g2 = (u8)(_pv >> 8); } while (0);
             poly->b2         = 0xC4;
 
             addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[2], poly);

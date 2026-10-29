@@ -3528,10 +3528,10 @@ void func_800DBD94(s_800F3DAC* arg0, GsOT_TAG* ot) // 0x800DBD94
             continue;
         }
 
-        PSX_ST_XY(poly, x0, var_s6);
-        PSX_ST_XY(poly, x1, var_s5);
-        PSX_ST_XY(poly, x2, sp30);
-        PSX_ST_XY(poly, x3, sp34);
+        PSX_ST_XYW(poly, x0, var_s6);
+        PSX_ST_XYW(poly, x1, var_s5);
+        PSX_ST_XYW(poly, x2, sp30);
+        PSX_ST_XYW(poly, x3, sp34);
 
         var_a0  = (i & 1) ? 0 : 0x7F;
         temp_v1 = 0x40;

@@ -19,6 +19,9 @@
 #include "hires_override.h" /* HIRES_POOL_* virtual-slot clut encoding */
 #include "xbox_respool.h"   /* resident chunk textures (resident_textures) */
 
+/* Bumped with every gen++ below (see PsxVram_DecodeEpoch). */
+static unsigned s_decodeEpoch = 1;
+
 #define VRAM_W   1024
 #define VRAM_H   512
 #define TEX_DIM  256                 /* a PSX texture page is 256x256 texels */
@@ -37,6 +40,7 @@ typedef struct {
     unsigned  lastUse;        /* frame of last GetTexture hit (LRU eviction) */
     unsigned  seq;            /* monotonic bind order; > s_drainedSeq => GPU may still read it */
     unsigned  hits;           /* aged use count: protects every-frame pages from churn */
+    unsigned  gen;            /* bumped on every decode into this slot (see PsxVram_DataGen) */
     /* Source-VRAM footprint of this decoded page, in 16-bit words, [x0,x1) x
      * [y0,y1). Page rect and CLUT rect are tracked separately so a CLUT-only
      * write still invalidates an indexed page that samples it. */
@@ -82,6 +86,7 @@ typedef struct {
     int       key;                            /* tpage, or -1 */
     uint8_t*  data;                           /* swizzled indices */
     unsigned  lastUse, seq, hits;
+    unsigned  gen;                            /* bumped on every decode into this slot */
     int       px0, py0, px1, py1;             /* source page rect (invalidation) */
 } PageEntry;
 
@@ -89,6 +94,7 @@ typedef struct {
     int       key;                            /* clut, or -1 */
     uint32_t* data;                           /* PAL_ENTRIES A8R8G8B8 */
     unsigned  lastUse, seq;
+    unsigned  gen;                            /* bumped on every palette build into this slot */
     int       cx0, cy0, cx1, cy1;             /* source CLUT rect (invalidation) */
 } PalEntry;
 
@@ -219,6 +225,29 @@ void PsxVram_DumpFontStrip(const char* tag)
     }
 }
 
+/* PSX VRAM is a little-endian 16-bit array, and EVERYTHING that reads it --
+ * Psx16ToArgb's 5-5-5-STP unpack, the 4bpp nibble and 8bpp byte index
+ * extraction, the CLUT lookups -- assumes that bit layout inside each word.
+ * LoadImage's source is raw disc data (ReadTIM does not parse, it points
+ * straight into the file buffer), so on a big-endian host every word arrives
+ * byte-reversed.
+ *
+ * On PS3 that put the STP bit (15) where G bit 2 belongs, so EVERY texel
+ * decoded semi-transparent -- measured as alpha 0x80 on every sample -- and
+ * scrambled the colour channels with it. The world still showed "detail",
+ * which is what made it look like a lighting or UV problem rather than a
+ * decode one.
+ *
+ * Converting on the way IN keeps every reader unchanged and costs one swap
+ * per uploaded word. No-op on little-endian. */
+#if defined(__BIG_ENDIAN__) || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+#define PSX_VRAM_LE16(v)  ((uint16_t)((((uint16_t)(v)) >> 8) | (((uint16_t)(v)) << 8)))
+#define PSX_VRAM_SWAPPED  1
+#else
+#define PSX_VRAM_LE16(v)  ((uint16_t)(v))
+#define PSX_VRAM_SWAPPED  0
+#endif
+
 /* LoadImage: copy w*h 16-bit source pixels into VRAM at (x,y), row by row. */
 void PsxVram_Load(int x, int y, int w, int h, const uint16_t* src)
 {
@@ -227,6 +256,15 @@ void PsxVram_Load(int x, int y, int w, int h, const uint16_t* src)
 
     if (!src || w <= 0 || h <= 0 || x < 0 || y < 0 || x >= VRAM_W || y >= VRAM_H)
         return;
+    {   /* [TITLELOAD] uploads into the title image's VRAM area (x 832..1023,
+         * rows 0..511) and its CLUT row (y 15): rect + first words. Capped. */
+        static int s_tlLog;
+        if (s_tlLog < 16 && ((x >= 832 && y < 512) || y == 15)) {
+            s_tlLog++;
+            SH_DBG("[TITLELOAD] rect=(%d,%d %dx%d) w0=%04x w1=%04x w2=%04x w3=%04x",
+                   x, y, w, h, src[0], src[1], src[2], src[3]);
+        }
+    }
 
     if (x + w > VRAM_W) w = VRAM_W - x;
     FontStripWriteProbe("Load", x, y, w, h);
@@ -373,6 +411,18 @@ static void PageDecodeIndices(int tpage, uint8_t* out)
     const int tp = (tpage >> 7) & 3;          /* 0 = 4bit, 1 = 8bit */
     int u, v;
 
+    if ((tpage & 0x18F) == 0x08D) {           /* the title's 8bpp pages at x=13 */
+        static int s_pdLog;
+        if (s_pdLog < 4) {
+            int nz = 0, k;
+            const uint16_t* r0 = &s_vram[(ty & (VRAM_H - 1)) * VRAM_W + tx];
+            for (k = 0; k < 128; k++) if (r0[k]) nz++;
+            s_pdLog++;
+            SH_DBG("[TITLEPAGE] tpage=0x%x tx=%d ty=%d row0 nonzero words=%d/128 w0=%04x w1=%04x",
+                   tpage, tx, ty, nz, r0[0], r0[1]);
+        }
+    }
+
     for (v = 0; v < TEX_DIM; v++) {
         const uint16_t* row = &s_vram[((ty + v) & (VRAM_H - 1)) * VRAM_W];
         unsigned        sy  = s_swzY[v];
@@ -465,6 +515,17 @@ static void PaletteBuild(int clut, uint32_t* out)
     const int cy  = (clut >> 6) & 0x1FF;
     const uint16_t* row = &s_vram[(cy & (VRAM_H - 1)) * VRAM_W];
     int i;
+
+    if (clut == 0x3CE) {
+        static int s_pbLog;
+        if (s_pbLog < 4) {
+            int nz = 0;
+            for (i = 0; i < 256; i++) if (row[cx + i]) nz++;
+            s_pbLog++;
+            SH_DBG("[TITLEPAL] clut=0x%x at (%d,%d) raw=%04x %04x %04x %04x %04x nonzero=%d/256",
+                   clut, cx, cy, row[cx], row[cx + 1], row[cx + 2], row[cx + 3], row[cx + 4], nz);
+        }
+    }
 
     for (i = 0; i < PAL_ENTRIES; i++) {
         int sx = cx + i;
@@ -801,6 +862,8 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
         g_PsxDecodeCount++;
     }
     s_cache[i].key     = key;
+    s_cache[i].gen++;
+    s_decodeEpoch++;
     s_cache[i].lastUse = (unsigned)g_Nv2aFrameCount;
     s_cache[i].seq     = ++s_bindSeq;
     /* Seed at 1, not 0: a page we just paid 256KB to decode must not be the very
@@ -873,6 +936,27 @@ void PsxVram_InvalidateResidentSlot(int slot)
     for (i = 0; i < PAL_N; i++)
         if ((s_pals[i].key & ~0x1F) == palBase && s_pals[i].key != -1)
             s_pals[i].key = -2;
+}
+
+/* Content generation of a decoded page / palette / ARGB page this cache handed
+ * out: bumped every time that slot is (re)decoded. A backend that keeps its
+ * own GPU copies keys them by (pointer, gen) and re-uploads only when the gen
+ * moved. 0 = not one of ours (always re-upload). The 360 backend used to
+ * compose and upload 256KB on EVERY texture change -- ~390 a frame in the
+ * alley, a frame of 120-580 ms. */
+/* Bumped with every gen++ above. A backend that verified an entry's gens at
+ * epoch E need not look them up again while the epoch is still E: nothing was
+ * decoded anywhere, so nothing it holds can have changed. */
+unsigned PsxVram_DecodeEpoch(void) { return s_decodeEpoch; }
+
+unsigned PsxVram_DataGen(const void* data)
+{
+    int i;
+    if (!data) return 0;
+    for (i = 0; i < PAGE_N; i++)  if (s_pages[i].data == data) return s_pages[i].gen;
+    for (i = 0; i < PAL_N; i++)   if (s_pals[i].data  == data) return s_pals[i].gen;
+    for (i = 0; i < CACHE_N; i++) if (s_cache[i].argb == data) return s_cache[i].gen;
+    return 0;
 }
 
 const void* PsxVram_GetPaletted(int tpage, int clut, const void** palOut)
@@ -1009,6 +1093,8 @@ const void* PsxVram_GetPaletted(int tpage, int clut, const void** palOut)
             PageDecodeIndices(tpage, s_pages[victim].data);
         }
         s_pages[victim].key  = pageKey;
+        s_pages[victim].gen++;
+        s_decodeEpoch++;
         s_pages[victim].hits = 1;
         best = victim;
     }
@@ -1055,6 +1141,8 @@ const void* PsxVram_GetPaletted(int tpage, int clut, const void** palOut)
                 PaletteBuild(clut, s_pals[victim].data);
             }
             s_pals[victim].key = palKey;
+            s_pals[victim].gen++;
+            s_decodeEpoch++;
             p = victim;
         }
         s_pals[p].lastUse = thisFrame;
