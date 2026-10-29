@@ -130,11 +130,16 @@ typedef struct
     float                 soleY;
     float                 toe[2][2];
     int                   femaleVoice;
+    const char*           alt; /* model whose glTF it wears when it has none */
 } PcSkinRestDef;
 
 static const PcSkinRestDef s_restDefs[] = {
     { "HERO", s_heroRest, -9.4f, { { -0.3360f, 0.9419f }, { 0.1961f, 0.9806f } }, 0 },
     { "SIBYL", s_sibylRest, -7.5f, { { -0.1840f, 0.9829f }, { 0.1715f, 0.9852f } }, 1 },
+    /* Monster Cybil is Cybil's rig and mesh with other textures: MSB.ILM posed
+     * by SBL.ANM's rest frame measures exactly s_sibylRest. Her own MSB.ANM
+     * has no standing frame to take a rest from. */
+    { "MSB", s_sibylRest, -7.5f, { { -0.1840f, 0.9829f }, { 0.1715f, 0.9852f } }, 1, "SIBYL" },
 };
 
 /* Where each bone's segment ends: a child joint, the midpoint of two (the
@@ -2343,6 +2348,17 @@ void* Pc_SkinChara_Begin(s_Skeleton* skel, const void* boneCoords)
     }
     if (ch == NULL)
         ch = Skin_Entry(name, name, base, def);
+    if ((ch == NULL || ch->state != 1) && def->alt != NULL)
+    {
+        char altBase[96], *slash;
+        snprintf(altBase, sizeof(altBase), "%s", base);
+        slash = strrchr(altBase, '/');
+        if (slash != NULL)
+        {
+            snprintf(slash + 1, sizeof(altBase) - (size_t)(slash + 1 - altBase), "%s", def->alt);
+            ch = Skin_Entry(def->alt, def->alt, altBase, def);
+        }
+    }
     if (ch == NULL)
         return NULL;
     if (ch->state != 1 || !Skin_PickInstance(ch, boneCoords))
