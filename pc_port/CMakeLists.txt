@@ -1056,6 +1056,27 @@ if(IOS AND SH_IOS_PORT_DIR)
             VERBATIM)
     endif()
 
+    # The home-screen icon, copied FLAT into the bundle root: that is where the
+    # legacy CFBundleIconFiles lookup in Info.plist resolves each base name,
+    # appending the device's scale and idiom suffixes itself. An asset catalog
+    # would be the modern route, but it needs Xcode's actool and a 1024 master
+    # this art does not have -- and the sideload installers read these keys
+    # anyway, so this is also what puts the icon in SideStore's own app list.
+    file(GLOB SH_IOS_APP_ICONS CONFIGURE_DEPENDS
+         "${SH_IOS_PORT_DIR}/Resources/AppIcon/AppIcon*.png")
+    if(SH_IOS_APP_ICONS)
+        add_custom_command(TARGET SilentHillPC POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    ${SH_IOS_APP_ICONS}
+                    "$<TARGET_BUNDLE_CONTENT_DIR:SilentHillPC>"
+            COMMENT "Bundling the app icon"
+            VERBATIM)
+    else()
+        message(WARNING
+            "No app icon PNGs under ios_port/Resources/AppIcon -- the app will "
+            "install with the blank default icon.")
+    endif()
+
     # config.cfg sits beside the sources rather than inside assets/, so the copy
     # above misses it and the game fell back to built-in defaults on first run
     # (found by the Simulator smoke test). ios_bootstrap.m stages it across only
