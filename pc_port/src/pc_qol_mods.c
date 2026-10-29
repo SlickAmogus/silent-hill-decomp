@@ -79,7 +79,7 @@
 #endif
 
 #if defined(__EMSCRIPTEN__)
-#define QM_RESTART_TEXT "Reload the page to use them."
+#define QM_RESTART_TEXT "They are saved in this browser. Reload the page to use them."
 #else
 #define QM_RESTART_TEXT "Restart the game to use them."
 #endif
@@ -112,7 +112,7 @@ static int     s_modCount;
 /* UI state                                                            */
 /* ------------------------------------------------------------------ */
 
-enum { QM_CLOSED = 0, QM_PROMPT, QM_NOTICE, QM_LOADING, QM_ERROR, QM_LIST, QM_INFO, QM_BUSY, QM_DONE, QM_GROUP };
+enum { QM_CLOSED = 0, QM_PROMPT, QM_NOTICE, QM_LOADING, QM_ERROR, QM_LIST, QM_INFO, QM_BUSY, QM_DONE, QM_GROUP, QM_SAVING };
 static int    s_mode;
 static Uint32 s_openMs;
 static int    s_sel;          /* LIST/GROUP: view row, then the buttons; elsewhere unused */
@@ -821,6 +821,35 @@ static void qm_activate_row(int item)
         s_mods[item].want = !s_mods[item].want;
 }
 
+#if defined(__EMSCRIPTEN__)
+/* The browser keeps the game's files in memory and copies them to IndexedDB
+ * on its own clock (shell.js persistNow). A reload before that copy finishes
+ * drops whatever it had not reached, which is how an install "sometimes" did
+ * not survive one. So an install or removal ends by asking the shell for a
+ * copy that starts after it, and waits for that one. */
+EM_JS(void, Qm_WebPersistJs, (int* done), {
+    if (Module["shPersist"]) Module["shPersist"](function () { HEAP32[done >> 2] = 1; });
+    else HEAP32[done >> 2] = 1;
+});
+EM_JS(void, Qm_WebReloadJs, (void), {
+    location.reload();
+});
+static int s_persistDone;
+#endif
+
+/* After the files changed: wait for the browser to keep them (QM_SAVING), then
+ * report. Elsewhere the files are already on disk. */
+static void qm_done_after_save(void)
+{
+#if defined(__EMSCRIPTEN__)
+    s_persistDone = 0;
+    Qm_WebPersistJs(&s_persistDone);
+    qm_set_mode(QM_SAVING);
+#else
+    qm_set_mode(QM_DONE);
+#endif
+}
+
 static void qm_finish_message(void)
 {
     char done[96];
@@ -866,7 +895,7 @@ static void qm_begin_apply(void)
     if (s_queueLen == 0)
     {
         qm_finish_message();
-        qm_set_mode(QM_DONE);
+        qm_done_after_save();
         return;
     }
     qm_set_mode(QM_BUSY);
@@ -895,7 +924,11 @@ static int qm_buttons(const char* labels[3])
             labels[1] = "Back";
             return 2;
         }
+#if defined(__EMSCRIPTEN__)
+        case QM_DONE:   labels[0] = "Reload Now"; labels[1] = "Later"; return 2;
+#else
         case QM_DONE:   labels[0] = "OK"; return 1;
+#endif
         default: return 0;
     }
 }
@@ -930,6 +963,13 @@ static void qm_press_button(int b)
                 qm_back_from_info();
             break;
         case QM_DONE:
+#if defined(__EMSCRIPTEN__)
+            if (b == 0)
+            {
+                Qm_WebReloadJs();
+                break;
+            }
+#endif
             qm_load_installed();
             qm_set_mode(QM_LIST);
             s_sel = 0;
@@ -947,7 +987,8 @@ static void qm_cancel(void)
         case QM_PROMPT: qm_set_mode(QM_NOTICE); break;
         case QM_INFO:   qm_back_from_info(); break;
         case QM_GROUP:  qm_leave_group(0); break;
-        case QM_DONE:   qm_press_button(0); break;
+        case QM_DONE:   qm_press_button(1); break;
+        case QM_SAVING: break; /* the copy finishes on its own */
         case QM_BUSY:   break; /* finishes on its own; nothing half-installed is left */
         default:        qm_close(); break;
     }
@@ -956,6 +997,10 @@ static void qm_cancel(void)
 /* Advance the background work: catalog fetched, or one mod done. */
 static void qm_step(void)
 {
+#if defined(__EMSCRIPTEN__)
+    if (s_mode == QM_SAVING && s_persistDone)
+        qm_set_mode(QM_DONE);
+#endif
     if (!qm_task_poll())
         return;
 
@@ -1001,7 +1046,7 @@ static void qm_step(void)
 
     qm_finish_message();
     if (s_mode == QM_BUSY)
-        qm_set_mode(QM_DONE);
+        qm_done_after_save();
 }
 
 /* ------------------------------------------------------------------ */
@@ -1657,7 +1702,7 @@ void Pc_QolMods_Draw(void)
     panelH = 0.86f * s_dvpH;
     panelW = 1.25f * panelH;
     if (panelW > 0.92f * s_dvpW) panelW = 0.92f * s_dvpW;
-    if (s_mode == QM_PROMPT || s_mode == QM_NOTICE || s_mode == QM_ERROR ||
+    if (s_mode == QM_PROMPT || s_mode == QM_NOTICE || s_mode == QM_ERROR || s_mode == QM_SAVING ||
         s_mode == QM_LOADING || s_mode == QM_DONE || s_mode == QM_BUSY)
         panelH *= 0.62f;
     panelL = (s_dvpW - panelW) * 0.5f;
@@ -1736,6 +1781,11 @@ void Pc_QolMods_Draw(void)
         case QM_ERROR:
         case QM_DONE:
             qm_draw_paragraph(s_message, px, panelL + pad, bodyT, panelW - 2.0f * pad, lineH, 0.92f, 0.92f, 0.95f);
+            break;
+        case QM_SAVING:
+            qm_draw_paragraph("Saving the mods in your browser... Keep this page open until this finishes; "
+                              "large mods take a few seconds.",
+                              px, panelL + pad, bodyT, panelW - 2.0f * pad, lineH, 0.92f, 0.92f, 0.95f);
             break;
         case QM_BUSY:
             if (s_queueLen > 0)

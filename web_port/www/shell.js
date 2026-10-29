@@ -216,12 +216,25 @@
 		return copied;
 	}
 
-	var syncing = false, syncTimer = 0;
+	var syncing = false, syncTimer = 0, syncAgain = false, syncWaiters = [];
 
-	function persistNow() {
-		if (!Module || syncing) return;
+	/* Copy the in-memory files to IndexedDB. A request that arrives while a
+	 * copy runs is answered by a fresh copy started after it, so a caller who
+	 * just wrote files (the QoL mods installer) is told only once THOSE files
+	 * are kept. */
+	function persistNow(onDone) {
+		if (typeof onDone === "function") syncWaiters.push(onDone);
+		if (!Module) return;
+		if (syncing) { syncAgain = true; return; }
 		syncing = true;
-		syncFs(false).then(function () { syncing = false; });
+		syncAgain = false;
+		var waiters = syncWaiters;
+		syncWaiters = [];
+		syncFs(false).then(function () {
+			syncing = false;
+			waiters.forEach(function (f) { try { f(); } catch (e) { console.warn(e); } });
+			if (syncAgain || syncWaiters.length) persistNow();
+		});
 	}
 
 	/* ---------------- Crash / log ---------------- */
@@ -531,6 +544,7 @@
 			});
 		}).then(function (m) {
 			Module = m;
+			m.shPersist = persistNow;
 			var FS = m.FS;
 			mkdirp(FS, "/game");
 			FS.mount(m.IDBFS, {}, "/game");
@@ -566,11 +580,18 @@
 			checkOrientation();
 			updateFsButton();
 			ui.canvas.focus();
-			syncTimer = setInterval(persistNow, 4000);
+			syncTimer = setInterval(function () { persistNow(); }, 4000);
 			document.addEventListener("visibilitychange", function () {
 				if (document.visibilityState === "hidden") persistNow();
 			});
-			window.addEventListener("pagehide", persistNow);
+			window.addEventListener("pagehide", function () { persistNow(); });
+			/* A reload in the middle of a copy loses what it had not reached
+			 * yet; the browser's own "leave this page?" holds it for a moment. */
+			window.addEventListener("beforeunload", function (e) {
+				if (!syncing && !syncWaiters.length) return;
+				e.preventDefault();
+				e.returnValue = "";
+			});
 			try {
 				Module.callMain(devMap ? ["-skiptogame"] : []);
 			} catch (e) {
