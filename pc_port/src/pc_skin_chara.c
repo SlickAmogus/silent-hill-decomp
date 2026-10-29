@@ -46,6 +46,8 @@
 
 extern FILE* Pc_LooseFOpen(const char* path, const char* mode);
 extern float PGXP_GetSzMax(void);
+extern int   g_PsxUsePgxp;
+extern int   g_currentOTBucketCount;
 extern void  PsyX_NoteItemDepthSz(unsigned int sz);
 extern void  func_80057228(MATRIX* mat, s32 alpha, SVECTOR* arg2, VECTOR3* arg3);
 extern s_WorldEnvWork g_WorldEnvWork;
@@ -247,6 +249,7 @@ typedef struct
     u32         instUse[PC_SKIN_INST];
     u32         instClock;
     int         inst;
+    int         otShift[PC_SKIN_INST][2]; /* the OT shift it was sorted with */
     int         instLogged;
     int         vertCount;
     PcSkinVert* verts;
@@ -1798,9 +1801,13 @@ static int Skin_Load(PcSkinChara* ch, const char* path)
          * its author put it (level with the thighs on the Halo rig, behind
          * them on GTA's), so the turn onto his thigh midpoint was 41 degrees
          * or noise, and every hip rotation then ran about the wrong axes. */
+        /* So does the head. Its segment runs from the neck joint to the head's
+         * centroid, and Harry's leans well forward of a modern upright head:
+         * the turn tipped every head down, and on a rig whose neck joint sits
+         * low it swung the face forward on a stretched neck. */
         lg = V3_Len(gd);
         lm = V3_Len(md);
-        if (b == 3 || b == 7 || b == 11)
+        if (b == 2 || b == 3 || b == 7 || b == 11)
             memcpy(R[b], restR, sizeof(restR));
         /* Legs keep the game's rotation unless the model's leg points well
          * away from it. Harry's rest is a step, so his left shin and both
@@ -3126,6 +3133,7 @@ void Pc_SkinChara_End(void* chara, void* otp, int shift, int hideHead)
     Skin_FrameLight(ch, buf);
     PsyX_NoteItemDepthSz((unsigned)maxZ);
 
+    ch->otShift[ch->inst][buf] = shift;
     bucket = PC_SKIN_OT_BASE + ((((int)minZ) >> shift) >> 2);
     if (bucket < 1)
         bucket = 1;
@@ -3236,11 +3244,29 @@ int Pc_SkinChara_PrepareDraw(u32 handle, PcModernDrawBinding* binding)
     szMax = PGXP_GetSzMax();
     if (szMax < 1.0f)
         szMax = 1.0f;
-    for (k = 0; k < mat->srcCount; k++)
+    if (!g_PsxUsePgxp && g_currentOTBucketCount > 1)
     {
-        float z = 1.0f - 2.0f * out[k].vsz / szMax;
-        out[k].z = z < -1.0f ? -1.0f : (z > 1.0f ? 1.0f : z);
+        /* With PGXP off every stock prim, world and character alike, keeps the
+         * depth of its OT bucket (the SZ table is wiped before the parse), a
+         * ramp over the bucket index rather than SZ / szMax. On the SZ scale
+         * the body landed behind props it stands in front of: the cafe pinball
+         * cut his torso. Each vertex takes the depth of the bucket a stock prim
+         * at its SZ would be in, one bucket nearer, so it wins its own bucket as
+         * the later-drawn prim would. */
+        float per = 1.0f / (float)(4 << ch->otShift[inst][buf]);
+        float step = 2.0f / (float)(g_currentOTBucketCount - 1);
+        for (k = 0; k < mat->srcCount; k++)
+        {
+            float z = 1.0f - (PC_SKIN_OT_BASE - 1 + out[k].vsz * per) * step;
+            out[k].z = z < -1.0f ? -1.0f : (z > 1.0f ? 1.0f : z);
+        }
     }
+    else
+        for (k = 0; k < mat->srcCount; k++)
+        {
+            float z = 1.0f - 2.0f * out[k].vsz / szMax;
+            out[k].z = z < -1.0f ? -1.0f : (z > 1.0f ? 1.0f : z);
+        }
     Pc_ModernVertex_Upload(out, mat->srcCount);
     Pc_ModernVertex_UploadIndices(mat->idx[inst][buf], mat->idxCount[inst][buf]);
     binding->textureId = mat->texture;
