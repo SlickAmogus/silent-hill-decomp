@@ -88,7 +88,7 @@
 /* Catalog                                                             */
 /* ------------------------------------------------------------------ */
 
-#define QM_MAX_MODS 12
+#define QM_MAX_MODS 32
 
 typedef struct
 {
