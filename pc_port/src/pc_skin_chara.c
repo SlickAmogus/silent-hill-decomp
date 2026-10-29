@@ -1473,6 +1473,7 @@ static int Skin_Load(PcSkinChara* ch, const char* path)
     float dirSum[PC_SKIN_BONES][3];
     int dirCount[PC_SKIN_BONES];
     float R[PC_SKIN_BONES][9], axis[PC_SKIN_BONES][3], k[PC_SKIN_BONES];
+    float foreSwing[9] = { 1, 0, 0, 0, 1, 0, 0, 0, 1 };
     float* gpos = NULL;
     float* gnrm = NULL;
     float* gtan = NULL;
@@ -1882,13 +1883,15 @@ static int Skin_Load(PcSkinChara* ch, const char* path)
          * its author put it (level with the thighs on the Halo rig, behind
          * them on GTA's), so the turn onto his thigh midpoint was 41 degrees
          * or noise, and every hip rotation then ran about the wrong axes. */
-        /* So does the head. Its segment runs from the neck joint to the head's
-         * centroid, and Harry's leans well forward of a modern upright head:
-         * the turn tipped every head down, and on a rig whose neck joint sits
-         * low it swung the face forward on a stretched neck. */
+        /* So do the head and chest. The head's segment runs from the neck
+         * joint to its centroid, and Harry's leans well forward of a modern
+         * upright head, so the turn tipped every head down. The chest's turn
+         * onto his waist-to-neck line set back a chest modelled standing
+         * proud (the James reskin's by 5 cm), which bared the neck and left
+         * the hip-weighted coat front standing off it. */
         lg = V3_Len(gd);
         lm = V3_Len(md);
-        if (b == 2 || b == 3 || b == 7 || b == 11)
+        if (b == 1 || b == 2 || b == 3 || b == 7 || b == 11)
             memcpy(R[b], restR, sizeof(restR));
         /* Legs keep the game's rotation unless the model's leg points well
          * away from it. Harry's rest is a step, so his left shin and both
@@ -1911,10 +1914,19 @@ static int Skin_Load(PcSkinChara* ch, const char* path)
         else if (b >= 12 && lg > 1e-3f && lm > 1e-3f &&
                  (gd[0] * md[0] + gd[1] * md[1] + gd[2] * md[2]) > 0.866f * lg * lm)
             memcpy(R[b], restR, sizeof(restR));
+        /* The empty hand turns with its forearm, so it keeps the wrist the
+         * model was built with. Turned onto Harry's own hand, whose centroid
+         * sits well off his forearm's line, every open hand came out bent out
+         * at the wrist with the palm forward. The gun hand still takes the
+         * turn: held weapons are placed in that frame. */
+        else if (b == 6)
+            M3_Mul(foreSwing, restR, R[b]);
         else
         {
             M3_Align(gd, md, swing);
             M3_Mul(swing, restR, R[b]);
+            if (b == 5)
+                memcpy(foreSwing, swing, sizeof(foreSwing));
         }
         if (s_scaled[b] && lm > 1e-3f && s_childA[b] >= 0)
         {
@@ -2982,10 +2994,14 @@ static float Skin_BlinkWeight(PcSkinChara* ch)
     t = ch->blinkClock - ch->blinkNext;
     if (t < 0.0f)
         return 0.0f;
+    /* Held shut for a moment: the peak alone lasted no time, so at 30 fps the
+     * closest frame landed anywhere short of it and the lids never met. */
     if (t < 0.07f)
         return t / 0.07f;
-    if (t < 0.20f)
-        return 1.0f - (t - 0.07f) / 0.13f;
+    if (t < 0.13f)
+        return 1.0f;
+    if (t < 0.26f)
+        return 1.0f - (t - 0.13f) / 0.13f;
     ch->blinkClock = 0.0f;
     ch->blinkNext = 2.0f + (float)(rand() % 4000) / 1000.0f;
     return 0.0f;
