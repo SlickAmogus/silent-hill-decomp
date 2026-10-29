@@ -11,7 +11,7 @@
  *   - everything else is a load/ overlay, extracted into gamedata/load/
  *     (fsqueue reads loose files only, never from a zip), and loose-file
  *     support is switched on, which the web build defaults off.
- * Mods the catalog gives a "group" (the character swaps) are folded into one
+ * Mods the catalog marks "kind": "character" (the HERO_* swaps) fold into one
  * row of the list that opens a page of their own, so a long run of them does
  * not bury the rest. Lists scroll by wheel, keys or drag; a tap or click acts
  * on release, and not at all if it became a drag.
@@ -98,7 +98,7 @@ typedef struct
     char      desc[600];
     char      file[96];
     char      url[256];
-    char      group[24]; /* "" = listed on its own */
+    char      kind[24];  /* "character" = folded under Additional Characters */
     long long size;
     char*     files;     /* '\n'-separated paths under gamedata/, from the catalog */
     int       installed;
@@ -364,7 +364,7 @@ static int qm_parse_catalog(const char* json)
             else if (!strcmp(key, "description")) snprintf(m.desc,   sizeof(m.desc),   "%s", val);
             else if (!strcmp(key, "file"))        snprintf(m.file,   sizeof(m.file),   "%s", val);
             else if (!strcmp(key, "url"))         snprintf(m.url,    sizeof(m.url),    "%s", val);
-            else if (!strcmp(key, "group"))       snprintf(m.group,  sizeof(m.group),  "%s", val);
+            else if (!strcmp(key, "kind"))        snprintf(m.kind,   sizeof(m.kind),   "%s", val);
             else if (!strcmp(key, "size"))        m.size = atoll(val);
         }
         /* The file name becomes a path, so nothing that could leave the tmp dir. */
@@ -746,14 +746,19 @@ static int qm_change_count(void)
 #define QM_ROW_GROUP (-1)
 #define QM_GROUP_TITLE "Additional Characters"
 
+static int qm_grouped(const s_QmMod* m)
+{
+    return strcmp(m->kind, "character") == 0;
+}
+
 static int qm_view(int out[QM_MAX_MODS + 1])
 {
     int i, n = 0, grouped = 0;
     for (i = 0; i < s_modCount; i++)
     {
-        if (s_mode == QM_GROUP ? s_mods[i].group[0] != '\0' : s_mods[i].group[0] == '\0')
+        if (qm_grouped(&s_mods[i]) == (s_mode == QM_GROUP))
             out[n++] = i;
-        else if (s_mods[i].group[0])
+        else if (qm_grouped(&s_mods[i]))
             grouped = 1;
     }
     if (s_mode != QM_GROUP && grouped)
@@ -783,7 +788,7 @@ static void qm_leave_group(int keep)
     int i;
     if (!keep)
         for (i = 0; i < s_modCount; i++)
-            if (s_mods[i].group[0])
+            if (qm_grouped(&s_mods[i]))
                 s_mods[i].want = s_groupWant[i];
     qm_set_mode(QM_LIST);
     s_sel = s_groupSel;
@@ -1802,7 +1807,7 @@ void Pc_QolMods_Draw(void)
                     sub[0] = '\0';
                     for (k = 0; k < s_modCount; k++)
                     {
-                        if (!s_mods[k].group[0])
+                        if (!qm_grouped(&s_mods[k]))
                             continue;
                         picked    += s_mods[k].want;
                         installed += s_mods[k].installed;
