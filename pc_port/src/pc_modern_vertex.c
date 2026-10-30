@@ -32,7 +32,6 @@ void Pc_ModernVertex_Upload(const struct GrModernVertex* vertices, int count)
         glGenVertexArrays(1, &s_modernVertexArray);
         glBindVertexArray(s_modernVertexArray);
         glBindBuffer(GL_ARRAY_BUFFER, s_modernVertexBuffer);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(GrModernVertex) * MAX_VERTEX_BUFFER_SIZE, NULL, GL_DYNAMIC_DRAW);
         for (i = 0; i < PC_MODERN_ATTRIBUTE_COUNT; i++)
         {
             glEnableVertexAttribArray(i);
@@ -53,7 +52,11 @@ void Pc_ModernVertex_Upload(const struct GrModernVertex* vertices, int count)
         glBindVertexArray(s_modernVertexArray);
         glBindBuffer(GL_ARRAY_BUFFER, s_modernVertexBuffer);
     }
-    glBufferSubData(GL_ARRAY_BUFFER, 0, count * sizeof(*vertices), vertices);
+    /* Fresh storage for every upload. Rewritten in place, the buffer is still
+     * being read by the frame's earlier draws, and mobile GPUs then wait for
+     * them or copy the whole buffer, once per draw: a skinned character is a
+     * draw per material, and took Android from 60 fps to 20. */
+    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)count * sizeof(*vertices), vertices, GL_STREAM_DRAW);
 }
 
 void Pc_ModernVertex_UploadIndices(const unsigned int* indices, int count)
