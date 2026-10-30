@@ -210,6 +210,8 @@ typedef struct
     unsigned char*  ergba;    /* emissive */
     int             ew, eh;
     u32             etexture;
+    signed char     texFrom[4]; /* per map: the earlier material of this model that decoded the
+                                 * same image, whose texture this one draws with; -1 = its own */
     float           emissive[3];
     GrModernVertex* out[PC_SKIN_INST][2];
     u32*            idx[PC_SKIN_INST][2];
@@ -723,11 +725,110 @@ static void Skin_PackOrm(PcSkinMat* mat, unsigned char* mr, int mw, int mh, unsi
     mat->oh = h;
 }
 
-static void Skin_LoadImage(PcSkinMat* mat, const cgltf_material* m, const char* gltfPath)
+enum { SKIN_MAP_BASE, SKIN_MAP_NORMAL, SKIN_MAP_ORM, SKIN_MAP_EMISSIVE };
+
+static void Skin_MapFields(PcSkinMat* mat, int map, unsigned char*** rgba, int** w, int** h, u32** tex)
 {
+    switch (map)
+    {
+        case SKIN_MAP_BASE:   *rgba = &mat->rgba;  *w = &mat->w;  *h = &mat->h;  *tex = &mat->texture;  break;
+        case SKIN_MAP_NORMAL: *rgba = &mat->nrgba; *w = &mat->nw; *h = &mat->nh; *tex = &mat->ntexture; break;
+        case SKIN_MAP_ORM:    *rgba = &mat->orgba; *w = &mat->ow; *h = &mat->oh; *tex = &mat->otexture; break;
+        default:              *rgba = &mat->ergba; *w = &mat->ew; *h = &mat->eh; *tex = &mat->etexture; break;
+    }
+}
+
+/* The glTF image behind one of a material's maps (ORM is packed from two). */
+static const cgltf_image* Skin_MapImage(const cgltf_material* m, int map, const cgltf_image** second)
+{
+    const cgltf_texture* t = NULL;
+
+    *second = NULL;
+    if (m == NULL)
+        return NULL;
+    switch (map)
+    {
+        case SKIN_MAP_BASE:
+            if (m->has_pbr_metallic_roughness)
+                t = m->pbr_metallic_roughness.base_color_texture.texture;
+            break;
+        case SKIN_MAP_NORMAL:
+            t = m->normal_texture.texture;
+            break;
+        case SKIN_MAP_ORM:
+            if (m->has_pbr_metallic_roughness)
+                t = m->pbr_metallic_roughness.metallic_roughness_texture.texture;
+            if (m->occlusion_texture.texture != NULL)
+                *second = m->occlusion_texture.texture->image;
+            break;
+        default:
+            t = m->emissive_texture.texture;
+            break;
+    }
+    return t != NULL ? t->image : NULL;
+}
+
+/* An earlier material of this model that already decoded the same image for
+ * this map, or -1. Materials often share one texture sheet, and decoding it
+ * once per material multiplied a model's texture memory by up to its
+ * material count (Heather: 18 materials, 99 MB of maps from 18 MB of images). */
+static int Skin_SharedMap(PcSkinChara* ch, int mi, int map)
+{
+    const cgltf_image* second;
+    const cgltf_image* img = Skin_MapImage((const cgltf_material*)(void*)ch->mats[mi].out[0][1], map, &second);
+    int j;
+
+    if (img == NULL && second == NULL)
+        return -1;
+    for (j = 0; j < mi; j++)
+    {
+        const cgltf_image* js;
+        unsigned char** rgba;
+        int *w, *h;
+        u32* tex;
+
+        if (ch->mats[j].texFrom[map] >= 0 ||
+            Skin_MapImage((const cgltf_material*)(void*)ch->mats[j].out[0][1], map, &js) != img || js != second)
+            continue;
+        Skin_MapFields(&ch->mats[j], map, &rgba, &w, &h, &tex);
+        if (*rgba != NULL)
+            return j;
+    }
+    return -1;
+}
+
+/* A map's GL texture, made on first draw. The decoded copy is freed once it
+ * exists: nothing makes the texture again, and keeping it held a second copy
+ * of every map, hundreds of MB for a model with many large maps -- enough for iOS to
+ * end the game. */
+static u32 Skin_MapTexture(PcSkinChara* ch, int m, int map)
+{
+    PcSkinMat* mat = &ch->mats[m];
+    unsigned char** rgba;
+    int *w, *h;
+    u32* tex;
+
+    Skin_MapFields(mat, map, &rgba, &w, &h, &tex);
+    if (*tex != 0)
+        return *tex;
+    if (mat->texFrom[map] >= 0)
+        *tex = Skin_MapTexture(ch, mat->texFrom[map], map);
+    else if (*rgba != NULL && (*tex = HiresOverride_CreateTextureRGBA(*rgba, *w, *h)) != 0)
+    {
+        free(*rgba);
+        *rgba = NULL;
+    }
+    return *tex;
+}
+
+static void Skin_LoadImage(PcSkinChara* ch, int mi, const cgltf_material* m, const char* gltfPath)
+{
+    PcSkinMat* mat = &ch->mats[mi];
     unsigned char *mr = NULL, *ao = NULL;
-    int mw = 0, mh = 0, aw = 0, ah = 0, i;
+    int mw = 0, mh = 0, aw = 0, ah = 0, i, j, shared[4];
     float es;
+
+    memset(mat->texFrom, -1, sizeof(mat->texFrom));
 
     /* Without a metallic-roughness block glTF means fully metallic and rough,
      * which on a model that simply never set one reads as dull grey metal. */
@@ -736,19 +837,25 @@ static void Skin_LoadImage(PcSkinMat* mat, const cgltf_material* m, const char* 
     mat->aoStrength = 1.0f;
     if (m == NULL)
         return;
+    for (i = 0; i < 4; i++)
+        shared[i] = Skin_SharedMap(ch, mi, i);
     if (m->has_pbr_metallic_roughness)
     {
-        Skin_DecodeTexture(m->pbr_metallic_roughness.base_color_texture.texture, gltfPath, &mat->rgba, &mat->w,
-                           &mat->h, m->name);
-        Skin_DecodeTexture(m->pbr_metallic_roughness.metallic_roughness_texture.texture, gltfPath, &mr, &mw, &mh,
-                           m->name);
+        if (shared[SKIN_MAP_BASE] < 0)
+            Skin_DecodeTexture(m->pbr_metallic_roughness.base_color_texture.texture, gltfPath, &mat->rgba, &mat->w,
+                               &mat->h, m->name);
+        if (shared[SKIN_MAP_ORM] < 0)
+            Skin_DecodeTexture(m->pbr_metallic_roughness.metallic_roughness_texture.texture, gltfPath, &mr, &mw,
+                               &mh, m->name);
         mat->metal = m->pbr_metallic_roughness.metallic_factor;
         mat->rough = m->pbr_metallic_roughness.roughness_factor;
     }
-    Skin_DecodeTexture(m->normal_texture.texture, gltfPath, &mat->nrgba, &mat->nw, &mat->nh, m->name);
+    if (shared[SKIN_MAP_NORMAL] < 0)
+        Skin_DecodeTexture(m->normal_texture.texture, gltfPath, &mat->nrgba, &mat->nw, &mat->nh, m->name);
     if (m->occlusion_texture.texture != NULL)
     {
-        Skin_DecodeTexture(m->occlusion_texture.texture, gltfPath, &ao, &aw, &ah, m->name);
+        if (shared[SKIN_MAP_ORM] < 0)
+            Skin_DecodeTexture(m->occlusion_texture.texture, gltfPath, &ao, &aw, &ah, m->name);
         mat->aoStrength = m->occlusion_texture.scale;
     }
     Skin_PackOrm(mat, mr, mw, mh, ao, aw, ah);
@@ -757,9 +864,44 @@ static void Skin_LoadImage(PcSkinMat* mat, const cgltf_material* m, const char* 
     es = m->has_emissive_strength ? m->emissive_strength.emissive_strength : 1.0f;
     for (i = 0; i < 3; i++)
         mat->emissive[i] = m->emissive_factor[i] * es;
-    if (mat->emissive[0] > 0.0f || mat->emissive[1] > 0.0f || mat->emissive[2] > 0.0f)
+    if ((mat->emissive[0] > 0.0f || mat->emissive[1] > 0.0f || mat->emissive[2] > 0.0f) &&
+        shared[SKIN_MAP_EMISSIVE] < 0)
         Skin_DecodeTexture(m->emissive_texture.texture, gltfPath, &mat->ergba, &mat->ew, &mat->eh, m->name);
+    else if (mat->emissive[0] <= 0.0f && mat->emissive[1] <= 0.0f && mat->emissive[2] <= 0.0f)
+        shared[SKIN_MAP_EMISSIVE] = -1;
+    for (j = 0; j < 4; j++)
+        mat->texFrom[j] = (signed char)shared[j];
 }
+
+#if defined(__ANDROID__) || defined(SH_IOS) || defined(__EMSCRIPTEN__)
+#define SKIN_MAX_MAP 1024
+
+/* A 2x2 box down to half size, in place of the original. */
+static void Skin_HalveRGBA(unsigned char** rgba, int* w, int* h)
+{
+    int nw = *w > 1 ? *w / 2 : 1, nh = *h > 1 ? *h / 2 : 1, x, y, c;
+    unsigned char* out = (unsigned char*)malloc((size_t)nw * nh * 4);
+
+    if (out == NULL)
+        return;
+    for (y = 0; y < nh; y++)
+    {
+        int y0 = y * 2 < *h ? y * 2 : *h - 1, y1 = y0 + 1 < *h ? y0 + 1 : y0;
+        for (x = 0; x < nw; x++)
+        {
+            int x0 = x * 2 < *w ? x * 2 : *w - 1, x1 = x0 + 1 < *w ? x0 + 1 : x0;
+            for (c = 0; c < 4; c++)
+                out[((size_t)y * nw + x) * 4 + c] =
+                    (unsigned char)(((*rgba)[((size_t)y0 * *w + x0) * 4 + c] + (*rgba)[((size_t)y0 * *w + x1) * 4 + c] +
+                                     (*rgba)[((size_t)y1 * *w + x0) * 4 + c] + (*rgba)[((size_t)y1 * *w + x1) * 4 + c] + 2) / 4);
+        }
+    }
+    free(*rgba);
+    *rgba = out;
+    *w = nw;
+    *h = nh;
+}
+#endif
 
 static void Skin_DecodeTexture(const cgltf_texture* tex, const char* gltfPath, unsigned char** rgba, int* w,
                                int* h, const char* what)
@@ -801,6 +943,13 @@ static void Skin_DecodeTexture(const cgltf_texture* tex, const char* gltfPath, u
         SH_DBG("[SKIN] texture for material %s did not decode (PNG only)", what ? what : "?");
         *rgba = NULL;
     }
+#if defined(__ANDROID__) || defined(SH_IOS) || defined(__EMSCRIPTEN__)
+    /* A phone keeps every model it has shown for the session, and the larger
+     * ones carry a dozen or more 1-2K maps, ~100 MB of texture each. Past 1024
+     * they are halved: a character on a phone screen is too small to show it. */
+    while (*rgba != NULL && (*w > SKIN_MAX_MAP || *h > SKIN_MAX_MAP))
+        Skin_HalveRGBA(rgba, w, h);
+#endif
     if (owned)
         free(bytes);
 }
@@ -1336,7 +1485,7 @@ static int Skin_Load(PcSkinChara* ch, const char* path)
                     mi = ch->matCount++;
                     /* out[0][1] doubles as the material key until frame buffers exist. */
                     ch->mats[mi].out[0][1] = (GrModernVertex*)(void*)p->material;
-                    Skin_LoadImage(&ch->mats[mi], p->material, path);
+                    Skin_LoadImage(ch, mi, p->material, path);
                 }
                 mat = &ch->mats[mi];
 
@@ -2992,20 +3141,18 @@ int Pc_SkinChara_PrepareDraw(u32 handle, PcModernDrawBinding* binding)
     out = mat->out[inst][buf];
     if (mat->idxCount[inst][buf] < 3 || out == NULL)
         return 0;
-    if (mat->texture == 0)
+    if (Skin_MapTexture(ch, m, SKIN_MAP_BASE) == 0)
     {
         static const unsigned char white[4] = { 255, 255, 255, 255 };
-        mat->texture = (mat->rgba != NULL) ? HiresOverride_CreateTextureRGBA(mat->rgba, mat->w, mat->h)
-                                           : HiresOverride_CreateTextureRGBA(white, 1, 1);
+        if (mat->rgba != NULL || mat->texFrom[SKIN_MAP_BASE] >= 0)
+            return 0;
+        mat->texture = HiresOverride_CreateTextureRGBA(white, 1, 1);
         if (mat->texture == 0)
             return 0;
     }
-    if (mat->ntexture == 0 && mat->nrgba != NULL)
-        mat->ntexture = HiresOverride_CreateTextureRGBA(mat->nrgba, mat->nw, mat->nh);
-    if (mat->otexture == 0 && mat->orgba != NULL)
-        mat->otexture = HiresOverride_CreateTextureRGBA(mat->orgba, mat->ow, mat->oh);
-    if (mat->etexture == 0 && mat->ergba != NULL)
-        mat->etexture = HiresOverride_CreateTextureRGBA(mat->ergba, mat->ew, mat->eh);
+    Skin_MapTexture(ch, m, SKIN_MAP_NORMAL);
+    Skin_MapTexture(ch, m, SKIN_MAP_ORM);
+    Skin_MapTexture(ch, m, SKIN_MAP_EMISSIVE);
     /* Depth is normalized here, at draw time, as the stock prims are. With PGXP
      * off the divisor is the SZ maximum that each GsDrawOt swaps in; read at
      * sort time it came from the frame's last OT -- the 2D one, near zero --
