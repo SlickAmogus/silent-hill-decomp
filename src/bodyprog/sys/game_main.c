@@ -4012,15 +4012,19 @@ void MainLoop(void) // 0x80032EE0
 #endif
 #ifdef SH_PC_PORT
         {
-            /* Hospital kitchens, director's office furniture, the Otherworld
-             * plate door and bloodsucker room window may overlap in the PSX
-             * ordering table. Test opaque world depth only in these rooms;
+            /* Hospital kitchens, director's office furniture, examination room
+             * door mouldings/X-ray frame, the Otherworld plate door and
+             * bloodsucker room window, plus the mall's upstairs benches/floor,
+             * may overlap in the PSX ordering table.
+             * Test opaque world depth only in these rooms;
              * restore the diagnostic setting before any other OT draw. */
             extern int g_PsxWorldDepthAlways;
             int prevWorldDepthAlways = g_PsxWorldDepthAlways;
             if (g_GameWork.gameState == GameState_InGame && g_SavegamePtr != NULL &&
                 ((g_SavegamePtr->mapIdx == MapIdx_MAP3_S01 &&
                   (g_SavegamePtr->mapRoomIdx == 10 || g_SavegamePtr->mapRoomIdx == 11)) ||
+                 (g_SavegamePtr->mapIdx == MapIdx_MAP3_S06 && g_SavegamePtr->mapRoomIdx == 3) ||
+                 (g_SavegamePtr->mapIdx == MapIdx_MAP4_S03 && g_SavegamePtr->mapRoomIdx == 19) ||
                  (g_SavegamePtr->mapIdx == MapIdx_MAP3_S04 && g_SavegamePtr->mapRoomIdx == 10) ||
                  (g_SavegamePtr->mapIdx == MapIdx_MAP3_S03 &&
                   (g_SavegamePtr->mapRoomIdx == 29 || g_SavegamePtr->mapRoomIdx == 35))))
