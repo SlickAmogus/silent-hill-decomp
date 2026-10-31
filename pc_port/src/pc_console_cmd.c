@@ -2054,11 +2054,22 @@ void Pc_ConsoleExec(const char* line)
         else
             g_PsxFeedbackExact = !g_PsxFeedbackExact;
         cprintf("loading trail: %s", g_PsxFeedbackExact ? "sharp (pixel-exact store)" : "soft (old filtered store)");
+    } else if (strcmp(cmd, "FBSCREEN") == 0) {
+        /* Loading-screen trail and door fade at render resolution: 1 = the
+         * opaque copy reads a 1:1 capture of the previous frame by screen
+         * position with the PS1's 5-bit arithmetic, 0 = the 320x224 VRAM
+         * store (blocky trail under a sharp Harry). Bare toggles. */
+        extern int g_PsxFeedbackScreen;
+        if (arg[0] == '0' || arg[0] == '1')
+            g_PsxFeedbackScreen = (arg[0] == '1');
+        else
+            g_PsxFeedbackScreen = !g_PsxFeedbackScreen;
+        cprintf("loading trail: %s", g_PsxFeedbackScreen ? "render resolution (screen-space copy)" : "320x224 VRAM store");
     } else if (strcmp(cmd, "FBDAMP") == 0) {
         /* Gain of the framebuffer-feedback loop that produces the door out-fade
-         * and the loading-screen trail. 0.65 = shipped; ~0.996 (255/256) is
-         * retail-length decay but diverged to a grey field last time it was
-         * tried, so it is tunable here rather than baked in. */
+         * and the loading-screen trail. 1.0 = the hardware loop (the opaque
+         * copy is identity, the 127/128 frames take one 5-bit level off); lower
+         * fades the trail faster than a PS1 does. */
         /* Second argument is the gain for a BLENDING reader (the dream
          * overlays), which is unity by default because the overlay's own 50/50
          * composite is already the decay hardware relies on. */

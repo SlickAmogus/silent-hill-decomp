@@ -25,6 +25,7 @@
 Note: If you would like to submit major changes to the way things work internally, please make an effort to join the community, introduce yourself, and make a case for why you believe the change is necessary. I do not take random complex PRs in most cases.
 
 Commit summaries:
+- Loading-screen motion blur: the PS1 loop (unity copy, one 5-bit level off on the 127 frames) at render resolution, so Harry's trail smears like the console's instead of a short faint ghost
 - macOS: self-contained Silent Hill PC.app with a SwiftUI launcher
 - macOS launcher: prune links into other copies of the app
 - PsyCross: arm64 macOS build fix (WMPROBE tick counter)
