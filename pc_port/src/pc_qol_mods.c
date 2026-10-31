@@ -17,8 +17,8 @@
  * on release, and not at all if it became a drag.
  * Installed ids are kept in gamedata/qol_installed.txt, each with the sha256
  * of the zip it came from. The first time a new build reaches the title, an
- * installed character mod whose catalog zip has changed is downloaded again,
- * so a pack that gains characters reaches everyone who has it. Unticking an
+ * installed mod whose catalog zip has changed is downloaded again, so an
+ * updated mod reaches everyone who has it. Unticking an
  * installed mod removes it: the catalog lists, per mod, the files it puts
  * under gamedata/, so removal needs neither the zip nor a record made at
  * install time (mods installed before removal existed have none).
@@ -900,7 +900,7 @@ static void qm_begin_apply(void)
     qm_task_start(s_queue[0]);
 }
 
-/* After a new build: download again the character mods whose catalog zip
+/* After a new build: download again the installed mods whose catalog zip
  * changed since they were installed. One installed before the sha256 was kept
  * is taken as current. The build is only marked checked once nothing failed,
  * so a failed download is tried again next launch. */
@@ -916,7 +916,7 @@ static void qm_auto_queue(void)
     for (i = 0; i < s_modCount; i++)
     {
         s_QmMod* m = &s_mods[i];
-        if (!m->installed || !qm_grouped(m) || !m->sha256[0])
+        if (!m->installed || !m->sha256[0])
             continue;
         if (!m->instSha[0])
             qm_mark_installed(m);
@@ -928,7 +928,7 @@ static void qm_auto_queue(void)
         PcConfig_SaveKeyValue(QM_CHECKED_KEY, SH_BUILD_GIT_HASH);
         return;
     }
-    SH_DBG("[QOL] updating %d character mod(s) for build " SH_BUILD_GIT_HASH, s_queueLen);
+    SH_DBG("[QOL] updating %d mod(s) for build " SH_BUILD_GIT_HASH, s_queueLen);
     s_auto = 1;
     qm_task_start(s_queue[0]);
 }
@@ -956,7 +956,7 @@ static void qm_auto_finish(void)
         }
         return;
     }
-    snprintf(s_message, sizeof(s_message), "Your Additional Characters were updated (%d mod%s). %s",
+    snprintf(s_message, sizeof(s_message), "Your Essential QoL mods were updated (%d mod%s). %s",
              s_installedNow, s_installedNow == 1 ? "" : "s", QM_RESTART_TEXT);
     /* Shown at the title, not over the game. */
     s_autoNotice = 1;
