@@ -2055,16 +2055,16 @@ void Pc_ConsoleExec(const char* line)
             g_PsxFeedbackExact = !g_PsxFeedbackExact;
         cprintf("loading trail: %s", g_PsxFeedbackExact ? "sharp (pixel-exact store)" : "soft (old filtered store)");
     } else if (strcmp(cmd, "FBSCREEN") == 0) {
-        /* Loading-screen trail and door fade at render resolution: 1 = the
-         * opaque copy reads a 1:1 capture of the previous frame by screen
-         * position with the PS1's 5-bit arithmetic, 0 = the 320x224 VRAM
-         * store (blocky trail under a sharp Harry). Bare toggles. */
+        /* Framebuffer feedback at render resolution: 1 = the loading trail,
+         * door fade, dream overlays and soft focus read a 1:1 capture of the
+         * frame with the PS1's 5-bit arithmetic, 0 = the 320x224 VRAM store
+         * (a blocky or soft ghost under a sharp scene). Bare toggles. */
         extern int g_PsxFeedbackScreen;
         if (arg[0] == '0' || arg[0] == '1')
             g_PsxFeedbackScreen = (arg[0] == '1');
         else
             g_PsxFeedbackScreen = !g_PsxFeedbackScreen;
-        cprintf("loading trail: %s", g_PsxFeedbackScreen ? "render resolution (screen-space copy)" : "320x224 VRAM store");
+        cprintf("framebuffer feedback: %s", g_PsxFeedbackScreen ? "render resolution" : "320x224 VRAM store");
     } else if (strcmp(cmd, "FBDAMP") == 0) {
         /* Gain of the framebuffer-feedback loop that produces the door out-fade
          * and the loading-screen trail. 1.0 = the hardware loop (the opaque

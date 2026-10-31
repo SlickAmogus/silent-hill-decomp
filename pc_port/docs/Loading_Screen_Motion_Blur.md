@@ -3,8 +3,9 @@
 The Harry-running loading screen, the door out-fade and the item-screen load all
 draw through `Screen_BackgroundMotionBlur` (`src/bodyprog/screen/background_draw.c`).
 This note records what the PS1 does there, why the port looked different, and
-how PsyCross reproduces it now. The same store also feeds the per-map dream and
-ghosting overlays; those are semi-transparent readers and are not covered here.
+how PsyCross reproduces it now. The same store feeds the per-map dream and
+ghosting overlays and the scene-scratch soft focus; the last section covers
+those.
 
 ## What the PS1 does
 
@@ -67,6 +68,29 @@ Three things were wrong against the above:
   vs 128 by the step counter (`g_PcLoadScreenStep`), decaying on every other
   step; with `LOADPACE 1` it falls back to the game's vblank rule, which at 60 fps
   is the same thing.
+
+## The blending readers
+
+The cutscene overlays (map4_s01 Lisa, map1_s05, map6_s00, map7_s03 and the
+rest, plus the lighthouse glow) draw semi-transparent SPRTs (`RECT_BLEND`,
+mostly average mode, modulation 128) that copy the displayed buffer onto the
+same position in OT2, with `DR_STP(1)` placed at the far end of OT0 so every
+pixel the world draws carries the STP bit and blends. Each frame is therefore
+half the live frame plus half the previous one: an exponential ghost whose
+decay is the blend itself, which is why their loop gain was already unity.
+The Alessa and Lisa soft focus (map3_s02, map4_s04, map7_s02) is the same idea
+through a scratch rect: the scene is redirected into offscreen VRAM and eight
+strips composite it back at one- or two-pixel offsets with different blends.
+
+Those readers were still served by the 320x224 VRAM store, a filtered
+downscale blended over a world drawn at window resolution. They now sample the
+same 1:1 capture as the loading trail: a copy onto its own position by screen
+position, an offset strip through its own UVs over the rect's PSX size
+(`GR_FeedbackSampleTexture` mode 2), with the sampler giving each texel the
+alpha the VRAM path's LUT would have (0.5, STP set) so average, additive and
+`dream_blur_strength` behave as before. The scratch rect has its own capture
+target because it is taken mid-frame, while the per-present capture must stay
+for the display-buffer readers of the same frame.
 
 Console: `FBSCREEN`, `FBDAMP`, `FBEXACT`, `LOADPACE`, `LOADMIN`.
 
