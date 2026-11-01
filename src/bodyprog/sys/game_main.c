@@ -4014,7 +4014,8 @@ void MainLoop(void) // 0x80032EE0
         {
             /* Hospital kitchens, director's office furniture, examination room
              * door mouldings/X-ray frame, the Otherworld plate door and
-             * bloodsucker room window, plus the mall's upstairs benches/floor,
+             * bloodsucker room window, the mall's upstairs benches/floor,
+             * and the town rooftop stairs/railings and hospital entrance steps
              * may overlap in the PSX ordering table.
              * Test opaque world depth only in these rooms;
              * restore the diagnostic setting before any other OT draw. */
@@ -4025,6 +4026,8 @@ void MainLoop(void) // 0x80032EE0
                   (g_SavegamePtr->mapRoomIdx == 10 || g_SavegamePtr->mapRoomIdx == 11)) ||
                  (g_SavegamePtr->mapIdx == MapIdx_MAP3_S06 && g_SavegamePtr->mapRoomIdx == 3) ||
                  (g_SavegamePtr->mapIdx == MapIdx_MAP4_S03 && g_SavegamePtr->mapRoomIdx == 19) ||
+                 (g_SavegamePtr->mapIdx == MapIdx_MAP2_S02 &&
+                  (g_SavegamePtr->mapRoomIdx == 14 || g_SavegamePtr->mapRoomIdx == 15)) ||
                  (g_SavegamePtr->mapIdx == MapIdx_MAP3_S04 && g_SavegamePtr->mapRoomIdx == 10) ||
                  (g_SavegamePtr->mapIdx == MapIdx_MAP3_S03 &&
                   (g_SavegamePtr->mapRoomIdx == 29 || g_SavegamePtr->mapRoomIdx == 35))))
