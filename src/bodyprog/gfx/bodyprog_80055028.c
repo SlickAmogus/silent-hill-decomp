@@ -2596,6 +2596,15 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat
                        (Pc_SewerRoom13GrateBorderDepthModel(modelHdr) ||
                         Pc_SewerRoom13FenceDepthModel(modelHdr)))))
                     g_PsxActorDepth = 1;
+                /* The bin's bottom polygons share coarse OT buckets with its
+                 * side panels. Resolve their self-overlap per pixel instead of
+                 * moving the separate ground shadow ahead of the whole model. */
+                if (g_GameWork.gameState == GameState_InGame && g_SavegamePtr != NULL &&
+                    g_SavegamePtr->mapIdx == MapIdx_MAP5_S01 && g_SavegamePtr->mapRoomIdx == 11 &&
+                    memcmp(modelHdr->name.str, "TRASHCAN", 8) == 0 &&
+                    modelHdr->meshCount == 1 && modelHdr->meshHdrs != NULL &&
+                    modelHdr->meshHdrs[0].vertexCount == 64 && modelHdr->meshHdrs[0].primitiveCount == 43)
+                    g_PsxActorDepth = 1;
                 func_80057344(modelInfo, otTag, arg2, viewMat);
                 g_PsxActorDepth = prevActorDepth;
             }
