@@ -2782,6 +2782,31 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
             func_800574D4(curMeshHdr, scratchData);
         }
 
+#ifdef SH_PC_PORT
+        /* The Indian Runner entrance mat is authored coplanar with the floor.
+         * Room-local depth testing exposes that overlap. Lift only its twelve
+         * vertices in the per-draw scratch copy (16/256 world units), leaving
+         * the loaded mesh and the rest of the box assembly untouched. */
+        if (g_GameWork.gameState == GameState_InGame && g_SavegamePtr != NULL &&
+            g_SavegamePtr->mapIdx == MapIdx_MAP5_S02 && g_SavegamePtr->mapRoomIdx == 17 &&
+            memcmp(modelHdr->name.str, "BOSS\0\0\0\0", 8) == 0 &&
+            modelHdr->meshCount == 13 && curMeshHdr == &modelHdr->meshHdrs[6] &&
+            curMeshHdr->vertexCount == 90 && curMeshHdr->primitiveCount == 61 &&
+            vertOffset == 0 && normalOffset == 0 &&
+            curMeshHdr->verticesXy[78].vx == -766 && curMeshHdr->verticesZ[78] == -921 &&
+            curMeshHdr->verticesXy[89].vx == -622 && curMeshHdr->verticesZ[89] == -1165)
+        {
+            s32 i;
+            bool coplanar = true;
+            for (i = 78; i < 90; i++)
+                if (curMeshHdr->verticesXy[i].vy != 0)
+                    coplanar = false;
+            if (coplanar)
+                for (i = 78; i < 90; i++)
+                    scratchData->screenXy_0[i].vy -= 16;
+        }
+#endif
+
         switch (g_WorldEnvWork.field_0)
         {
             case 0:

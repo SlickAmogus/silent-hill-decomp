@@ -257,6 +257,7 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
         extern int g_PcHorPlusEnabled;
         extern int g_PcMenuPillarbox;
         extern int g_PcWidescreenMode;
+        extern int g_PcPuzzleItemDepth;
         int _stretched = (g_PcHorPlusEnabled && g_PcWidescreenMode == 2) ||
                          (!g_PcHorPlusEnabled && !g_PcMenuPillarbox);
         int _sw, _sh;
@@ -277,7 +278,9 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
          * in interlaced 448. Scale the Y size axis by that factor (x invscale%)
          * to restore true (square-pixel) proportions. Independent of window/
          * pillarbox since the horizontal path already normalizes to a 4:3 display. */
-        if (g_PcInvAspectSquare && g_GameWork.gsScreenWidth > 0) {
+        /* Puzzle sub-models share an authored projection and spacing. Scaling
+         * each part about its own pivot makes the padlock reels intersect. */
+        if (g_PcInvAspectSquare && !g_PcPuzzleItemDepth && g_GameWork.gsScreenWidth > 0) {
             /* Scale only the size rows (m[1]) — NOT the Y translation (t[1]):
              * the model must get taller IN PLACE. Scaling t[1] also moved
              * off-center items (the equipped weapon, placed high) further up. */
@@ -315,6 +318,18 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
             else if (displayItemIdx < 7)
                 localToScreenMat.t[1] += (g_PcInvCarouselYOff * frameH) / INV_Y_OFF_REF_H;
         }
+    }
+#endif
+#ifdef SH_PC_PORT
+    /* Separate the upper padlock cap from the first reel during its turn.
+     * Leave the shared model and the digit/animation state untouched. */
+    {
+        extern int g_PcPuzzleItemDepth;
+        struct TMD_STRUCT* model = (struct TMD_STRUCT*)arg1->tmd;
+        if (g_PcPuzzleItemDepth && g_GameWork.gameState == GameState_InGame &&
+            g_SavegamePtr != NULL && g_SavegamePtr->mapIdx == MapIdx_MAP5_S01 &&
+            displayItemIdx == 5 && model->vern == 98 && model->primn == 180)
+            localToScreenMat.t[1] -= 8;
     }
 #endif
     GsSetLsMatrix(&localToScreenMat);
