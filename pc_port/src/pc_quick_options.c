@@ -457,6 +457,7 @@ static float s_geoListT, s_geoRowPitch, s_geoRowH, s_geoPanelL, s_geoPanelR;
  * Update's hit-test the same way the row geometry is. */
 static float s_panelOfsX, s_panelOfsY;
 static float s_geoTitleB, s_geoTitleT;
+static float s_geoPanelB; /* with s_geoTitleT, the panel's vertical extent */
 static int   s_dragging;
 static float s_dragLastX, s_dragLastY;
 static int   s_geoRows;
@@ -1822,6 +1823,14 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
             if (wheel && QO_IS_VALUE_ROW(rows[row].kind))
                 qo_activate(&rows[row], wheel > 0 ? +1 : -1);
         }
+        else if ((mClick || mRClick) && !s_dragging &&
+                 !(inX && py >= s_geoPanelB && py <= s_geoTitleT))
+        {
+            /* A click beside the panel turns the page, the way the page row
+             * does: left forward, right back. */
+            qo_set_page(s_page + (mClick ? 1 : -1));
+            qo_beep(Sfx_MenuMove);
+        }
     }
 
     /* The page row adjusts like a value: Left/right-click go back a page,
@@ -2116,6 +2125,7 @@ void Pc_QuickOptions_Draw(void)
     s_geoListT = listT; s_geoRowPitch = rowPitch; s_geoRowH = rowH;
     s_geoPanelL = panelL; s_geoPanelR = panelR; s_geoRows = nRows;
     s_geoTitleT = panelT; s_geoTitleB = panelT - titleH;
+    s_geoPanelB = panelB;
 
     qo_build_white();
 
