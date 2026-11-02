@@ -104,8 +104,8 @@ public class ControlsForm : Form
         { "key_exit_game", "Escape" },
         { "key_reload", "R" }, { "key_reload_2", "NONE" },
         { "key_cycle_weapons", "NONE" }, { "key_quick_heal", "NONE" },
-        { "pad_reload", "NONE" }, { "pad_cycle_weapons", "NONE" }, { "pad_quick_heal", "NONE" },
-        { "key_quick_turn", "NONE" }, { "pad_quick_turn", "NONE" },
+        { "pad_reload", "rightshoulder" }, { "pad_cycle_weapons", "NONE" }, { "pad_quick_heal", "NONE" },
+        { "key_quick_turn", "NONE" }, { "pad_quick_turn", "leftshoulder" },
         { "key_rear_look", "NONE" }, { "pad_rear_look", "NONE" },
         { "pad_cross", "a" }, { "pad_circle", "b" }, { "pad_triangle", "y" }, { "pad_square", "x" },
         { "pad_l1", "leftshoulder" }, { "pad_r1", "rightshoulder" }, { "pad_l2", "lefttrigger" }, { "pad_r2", "righttrigger" },
@@ -131,10 +131,10 @@ public class ControlsForm : Form
         // PC-only actions (alt-cam scheme) — default to the same as classic until rebound.
         { "key_change_cam", "F9" }, { "pad_change_cam", "rightstick" },
         { "key_reload", "R" }, { "key_reload_2", "NONE" },
-        { "pad_reload", "NONE" },
+        { "pad_reload", "rightshoulder" },
         { "key_cycle_weapons", "NONE" }, { "pad_cycle_weapons", "NONE" },
         { "key_quick_heal", "NONE" }, { "pad_quick_heal", "NONE" },
-        { "key_quick_turn", "NONE" }, { "pad_quick_turn", "NONE" },
+        { "key_quick_turn", "NONE" }, { "pad_quick_turn", "leftshoulder" },
         { "key_rear_look", "NONE" }, { "pad_rear_look", "NONE" },
     };
 
