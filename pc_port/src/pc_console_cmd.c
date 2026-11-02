@@ -52,6 +52,7 @@
 #include "bodyprog/sound/sound_system.h" /* AMBSFX sweep: s_VabInfo / Sd_PlaySfx */
 #include "bodyprog/sound/sfx_id_enum.h"
 #include "sh_log.h"
+#include <SDL_timer.h> /* gpubench's wall clock */
 #include "map_registry.h"
 #include "dbg_overlay.h"
 #include "pc_config.h"
@@ -519,6 +520,7 @@ static const char* const HELP_LINES[] = {
     " kf [n]         keyframe viewer: toggle, or view frame n",
     " playas [name]  play as another character (bare = list)",
     " playas next / previous  cycle characters (bindable)",
+    " gpubench       GPU cost of each graphics setting here (stand still ~20 s)",
     " skinini        re-read the character models' .ini files",
     " minimapnomap [0|1]  minimap before the map is found: 0 hide, 1 empty panel",
     " bind <key> <cmd>[;<cmd>...]  run console commands from a key",
@@ -618,6 +620,127 @@ void Pc_ConsoleFmvUpdate(void)
     FMV_Play(fileIdx, 0);
     g_PcFmvClockDiscard = 1;
     ScreenFade_Start(true, true, false);
+}
+
+/* gpubench: the GPU cost of each graphics setting, measured in place.
+ *
+ * A performance log from another machine says how slow it is, not why: the
+ * [PERF] window reports one gpu figure for everything at once. This flips one
+ * setting at a time, holds it for a fixed number of frames and reads the GPU
+ * timer, so the table says what each setting costs on this machine in this
+ * spot. The ranking carries to a slower card of the same vendor even when the
+ * absolute numbers do not. Everything is put back as it was. The [PERF] window
+ * zeroes the GPU counters every 30 s, so a step whose counters went backwards
+ * is measured again. */
+#define GB_SETTLE  20
+#define GB_MEASURE 120
+
+static const char* const s_gbNames[] = {
+    "as configured", "texture filter off", "bilinear", "aniso 4x",
+    "per-pixel lighting off", "hero light off", "PGXP off", "flashlight shadows off",
+};
+#define GB_STEPS ((int)(sizeof(s_gbNames) / sizeof(s_gbNames[0])))
+
+static int          s_gbStep = -1, s_gbFrames;
+static double       s_gbGpu0;
+static int          s_gbGpuN0;
+static unsigned int s_gbMs0;
+static struct { int texFilter, aniso, pplight, hero, pgxp, flMode, timerWanted; } s_gbSaved;
+
+/* Restores the saved settings, then applies one step's change (-1 = restore only). */
+static void gb_apply(int step)
+{
+    extern int g_cfg_textureFilter, g_cfg_anisoLevel, g_PsxUsePgxp;
+
+    g_cfg_textureFilter         = s_gbSaved.texFilter;
+    g_cfg_anisoLevel            = s_gbSaved.aniso;
+    g_PcConfig.perPixelLighting = s_gbSaved.pplight;
+    g_PcConfig.heroLight        = s_gbSaved.hero;
+    g_PsxUsePgxp                = s_gbSaved.pgxp;
+    if (g_PcConfig.flashlightMode != s_gbSaved.flMode)
+        Pc_FlashlightModeApply(s_gbSaved.flMode, 0);
+
+    switch (step) {
+        case 1: g_cfg_textureFilter = 0; break;
+        case 2: g_cfg_textureFilter = 1; break;
+        case 3: g_cfg_textureFilter = 3; g_cfg_anisoLevel = 4; break;
+        case 4: g_PcConfig.perPixelLighting = 0; break;
+        case 5: g_PcConfig.heroLight = 0; break;
+        case 6: g_PsxUsePgxp = 0; break;
+        case 7:
+            if (s_gbSaved.flMode == 1 || s_gbSaved.flMode == 3)
+                Pc_FlashlightModeApply(s_gbSaved.flMode - 1, 0);
+            break;
+        default: break;
+    }
+}
+
+void Pc_ConsoleGpuBenchUpdate(void)
+{
+    extern double g_PsyX_GpuMsSum;
+    extern int    g_PsyX_GpuMsCount;
+    extern int    g_PsyX_GpuTimerWanted;
+
+    if (s_gbStep < 0)
+        return;
+
+    s_gbFrames++;
+    if (s_gbFrames == GB_SETTLE) {
+        s_gbGpu0  = g_PsyX_GpuMsSum;
+        s_gbGpuN0 = g_PsyX_GpuMsCount;
+        s_gbMs0   = SDL_GetTicks();
+        return;
+    }
+    if (s_gbFrames < GB_SETTLE + GB_MEASURE)
+        return;
+    if (g_PsyX_GpuMsCount < s_gbGpuN0) {
+        s_gbFrames = GB_SETTLE - 1;
+        return;
+    }
+
+    {
+        int    n   = g_PsyX_GpuMsCount - s_gbGpuN0;
+        double gpu = (n > 0) ? (g_PsyX_GpuMsSum - s_gbGpu0) / n : -1.0;
+        double frm = (double)(SDL_GetTicks() - s_gbMs0) / GB_MEASURE;
+
+        if (gpu >= 0.0)
+            SH_DBG_ECHO("[GPUBENCH] %-24s gpu %6.2f ms   frame %6.2f ms", s_gbNames[s_gbStep], gpu, frm);
+        else
+            SH_DBG_ECHO("[GPUBENCH] %-24s gpu    n/a      frame %6.2f ms", s_gbNames[s_gbStep], frm);
+    }
+
+    s_gbStep++;
+    s_gbFrames = 0;
+    if (s_gbStep >= GB_STEPS) {
+        gb_apply(-1);
+        g_PsyX_GpuTimerWanted = s_gbSaved.timerWanted;
+        s_gbStep = -1;
+        SH_DBG_ECHO("[GPUBENCH] done; settings restored (MSAA needs a restart to compare)");
+        return;
+    }
+    gb_apply(s_gbStep);
+}
+
+static void cmd_gpubench(void)
+{
+    extern int g_cfg_textureFilter, g_cfg_anisoLevel, g_PsxUsePgxp, g_PsyX_GpuTimerWanted;
+
+    if (s_gbStep >= 0) {
+        cprintf("gpubench is already running");
+        return;
+    }
+    s_gbSaved.texFilter   = g_cfg_textureFilter;
+    s_gbSaved.aniso       = g_cfg_anisoLevel;
+    s_gbSaved.pplight     = g_PcConfig.perPixelLighting;
+    s_gbSaved.hero        = g_PcConfig.heroLight;
+    s_gbSaved.pgxp        = g_PsxUsePgxp;
+    s_gbSaved.flMode      = g_PcConfig.flashlightMode;
+    s_gbSaved.timerWanted = g_PsyX_GpuTimerWanted;
+    g_PsyX_GpuTimerWanted = 1;
+    s_gbStep              = 0;
+    s_gbFrames            = 0;
+    SH_DBG_ECHO("[GPUBENCH] %d settings x %d frames: stand still, keep the view; results follow here and in the log",
+                GB_STEPS, GB_SETTLE + GB_MEASURE);
 }
 
 static void cmd_fmv(const char* arg)
@@ -2139,6 +2262,8 @@ void Pc_ConsoleExec(const char* line)
         extern int g_PsxPgxpDbg;
         if (arg[0]) g_PsxPgxpDbg = atoi(arg);
         cprintf("pgxpdbg %d: 1=no precise verts 2=legacy depth 4=opaque alpha 8=no world split 16=no exact twin 32=precise from MAC 64=W=1 128=integer xy", g_PsxPgxpDbg);
+    } else if (strcmp(cmd, "GPUBENCH") == 0) {
+        cmd_gpubench();
     } else if (strcmp(cmd, "WORLDDEPTH") == 0) {
         /* worlddepth 0|1 -- depth function for static opaque world under PGXP.
          * 1 = GL_ALWAYS (paint order alone decides), 0 = GL_LEQUAL (a nearer
