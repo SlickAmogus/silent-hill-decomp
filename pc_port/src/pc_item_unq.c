@@ -111,6 +111,104 @@ s32 Pc_ItemUnq_FromItemId(u8 itemId)
     return FILE_ITEM_UNQ20_TMD;
 }
 
+void Pc_ItemUnq_FixLiquidUvs(u8 itemId, struct TMD_STRUCT* model)
+{
+    /* Four UNQ66 liquid triangles sample (128,255), outside the small
+     * red patch used by the neighbouring faces. One is opaque and three are
+     * translucent reverse faces. This is present in retail USA and JAP0 data,
+     * and exposes grey triangles when the bottle rotates.
+     * Match the original primitive, including its vertex indices, so custom
+     * models and already-corrected data are left alone. CLUT/tpage may have
+     * been relocated by the loader, so exclude those four bytes from matching. */
+    static const int indices[] = { 1, 109, 118, 214 };
+    static const u8 original[4][28] = {
+        {9,6,0,52,255,170,0,0,128,255,0,0,128,255,0,0,2,0,3,0,3,0,4,0,3,0,5,0},
+        {9,6,0,54,128,255,0,0,255,170,0,0,255,170,0,0,91,0,4,0,14,0,3,0,14,0,7,0},
+        {9,6,0,54,255,170,0,0,255,170,0,0,128,255,0,0,2,0,7,0,2,0,3,0,3,0,5,0},
+        {9,6,0,54,128,255,0,0,128,255,0,0,255,170,0,0,91,0,5,0,91,0,4,0,14,0,7,0}
+    };
+    static const u8 corrected[4][6] = {
+        {255,191,247,191,247,168},
+        {247,191,255,191,255,168},
+        {255,168,255,191,247,168},
+        {247,168,247,191,255,168}
+    };
+    /* Additional liquid faces share the shell's ABE mode. Treat them as the
+     * same opaque liquid volume as faces 0..7, rather than blending several
+     * overlapping red triangles. The plastic shell retains its transparency. */
+    static const int liquidIndices[16] = {
+        108,109,110,111,112,113,114,115,118,119,120,121,214,215,216,217
+    };
+    static const u8 liquidOriginal[16][28] = {
+        {9,6,0,54,247,168,0,0,255,191,0,0,255,168,0,0,90,0,1,0,52,0,0,0,52,0,2,0},
+        {9,6,0,54,128,255,0,0,255,170,0,0,255,170,0,0,91,0,4,0,14,0,3,0,14,0,7,0},
+        {9,6,0,54,247,191,0,0,255,191,0,0,255,168,0,0,52,0,0,0,91,0,4,0,91,0,5,0},
+        {9,6,0,54,247,168,0,0,255,191,0,0,255,168,0,0,92,0,3,0,92,0,6,0,92,0,7,0},
+        {9,6,0,54,247,168,0,0,255,191,0,0,255,168,0,0,9,0,7,0,9,0,2,0,9,0,5,0},
+        {9,6,0,54,247,168,0,0,255,191,0,0,255,168,0,0,93,0,0,0,93,0,3,0,94,0,4,0},
+        {9,6,0,54,247,191,0,0,255,191,0,0,255,168,0,0,93,0,3,0,93,0,0,0,95,0,1,0},
+        {9,6,0,54,247,191,0,0,255,191,0,0,255,168,0,0,9,0,2,0,9,0,7,0,9,0,6,0},
+        {9,6,0,54,255,170,0,0,255,170,0,0,128,255,0,0,2,0,7,0,2,0,3,0,3,0,5,0},
+        {9,6,0,54,255,168,0,0,255,191,0,0,247,168,0,0,3,0,5,0,3,0,4,0,0,0,2,0},
+        {9,6,0,54,255,168,0,0,255,191,0,0,247,168,0,0,8,0,1,0,6,0,0,0,8,0,6,0},
+        {9,6,0,54,255,168,0,0,255,191,0,0,247,168,0,0,5,0,6,0,5,0,7,0,5,0,1,0},
+        {9,6,0,54,128,255,0,0,128,255,0,0,255,170,0,0,91,0,5,0,91,0,4,0,14,0,7,0},
+        {9,6,0,54,247,168,0,0,247,191,0,0,255,168,0,0,52,0,2,0,52,0,0,0,91,0,5,0},
+        {9,6,0,54,247,168,0,0,247,191,0,0,255,168,0,0,95,0,6,0,93,0,3,0,95,0,1,0},
+        {9,6,0,54,247,168,0,0,247,191,0,0,255,168,0,0,9,0,1,0,9,0,2,0,9,0,6,0}
+    };
+    u8* prim;
+    int i;
+    int j;
+
+    if (itemId != InvItemId_UnknownLiquid || model == NULL ||
+        model->vern != 59 || model->primn != 220 || model->primtop == NULL)
+        return;
+
+    /* Validate the complete fixed-size layout before using primitive indices. */
+    for (i = 0; i < 220; i++)
+    {
+        if (((u8*)model->primtop)[i * 28 + 1] != 6)
+            return;
+    }
+    for (j = 0; j < 4; j++)
+    {
+        prim = (u8*)model->primtop + indices[j] * 28;
+        for (i = 0; i < 28; i++)
+        {
+            if (i == 6 || i == 7 || i == 10 || i == 11)
+                continue;
+            if (prim[i] != original[j][i])
+                return;
+        }
+    }
+    for (j = 0; j < 16; j++)
+    {
+        prim = (u8*)model->primtop + liquidIndices[j] * 28;
+        for (i = 0; i < 28; i++)
+        {
+            if (i == 6 || i == 7 || i == 10 || i == 11)
+                continue;
+            if (prim[i] != liquidOriginal[j][i])
+                return;
+        }
+    }
+    /* Validate all affected faces before making either correction. */
+    for (j = 0; j < 16; j++)
+        ((u8*)model->primtop)[liquidIndices[j] * 28 + 3] &= ~2;
+
+    /* Keep the same orientation as neighbouring faces, including reverse sides. */
+    for (j = 0; j < 4; j++)
+    {
+        prim = (u8*)model->primtop + indices[j] * 28;
+        for (i = 0; i < 3; i++)
+        {
+            prim[4 + i * 4] = corrected[j][i * 2];
+            prim[5 + i * 4] = corrected[j][i * 2 + 1];
+        }
+    }
+}
+
 /* See header. Unequipped doubles as "no latch held". */
 static u8 s_PcItemUnqRequestedItemId = InvItemId_Unequipped;
 

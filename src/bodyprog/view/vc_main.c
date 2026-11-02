@@ -1243,6 +1243,24 @@ void vcSetNearRoadAryByCharaPos(VC_WORK* w_p, VC_ROAD_DATA* road_ary_list, q19_1
             rd_min_hz = Q4_TO_Q12(road_data_ptr->lim_rd.min_hz);
             rd_max_hz = Q4_TO_Q12(road_data_ptr->lim_rd.max_hz);
 
+#ifdef SH_PC_PORT
+            /* This kitchen shot pins the camera almost inside the wall phone.
+             * Widescreen exposes its near face at the right edge. Move only
+             * this road's camera anchor 0.25 units into the room, retaining the
+             * normal camera easing, switch area and intact phone geometry.
+             * Adjust the working bounds, not the shared map/PSX road data. */
+            if (g_SavegamePtr->mapIdx == MapIdx_MAP3_S01 &&
+                g_SavegamePtr->mapRoomIdx == 10 &&
+                road_data_ptr->lim_rd.min_hx == Q4(17.5625f) &&
+                road_data_ptr->lim_rd.max_hx == Q4(17.5625f) &&
+                road_data_ptr->lim_rd.min_hz == Q4(59.6875f) &&
+                road_data_ptr->lim_rd.max_hz == Q4(59.6875f))
+            {
+                rd_min_hx += Q12(0.25f);
+                rd_max_hx += Q12(0.25f);
+            }
+#endif
+
             unused2 = 0;
 
             sw_min_hx = Q4_TO_Q12(road_data_ptr->lim_sw.min_hx);

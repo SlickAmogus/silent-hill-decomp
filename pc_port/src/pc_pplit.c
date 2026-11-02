@@ -7,6 +7,7 @@
 #include "bodyprog/gfx/world.h"
 #include "PsyX/PsyX_public.h"
 #include "pc_config.h"
+#include "bodyprog/gfx/map_effects.h"
 
 extern s_WorldEnvWork g_WorldEnvWork;
 
@@ -28,6 +29,8 @@ void Pc_PpLit_Apply(void)
 
     if (level < 0) level = 0;
     if (level > 3) level = 3;
+    if (!g_PcConfig.heroLightWithFlashlight && Game_FlashlightIsOn())
+        level = 0;
     g_PsyX_PpLitActive = g_PcConfig.perPixelLighting ? 1 : 0;
     g_PsyX_HeroLight[0] = dir[0] / len;
     g_PsyX_HeroLight[1] = dir[1] / len;

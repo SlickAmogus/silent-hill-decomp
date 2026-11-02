@@ -3216,6 +3216,52 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                      * original path set — classic is not this shim's business. */
                 }
 
+                /* Katana lunge. Retail's Player_LowerBodyUpdate (case Attack)
+                 * steps the stab forward through moveSpeed, and the alternate
+                 * cameras never run that machine, so the katana stood still in
+                 * all of them. Same numbers and triggers: the tap stab on its
+                 * first Attack tick (stateStep 0, which nothing else advances
+                 * here), the hold thrust once the swing passes its hit
+                 * keyframe; 0x444 per tick in Attack, the aim rate after. */
+                if (g_DebugThirdPersonCam)
+                {
+                    static q19_12 s_pcKatanaLunge = Q12(0.0f);
+                    int inAttack = (extra->lowerBodyState == PlayerLowerBodyState_Attack);
+                    s32 wa       = g_SysWork.playerCombat.weaponAttack;
+
+                    if (inAttack && wa < WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap) &&
+                        WEAPON_ATTACK_ID_GET(wa) == EquippedWeaponId_Katana)
+                    {
+                        if (wa == WEAPON_ATTACK(EquippedWeaponId_Katana, AttackInputType_Hold))
+                        {
+                            if (s_pcKatanaLunge == Q12(0.0f) &&
+                                extra->model.anim.keyframeIdx >= D_800C44F0[D_800AF220].field_4 + 7)
+                            {
+                                s_pcKatanaLunge = Q12(5.0f);
+                            }
+                        }
+                        else if (player->model.stateStep == 0 && !g_Player_IsAttacking)
+                        {
+                            s_pcKatanaLunge = Q12(5.0f);
+                        }
+                        if (player->model.stateStep == 0)
+                        {
+                            player->model.stateStep++;
+                        }
+                    }
+
+                    if (s_pcKatanaLunge != Q12(0.0f))
+                    {
+                        s_pcKatanaLunge -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, inAttack ? 0x444 : Q12(0.4f));
+                        if (s_pcKatanaLunge < Q12(0.0f))
+                        {
+                            s_pcKatanaLunge = Q12(0.0f);
+                        }
+                        D_800C4550            = s_pcKatanaLunge;
+                        g_Player_HeadingAngle = Q12_ANGLE(0.0f);
+                    }
+                }
+
                 /* Trigger footstep sounds based on animation keyframes.
                  * Save/restore D_800C4550 because func_8007B924 overwrites it
                  * with moveDistance which isn't set on PC. */
@@ -11969,15 +12015,16 @@ void GameFs_PlayerMapAnimLoad(s32 mapIdx) // 0x8007EB64
                  * the overlay's link base (USA 0x800C9578), so PSX_ADDR converts
                  * the stored pointer directly. */
                 u32 psxField38 = *(u32*)((u8*)g_OvlDynamic + 0x3C);
-                /* EUR overlays are linked for base 0x800CB370, JAP (Rev 1/2)
-                 * for 0x800CBBD0, but both load at the US base 0x800C9578 —
+                /* EUR overlays are linked for base 0x800CB370, JAP Rev 0 for
+                 * 0x800CBAA8 and Rev 1/2 for 0x800CBBD0, but all load at
+                 * the US base 0x800C9578 —
                  * rebase overlay-internal pointers by the link delta or they
                  * resolve past the real table. */
                 if (g_GameRegion == Region_EUR && psxField38 >= 0x800CB370u) {
                     psxField38 -= 0x800CB370u - 0x800C9578u;
                 }
-                else if (g_GameRegion == Region_JPN && psxField38 >= 0x800CBBD0u) {
-                    psxField38 -= 0x800CBBD0u - 0x800C9578u;
+                else if (g_GameRegion == Region_JPN && psxField38 >= PcPort_GetJpnOverlayLinkBase()) {
+                    psxField38 -= PcPort_GetJpnOverlayLinkBase() - 0x800C9578u;
                 }
                 else if (g_GameRegion == Region_USA) {
                     /* A REBUILT USA disc (Brazilian re-translation) relinks each

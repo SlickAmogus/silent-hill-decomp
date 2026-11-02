@@ -8,6 +8,9 @@
 #include "maps/characters/bloodsucker.h"
 #include "maps/characters/player.h"
 #include "maps/characters/puppet_nurse.h"
+#ifdef SH_PC_PORT
+#include "pc_mouse_cursor.h"
+#endif
 
 #include "../src/maps/characters/puppet_nurse.c" // 0x800CD6B0
 
@@ -336,6 +339,7 @@ void func_800D1A58(void) // 0x800D1A58
             func_800D17F8(8, 0);
 
 #ifdef SH_PC_PORT
+            Pc_MouseCursor_PuzzleOverride(&D_800D6BD0, &D_800D6BD4);
             /* Stick integration was per RENDERED frame — the plate cursor flew
              * 8x faster at 240fps. Scale the deflection by dt (30fps norm). */
             D_800D6BD0 += TIMESTEP_SCALE_30_FPS(g_DeltaTime, (g_Controller0->sticks_24.sticks_0.leftX << 14) / 75);
@@ -460,6 +464,7 @@ void func_800D1A58(void) // 0x800D1A58
             func_800D17F8(8, 0);
 
 #ifdef SH_PC_PORT
+            Pc_MouseCursor_PuzzleOverride(&D_800D6BD0, &D_800D6BD4);
             /* dt-scaled like case 8. */
             D_800D6BD0 += TIMESTEP_SCALE_30_FPS(g_DeltaTime, (g_Controller0->sticks_24.sticks_0.leftX << 14) / 75);
 #else

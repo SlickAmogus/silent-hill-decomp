@@ -35,7 +35,6 @@ extern const char* PcPort_GetGameDiscPath(void);
 #define ITEM_TEXT_BASE  0x800C8B68u
 #define ITEM_TEXT_COUNT 195
 #define EUR_OVL_BASE    0x800CB370u
-#define JPN_OVL_BASE    0x800CBBD0u /* JAP Rev 1/2 map-overlay link base (probe-verified) */
 #define USA_OVL_BASE    0x800C9578u /* US map-overlay link base (configs/USA/maps vram) */
 
 /* Fan-translation (modified USA disc) support. Patches like the Spanish
@@ -2149,7 +2148,7 @@ void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
 
     /* Each disc links its overlays at its own base. A rebuilt USA disc moves
      * even that, so it is detected rather than assumed. */
-    base     = (g_GameRegion == Region_JPN) ? JPN_OVL_BASE
+    base     = (g_GameRegion == Region_JPN) ? PcPort_GetJpnOverlayLinkBase()
              : (g_GameRegion == Region_EUR) ? EUR_OVL_BASE
                                             : Pc_UsaOverlayLinkBase(ovl, mapIdx);
     tablePsx = *(const unsigned int*)(bytes + 0x34);

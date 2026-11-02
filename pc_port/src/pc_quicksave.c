@@ -14,6 +14,7 @@
 #include "sh_log.h"
 #include "pc_config.h"
 #include "pc_rando.h"
+#include "pc_quicksave.h"
 
 #include <SDL.h>
 
@@ -26,7 +27,7 @@
  * without a hand-maintained room table, and lifts by itself the moment the boss
  * dies — the walk back out of the chamber stays saveable. Quick LOAD is left
  * alone: getting out is never the problem. */
-static int Pc_QuickSave_BossActive(void)
+int Pc_QuickSave_BossActive(void)
 {
     static const unsigned char s_bossCharas[] = {
         Chara_SplitHead,    /* school basement / sewer */
@@ -75,6 +76,23 @@ void Pc_QuickSave_TouchRequest(int load)
         s_touchReqLoad = 1;
     else
         s_touchReqSave = 1;
+}
+
+void Pc_QuickSave_OpenSaveScreen(void)
+{
+    SysWork_SavegameUpdatePlayer();
+    Screen_Refresh(320, 0);
+    GameFs_SaveLoadBinLoad();
+    Fs_QueueWaitForEmpty();
+    Game_StateSetNext(GameState_SaveScreen);
+}
+
+void Pc_QuickSave_OpenLoadScreen(void)
+{
+    Screen_Refresh(320, 0);
+    GameFs_SaveLoadBinLoad();
+    Fs_QueueWaitForEmpty();
+    Game_StateSetNext(GameState_LoadSavegameScreen);
 }
 
 void Pc_QuickSaveLoadUpdate(void)
@@ -141,18 +159,11 @@ void Pc_QuickSaveLoadUpdate(void)
         } else if (wantSave) {
             SH_DBG("[QUICK] opening save screen (%s)",
                    touchSave ? "touch" : g_PcConfig.keyQuickSave);
-            SysWork_SavegameUpdatePlayer();
-            Screen_Refresh(320, 0);
-            GameFs_SaveLoadBinLoad();
-            Fs_QueueWaitForEmpty();
-            Game_StateSetNext(GameState_SaveScreen);
+            Pc_QuickSave_OpenSaveScreen();
         } else if (wantLoad) {
             SH_DBG("[QUICK] opening load screen (%s)",
                    touchLoad ? "touch" : g_PcConfig.keyQuickLoad);
-            Screen_Refresh(320, 0);
-            GameFs_SaveLoadBinLoad();
-            Fs_QueueWaitForEmpty();
-            Game_StateSetNext(GameState_LoadSavegameScreen);
+            Pc_QuickSave_OpenLoadScreen();
         }
     }
 

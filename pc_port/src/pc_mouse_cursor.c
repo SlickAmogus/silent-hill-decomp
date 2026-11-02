@@ -34,16 +34,6 @@ extern GLuint GR_ScreenFBO(void);
 #define MC_OFFSET_X 160 /* SCREEN_POSITION_X(50) — text authoring X reference */
 #define MC_OFFSET_Y 112 /* SCREEN_POSITION_Y(47) — text authoring Y reference */
 
-/* Puzzle cursor servo gain. Each free-cursor puzzle integrates the analog stick
- * as a velocity and clamps its cursor to a fixed range, so a delta-velocity
- * injection only delivered a fraction of that range per full mouse sweep — the
- * cursor stopped ~2/3 of the way down. Instead we deflect the stick proportional
- * to the error between the puzzle's own cursor and the framebuffer point the
- * mouse is over, converging on exactly where the mouse points regardless of the
- * framebuffer height or the stick scale. Gain sets how hard it steers; the
- * mouse-sensitivity slider scales it. */
-#define MC_PUZZLE_SERVO_GAIN 8.0f
-
 /* Free-cursor puzzles on a touchscreen. A tap used to BE a click: SDL reports
  * every finger as a left mouse button too, and the servo below injected the
  * confirm bind from that edge, so a note sounded wherever the cursor happened
@@ -68,6 +58,11 @@ void Pc_MouseCursor_PuzzleClickRequest(void)
     s_puzzleClickReq = 1;
 }
 
+static float  s_gameCurX, s_gameCurY; /* the puzzle's cursor, from NoteCursorDrawn */
+static int    s_haveGameCur;
+static float  s_fingerX, s_fingerY;   /* a holding finger, last frame */
+static int    s_fingerHave;
+
 /* Per-frame pointer state, in logical 320x240 coords. */
 static float s_gx, s_gy, s_prevGx, s_prevGy;
 static float s_vx, s_vy;   /* normalized 0..1 inside the presented picture */
@@ -79,13 +74,31 @@ static int   s_havePrev;
 static int   s_moved;        /* mouse moved this frame */
 static int   s_prevMx = -1, s_prevMy = -1;
 
-/* Puzzle cursor servo state: the game's own cursor position (framebuffer
- * centre-origin px, captured from Gfx_CursorDraw) and whether a recent mouse
- * move has engaged absolute tracking — released once the cursor reaches the
- * pointer, so a real controller keeps the stick while the mouse sits idle. */
-static float s_gameCurX, s_gameCurY;
-static int   s_haveGameCur;
-static int   s_servoActive;
+/* Who drives the puzzle cursor: whichever of stick, mouse and touchpad moved
+ * last, so an idle mouse never pins the cursor against a pad. */
+enum
+{
+    MC_OWNER_PAD,
+    MC_OWNER_MOUSE,
+    MC_OWNER_TOUCH
+};
+static int   s_puzzleOwner;
+/* Where the override put the cursor this frame (framebuffer centre-origin px),
+ * checked against where the puzzle actually drew it after its clamp. */
+static float s_puzzleTargetX, s_puzzleTargetY;
+static int   s_puzzleOverrode;
+
+/* DualShock 4 / DualSense touchpad, finger 0, as a relative trackpad. Under
+ * Steam Input the pad arrives as OS mouse motion instead and takes the mouse
+ * path. SDL reports 0..1 on both axes of a pad about twice as wide as tall, so
+ * Y is scaled by that ratio to move the cursor the same per thumb distance; one
+ * full swipe across covers the picture width. */
+#define MC_TOUCHPAD_ASPECT 0.5f
+static float s_touchPrevX, s_touchPrevY;
+static int   s_touchPrevDown, s_touchPrevClick;
+static SDL_JoystickID s_touchPrevId = -1;
+static float s_touchDx, s_touchDy; /* framebuffer px the finger moved this frame */
+static int   s_touchClickEdge;
 static int   s_wheelStep;    /* +1/-1 on a new wheel notch this frame, else 0 */
 static int   s_wheelNotches; /* every notch this frame, signed */
 static int   s_prevWheelTotal;
@@ -118,6 +131,35 @@ static int Mc_Enabled(void)
     return 1;
 }
 
+/* Pulls the OS pointer back onto the puzzle cursor when the puzzle's own clamp
+ * held the cursor short of where the override put it. Otherwise the pointer
+ * wanders past the puzzle's bounds and has to travel all the way back before
+ * the cursor leaves the edge. The puzzle bounds stay the game's; only the
+ * pointer is confined to them. */
+static void Mc_PinPointerToPuzzleCursor(float tipX, float tipY)
+{
+    extern SDL_Window* g_window;
+    float              ex = tipX - s_puzzleTargetX;
+    float              ey = tipY - s_puzzleTargetY;
+    float              fx0, fy0, fx1, fy1;
+
+    if (ex > -1.0f && ex < 1.0f && ey > -1.0f && ey < 1.0f)
+        return;
+    if (g_window == NULL || SDL_GetKeyboardFocus() != g_window)
+        return;
+
+    /* Window px per framebuffer px, sampled from the forward mapping so the
+     * pillarbox / internal-resolution handling there needs no inverse here. */
+    PsyX_MapWindowToViewport(s_prevMx, s_prevMy, &fx0, &fy0);
+    PsyX_MapWindowToViewport(s_prevMx + 1024, s_prevMy + 1024, &fx1, &fy1);
+    if (fx1 <= fx0 || fy1 <= fy0)
+        return;
+
+    SDL_WarpMouseInWindow(g_window,
+                          s_prevMx + (int)(ex / (float)g_GameWork.gsScreenWidth * 1024.0f / (fx1 - fx0)),
+                          s_prevMy + (int)(ey / (float)g_GameWork.gsScreenHeight * 1024.0f / (fy1 - fy0)));
+}
+
 /* The Essential QoL Mods window (pc_qol_mods.c) sits over the title and Options
  * menus, which hit-test the pointer themselves and see each tap a frame before
  * the window does, so a tap on the window also landed on the row beneath it.
@@ -141,6 +183,40 @@ void Pc_MouseCursor_NoteCursorDrawn(int curX, int curY)
     s_gameCurX     = (float)curX;
     s_gameCurY     = (float)curY;
     s_haveGameCur  = 1;
+
+    if (s_puzzleOverrode)
+    {
+        s_puzzleOverrode = 0;
+        /* The arrow is drawn centred 8 px right/down of its tip. */
+        Mc_PinPointerToPuzzleCursor((float)(curX - 8), (float)(curY - 8));
+    }
+}
+
+void Pc_MouseCursor_PuzzleOverride(int* cursorX, int* cursorY)
+{
+    if (!Mc_Enabled())
+        return;
+
+    if (s_puzzleOwner == MC_OWNER_TOUCH)
+    {
+        /* Relative from where the cursor already is; the puzzle's clamp ran
+         * last frame, so a drag back off an edge moves it at once. */
+        *cursorX += (int)(s_touchDx * 4096.0f);
+        *cursorY += (int)(s_touchDy * 4096.0f);
+        return;
+    }
+    if (s_puzzleOwner != MC_OWNER_MOUSE)
+        return;
+
+    /* s_gx/s_gy are text-authoring coords; minus the OFFSET reference they are
+     * framebuffer centre-origin px, the space the puzzles keep their cursor in
+     * (the arrow tip sits exactly on FP_FROM(cursor)). Off-picture positions
+     * are passed through so the puzzle's own clamp pins the cursor to its edge. */
+    s_puzzleTargetX  = s_gx - (float)MC_OFFSET_X;
+    s_puzzleTargetY  = s_gy - (float)MC_OFFSET_Y;
+    s_puzzleOverrode = 1;
+    *cursorX = (int)(s_puzzleTargetX * 4096.0f);
+    *cursorY = (int)(s_puzzleTargetY * 4096.0f);
 }
 
 int Pc_MouseCursor_Moved(void)
@@ -346,6 +422,56 @@ int Pc_MouseCursor_TouchReleased(int* outX, int* outY)
     return 1;
 }
 
+static void Mc_PollTouchpad(void)
+{
+    SDL_JoystickID picked = -1;
+    float          x = 0.0f, y = 0.0f;
+    int            click = 0;
+    int            i;
+
+    /* Every pad with a touchpad counts, not just the first: with two connected
+     * only the first-connected one was read. The finger that was already
+     * dragging keeps the cursor, so a thumb resting on the other pad can't
+     * snatch it mid-drag. The pads are already open in PsyX; FromInstanceID
+     * borrows their handles. */
+    for (i = 0; i < SDL_NumJoysticks(); i++)
+    {
+        SDL_JoystickID      id = SDL_JoystickGetDeviceInstanceID(i);
+        SDL_GameController* c;
+        Uint8               state = 0;
+        float               fx, fy, pressure;
+
+        if (!SDL_IsGameController(i))
+            continue;
+        c = SDL_GameControllerFromInstanceID(id);
+        if (c == NULL || SDL_GameControllerGetNumTouchpads(c) <= 0)
+            continue;
+
+        click |= SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_TOUCHPAD);
+        if (SDL_GameControllerGetTouchpadFinger(c, 0, 0, &state, &fx, &fy, &pressure) != 0 || state == 0)
+            continue;
+        if (picked == -1 || id == s_touchPrevId)
+        {
+            picked = id;
+            x      = fx;
+            y      = fy;
+        }
+    }
+
+    s_touchDx = s_touchDy = 0.0f;
+    if (picked != -1 && s_touchPrevDown && picked == s_touchPrevId)
+    {
+        s_touchDx = (x - s_touchPrevX) * (float)g_GameWork.gsScreenWidth;
+        s_touchDy = (y - s_touchPrevY) * (float)g_GameWork.gsScreenWidth * MC_TOUCHPAD_ASPECT;
+    }
+    s_touchPrevDown  = (picked != -1);
+    s_touchPrevId    = picked;
+    s_touchPrevX     = x;
+    s_touchPrevY     = y;
+    s_touchClickEdge = (click && !s_touchPrevClick);
+    s_touchPrevClick = click;
+}
+
 void Pc_MouseCursor_FrameUpdate(void)
 {
     int    mx, my, leftUp;
@@ -353,6 +479,7 @@ void Pc_MouseCursor_FrameUpdate(void)
     float  fx, fy;
 
     s_leftEdge = s_rightEdge = 0;
+    s_puzzleOverrode = 0;
 
     if (!Mc_Enabled())
     {
@@ -435,16 +562,22 @@ void Pc_MouseCursor_FrameUpdate(void)
             s_captured = 0;
     }
 
-    /* ---- Free-cursor puzzle servo (piano / plate / door / map pan) ---- */
+        /* ---- Free-cursor puzzle: ownership + clicks (the cursor itself is placed
+     * by Pc_MouseCursor_PuzzleOverride from inside each puzzle) ----
+     *
+     * On a touchscreen SDL also reports every finger as the mouse, so the
+     * mouse's own placement and click would make a tap both move the cursor
+     * and press there (the piano played a note wherever a finger landed).
+     * While a finger drives, the mouse is ignored: a finger that lands on the
+     * cursor takes hold of it and drags it, as the controller's touchpad does,
+     * and a click is a double tap on the cursor or the overlay's Click button. */
     if (s_puzzleFrames > 0)
     {
-        float     sens  = g_PcConfig.mouseSensitivity;
-        int       sx = 0, sy = 0;
-        const int touch = Pc_MouseCursor_TouchDriving();
-        int       click = 0, cancel = 0;
+        const int touch       = Pc_MouseCursor_TouchDriving();
+        int       screenClick = 0;
+        int       cancel      = 0;
 
-        if (sens <= 0.0f)
-            sens = 1.0f;
+        Mc_PollTouchpad();
 
         if (touch)
         {
@@ -455,15 +588,14 @@ void Pc_MouseCursor_FrameUpdate(void)
                 const float  dx    = (float)tx - (float)MC_OFFSET_X - s_gameCurX;
                 const float  dy    = (float)ty - (float)MC_OFFSET_Y - s_gameCurY;
                 const Uint32 now   = SDL_GetTicks();
-                const int    atCur = ((dx * dx) + (dy * dy)) <=
-                                     (MC_PUZZLE_TAP_NEAR * MC_PUZZLE_TAP_NEAR);
+                const int    atCur = s_haveGameCur &&
+                                     ((dx * dx) + (dy * dy)) <= (MC_PUZZLE_TAP_NEAR * MC_PUZZLE_TAP_NEAR);
 
                 if (atCur && s_puzzleTapMs != 0 && (now - s_puzzleTapMs) <= MC_PUZZLE_DTAP_MS)
                 {
                     /* Second tap on the cursor: confirm, and take no hold, so
-                     * the cursor cannot be nudged off the spot it is about to
-                     * act on. */
-                    click         = 1;
+                     * the cursor cannot be nudged off the spot it acts on. */
+                    screenClick   = 1;
                     s_puzzleTapMs = 0;
                     s_puzzleGrab  = 0;
                 }
@@ -474,69 +606,66 @@ void Pc_MouseCursor_FrameUpdate(void)
                     s_puzzleTapMs = atCur ? now : 0;
                     s_puzzleGrab  = atCur;
                 }
+                s_fingerHave = 0;
             }
             if (!s_tDown)
                 s_puzzleGrab = 0;
             if (s_puzzleClickReq)
             {
-                click            = 1;
+                screenClick      = 1;
                 s_puzzleClickReq = 0;
+            }
+            if (s_puzzleGrab && s_tDown && s_tInView)
+            {
+                if (s_fingerHave)
+                {
+                    s_touchDx += s_tgx - s_fingerX;
+                    s_touchDy += s_tgy - s_fingerY;
+                }
+                s_fingerX    = s_tgx;
+                s_fingerY    = s_tgy;
+                s_fingerHave = 1;
+            }
+            else
+            {
+                s_fingerHave = 0;
             }
         }
         else
         {
-            click  = s_leftEdge;
             cancel = s_rightEdge;
-        }
-
-        /* A mouse move (re)engages absolute tracking; it releases once the cursor
-         * has caught up to the pointer, so an idle mouse won't fight a real pad. */
-        if (s_moved)
-            s_servoActive = 1;
-
-        /* Touch never chases the pointer. SDL puts the synthetic mouse wherever
-         * the finger lands, so the line above would have the cursor run at any
-         * touch at all: pressing the Click button in the corner sent it skidding
-         * into the screen edge, fighting a target it could not reach. It moves
-         * only while a finger has hold of it. */
-        if (touch)
-            s_servoActive = s_puzzleGrab;
-
-        if (s_servoActive && s_haveGameCur)
-        {
-            /* The mouse target and the puzzle's own cursor are both framebuffer
-             * centre-origin pixels (the MC_OFFSET reference cancels), so steer the
-             * stick by their difference until the cursor reaches the pointer. */
-            float ex = (s_gx - (float)MC_OFFSET_X) - s_gameCurX;
-            float ey = (s_gy - (float)MC_OFFSET_Y) - s_gameCurY;
-
-            if (ex > -3.0f && ex < 3.0f && ey > -3.0f && ey < 3.0f)
-            {
-                s_servoActive = 0; /* arrived — hand the stick back to a real pad */
-            }
-            else
-            {
-                sx = (int)(ex * MC_PUZZLE_SERVO_GAIN * sens);
-                sy = (int)(ey * MC_PUZZLE_SERVO_GAIN * sens);
-                if (sx < -127) sx = -127; else if (sx > 127) sx = 127;
-                if (sy < -127) sy = -127; else if (sy > 127) sy = 127;
-            }
         }
 
         if (g_Controller0 != NULL)
         {
-            /* Harry is control-frozen during these puzzles, so this can't move the
-             * player. Only overwrite while steering, so an idle mouse leaves a
-             * plugged-in analog stick alone. */
-            if (sx != 0) g_Controller0->sticks_24.sticks_0.leftX = (s8)sx;
-            if (sy != 0) g_Controller0->sticks_24.sticks_0.leftY = (s8)sy;
+            s8* lx = &g_Controller0->sticks_24.sticks_0.leftX;
+            s8* ly = &g_Controller0->sticks_24.sticks_0.leftY;
 
-            if (click)
+            if (*lx <= -STICK_THRESHOLD || *lx >= STICK_THRESHOLD || *ly <= -STICK_THRESHOLD || *ly >= STICK_THRESHOLD)
+                s_puzzleOwner = MC_OWNER_PAD;
+            else if (s_moved && !touch)
+                s_puzzleOwner = MC_OWNER_MOUSE;
+            else if (s_touchDx != 0.0f || s_touchDy != 0.0f)
+                s_puzzleOwner = MC_OWNER_TOUCH;
+
+            /* The puzzle still adds the stick after the override has placed the
+             * cursor, so a resting pad's drift (under the hand-back threshold)
+             * would push it off the pointer. Harry is control-frozen here, so
+             * zeroing it can't move him. */
+            if (s_puzzleOwner != MC_OWNER_PAD)
+                *lx = *ly = 0;
+
+            if ((s_leftEdge && !touch) || s_touchClickEdge || screenClick)
                 g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.enter;
             if (cancel)
                 g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.cancel;
         }
         s_puzzleFrames--;
+    }
+    else
+    {
+        s_puzzleOwner   = MC_OWNER_PAD;
+        s_touchPrevDown = 0;
     }
 }
 
@@ -547,7 +676,7 @@ int Pc_MouseCursor_MenuRowHover(int baseY, int stepY, int count, unsigned int vi
     if (outClicked != NULL)
         *outClicked = 0;
 
-    if (!Mc_Enabled() || !s_inView || Mc_Captured() || stepY <= 0)
+    if (!Mc_Enabled() || !s_inView || stepY <= 0 || Mc_Captured())
         return -1;
 
     for (i = 0; i < count; i++)
@@ -726,8 +855,8 @@ void Pc_MouseCursor_GlDraw(void)
         return;
 
     /* Touch drives menus through this same hover/click path (SDL synthesizes
-     * mouse events from taps), but an arrow parked wherever the last tap
-     * landed represents a pointer a touchscreen does not have. Keep the input
+     * mouse events from taps), but an arrow parked wherever the last tap landed
+     * represents a pointer a touchscreen does not have. Keep the input
      * behaviour, drop the drawing. Recency-based rather than compile-time so a
      * device with both a touchscreen and a mouse follows whichever is in use. */
     {

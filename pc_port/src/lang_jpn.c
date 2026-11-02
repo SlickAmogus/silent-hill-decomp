@@ -91,6 +91,13 @@ const char* Pc_JpnInventoryLabel(const char* us)
     return JpnUiLookup(s_JpnInv, JPN_INV_COUNT, us);
 }
 
+const char* Pc_JpnUiText(const char* us)
+{
+    if (!Pc_LangSjisActive() || us == NULL)
+        return NULL;
+    return JpnUiLookup(s_JpnUi, JPN_UI_COUNT, us);
+}
+
 static char*       s_Arena;
 static const char* s_Text[JPN_MENU_COUNT];
 static int         s_Active;

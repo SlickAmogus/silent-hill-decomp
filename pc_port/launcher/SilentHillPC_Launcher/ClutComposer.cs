@@ -908,12 +908,17 @@ namespace SilentHillPC_Launcher
             rowRgba[0] = row0;
             var comp = new byte[W * H * 4];
             var used = new SortedSet<int>();
+            // Texels no model reaches take row 0: a composite installed whole is the
+            // slot's row 0 and every row the runtime lacks falls back to it, so that is
+            // what anything outside the model union already samples. Left transparent,
+            // an upscaler's filtering bled the holes into the islands' edges.
+            Buffer.BlockCopy(row0, 0, comp, 0, comp.Length);
             for (int i = 0; i < W * H; i++)
             {
                 int r = rm[i];
                 if (r < 0) continue;
                 used.Add(r);
-                if (r >= clutRows) { res.OutOfRangeTexels++; continue; }  // left transparent
+                if (r >= clutRows) { res.OutOfRangeTexels++; continue; }
                 res.Covered++;
                 byte[] rr;
                 if (!rowRgba.TryGetValue(r, out rr))

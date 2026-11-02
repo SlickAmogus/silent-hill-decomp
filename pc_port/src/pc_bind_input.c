@@ -219,3 +219,23 @@ const char* BindCapture_Update(void)
     }
     return NULL;
 }
+
+void BindInput_KeyLabel(const char* v, char* out, size_t n)
+{
+    SDL_Scancode sc    = (v != NULL) ? SDL_GetScancodeFromName(v) : SDL_SCANCODE_UNKNOWN;
+    const char*  label = NULL;
+
+    if (sc != SDL_SCANCODE_UNKNOWN)
+        label = SDL_GetKeyName(SDL_GetKeyFromScancode(sc));
+    snprintf(out, n, "%s", (label != NULL && label[0] != '\0') ? label : (v != NULL ? v : ""));
+}
+
+int BindInput_ScancodeFromLabel(const char* label)
+{
+    SDL_Keycode  key = SDL_GetKeyFromName(label);
+    SDL_Scancode sc  = (key != SDLK_UNKNOWN) ? SDL_GetScancodeFromKey(key) : SDL_SCANCODE_UNKNOWN;
+
+    /* A character the active layout has no unshifted key for (US "`" on
+     * QWERTZ) is taken as the US position, which is what it always meant. */
+    return (sc != SDL_SCANCODE_UNKNOWN) ? (int)sc : (int)SDL_GetScancodeFromName(label);
+}

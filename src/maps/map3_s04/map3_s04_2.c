@@ -8,6 +8,9 @@
 #include "maps/map3/map3_s04.h"
 #include "maps/characters/lisa.h"
 #include "bodyprog/sound/sound_system.h"
+#ifdef SH_PC_PORT
+#include "pc_mouse_cursor.h"
+#endif
 
 #include "../src/maps/chara_util.c" // 0x800D1374
 

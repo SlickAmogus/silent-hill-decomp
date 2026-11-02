@@ -1,0 +1,1293 @@
+From 0708e4a5d0b4936a3b89fc83d08d11245eab6d68 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 31 Oct 2026 22:29:27 +0000
+Subject: [PATCH 1/3] Framebuffer feedback: the PS1 loop for the loading trail,
+ at render resolution
+
+Screen_BackgroundMotionBlur copies the displayed buffer over the cleared draw
+buffer with an opaque SPRT, modulated 128 or 127, and Harry draws over it. On
+the GPU that is t5 -> (t5*mod)>>7 per channel with word-0 texels skipped:
+identity, or one 5-bit level off, so every pose stays on screen until it has
+lost 31 levels. The store ran that loop at a gain of 0.7, which turned the
+console's second-long smear into a two-frame ghost, and at 320x224 under a
+Harry drawn at window resolution.
+
+- g_PsxFeedbackDamp is 1.0.
+- An opaque SPRT that copies a display buffer onto the same buffer-relative
+  position samples a 1:1 capture of the display area by gl_FragCoord through
+  the hi-res override sampler, with the 5-bit arithmetic in the shader and the
+  modulation byte recovered from the vertex colour (GR_FeedbackScreenTexture,
+  GR_SetFeedbackScreenSample, u_fbScreen). Nothing is resampled, so the loop
+  cannot drift; the VRAM rects are still packed from the same capture for the
+  blending readers and as the fallback (g_PsxFeedbackScreen, console FBSCREEN).
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01XhB6DTaXhErTs7bnFrAEbQ
+---
+ include/PsyX/PsyX_render.h |  10 ++
+ src/gpu/PsyX_GPU.cpp       |  42 +++++++
+ src/render/PsyX_render.cpp | 231 +++++++++++++++++++++++++++++++++++--
+ 3 files changed, 271 insertions(+), 12 deletions(-)
+
+diff --git a/include/PsyX/PsyX_render.h b/include/PsyX/PsyX_render.h
+index 53eaabe..679a3a6 100644
+--- a/include/PsyX/PsyX_render.h
++++ b/include/PsyX/PsyX_render.h
+@@ -302,6 +302,16 @@ extern void			GR_NoteFeedbackSamplerPrim(int semiTrans, int modColour);
+ extern int			g_PsxFeedbackExact;
+ extern int			g_cfg_dreamFeedback;
+ 
++/* Screen-space feedback for an OPAQUE prim that copies a display buffer onto the
++ * same position of the draw buffer (the loading trail, the door fade): the 1:1
++ * capture of the previous frame to sample by gl_FragCoord, or 0 to sample the
++ * VRAM rect. The draw side pushes the state per split with
++ * GR_SetFeedbackScreenSample. g_PsxFeedbackScreen = 0 disables the path
++ * (console FBSCREEN) and every reader goes back to the 320x224 VRAM store. */
++extern unsigned int	GR_FeedbackScreenTexture(int srcX, int srcY, int dstX, int dstY, int w, int h);
++extern void			GR_SetFeedbackScreenSample(int on);
++extern int			g_PsxFeedbackScreen;
++
+ /* Widescreen feedback: how far past the 320-wide display buffer the UI ortho
+  * reaches, and about which point. The effect's primitives are stretched by this
+  * and the capture is stretched with them, so the blur fills the window at any
+diff --git a/src/gpu/PsyX_GPU.cpp b/src/gpu/PsyX_GPU.cpp
+index 3ba6566..06c28d8 100644
+--- a/src/gpu/PsyX_GPU.cpp
++++ b/src/gpu/PsyX_GPU.cpp
+@@ -851,6 +851,10 @@ int overrideTextureOffsetY = 0;
+  * neighboring atlas cell (font glyph / cursor edge artifacts with packs). */
+ int overrideTextureHiresW = 0;
+ int overrideTextureHiresH = 0;
++/* overrideTexture is the 1:1 capture of the previous frame and the split samples
++ * it by gl_FragCoord (GR_FeedbackScreenTexture). Set per primitive in the SPRT
++ * path, cleared wherever overrideTexture is assigned. */
++static int overrideFeedbackScreen = 0;
+ 
+ // DR_PSYX_TEX packet state, kept separately so the hi-res override lookup
+ // below can restore it on a miss instead of clobbering it to zero.
+@@ -921,6 +925,7 @@ static inline void ApplyHiresOverride(int tpage, int clut)
+ 	int nW = 0, nH = 0, offX = 0, offY = 0, hiW = 0, hiH = 0;
+ 
+ 	s_curPrimIsGlyph = (g_PsyX_TextGlyphTest != NULL) ? g_PsyX_TextGlyphTest(tpage, clut) : 0;
++	overrideFeedbackScreen = 0;
+ 
+ 	/* Framebuffer-feedback consumers announce themselves here: 16bpp (tp >= 2)
+ 	 * addressing the left 320 VRAM columns is the display-buffer band, which is
+@@ -2042,6 +2047,8 @@ struct GPUDrawSplit
+ 	int				overrideHiresW;
+ 	int				overrideHiresH;
+ 
++	int				fbScreen; /* textureId is the 1:1 previous-frame capture, sampled by gl_FragCoord */
++
+ 	int				isGlyph; /* see g_PsyX_TextGlyphTest */
+ 	int				mixed;   /* drawn with the all-format program (g_gte_shader_mix) */
+ 
+@@ -2085,6 +2092,7 @@ void ClearSplits()
+ 	overrideTextureOffsetY = 0;
+ 	overrideTextureHiresW = 0;
+ 	overrideTextureHiresH = 0;
++	overrideFeedbackScreen = 0;
+ }
+ 
+ template<class T>
+@@ -3272,6 +3280,7 @@ static void AddSplit(bool semiTrans, bool textured, int depthMode = SPLIT_DEPTH_
+ 		 * together (same textureId!) or they'd share one offset uniform. */
+ 		curSplit.drawenv.tw.x == overrideTextureOffsetX &&
+ 		curSplit.drawenv.tw.y == overrideTextureOffsetY &&
++		curSplit.fbScreen == overrideFeedbackScreen &&
+ 		curSplit.drawPrimMode == g_DrawPrimMode &&
+ 		curSplit.drawenv.clip.x == activeDrawEnv.clip.x &&
+ 		curSplit.drawenv.clip.y == activeDrawEnv.clip.y &&
+@@ -3322,6 +3331,7 @@ static void AddSplit(bool semiTrans, bool textured, int depthMode = SPLIT_DEPTH_
+ 	split.drawenv.tw.y = overrideTextureOffsetY;
+ 	split.overrideHiresW = overrideTextureHiresW;
+ 	split.overrideHiresH = overrideTextureHiresH;
++	split.fbScreen = overrideFeedbackScreen;
+ 
+ 	split.startVertex = g_vertexIndex;
+ 	split.numVerts = 0;
+@@ -3423,9 +3433,12 @@ void DrawSplit(const GPUDrawSplit& split, int splitIndex = -1)
+ 		GR_SetTexture(split.textureId, split.texFormat);
+ 
+ 	if (split.texFormat == TF_32_BIT_RGBA)
++	{
+ 		GR_SetOverrideTextureSize(split.drawenv.tw.w, split.drawenv.tw.h,
+ 		                          split.drawenv.tw.x, split.drawenv.tw.y,
+ 		                          split.overrideHiresW, split.overrideHiresH);
++		GR_SetFeedbackScreenSample(split.fbScreen);
++	}
+ 
+ 	const bool drawOnScreen = split.drawenv.dfe;
+ 	GR_SetupClipMode(&split.drawenv.clip, drawOnScreen);
+@@ -4396,6 +4409,33 @@ static int ProcessTileAndSprt(P_TAG* polyTag)
+ 			if (s_curPrimIsScratch && !g_cfg_dreamFeedback)
+ 				return 4;
+ 
++			/* An opaque copy of a display buffer onto the same spot of the draw
++			 * buffer (Screen_BackgroundMotionBlur's tiles) reads the previous
++			 * frame at render resolution, by screen position. The offset is
++			 * absolute VRAM and the clip origin is the draw buffer's, so
++			 * x0 + ofs - clip is where the tile lands within the buffer. */
++			if (s_curPrimIsFeedback && !semiTrans && !s_curPrimIsScratch && overrideTexture == 0)
++			{
++				const int tp   = activeDrawEnv.tpage;
++				const int srcX = (tp & 0xF) * 64 + poly->u0;
++				const int srcY = ((tp >> 4) & 1) * 256 + poly->v0;
++				const int dstX = poly->x0 + activeDrawEnv.ofs[0] - activeDrawEnv.clip.x;
++				const int dstY = poly->y0 + activeDrawEnv.ofs[1] - activeDrawEnv.clip.y;
++				const unsigned int fbTex = GR_FeedbackScreenTexture(srcX, srcY, dstX, dstY, poly->w, poly->h);
++
++				if (fbTex != 0)
++				{
++					overrideTexture        = (TextureID)fbTex;
++					overrideTextureWidth   = 320;
++					overrideTextureHeight  = 224;
++					overrideTextureOffsetX = 0;
++					overrideTextureOffsetY = 0;
++					overrideTextureHiresW  = 0;
++					overrideTextureHiresH  = 0;
++					overrideFeedbackScreen = 1;
++				}
++			}
++
+ 			AddSplit(semiTrans, true, SplitDepthForPrim(polyTag));
+ 
+ 			GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
+@@ -4867,6 +4907,7 @@ static void EmitFarChain(int first)
+ 			overrideTextureOffsetY = m->oy;
+ 			overrideTextureHiresW  = m->hw;
+ 			overrideTextureHiresH  = m->hh;
++			overrideFeedbackScreen = 0;
+ 			activeDrawEnv.tpage = q->tpage;
+ 			if (g_PsxWholeMapProbe == 1)
+ 			{
+@@ -5095,6 +5136,7 @@ static int ProcessPsyXPrims(P_TAG* polyTag)
+ 		overrideTextureHeight = psytex->code[1] >> 16 & 0xFFF;
+ 		overrideTextureHiresW = 0; /* unknown upscale: shader clamp off */
+ 		overrideTextureHiresH = 0;
++		overrideFeedbackScreen = 0;
+ 		drPsyxTexOverride = overrideTexture;
+ 		drPsyxTexOverrideWidth = overrideTextureWidth;
+ 		drPsyxTexOverrideHeight = overrideTextureHeight;
+diff --git a/src/render/PsyX_render.cpp b/src/render/PsyX_render.cpp
+index ae59a03..e54ef3c 100644
+--- a/src/render/PsyX_render.cpp
++++ b/src/render/PsyX_render.cpp
+@@ -2040,6 +2040,9 @@ typedef struct
+ 	GLint ditherForceLoc;
+ 	GLint pixelScaleLoc;
+ 	GLint texelSizeLoc;
++	GLint fbScreenLoc;
++	GLint fbOriginLoc;
++	GLint fbInvSizeLoc;
+ 	GLint texOffsetLoc;
+ 	GLint hiresHalfLoc;
+ 	GLint fogColorLoc;
+@@ -2086,6 +2089,9 @@ GLint u_anisoTapsLoc;
+ GLint u_ditherForceLoc;
+ GLint u_pixelScaleLoc;
+ GLint u_texelSizeLoc;
++GLint u_fbScreenLoc = -1;
++GLint u_fbOriginLoc = -1;
++GLint u_fbInvSizeLoc = -1;
+ GLint u_texOffsetLoc;
+ GLint u_hiresHalfLoc;
+ GLint u_fogColorLoc;
+@@ -3005,8 +3011,31 @@ const char* gte_shader_32_rgba =
+ 	"	uniform vec2 texelSize;\n"\
+ 	"	uniform vec2 u_texOffset;\n"\
+ 	"	uniform vec2 u_hiresHalf;\n"\
++	"	uniform int u_fbScreen;\n"\
++	"	uniform vec2 u_fbOrigin;\n"\
++	"	uniform vec2 u_fbInvSize;\n"\
+ 	GPU_LIT_UNIFORMS\
+ 	"	void main() {\n"\
++	/* Screen-space framebuffer feedback (GR_FeedbackScreenTexture): s_texture is
++	 * a 1:1 capture of the previous frame's display area and this pixel reads
++	 * back the same pixel, as the PS1's opaque copy of its display buffer does.
++	 * The arithmetic is the GPU's for a textured, non-dithered rectangle: the
++	 * 5-bit level of each channel times the modulation byte, >>7 -- so 128 is
++	 * identity and 127 takes one level off every non-black channel, the decay
++	 * Screen_BackgroundMotionBlur relies on -- and a texel whose word is 0 is
++	 * never drawn. The level is recovered exactly: the output is L*8 in 8 bits
++	 * and the capture is read back as round(v*31.875). Everything the normal
++	 * path does afterwards (vertex colour, lighting, dither, fog) is skipped;
++	 * any of it would move the stored level and the loop would feed on that. */\
++	"		if (u_fbScreen > 0) {\n"\
++	"			vec2 ftc = (floor(gl_FragCoord.xy) - u_fbOrigin + 0.5) * u_fbInvSize;\n"\
++	"			vec3 fbL = clamp(floor(texture2D(s_texture, ftc).rgb * 31.875 + 0.5), 0.0, 31.0);\n"\
++	"			if (fbL.r + fbL.g + fbL.b < 0.5) discard;\n"\
++	"			vec3 fbM = floor(v_color.rgb * 127.5 + 0.5);\n"\
++	"			fbL = floor(fbL * fbM * (1.0 / 128.0) + 0.0001);\n"\
++	"			fragColor = vec4(fbL * (8.0 / 255.0), 1.0);\n"\
++	"			return;\n"\
++	"		}\n"\
+ 	/* u_texOffset: the prim's tpage origin relative to the replaced TIM's
+ 	 * VRAM origin, in native texels. A surface wider than one tpage is drawn
+ 	 * as several prims whose UVs each restart at their own tpage — without
+@@ -3499,6 +3528,9 @@ static void GR_InitialisePSXShader(GTEShader* sh, ShaderID shader)
+ 	sh->pixelScaleLoc = glGetUniformLocation(sh->shader, "u_pixelScale");
+ 	sh->projectionLoc = glGetUniformLocation(sh->shader, "Projection");
+ 	sh->texelSizeLoc = glGetUniformLocation(sh->shader, "texelSize");
++	sh->fbScreenLoc = glGetUniformLocation(sh->shader, "u_fbScreen");
++	sh->fbOriginLoc = glGetUniformLocation(sh->shader, "u_fbOrigin");
++	sh->fbInvSizeLoc = glGetUniformLocation(sh->shader, "u_fbInvSize");
+ 	sh->texOffsetLoc = glGetUniformLocation(sh->shader, "u_texOffset");
+ 	sh->hiresHalfLoc = glGetUniformLocation(sh->shader, "u_hiresHalf");
+ 	sh->fogColorLoc = glGetUniformLocation(sh->shader, "u_fogColor");
+@@ -3965,6 +3997,9 @@ static void GR_SetTextureShader(TextureID texture, TexFormat texFormat, GTEShade
+ 		u_projectionLoc = shader->projectionLoc;
+ 		u_projection3DLoc = shader->projection3DLoc;
+ 		u_texelSizeLoc = -1;
++		u_fbScreenLoc = -1;
++		u_fbOriginLoc = -1;
++		u_fbInvSizeLoc = -1;
+ 		u_texOffsetLoc = -1;
+ 		u_hiresHalfLoc = -1;
+ 		u_fogColorLoc = shader->fogColorLoc;
+@@ -4002,6 +4037,9 @@ static void GR_SetTextureShader(TextureID texture, TexFormat texFormat, GTEShade
+ 		u_projectionLoc = shader->projectionLoc;
+ 		u_projection3DLoc = shader->projection3DLoc;
+ 		u_texelSizeLoc = -1;
++		u_fbScreenLoc = -1;
++		u_fbOriginLoc = -1;
++		u_fbInvSizeLoc = -1;
+ 		u_texOffsetLoc = -1;
+ 		u_hiresHalfLoc = -1;
+ 		u_fogColorLoc = shader->fogColorLoc;
+@@ -4039,6 +4077,9 @@ static void GR_SetTextureShader(TextureID texture, TexFormat texFormat, GTEShade
+ 		u_projectionLoc = shader->projectionLoc;
+ 		u_projection3DLoc = shader->projection3DLoc;
+ 		u_texelSizeLoc = -1;
++		u_fbScreenLoc = -1;
++		u_fbOriginLoc = -1;
++		u_fbInvSizeLoc = -1;
+ 		u_texOffsetLoc = -1;
+ 		u_hiresHalfLoc = -1;
+ 		u_fogColorLoc = shader->fogColorLoc;
+@@ -4081,6 +4122,9 @@ static void GR_SetTextureShader(TextureID texture, TexFormat texFormat, GTEShade
+ 		u_projectionLoc = shader->projectionLoc;
+ 		u_projection3DLoc = shader->projection3DLoc;
+ 		u_texelSizeLoc = shader->texelSizeLoc;
++		u_fbScreenLoc = shader->fbScreenLoc;
++		u_fbOriginLoc = shader->fbOriginLoc;
++		u_fbInvSizeLoc = shader->fbInvSizeLoc;
+ 		u_texOffsetLoc = shader->texOffsetLoc;
+ 		u_hiresHalfLoc = shader->hiresHalfLoc;
+ 		u_fogColorLoc = shader->fogColorLoc;
+@@ -6300,9 +6344,20 @@ extern "C" void GR_SetSceneFbRedirect(int x, int y, int w, int h)
+  * packs to word 0 and the sampler's zero-texel discard treats it as
+  * transparent — exactly PSX texel-0 behaviour, which is what makes the loading
+  * screen show a trail of Harry rather than an opaque black rectangle. */
+-/* Feedback-loop gain, pushed to the pack shader every store. 0.5 is the shipped
+- * steady-state value; the door out-fade wants it near identity. Console: FBDAMP. */
+-extern "C" { float g_PsxFeedbackDamp = 0.7f; } /* loading-trail ghost strength, matched by eye to a real PS1 */
++/* Loop gain for an OPAQUE reader (the loading trail, the door fade), pushed to
++ * the pack shader every store. Console: FBDAMP.
++ *
++ * Unity, because that is the hardware loop. Screen_BackgroundMotionBlur draws
++ * one opaque SPRT per frame that copies the DISPLAYED buffer (the frame just
++ * shown: GsGetActiveBuff is the display buffer, see water.c) over the freshly
++ * cleared draw buffer, modulated 128/128 or, on the game's decay frames,
++ * 127/128. Rectangles are not dithered, so the copy is exactly t5 -> (t5*mod)>>7:
++ * identity on a 128 frame, one 5-bit level off every non-black channel on a
++ * 127 frame. Harry then draws over it. Nothing else fades the trail, so every
++ * pose stays on screen until it has lost 31 levels -- the long smear a PS1 (and
++ * DuckStation) shows, which a damped loop (the 0.7 this shipped with) shortens
++ * to a two- or three-frame ghost. */
++extern "C" { float g_PsxFeedbackDamp = 1.0f; }
+ /* Loop gain for a BLENDING reader (the per-map dream overlays). Unity: the
+  * overlay's own 50/50 composite is the decay. Console FBDAMP takes it as a
+  * second argument. */
+@@ -6317,6 +6372,24 @@ static int      g_fbPackValid = 0; /* a frame has been captured this session */
+ /* Set around the scene-scratch capture while the world ortho is widened. */
+ static int      g_fbCaptureWorldWide = 0;
+ 
++/* Screen-space feedback for the OPAQUE 1:1 readers (GR_FeedbackScreenTexture).
++ *
++ * The 320x224 VRAM store cannot reproduce what a PS1 at higher internal
++ * resolution shows (DuckStation keeps the whole loop at render resolution): the
++ * live Harry is drawn at window resolution and his trail came back as 320x224
++ * blocks. So when the reader is an opaque prim that copies a display buffer
++ * onto the same position of the draw buffer -- the loading trail and the door
++ * fade, which is every reader Screen_BackgroundMotionBlur emits -- the capture
++ * is taken at the display area's own pixel size, 1:1, and the prim samples it
++ * by gl_FragCoord instead of by UV: pixel (x,y) reads back pixel (x,y) of the
++ * previous frame, with the PSX 5-bit arithmetic done in the sampler. Nothing is
++ * resampled, so the loop cannot drift or smear; the VRAM rects are still packed
++ * from the same capture for every other reader and as the fallback.
++ * g_fbScreenOrigin is the window/FBO pixel (GL, bottom-left) of texel (0,0). */
++static int   g_fbScreenValid = 0;
++static float g_fbScreenOrigin[2] = { 0.0f, 0.0f };
++extern "C" { int g_PsxFeedbackScreen = 1; } /* console FBSCREEN */
++
+ /* PSX display-buffer rects recorded from GsDefDispBuff2 (SH: (0,32)/(0,256),
+  * 320x224). The PC libgs stub collapses both display envs to (0,0) because there
+  * is no VRAM double-buffering here, so activeDispEnv.disp is NOT a usable store
+@@ -6354,6 +6427,7 @@ void GR_NoteVramUploadForFeedback(int x, int y, int w, int h)
+ 					x, y, w, h, i, b->x, b->y, b->w, b->h);
+ 			}
+ 			g_fbFeedbackSuppress = 4;
++			g_fbScreenValid = 0;
+ 			return;
+ 		}
+ 	}
+@@ -6499,6 +6573,9 @@ static void GR_EnsureFbPackTarget(int w, int h)
+ 		glGenVertexArrays(1, &g_fbPackVAO);
+ 		glGenTextures(1, &g_fbPackTex);
+ 		glGenFramebuffers(1, &g_fbPackFBO);
++		/* Sampled by the screen-space feedback path through the hi-res override
++		 * sampler, whose bind-time filter must not turn it bilinear. */
++		GR_MarkTextureNearest((TextureID)g_fbPackTex);
+ 	}
+ 
+ 	if (g_fbPackW == w && g_fbPackH == h)
+@@ -6703,7 +6780,38 @@ static void GR_ClearAllFeedbackRects(void)
+  * PSX coordinate (u,v) of the display buffer lands on texel (u,v). Shared by the
+  * per-present feedback store and the mid-frame scene-scratch capture; see the
+  * g_psxAreaVp note below for why the source rect is not simply the viewport. */
+-static void GR_CaptureFrameToPackTex(int w, int h)
++/* The window/FBO rect (GL coords, bottom-left origin) the display buffer of the
++ * pass that will redraw the capture occupies, rounded to whole pixels. This is
++ * the source rect of a 1:1 capture and its size. False when no pass has
++ * recorded one yet. */
++static int GR_FeedbackAreaRect(int* x0, int* y0, int* w, int* h)
++{
++	const int    useUi = (g_fbSamplerUiPass && g_psxUiAreaVpValid);
++	const float* area = useUi ? g_psxUiAreaVp : g_psxAreaVp;
++	const int    areaValid = useUi ? g_psxUiAreaVpValid : g_psxAreaVpValid;
++	int ax0, ay0, ax1, ay1;
++
++	if (!areaValid || area[2] <= area[0] || area[3] <= area[1])
++		return 0;
++
++	ax0 = (int)floorf(area[0] + 0.5f);
++	ay0 = (int)floorf(area[1] + 0.5f);
++	ax1 = (int)floorf(area[2] + 0.5f);
++	ay1 = (int)floorf(area[3] + 0.5f);
++	if (ax1 <= ax0 || ay1 <= ay0)
++		return 0;
++
++	*x0 = ax0;
++	*y0 = ay0;
++	*w  = ax1 - ax0;
++	*h  = ay1 - ay0;
++	return 1;
++}
++
++/* exact1to1: w and h are the rounded area size from GR_FeedbackAreaRect, and the
++ * capture is a pixel copy of that rect (no scaling anywhere), so texel (i,j) is
++ * window pixel (x0+i, y0+j). Otherwise the area is scaled into w x h. */
++static void GR_CaptureFrameToPackTex(int w, int h, int exact1to1)
+ {
+ #if USE_OPENGL && USE_FRAMEBUFFER_BLIT
+ 	GLuint readFBO = 0;
+@@ -6798,10 +6906,28 @@ static void GR_CaptureFrameToPackTex(int w, int h)
+ 		sy1 = ay1 > (float)(vy + vh) ? (float)(vy + vh) : ay1;
+ 
+ 		/* The matching sub-rect of the capture, so the clip does not rescale. */
+-		dx0 = (int)((sx0 - ax0) / (ax1 - ax0) * (float)w + 0.5f);
+-		dx1 = (int)((sx1 - ax0) / (ax1 - ax0) * (float)w + 0.5f);
+-		dy0 = (int)((sy0 - ay0) / (ay1 - ay0) * (float)h + 0.5f);
+-		dy1 = (int)((sy1 - ay0) / (ay1 - ay0) * (float)h + 0.5f);
++		if (exact1to1)
++		{
++			/* Whole pixels on both sides: a scaled blit here, even by one pixel
++			 * in 1440, is a shift that the loop applies again every frame. */
++			const int ax0i = (int)floorf(ax0 + 0.5f), ay0i = (int)floorf(ay0 + 0.5f);
++			const int ax1i = (int)floorf(ax1 + 0.5f), ay1i = (int)floorf(ay1 + 0.5f);
++			int sx0i = ax0i < vx ? vx : ax0i;
++			int sy0i = ay0i < vy ? vy : ay0i;
++			int sx1i = ax1i > vx + vw ? vx + vw : ax1i;
++			int sy1i = ay1i > vy + vh ? vy + vh : ay1i;
++			sx0 = (float)sx0i; sy0 = (float)sy0i;
++			sx1 = (float)sx1i; sy1 = (float)sy1i;
++			dx0 = sx0i - ax0i; dy0 = sy0i - ay0i;
++			dx1 = sx1i - ax0i; dy1 = sy1i - ay0i;
++		}
++		else
++		{
++			dx0 = (int)((sx0 - ax0) / (ax1 - ax0) * (float)w + 0.5f);
++			dx1 = (int)((sx1 - ax0) / (ax1 - ax0) * (float)w + 0.5f);
++			dy0 = (int)((sy0 - ay0) / (ay1 - ay0) * (float)h + 0.5f);
++			dy1 = (int)((sy1 - ay0) / (ay1 - ay0) * (float)h + 0.5f);
++		}
+ 
+ 		{
+ 			GLfloat cc[4];
+@@ -6835,7 +6961,7 @@ static void GR_CaptureFrameToPackTex(int w, int h)
+ 			 * filtered downscale mixes neighbours on every pass, and over a door
+ 			 * load that diffusion is a grey haze. The blending dream overlays keep
+ 			 * LINEAR: their loop halves every frame, so diffusion never builds. */
+-			const int exact = (!g_fbSamplerSemiTrans && g_PsxFeedbackExact) ? 1 : 0;
++			const int exact = (exact1to1 || (!g_fbSamplerSemiTrans && g_PsxFeedbackExact)) ? 1 : 0;
+ 			glBindFramebuffer(GL_READ_FRAMEBUFFER, readFBO);
+ 			glBlitFramebuffer((int)(sx0 + 0.5f), (int)(sy0 + 0.5f),
+ 			                  (int)(sx1 + 0.5f), (int)(sy1 + 0.5f),
+@@ -6880,13 +7006,18 @@ extern "C" void GR_StoreFrameBufferPsx(void)
+ 	g_PsxFeedbackHoldFrame = 0;
+ 
+ 	if (!g_psxDispBufValid || g_PsxSkipFramebufferStore)
++	{
++		g_fbScreenValid = 0;
+ 		return;
++	}
+ 
+ 	/* The game just wrote its own data into a display-buffer rect — leave it
+-	 * alone until it stops (see GR_NoteVramUploadForFeedback). */
++	 * alone until it stops (see GR_NoteVramUploadForFeedback). Readers go back
++	 * to the VRAM rect, which now holds that data. */
+ 	if (g_fbFeedbackSuppress > 0)
+ 	{
+ 		g_fbFeedbackSuppress--;
++		g_fbScreenValid = 0;
+ 		GR_SceneRedirectTick();
+ 		return;
+ 	}
+@@ -6898,6 +7029,7 @@ extern "C" void GR_StoreFrameBufferPsx(void)
+ 	if (g_PsxFeedbackStoreAllowed <= 0)
+ 	{
+ 		GR_ClearAllFeedbackRects();
++		g_fbScreenValid = 0;
+ 		GR_SceneRedirectTick();
+ 		return;
+ 	}
+@@ -6914,7 +7046,32 @@ extern "C" void GR_StoreFrameBufferPsx(void)
+ 		return;
+ 	}
+ 
+-	GR_CaptureFrameToPackTex(g_psxDispBuf[0].w, g_psxDispBuf[0].h);
++	/* An opaque reader gets the 1:1 capture (see g_fbScreenValid); the VRAM
++	 * rects are then packed from it by point sampling, which is the same
++	 * 320x224 picture the NEAREST downscale gave them. A blending reader keeps
++	 * its filtered 320x224 capture. */
++	{
++		int ax0 = 0, ay0 = 0, aw = 0, ah = 0;
++		/* World pass only: that is where Screen_BackgroundMotionBlur draws, and
++		 * the UI pass stretches its readers across a widened ortho, which is
++		 * not the 1:1 copy this path stands for. */
++		const int wantScreen = (!g_fbSamplerSemiTrans && !g_fbSamplerUiPass && g_PsxFeedbackExact &&
++		                        g_PsxFeedbackScreen && !g_fbCaptureWorldWide &&
++		                        GR_FeedbackAreaRect(&ax0, &ay0, &aw, &ah));
++
++		if (wantScreen)
++		{
++			GR_CaptureFrameToPackTex(aw, ah, 1);
++			g_fbScreenOrigin[0] = (float)ax0;
++			g_fbScreenOrigin[1] = (float)ay0;
++			g_fbScreenValid     = 1;
++		}
++		else
++		{
++			GR_CaptureFrameToPackTex(g_psxDispBuf[0].w, g_psxDispBuf[0].h, 0);
++			g_fbScreenValid = 0;
++		}
++	}
+ 
+ 	GR_PackFrameToAllFeedbackRects();
+ 	g_fbLastStoreDecay = g_fbSamplerDecay;
+@@ -6923,6 +7080,55 @@ extern "C" void GR_StoreFrameBufferPsx(void)
+ #endif
+ }
+ 
++/* The 1:1 capture for an opaque prim that copies the display buffer at
++ * (srcX,srcY) (VRAM) onto (dstX,dstY) of the draw buffer, w x h: the texture to
++ * sample it from by gl_FragCoord (GR_SetFeedbackScreenSample), or 0 when the
++ * prim is not such a copy or no capture is held, in which case it samples the
++ * VRAM rect as before. The source must lie in one display buffer and land on
++ * the same buffer-relative position, which is what makes screen-space sampling
++ * equal to the UV mapping. */
++extern "C" unsigned int GR_FeedbackScreenTexture(int srcX, int srcY, int dstX, int dstY, int w, int h)
++{
++	int i;
++
++	if (!g_fbScreenValid || !g_PsxFeedbackScreen || !g_psxDispBufValid || !g_fbPackValid)
++		return 0;
++	if (w <= 0 || h <= 0)
++		return 0;
++
++	for (i = 0; i < 2; i++)
++	{
++		const RECT16* b = &g_psxDispBuf[i];
++		if (b->w <= 0 || b->h <= 0)
++			continue;
++		if (srcX < b->x || srcY < b->y || srcX + w > b->x + b->w || srcY + h > b->y + b->h)
++			continue;
++		if (srcX - b->x != dstX || srcY - b->y != dstY)
++			return 0;
++		return (unsigned int)g_fbPackTex;
++	}
++	return 0;
++}
++
++/* Push the screen-space sampling state for the split about to draw: on != 0
++ * only for a split whose texture came from GR_FeedbackScreenTexture. Every
++ * TF_32_BIT_RGBA split passes through here so the flag can never leak into a
++ * hi-res texture override drawn with the same program. */
++extern "C" void GR_SetFeedbackScreenSample(int on)
++{
++	if (u_fbScreenLoc == -1)
++		return;
++
++	UC_1i(u_fbScreenLoc, on ? 1 : 0);
++	if (on)
++	{
++		float inv[2] = { g_fbPackW > 0 ? 1.0f / (float)g_fbPackW : 0.0f,
++		                 g_fbPackH > 0 ? 1.0f / (float)g_fbPackH : 0.0f };
++		UC_2fv(u_fbOriginLoc, g_fbScreenOrigin);
++		UC_2fv(u_fbInvSizeLoc, inv);
++	}
++}
++
+ /* Mid-frame: pack everything drawn so far into a VRAM rect, in draw order, so
+  * the prims that follow can sample it. This is how the scene-scratch effects
+  * (map4_s04 Lisa, map3_s02, map7_s02) work: on PSX the DR_AREA points the whole
+@@ -6970,7 +7176,8 @@ extern "C" void GR_CaptureFrameToVramRect(int x, int y, int w, int h)
+ 	g_fbSamplerUiPass    = 0;
+ 	g_fbSamplerSemiTrans = 1;
+ 	g_PsxFeedbackExact   = 0;
+-	GR_CaptureFrameToPackTex(w, h);
++	GR_CaptureFrameToPackTex(w, h, 0);
++	g_fbScreenValid      = 0;
+ 	GR_PackFrameToVramRectGain(x, y, w, h, 1.0f);
+ 	g_fbSamplerUiPass    = savedUiPass;
+ 	g_fbSamplerSemiTrans = savedSemi;
+-- 
+2.43.0
+
+
+From 6ff4859a32fcbe0cd0c19f5d30b013940c69baaa Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 31 Oct 2026 23:21:26 +0000
+Subject: [PATCH 2/3] Framebuffer feedback: the blending readers at render
+ resolution too
+
+The per-map dream and ghosting overlays (Lisa, after Split Head, the
+otherworld rooms, the lighthouse glow) and the scene-scratch soft focus
+(Alessa, Lisa) sample the same display buffers, or the scratch rect, with
+semi-transparent SPRTs, and still went through the 320x224 VRAM store: a
+filtered low-resolution ghost blended over a world drawn at window
+resolution. They now sample the 1:1 capture as the loading trail does.
+
+- GR_FeedbackSampleTexture replaces GR_FeedbackScreenTexture: any SPRT
+  reading a display buffer or the scratch rect gets the capture. A copy onto
+  its own position is sampled by gl_FragCoord (mode 1); an offset copy, the
+  soft-focus strips, through the prim's UVs over the rect's PSX size (mode 2),
+  which is what the hardware does with the tpage.
+- The sampler gives the texel the alpha the VRAM path's LUT would have: 0.5
+  (STP set) for a blending reader, 1.0 for an opaque one, then the same
+  per-prim alpha and additive folding as the 16-bit tail, so BM_AVERAGE,
+  BM_ADD and dream_blur_strength behave as before.
+- The scratch rect gets its own capture target, taken mid-frame as before;
+  the per-present capture is no longer clobbered by it.
+- The capture rect of both paths comes from one helper (GR_FeedbackAreaFloat),
+  including the Hor+ widening the UI pass and the world pass apply.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01XhB6DTaXhErTs7bnFrAEbQ
+---
+ include/PsyX/PsyX_render.h |  20 ++-
+ src/gpu/PsyX_GPU.cpp       |  43 ++---
+ src/render/PsyX_render.cpp | 335 +++++++++++++++++++++++++------------
+ 3 files changed, 263 insertions(+), 135 deletions(-)
+
+diff --git a/include/PsyX/PsyX_render.h b/include/PsyX/PsyX_render.h
+index 679a3a6..5bf8a9b 100644
+--- a/include/PsyX/PsyX_render.h
++++ b/include/PsyX/PsyX_render.h
+@@ -302,14 +302,18 @@ extern void			GR_NoteFeedbackSamplerPrim(int semiTrans, int modColour);
+ extern int			g_PsxFeedbackExact;
+ extern int			g_cfg_dreamFeedback;
+ 
+-/* Screen-space feedback for an OPAQUE prim that copies a display buffer onto the
+- * same position of the draw buffer (the loading trail, the door fade): the 1:1
+- * capture of the previous frame to sample by gl_FragCoord, or 0 to sample the
+- * VRAM rect. The draw side pushes the state per split with
+- * GR_SetFeedbackScreenSample. g_PsxFeedbackScreen = 0 disables the path
+- * (console FBSCREEN) and every reader goes back to the 320x224 VRAM store. */
+-extern unsigned int	GR_FeedbackScreenTexture(int srcX, int srcY, int dstX, int dstY, int w, int h);
+-extern void			GR_SetFeedbackScreenSample(int on);
++/* Framebuffer feedback at render resolution. A SPRT that samples a display
++ * buffer (the loading trail, the door fade, the per-map dream overlays) or the
++ * scene-scratch rect (the soft-focus strips) gets the 1:1 capture of that
++ * frame to sample instead of the VRAM rect, with the PSX 5-bit arithmetic done
++ * in the sampler; 0 means sample VRAM as before. The draw side pushes the state
++ * per split with GR_SetFeedbackScreenSample (the split's fbScreen code).
++ * g_PsxFeedbackScreen = 0 disables the path (console FBSCREEN) and every
++ * reader goes back to the 320x224 VRAM store. */
++extern unsigned int	GR_FeedbackSampleTexture(int scratch, int pageX, int pageY, int u0, int v0,
++                                             int dstX, int dstY, int w, int h,
++                                             int* mode, int* offX, int* offY, int* natW, int* natH);
++extern void			GR_SetFeedbackScreenSample(int code);
+ extern int			g_PsxFeedbackScreen;
+ 
+ /* Widescreen feedback: how far past the 320-wide display buffer the UI ortho
+diff --git a/src/gpu/PsyX_GPU.cpp b/src/gpu/PsyX_GPU.cpp
+index 06c28d8..ab16fb8 100644
+--- a/src/gpu/PsyX_GPU.cpp
++++ b/src/gpu/PsyX_GPU.cpp
+@@ -4409,30 +4409,35 @@ static int ProcessTileAndSprt(P_TAG* polyTag)
+ 			if (s_curPrimIsScratch && !g_cfg_dreamFeedback)
+ 				return 4;
+ 
+-			/* An opaque copy of a display buffer onto the same spot of the draw
+-			 * buffer (Screen_BackgroundMotionBlur's tiles) reads the previous
+-			 * frame at render resolution, by screen position. The offset is
+-			 * absolute VRAM and the clip origin is the draw buffer's, so
+-			 * x0 + ofs - clip is where the tile lands within the buffer. */
+-			if (s_curPrimIsFeedback && !semiTrans && !s_curPrimIsScratch && overrideTexture == 0)
++			/* A reader of a display buffer (Screen_BackgroundMotionBlur's tiles,
++			 * the per-map dream overlays) or of the scene-scratch rect (the
++			 * soft-focus strips) samples that frame's render-resolution capture
++			 * instead of VRAM. The offset is absolute VRAM and the clip origin
++			 * is the draw buffer's, so x0 + ofs - clip is where the tile lands
++			 * within the buffer; a copy onto its own position is sampled by
++			 * screen position, anything else through its UVs. */
++			if ((s_curPrimIsFeedback || s_curPrimIsScratch) && overrideTexture == 0)
+ 			{
+-				const int tp   = activeDrawEnv.tpage;
+-				const int srcX = (tp & 0xF) * 64 + poly->u0;
+-				const int srcY = ((tp >> 4) & 1) * 256 + poly->v0;
+-				const int dstX = poly->x0 + activeDrawEnv.ofs[0] - activeDrawEnv.clip.x;
+-				const int dstY = poly->y0 + activeDrawEnv.ofs[1] - activeDrawEnv.clip.y;
+-				const unsigned int fbTex = GR_FeedbackScreenTexture(srcX, srcY, dstX, dstY, poly->w, poly->h);
+-
+-				if (fbTex != 0)
++				const int tp    = activeDrawEnv.tpage;
++				const int pageX = (tp & 0xF) * 64;
++				const int pageY = ((tp >> 4) & 1) * 256;
++				const int dstX  = poly->x0 + activeDrawEnv.ofs[0] - activeDrawEnv.clip.x;
++				const int dstY  = poly->y0 + activeDrawEnv.ofs[1] - activeDrawEnv.clip.y;
++				int mode = 0, offX = 0, offY = 0, natW = 0, natH = 0;
++				const unsigned int fbTex = GR_FeedbackSampleTexture(s_curPrimIsScratch ? 1 : 0, pageX, pageY,
++				                                                    poly->u0, poly->v0, dstX, dstY, poly->w, poly->h,
++				                                                    &mode, &offX, &offY, &natW, &natH);
++
++				if (fbTex != 0 && mode != 0)
+ 				{
+ 					overrideTexture        = (TextureID)fbTex;
+-					overrideTextureWidth   = 320;
+-					overrideTextureHeight  = 224;
+-					overrideTextureOffsetX = 0;
+-					overrideTextureOffsetY = 0;
++					overrideTextureWidth   = natW;
++					overrideTextureHeight  = natH;
++					overrideTextureOffsetX = offX;
++					overrideTextureOffsetY = offY;
+ 					overrideTextureHiresW  = 0;
+ 					overrideTextureHiresH  = 0;
+-					overrideFeedbackScreen = 1;
++					overrideFeedbackScreen = mode | (semiTrans ? 4 : 0);
+ 				}
+ 			}
+ 
+diff --git a/src/render/PsyX_render.cpp b/src/render/PsyX_render.cpp
+index e54ef3c..68f5af9 100644
+--- a/src/render/PsyX_render.cpp
++++ b/src/render/PsyX_render.cpp
+@@ -2043,6 +2043,7 @@ typedef struct
+ 	GLint fbScreenLoc;
+ 	GLint fbOriginLoc;
+ 	GLint fbInvSizeLoc;
++	GLint fbStpLoc;
+ 	GLint texOffsetLoc;
+ 	GLint hiresHalfLoc;
+ 	GLint fogColorLoc;
+@@ -2092,6 +2093,7 @@ GLint u_texelSizeLoc;
+ GLint u_fbScreenLoc = -1;
+ GLint u_fbOriginLoc = -1;
+ GLint u_fbInvSizeLoc = -1;
++GLint u_fbStpLoc = -1;
+ GLint u_texOffsetLoc;
+ GLint u_hiresHalfLoc;
+ GLint u_fogColorLoc;
+@@ -3012,28 +3014,40 @@ const char* gte_shader_32_rgba =
+ 	"	uniform vec2 u_texOffset;\n"\
+ 	"	uniform vec2 u_hiresHalf;\n"\
+ 	"	uniform int u_fbScreen;\n"\
++	"	uniform int u_fbStp;\n"\
+ 	"	uniform vec2 u_fbOrigin;\n"\
+ 	"	uniform vec2 u_fbInvSize;\n"\
+ 	GPU_LIT_UNIFORMS\
+ 	"	void main() {\n"\
+-	/* Screen-space framebuffer feedback (GR_FeedbackScreenTexture): s_texture is
+-	 * a 1:1 capture of the previous frame's display area and this pixel reads
+-	 * back the same pixel, as the PS1's opaque copy of its display buffer does.
++	/* Framebuffer feedback at render resolution (GR_FeedbackSampleTexture):
++	 * s_texture is a 1:1 capture of the frame a PS1 would read out of VRAM,
++	 * sampled NEAREST. Mode 1 is the prim that copies a display buffer onto the
++	 * same position: this pixel reads back the same pixel, by gl_FragCoord, so
++	 * the loop never resamples. Mode 2 is every other reader (the offset
++	 * soft-focus strips): the prim's own UVs through the rect's PSX size, which
++	 * is what the hardware does with the tpage.
++	 *
+ 	 * The arithmetic is the GPU's for a textured, non-dithered rectangle: the
+ 	 * 5-bit level of each channel times the modulation byte, >>7 -- so 128 is
+ 	 * identity and 127 takes one level off every non-black channel, the decay
+ 	 * Screen_BackgroundMotionBlur relies on -- and a texel whose word is 0 is
+ 	 * never drawn. The level is recovered exactly: the output is L*8 in 8 bits
+-	 * and the capture is read back as round(v*31.875). Everything the normal
+-	 * path does afterwards (vertex colour, lighting, dither, fog) is skipped;
+-	 * any of it would move the stored level and the loop would feed on that. */\
++	 * and the capture is read back as round(v*31.875). Alpha is what the VRAM
++	 * sampler's LUT gives the texel the store would have packed: 0.5 (STP set)
++	 * for a blending reader, 1.0 for an opaque one, then the same per-prim
++	 * alpha and additive folding as the 16-bit tail. Everything else the normal
++	 * path does afterwards (lighting, dither, fog) is skipped; any of it would
++	 * move the stored level and an opaque loop would feed on that. */\
+ 	"		if (u_fbScreen > 0) {\n"\
+-	"			vec2 ftc = (floor(gl_FragCoord.xy) - u_fbOrigin + 0.5) * u_fbInvSize;\n"\
++	"			vec2 ftc = (u_fbScreen == 1) ? (floor(gl_FragCoord.xy) - u_fbOrigin + 0.5) * u_fbInvSize\n"\
++	"			                             : (v_texcoord.xy + u_texOffset) * texelSize;\n"\
+ 	"			vec3 fbL = clamp(floor(texture2D(s_texture, ftc).rgb * 31.875 + 0.5), 0.0, 31.0);\n"\
+ 	"			if (fbL.r + fbL.g + fbL.b < 0.5) discard;\n"\
+ 	"			vec3 fbM = floor(v_color.rgb * 127.5 + 0.5);\n"\
+ 	"			fbL = floor(fbL * fbM * (1.0 / 128.0) + 0.0001);\n"\
+-	"			fragColor = vec4(fbL * (8.0 / 255.0), 1.0);\n"\
++	"			float fbA = ((u_fbStp > 0) ? 0.5 : 1.0) * v_color.a;\n"\
++	"			if (u_fogToBlack > 0) fbA = (fbA < 0.75) ? 1.0 : 0.0;\n"\
++	"			fragColor = vec4(fbL * (8.0 / 255.0), fbA);\n"\
+ 	"			return;\n"\
+ 	"		}\n"\
+ 	/* u_texOffset: the prim's tpage origin relative to the replaced TIM's
+@@ -3531,6 +3545,7 @@ static void GR_InitialisePSXShader(GTEShader* sh, ShaderID shader)
+ 	sh->fbScreenLoc = glGetUniformLocation(sh->shader, "u_fbScreen");
+ 	sh->fbOriginLoc = glGetUniformLocation(sh->shader, "u_fbOrigin");
+ 	sh->fbInvSizeLoc = glGetUniformLocation(sh->shader, "u_fbInvSize");
++	sh->fbStpLoc = glGetUniformLocation(sh->shader, "u_fbStp");
+ 	sh->texOffsetLoc = glGetUniformLocation(sh->shader, "u_texOffset");
+ 	sh->hiresHalfLoc = glGetUniformLocation(sh->shader, "u_hiresHalf");
+ 	sh->fogColorLoc = glGetUniformLocation(sh->shader, "u_fogColor");
+@@ -4000,6 +4015,7 @@ static void GR_SetTextureShader(TextureID texture, TexFormat texFormat, GTEShade
+ 		u_fbScreenLoc = -1;
+ 		u_fbOriginLoc = -1;
+ 		u_fbInvSizeLoc = -1;
++		u_fbStpLoc = -1;
+ 		u_texOffsetLoc = -1;
+ 		u_hiresHalfLoc = -1;
+ 		u_fogColorLoc = shader->fogColorLoc;
+@@ -4040,6 +4056,7 @@ static void GR_SetTextureShader(TextureID texture, TexFormat texFormat, GTEShade
+ 		u_fbScreenLoc = -1;
+ 		u_fbOriginLoc = -1;
+ 		u_fbInvSizeLoc = -1;
++		u_fbStpLoc = -1;
+ 		u_texOffsetLoc = -1;
+ 		u_hiresHalfLoc = -1;
+ 		u_fogColorLoc = shader->fogColorLoc;
+@@ -4080,6 +4097,7 @@ static void GR_SetTextureShader(TextureID texture, TexFormat texFormat, GTEShade
+ 		u_fbScreenLoc = -1;
+ 		u_fbOriginLoc = -1;
+ 		u_fbInvSizeLoc = -1;
++		u_fbStpLoc = -1;
+ 		u_texOffsetLoc = -1;
+ 		u_hiresHalfLoc = -1;
+ 		u_fogColorLoc = shader->fogColorLoc;
+@@ -4125,6 +4143,7 @@ static void GR_SetTextureShader(TextureID texture, TexFormat texFormat, GTEShade
+ 		u_fbScreenLoc = shader->fbScreenLoc;
+ 		u_fbOriginLoc = shader->fbOriginLoc;
+ 		u_fbInvSizeLoc = shader->fbInvSizeLoc;
++		u_fbStpLoc = shader->fbStpLoc;
+ 		u_texOffsetLoc = shader->texOffsetLoc;
+ 		u_hiresHalfLoc = shader->hiresHalfLoc;
+ 		u_fogColorLoc = shader->fogColorLoc;
+@@ -6390,6 +6409,15 @@ static int   g_fbScreenValid = 0;
+ static float g_fbScreenOrigin[2] = { 0.0f, 0.0f };
+ extern "C" { int g_PsxFeedbackScreen = 1; } /* console FBSCREEN */
+ 
++/* The same for the scene-scratch rect (GR_CaptureFrameToVramRect): its own
++ * capture, because it is taken mid-frame while the display-buffer readers of
++ * the same frame still need the per-present one. Valid for the frame it was
++ * taken in; the strips that read it are drawn right after it. */
++static GLuint g_fbScratchTex = 0;
++static GLuint g_fbScratchFBO = 0;
++static int    g_fbScratchW = 0, g_fbScratchH = 0;
++static int    g_fbScratchValid = 0;
++
+ /* PSX display-buffer rects recorded from GsDefDispBuff2 (SH: (0,32)/(0,256),
+  * 320x224). The PC libgs stub collapses both display envs to (0,0) because there
+  * is no VRAM double-buffering here, so activeDispEnv.disp is NOT a usable store
+@@ -6558,33 +6586,42 @@ static const char* s_fbPackShaderSrc =
+ 	"}\n"
+ 	"#endif\n";
+ 
+-static void GR_EnsureFbPackTarget(int w, int h)
++static void GR_EnsureFbPackShader(void)
+ {
+-	if (g_fbPackShader == (ShaderID)-1)
++	if (g_fbPackShader != (ShaderID)-1)
++		return;
++	g_fbPackShader = GR_Shader_Compile(s_fbPackShaderSrc);
++	glUseProgram(g_fbPackShader);
+ 	{
+-		g_fbPackShader = GR_Shader_Compile(s_fbPackShaderSrc);
+-		glUseProgram(g_fbPackShader);
+-		{
+-			GLint loc = glGetUniformLocation(g_fbPackShader, "s_texture");
+-			if (loc != -1) glUniform1i(loc, 0);
+-		}
+-		glUseProgram(0);
+-		g_PreviousShader = (ShaderID)-1;
+-		glGenVertexArrays(1, &g_fbPackVAO);
+-		glGenTextures(1, &g_fbPackTex);
+-		glGenFramebuffers(1, &g_fbPackFBO);
+-		/* Sampled by the screen-space feedback path through the hi-res override
+-		 * sampler, whose bind-time filter must not turn it bilinear. */
+-		GR_MarkTextureNearest((TextureID)g_fbPackTex);
++		GLint loc = glGetUniformLocation(g_fbPackShader, "s_texture");
++		if (loc != -1) glUniform1i(loc, 0);
+ 	}
++	glUseProgram(0);
++	g_PreviousShader = (ShaderID)-1;
++	glGenVertexArrays(1, &g_fbPackVAO);
++}
+ 
+-	if (g_fbPackW == w && g_fbPackH == h)
++/* A capture target (texture + FBO) of w x h RGBA8, (re)allocated on a size
++ * change. Both are sampled by the render-resolution feedback path through the
++ * hi-res override sampler, whose bind-time filter must not turn them bilinear. */
++static void GR_EnsureCaptureTarget(GLuint* tex, GLuint* fbo, int* curW, int* curH, int w, int h)
++{
++	GR_EnsureFbPackShader();
++
++	if (*tex == 0)
++	{
++		glGenTextures(1, tex);
++		glGenFramebuffers(1, fbo);
++		GR_MarkTextureNearest((TextureID)*tex);
++	}
++
++	if (*curW == w && *curH == h)
+ 		return;
+ 
+-	g_fbPackW = w;
+-	g_fbPackH = h;
++	*curW = w;
++	*curH = h;
+ 
+-	glBindTexture(GL_TEXTURE_2D, g_fbPackTex);
++	glBindTexture(GL_TEXTURE_2D, *tex);
+ 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+ 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+ 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+@@ -6592,20 +6629,25 @@ static void GR_EnsureFbPackTarget(int w, int h)
+ 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+ 	glBindTexture(GL_TEXTURE_2D, 0);
+ 
+-	glBindFramebuffer(GL_FRAMEBUFFER, g_fbPackFBO);
+-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, g_fbPackTex, 0);
++	glBindFramebuffer(GL_FRAMEBUFFER, *fbo);
++	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, *tex, 0);
+ 	glBindFramebuffer(GL_FRAMEBUFFER, GR_ScreenFBO());
+ }
+ 
++static void GR_EnsureFbPackTarget(int w, int h)
++{
++	GR_EnsureCaptureTarget(&g_fbPackTex, &g_fbPackFBO, &g_fbPackW, &g_fbPackH, w, h);
++}
++
+ /* Pack the captured frame into one VRAM rect. Saves/restores viewport + FBO and
+  * invalidates the renderer's cached GL state, so this is safe to run mid-frame
+  * (GR_UpdateVRAM calls it after a full vram[] re-upload). */
+-static void GR_PackFrameToVramRectGain(int x, int y, int w, int h, float gain)
++static void GR_PackFrameToVramRectGain(GLuint srcTex, int x, int y, int w, int h, float gain)
+ {
+ #if USE_OPENGL
+ 	GLint vp[4];
+ 
+-	if (!g_fbPackValid || w <= 0 || h <= 0)
++	if (!g_fbPackValid || srcTex == 0 || w <= 0 || h <= 0)
+ 		return;
+ 
+ 	glGetIntegerv(GL_VIEWPORT, vp);
+@@ -6637,7 +6679,7 @@ static void GR_PackFrameToVramRectGain(int x, int y, int w, int h, float gain)
+ 			glUniform1f(decayLoc, (exact && g_fbSamplerDecay) ? 1.0f : 0.0f);
+ 	}
+ 	glActiveTexture(GL_TEXTURE0);
+-	glBindTexture(GL_TEXTURE_2D, g_fbPackTex);
++	glBindTexture(GL_TEXTURE_2D, srcTex);
+ 	glBindVertexArray(g_fbPackVAO);
+ 	glDrawArrays(GL_TRIANGLES, 0, 3);
+ 	glBindVertexArray(0);
+@@ -6663,7 +6705,7 @@ static void GR_PackFrameToVramRect(int x, int y, int w, int h)
+ 	 * the overlay sums to a total weight of 1. Damping that loop as well only
+ 	 * darkens the scene. g_PsxFeedbackDamp stays for the opaque loading trail,
+ 	 * which has no such decay of its own. */
+-	GR_PackFrameToVramRectGain(x, y, w, h,
++	GR_PackFrameToVramRectGain(g_fbPackTex, x, y, w, h,
+ 		g_fbSamplerSemiTrans ? g_PsxFeedbackDampBlend : g_PsxFeedbackDamp);
+ }
+ 
+@@ -6784,14 +6826,62 @@ static void GR_ClearAllFeedbackRects(void)
+  * pass that will redraw the capture occupies, rounded to whole pixels. This is
+  * the source rect of a 1:1 capture and its size. False when no pass has
+  * recorded one yet. */
+-static int GR_FeedbackAreaRect(int* x0, int* y0, int* w, int* h)
+-{
++/* The window/FBO rect the capture must read, for the reader class recorded in
++ * g_fbSamplerUiPass / g_fbCaptureWorldWide, and the viewport it is clipped to.
++ * One function for the capture and for GR_FeedbackAreaRect so the two cannot
++ * disagree. Returns 0 (with the viewport as the area) when no pass has recorded
++ * a rect yet. */
++static int GR_FeedbackAreaFloat(float a[4], int vp[4])
++{
++	/* Read through the ortho of the pass that will REDRAW this capture. The
++	 * per-map dream overlays are OT2 prims and the loading blur is not, and
++	 * the two passes map the display buffer to different window rects. */
+ 	const int    useUi = (g_fbSamplerUiPass && g_psxUiAreaVpValid);
+ 	const float* area = useUi ? g_psxUiAreaVp : g_psxAreaVp;
+ 	const int    areaValid = useUi ? g_psxUiAreaVpValid : g_psxAreaVpValid;
+-	int ax0, ay0, ax1, ay1;
++	int vx = g_presentVp[0], vy = g_presentVp[1];
++	int vw = g_presentVp[2], vh = g_presentVp[3];
++
++	if (vw <= 0 || vh <= 0) { vx = 0; vy = 0; vw = g_windowWidth; vh = g_windowHeight; }
++	vp[0] = vx; vp[1] = vy; vp[2] = vw; vp[3] = vh;
++
++	a[0] = area[0]; a[1] = area[1];
++	a[2] = area[2]; a[3] = area[3];
++
++	/* Widened ortho: the primitives are stretched to span it, so the store
++	 * has to hold the whole picture rect rather than its 4:3 core. The ortho
++	 * is fitted to the viewport, so that rect IS the viewport. */
++	if (useUi && g_PsxFeedbackWideScale > 1.001f)
++	{
++		a[0] = (float)vx;          a[1] = (float)vy;
++		a[2] = (float)(vx + vw);   a[3] = (float)(vy + vh);
++	}
++	/* The scene-scratch strips are stretched across the WORLD ortho's width
++	 * (MakeVertexRect), which the Hor+ world ortho fits to the viewport, so
++	 * the capture spans the viewport horizontally too. Vertical stays the
++	 * 224-line buffer: that is all the strips cover. */
++	else if (!useUi && g_fbCaptureWorldWide)
++	{
++		a[0] = (float)vx;
++		a[2] = (float)(vx + vw);
++	}
+ 
+-	if (!areaValid || area[2] <= area[0] || area[3] <= area[1])
++	if (!areaValid || a[2] <= a[0] || a[3] <= a[1])
++	{
++		a[0] = (float)vx; a[1] = (float)vy;
++		a[2] = (float)(vx + vw); a[3] = (float)(vy + vh);
++		return 0;
++	}
++	return 1;
++}
++
++static int GR_FeedbackAreaRect(int* x0, int* y0, int* w, int* h)
++{
++	float area[4];
++	int   vp[4];
++	int   ax0, ay0, ax1, ay1;
++
++	if (!GR_FeedbackAreaFloat(area, vp))
+ 		return 0;
+ 
+ 	ax0 = (int)floorf(area[0] + 0.5f);
+@@ -6811,12 +6901,12 @@ static int GR_FeedbackAreaRect(int* x0, int* y0, int* w, int* h)
+ /* exact1to1: w and h are the rounded area size from GR_FeedbackAreaRect, and the
+  * capture is a pixel copy of that rect (no scaling anywhere), so texel (i,j) is
+  * window pixel (x0+i, y0+j). Otherwise the area is scaled into w x h. */
+-static void GR_CaptureFrameToPackTex(int w, int h, int exact1to1)
++static void GR_CaptureFrameToTex(GLuint* tex, GLuint* fbo, int* curW, int* curH, int w, int h, int exact1to1)
+ {
+ #if USE_OPENGL && USE_FRAMEBUFFER_BLIT
+ 	GLuint readFBO = 0;
+ 
+-	GR_EnsureFbPackTarget(w, h);
++	GR_EnsureCaptureTarget(tex, fbo, curW, curH, w, h);
+ 
+ #if PSYX_HAS_POSTPROCESS
+ 	/* MSAA: a multisample backbuffer cannot be the source of a scaled blit —
+@@ -6859,45 +6949,17 @@ static void GR_CaptureFrameToPackTex(int w, int h, int exact1to1)
+ 	 * armed). Rows the ortho crops are left black: the frame simply has no pixels
+ 	 * there, and leaving them black keeps the redraw scale-exact. */
+ 	{
+-		/* Read through the ortho of the pass that will REDRAW this capture. The
+-		 * per-map dream overlays are OT2 prims and the loading blur is not, and
+-		 * the two passes map the display buffer to different window rects. */
++		float areaF[4];
++		int   vpI[4];
+ 		const int useUi = (g_fbSamplerUiPass && g_psxUiAreaVpValid);
+-		const float* area = useUi ? g_psxUiAreaVp : g_psxAreaVp;
+-		const int areaValid = useUi ? g_psxUiAreaVpValid : g_psxAreaVpValid;
+-
+-		float ax0 = area[0], ay0 = area[1];
+-		float ax1 = area[2], ay1 = area[3];
+-		int vx = g_presentVp[0], vy = g_presentVp[1];
+-		int vw = g_presentVp[2], vh = g_presentVp[3];
++		float ax0, ay0, ax1, ay1;
++		int vx, vy, vw, vh;
+ 		float sx0, sy0, sx1, sy1;
+ 		int dx0, dy0, dx1, dy1;
+ 
+-		if (vw <= 0 || vh <= 0) { vx = 0; vy = 0; vw = g_windowWidth; vh = g_windowHeight; }
+-
+-		/* Widened ortho: the primitives are stretched to span it, so the store
+-		 * has to hold the whole picture rect rather than its 4:3 core. The ortho
+-		 * is fitted to the viewport, so that rect IS the viewport. */
+-		if (useUi && g_PsxFeedbackWideScale > 1.001f)
+-		{
+-			ax0 = (float)vx;          ay0 = (float)vy;
+-			ax1 = (float)(vx + vw);   ay1 = (float)(vy + vh);
+-		}
+-		/* The scene-scratch strips are stretched across the WORLD ortho's width
+-		 * (MakeVertexRect), which the Hor+ world ortho fits to the viewport, so
+-		 * the capture spans the viewport horizontally too. Vertical stays the
+-		 * 224-line buffer: that is all the strips cover. */
+-		else if (!useUi && g_fbCaptureWorldWide)
+-		{
+-			ax0 = (float)vx;
+-			ax1 = (float)(vx + vw);
+-		}
+-
+-		if (!areaValid || ax1 <= ax0 || ay1 <= ay0)
+-		{
+-			ax0 = (float)vx; ay0 = (float)vy;
+-			ax1 = (float)(vx + vw); ay1 = (float)(vy + vh);
+-		}
++		GR_FeedbackAreaFloat(areaF, vpI);
++		ax0 = areaF[0]; ay0 = areaF[1]; ax1 = areaF[2]; ay1 = areaF[3];
++		vx = vpI[0]; vy = vpI[1]; vw = vpI[2]; vh = vpI[3];
+ 
+ 		/* Clip to what was actually rendered. */
+ 		sx0 = ax0 < (float)vx ? (float)vx : ax0;
+@@ -6932,7 +6994,7 @@ static void GR_CaptureFrameToPackTex(int w, int h, int exact1to1)
+ 		{
+ 			GLfloat cc[4];
+ 			glGetFloatv(GL_COLOR_CLEAR_VALUE, cc);
+-			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, g_fbPackFBO);
++			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, *fbo);
+ 			glDisable(GL_SCISSOR_TEST);
+ 			glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+ 			glClear(GL_COLOR_BUFFER_BIT);
+@@ -6977,6 +7039,11 @@ static void GR_CaptureFrameToPackTex(int w, int h, int exact1to1)
+ #endif
+ }
+ 
++static void GR_CaptureFrameToPackTex(int w, int h, int exact1to1)
++{
++	GR_CaptureFrameToTex(&g_fbPackTex, &g_fbPackFBO, &g_fbPackW, &g_fbPackH, w, h, exact1to1);
++}
++
+ /* One present has passed for the scene scratch-redirect. Runs on EVERY present,
+  * not only when the feedback store is allowed: the redirect is now armed by the
+  * game's own DR_AREA every frame the scene draws, so if this only ticked on the
+@@ -6987,6 +7054,8 @@ static void GR_SceneRedirectTick(void)
+ 	if (g_sceneFbRedirectTtl <= 0)
+ 		return;
+ 	g_sceneFbRedirectTtl--;
++	if (g_sceneFbRedirectTtl == 0)
++		g_fbScratchValid = 0;
+ 	if (g_sceneFbRedirectTtl == 0 && s_sceneFbRedirectArms < 32)
+ 	{
+ 		eprintinfo("[FBSCRATCH] redirect LAPSED (%d,%d %dx%d) - rect no longer refreshed\n",
+@@ -7005,6 +7074,9 @@ extern "C" void GR_StoreFrameBufferPsx(void)
+ 	const int holdFrame = g_PsxFeedbackHoldFrame;
+ 	g_PsxFeedbackHoldFrame = 0;
+ 
++	/* The scratch capture is taken mid-frame for the strips of that frame. */
++	g_fbScratchValid = 0;
++
+ 	if (!g_psxDispBufValid || g_PsxSkipFramebufferStore)
+ 	{
+ 		g_fbScreenValid = 0;
+@@ -7046,17 +7118,13 @@ extern "C" void GR_StoreFrameBufferPsx(void)
+ 		return;
+ 	}
+ 
+-	/* An opaque reader gets the 1:1 capture (see g_fbScreenValid); the VRAM
+-	 * rects are then packed from it by point sampling, which is the same
+-	 * 320x224 picture the NEAREST downscale gave them. A blending reader keeps
+-	 * its filtered 320x224 capture. */
++	/* The 1:1 capture (see g_fbScreenValid), for whichever pass the frame's
++	 * reader draws in; the VRAM rects are then packed from it by point
++	 * sampling, which is the 320x224 picture the NEAREST downscale gave them,
++	 * for the fallback. */
+ 	{
+ 		int ax0 = 0, ay0 = 0, aw = 0, ah = 0;
+-		/* World pass only: that is where Screen_BackgroundMotionBlur draws, and
+-		 * the UI pass stretches its readers across a widened ortho, which is
+-		 * not the 1:1 copy this path stands for. */
+-		const int wantScreen = (!g_fbSamplerSemiTrans && !g_fbSamplerUiPass && g_PsxFeedbackExact &&
+-		                        g_PsxFeedbackScreen && !g_fbCaptureWorldWide &&
++		const int wantScreen = (g_PsxFeedbackScreen && !g_fbCaptureWorldWide &&
+ 		                        GR_FeedbackAreaRect(&ax0, &ay0, &aw, &ah));
+ 
+ 		if (wantScreen)
+@@ -7080,20 +7148,43 @@ extern "C" void GR_StoreFrameBufferPsx(void)
+ #endif
+ }
+ 
+-/* The 1:1 capture for an opaque prim that copies the display buffer at
+- * (srcX,srcY) (VRAM) onto (dstX,dstY) of the draw buffer, w x h: the texture to
+- * sample it from by gl_FragCoord (GR_SetFeedbackScreenSample), or 0 when the
+- * prim is not such a copy or no capture is held, in which case it samples the
+- * VRAM rect as before. The source must lie in one display buffer and land on
+- * the same buffer-relative position, which is what makes screen-space sampling
+- * equal to the UV mapping. */
+-extern "C" unsigned int GR_FeedbackScreenTexture(int srcX, int srcY, int dstX, int dstY, int w, int h)
+-{
++/* The render-resolution capture a feedback SPRT samples instead of the VRAM
++ * rect, or 0 to sample VRAM as before. The prim reads page (pageX,pageY) at
++ * (u0,v0), w x h, and lands at (dstX,dstY) of the draw buffer; scratch names
++ * the scene-scratch rect (GR_CaptureFrameToVramRect) rather than a display
++ * buffer. On success *mode is 1 for a copy onto the same position, sampled by
++ * gl_FragCoord, or 2 for anything else, sampled through the prim's UVs with
++ * *offX/*offY the page origin relative to the rect and *natW/*natH the rect's
++ * PSX size (the override sampler's u_texOffset and texelSize). */
++extern "C" unsigned int GR_FeedbackSampleTexture(int scratch, int pageX, int pageY, int u0, int v0,
++                                                 int dstX, int dstY, int w, int h,
++                                                 int* mode, int* offX, int* offY, int* natW, int* natH)
++{
++	const int srcX = pageX + u0;
++	const int srcY = pageY + v0;
+ 	int i;
+ 
+-	if (!g_fbScreenValid || !g_PsxFeedbackScreen || !g_psxDispBufValid || !g_fbPackValid)
++	if (!g_PsxFeedbackScreen || w <= 0 || h <= 0)
+ 		return 0;
+-	if (w <= 0 || h <= 0)
++
++	if (scratch)
++	{
++		const RECT16* r = &g_sceneFbRedirect;
++
++		if (!g_fbScratchValid || g_sceneFbRedirectTtl <= 0 || g_fbScratchTex == 0)
++			return 0;
++		if (srcX < r->x || srcY < r->y || srcX + w > r->x + r->w || srcY + h > r->y + r->h)
++			return 0;
++
++		*mode = 2;
++		*offX = pageX - r->x;
++		*offY = pageY - r->y;
++		*natW = r->w;
++		*natH = r->h;
++		return (unsigned int)g_fbScratchTex;
++	}
++
++	if (!g_fbScreenValid || !g_psxDispBufValid || !g_fbPackValid || g_fbPackTex == 0)
+ 		return 0;
+ 
+ 	for (i = 0; i < 2; i++)
+@@ -7103,24 +7194,36 @@ extern "C" unsigned int GR_FeedbackScreenTexture(int srcX, int srcY, int dstX, i
+ 			continue;
+ 		if (srcX < b->x || srcY < b->y || srcX + w > b->x + b->w || srcY + h > b->y + b->h)
+ 			continue;
+-		if (srcX - b->x != dstX || srcY - b->y != dstY)
+-			return 0;
++
++		*mode = (srcX - b->x == dstX && srcY - b->y == dstY) ? 1 : 2;
++		*offX = pageX - b->x;
++		*offY = pageY - b->y;
++		*natW = b->w;
++		*natH = b->h;
+ 		return (unsigned int)g_fbPackTex;
+ 	}
+ 	return 0;
+ }
+ 
+-/* Push the screen-space sampling state for the split about to draw: on != 0
+- * only for a split whose texture came from GR_FeedbackScreenTexture. Every
+- * TF_32_BIT_RGBA split passes through here so the flag can never leak into a
+- * hi-res texture override drawn with the same program. */
+-extern "C" void GR_SetFeedbackScreenSample(int on)
++/* Push the feedback sampling state for the split about to draw: code is the
++ * split's fbScreen (bits 0-1 the mode from GR_FeedbackSampleTexture, bit 2 set
++ * for a blending reader, whose texels read as STP-set), 0 for every other
++ * split. Every TF_32_BIT_RGBA split passes through here so the state can never
++ * leak into a hi-res texture override drawn with the same program. */
++extern "C" void GR_SetFeedbackScreenSample(int code)
+ {
++	const int mode = code & 3;
++
+ 	if (u_fbScreenLoc == -1)
+ 		return;
+ 
+-	UC_1i(u_fbScreenLoc, on ? 1 : 0);
+-	if (on)
++	UC_1i(u_fbScreenLoc, mode);
++	if (mode == 0)
++		return;
++
++	if (u_fbStpLoc != -1)
++		UC_1i(u_fbStpLoc, (code & 4) ? 1 : 0);
++	if (mode == 1)
+ 	{
+ 		float inv[2] = { g_fbPackW > 0 ? 1.0f / (float)g_fbPackW : 0.0f,
+ 		                 g_fbPackH > 0 ? 1.0f / (float)g_fbPackH : 0.0f };
+@@ -7176,9 +7279,25 @@ extern "C" void GR_CaptureFrameToVramRect(int x, int y, int w, int h)
+ 	g_fbSamplerUiPass    = 0;
+ 	g_fbSamplerSemiTrans = 1;
+ 	g_PsxFeedbackExact   = 0;
+-	GR_CaptureFrameToPackTex(w, h, 0);
+-	g_fbScreenValid      = 0;
+-	GR_PackFrameToVramRectGain(x, y, w, h, 1.0f);
++	{
++		int ax0 = 0, ay0 = 0, aw = 0, ah = 0;
++
++		/* Its own 1:1 capture, read by the strips through their UVs; the VRAM
++		 * rect is packed from it (point sampled) as the fallback. */
++		if (g_PsxFeedbackScreen && GR_FeedbackAreaRect(&ax0, &ay0, &aw, &ah))
++		{
++			GR_CaptureFrameToTex(&g_fbScratchTex, &g_fbScratchFBO, &g_fbScratchW, &g_fbScratchH, aw, ah, 1);
++			g_fbScratchValid = 1;
++			GR_PackFrameToVramRectGain(g_fbScratchTex, x, y, w, h, 1.0f);
++		}
++		else
++		{
++			GR_CaptureFrameToPackTex(w, h, 0);
++			g_fbScreenValid  = 0;
++			g_fbScratchValid = 0;
++			GR_PackFrameToVramRectGain(g_fbPackTex, x, y, w, h, 1.0f);
++		}
++	}
+ 	g_fbSamplerUiPass    = savedUiPass;
+ 	g_fbSamplerSemiTrans = savedSemi;
+ 	g_PsxFeedbackExact   = savedExact;
+-- 
+2.43.0
+
+
+From 6dab25b1e4fd682839aaf70545b97a0447d6a59a Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 31 Oct 2026 23:22:46 +0000
+Subject: [PATCH 3/3] Framebuffer feedback: comments name the current entry
+ point
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01XhB6DTaXhErTs7bnFrAEbQ
+---
+ src/gpu/PsyX_GPU.cpp       | 2 +-
+ src/render/PsyX_render.cpp | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/gpu/PsyX_GPU.cpp b/src/gpu/PsyX_GPU.cpp
+index ab16fb8..bd4c801 100644
+--- a/src/gpu/PsyX_GPU.cpp
++++ b/src/gpu/PsyX_GPU.cpp
+@@ -852,7 +852,7 @@ int overrideTextureOffsetY = 0;
+ int overrideTextureHiresW = 0;
+ int overrideTextureHiresH = 0;
+ /* overrideTexture is the 1:1 capture of the previous frame and the split samples
+- * it by gl_FragCoord (GR_FeedbackScreenTexture). Set per primitive in the SPRT
++ * it by gl_FragCoord or its UVs (GR_FeedbackSampleTexture). Set per primitive in the SPRT
+  * path, cleared wherever overrideTexture is assigned. */
+ static int overrideFeedbackScreen = 0;
+ 
+diff --git a/src/render/PsyX_render.cpp b/src/render/PsyX_render.cpp
+index 68f5af9..6fe7595 100644
+--- a/src/render/PsyX_render.cpp
++++ b/src/render/PsyX_render.cpp
+@@ -6391,7 +6391,7 @@ static int      g_fbPackValid = 0; /* a frame has been captured this session */
+ /* Set around the scene-scratch capture while the world ortho is widened. */
+ static int      g_fbCaptureWorldWide = 0;
+ 
+-/* Screen-space feedback for the OPAQUE 1:1 readers (GR_FeedbackScreenTexture).
++/* Render-resolution feedback (GR_FeedbackSampleTexture).
+  *
+  * The 320x224 VRAM store cannot reproduce what a PS1 at higher internal
+  * resolution shows (DuckStation keeps the whole loop at render resolution): the
+-- 
+2.43.0
+
