@@ -21,7 +21,7 @@ extern void PsyX_SPUAL_SetKeyOnMasterExempt(int on);
 
 #define PM_HEADER_Y  64
 #define PM_ROW_Y     96
-#define PM_ROW_PITCH 20 /* the title's MAINMENU_ROW_PITCH */
+#define PM_ROW_PITCH 15 /* the title's MAINMENU_ROW_PITCH at PM_ROW_SCALE */
 #define PM_CONFIRM_Y 104
 #define PM_ANSWER_DY 24
 #define PM_TEXT_H    16
