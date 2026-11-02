@@ -6380,9 +6380,21 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                 playerTurn = (g_Player_IsTurningLeft != false) * 2;
             }
 
+#ifdef SH_PC_PORT
+            /* Left/Right picks the next target only while the lock-on aim anim
+             * holds its ready keyframe. PSX plays one keyframe a tick and stops
+             * exactly on field_6; at PC frame rates the hold parks a frame past
+             * it, so the exact test failed every frame and the press was thrown
+             * away: no target switching in the classic camera. Same
+             * reached-or-passed reading as SH_AIM_KF_REACHED. */
+            if ((extra->model.anim.status != ANIM_STATUS(HarryAnim_Unk29, true) || extra->model.anim.keyframeIdx < D_800C44F0[1].field_6) &&
+                (extra->model.anim.status != ANIM_STATUS(HarryAnim_Unk30, true) || extra->model.anim.keyframeIdx < D_800C44F0[2].field_6) &&
+                (extra->model.anim.status != ANIM_STATUS(HarryAnim_Unk32, true) || extra->model.anim.keyframeIdx < D_800C44F0[4].field_6))
+#else
             if ((extra->model.anim.status != ANIM_STATUS(HarryAnim_Unk29, true) || extra->model.anim.keyframeIdx != D_800C44F0[1].field_6) &&
                 (extra->model.anim.status != ANIM_STATUS(HarryAnim_Unk30, true) || extra->model.anim.keyframeIdx != D_800C44F0[2].field_6) &&
                 (extra->model.anim.status != ANIM_STATUS(HarryAnim_Unk32, true) || extra->model.anim.keyframeIdx != D_800C44F0[4].field_6))
+#endif
             {
                 playerTurn = 0;
                 player->properties.player.field_100++;
