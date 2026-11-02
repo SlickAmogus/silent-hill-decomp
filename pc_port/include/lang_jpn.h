@@ -23,4 +23,9 @@ const char* Pc_JpnMenuText(const char* us);
  * on the Options and PC Options screens. */
 const char* Pc_JpnInventoryLabel(const char* us);
 
+/* The port's own Japanese/Chinese menu words (lang_jpn_ui.inc: title rows,
+ * pause menu, prompts) for a kanji language pack on any disc, or NULL. The
+ * packs carry only what the disc had, and retail drew these in English. */
+const char* Pc_JpnUiText(const char* us);
+
 #endif

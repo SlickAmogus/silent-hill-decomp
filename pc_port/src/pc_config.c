@@ -123,6 +123,7 @@ s_PcConfig g_PcConfig = {
     .minimapShowWithoutMap   = 0, /* no map found: no minimap (1 = empty panel + arrow) */
     .dreamBlur               = 1, /* dream/ghosting screen blur (0 = loading trail only) */
     .charaPerPixelLight      = 1,
+    .charaFaceAnim           = 0,
     .perPixelLighting        = 0,
     .heroLight               = 2,
     .dreamBlurStrength       = 1.0f, /* feedback gain of that blur; 1.0 = hardware */
@@ -1268,9 +1269,17 @@ else if (strcmp(key, "enable_plugins") == 0)
         {
             g_PcConfig.charaPerPixelLight = (atoi(value) != 0);
         }
+        else if (strcmp(key, "chara_face_anim2") == 0)
+        {
+            g_PcConfig.charaFaceAnim = (atoi(value) != 0);
+        }
         else if (strcmp(key, "per_pixel_lighting") == 0)
         {
             g_PcConfig.perPixelLighting = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "hero_light_flashlight") == 0)
+        {
+            g_PcConfig.heroLightWithFlashlight = atoi(value) != 0;
         }
         else if (strcmp(key, "hero_light") == 0)
         {

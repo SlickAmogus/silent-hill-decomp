@@ -19,9 +19,34 @@ for whole-character swaps. Use that guide only when you want to edit the origina
 | --- | --- |
 | Harry | `gamedata/load/CHARA/HERO.glb` |
 | Cybil | `gamedata/load/CHARA/SIBYL.glb` |
+| Monster Cybil | `gamedata/load/CHARA/MSB.glb` (optional) |
+| Lisa | `gamedata/load/CHARA/LISA.glb` |
+| Bloody Lisa | `gamedata/load/CHARA/BLISA.glb` |
+| Dahlia | `gamedata/load/CHARA/DARIA.glb` |
+| Kaufmann | `gamedata/load/CHARA/KAU.glb` |
+| Cheryl | `gamedata/load/CHARA/SRL.glb` |
+| Alessa | `gamedata/load/CHARA/AR.glb` |
+| Ghost Alessa | `gamedata/load/CHARA/TAR.glb` |
+| Incubator | `gamedata/load/CHARA/MAR.glb` |
+| Bloody Incubator | `gamedata/load/CHARA/BAR.glb` |
+| Ghost doctor | `gamedata/load/CHARA/DOC.glb` |
 
-The steps below use Harry's `HERO`. For Cybil, use `SIBYL` in every file name. The game
-spells her model file that way. The same file is used in her ending scene.
+The steps below use Harry's `HERO`. For anyone else, use their name from the table in every
+file name; those are the game's own model file names. Cybil's file is used in her ending
+scene, and for Monster Cybil when there is no `MSB.glb`, so one Cybil model covers all three.
+Add an `MSB.glb` only if you want the possessed Cybil to look different. Dahlia's and
+Kaufmann's files are used in their ending scenes too.
+
+The game scales and poses a model onto each character's own skeleton at its first animation
+frame, the pose `tools/ilm_obj.py export` writes by default, so export the original model
+that way to get a reference to build against.
+
+**Character Face Animation** (F10 quick menu, Graphics page 1; `chara_face_anim2`, off by
+default while it is tested) makes the original characters blink, move their mouths to their voice lines and
+breathe, without any mod: it draws their own face and chest from the port's
+`gamedata/builtin/CHARA` models. A replacement in `gamedata/load/CHARA` always takes over
+from it. The ghost doctor, ghost Alessa and the Incubator are see-through, so they stay as
+they are.
 
 ## Quick start
 
@@ -204,7 +229,7 @@ The cut is hard-edged. Soft, blended alpha is not supported.
 ## Lighting and normal maps
 
 The game lights the model with its own lights, the same ones that light Harry. By
-default this runs per pixel. Set **Character Lighting** to Per Vertex in the F10 quick
+default this runs per pixel. Set **Addon Character Lighting** to Per Vertex in the F10 quick
 menu (Graphics page 2), or `chara_per_pixel_light = 0` in the config, to light it per
 vertex like the stock characters.
 
@@ -238,7 +263,9 @@ occlusion, use a glTF Material Output node group's Occlusion input.
 default 2) adds a soft fill light from above the camera to characters lit per pixel. It
 gives a model shape in flat daylight, where the game lights a character with one colour,
 and lets its normal map show in dim rooms. Set it to Off for the game's own lighting
-only.
+only. It switches off while the flashlight is on, since the beam already lights the
+character and the two together look doubled. Turn on **Hero Light with Flashlight**
+(`hero_light_flashlight = 1`) to keep it.
 
 **Per-Pixel Lighting** (same page; `per_pixel_lighting = 1`, off by default) does the
 same per-pixel lighting for the stock world and the stock characters, and the hero light
@@ -338,12 +365,20 @@ flashlight_x=16
 | `flashlight_z` | Moves it forward or back, in cm. Positive is forward. |
 | `gun_raise` | Moves a held weapon along the forearm, in mm. Positive is up toward the wrist. |
 | `gun_out` | Moves it sideways, in mm. Positive is away from the leg. |
+| `gun_forward` | Moves it across the palm, in mm, at right angles to the other two. |
 | `gun_twist` | Turns it about the forearm, in degrees, round the middle of the grip. Positive is clockwise seen from the shoulder. |
+| `gun_pitch` | Tips the barrel toward the front or back of the hand, in degrees, round the middle of the grip. |
+| `gun_yaw` | Swings the barrel toward or away from the leg, in degrees, round the middle of the grip. |
+| `hand_relax` | How far the fingers close when the hands are empty, as a percent of the fist they make round a weapon (default 0, 0 to 100). Use it on a model whose rest pose has the fingers spread wide. |
 
 The game already moves weapons into the model's own closed fist (the log's
-`right fist offset` line); these settings fine-tune that.
+`right fist offset` line); these settings fine-tune that. Rotations apply
+pitch first, then yaw, then twist. Try a small value such as 10 first to see
+which way each one goes on your model.
 
-The game reads `HERO.ini` when it loads the model, so restart after changing it.
+The game reads `HERO.ini` when it loads the model. To tune without restarting,
+edit the file, open the console and type `skinini`: every loaded model's ini
+is read again and the change shows on the next frame.
 
 ## Troubleshooting
 

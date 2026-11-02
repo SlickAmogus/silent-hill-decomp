@@ -255,6 +255,9 @@ static inline s32 AttenuationCalc(s32 volume, VECTOR3* pos, q19_12 falloff)
 }
 
 #ifdef SH_PC_PORT
+/* The positional-loop sustain pass calls this before its definition. */
+void func_8005DE0C(e_SfxId sfxId, VECTOR3* pos, s32 vol, q19_12 falloff, s8 pitch);
+
 /* Looping positional SFX keep their own attenuation alive.
  *
  * Every caller of func_8005DE0C sits inside a proximity or state test, and

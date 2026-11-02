@@ -31,6 +31,7 @@
 #include "pc_quick_options.h"
 #include "pc_mouse_click_icons.h"
 #include "pc_dpad_icons.h"
+#include "pc_bind_input.h"
 #include "pc_bind_panel.h"
 #include "pc_mouse_cursor.h"
 #include "pc_config.h"
@@ -69,7 +70,7 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_TPSRESTX, QO_X_TPSRESTY, QO_X_TPSAIMX, QO_X_TPSAIMY,
        QO_X_OTSRESTX, QO_X_OTSRESTY, QO_X_OTSAIMX, QO_X_OTSAIMY,
        QO_X_DREAMSTR, QO_X_DREAMBLUR, QO_X_DPADMOVE, QO_X_CROSSHAIRSTYLE,
-       QO_X_LINEGAP, QO_X_CHARALIGHT, QO_X_PPLIGHT, QO_X_HEROLIGHT };
+       QO_X_LINEGAP, QO_X_CHARALIGHT, QO_X_PPLIGHT, QO_X_HEROLIGHT, QO_X_HEROLIGHTFL, QO_X_FACEANIM };
 extern const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz);
 extern void        PcOpt_QuickExtraAdjust(int which, int dir);
 extern void        PcOpt_QuickViewReset(int mode);
@@ -120,6 +121,9 @@ static const QoRowDef s_pageGfx1[] = {
     { ROW_OPT,   "tonemap",              0, NULL },
     { ROW_OPT,   "fog_strength",         0, NULL },
     { ROW_OPT,   "bullet_decals",        0, NULL },
+    { ROW_EXTRA, NULL, QO_X_FACEANIM,       "Character Face Animation" },
+    /* Frame cap, beside Weather_Rate: both decide how fast the world ticks. */
+    { ROW_OPT,   "fps_cap",              0, NULL },  /* FPS_Limit */
     { ROW_OPT,   "weather_sim_hz",       0, NULL },  /* Weather_Rate: 30 or 60 Hz */
     QO_NAV_ROW,
     QO_CLOSE_ROW,
@@ -132,9 +136,10 @@ static const QoRowDef s_pageGfx2[] = {
     { ROW_EXTRA, NULL, QO_X_SHADOW,         "Shadow Resolution" },
     { ROW_EXTRA, NULL, QO_X_DREAMBLUR,      "Dream Blur" },  /* not in the PC Options table: that page is full */
     { ROW_EXTRA, NULL, QO_X_DREAMSTR,       "Dream Blur Strength" },
-    { ROW_EXTRA, NULL, QO_X_CHARALIGHT,     "Character Lighting" },
+    { ROW_EXTRA, NULL, QO_X_CHARALIGHT,     "Addon Character Lighting" },
     { ROW_EXTRA, NULL, QO_X_PPLIGHT,        "Per-Pixel Lighting" },
     { ROW_EXTRA, NULL, QO_X_HEROLIGHT,      "Hero Light" },
+    { ROW_EXTRA, NULL, QO_X_HEROLIGHTFL,    "Hero Light with Flashlight" },
     QO_NAV_ROW,
     QO_CLOSE_ROW,
 };
@@ -2074,17 +2079,17 @@ void Pc_QuickOptions_Draw(void)
      * once only if the wider of them still overflows. */
     if (!s_texHint)
     {
-        char  hint[384], hint2[384];
+        char  hint[384], hint2[384], key[64];
         float avail = panelW - 2.0f * pad;
         int   hpx   = (int)(hintH * 0.30f);
         int   widest;
 
         if (hpx < 7) hpx = 7;
+        BindInput_KeyLabel(g_PcConfig.keyQuickOptions[0] ? g_PcConfig.keyQuickOptions : "F10", key, sizeof(key));
         snprintf(hint, sizeof(hint), "%s    %s    %s", Pc_LangQuick("Up/Down select"),
                  Pc_LangQuick("Left/Right adjust"), Pc_LangQuick("Q/E or PgUp/PgDn page"));
         snprintf(hint2, sizeof(hint2), "%s    %s    %s", Pc_LangQuick("Drag the title to move"),
-                 Pc_LangQuickFill("{key} or Esc close", "{key}",
-                                  g_PcConfig.keyQuickOptions[0] ? g_PcConfig.keyQuickOptions : "F10"),
+                 Pc_LangQuickFill("{key} or Esc close", "{key}", key),
                  Pc_LangQuick("* needs restart"));
         s_texHint  = qo_bake(hint,  (float)hpx, &s_hintW,  &s_hintH);
         s_texHint2 = qo_bake(hint2, (float)hpx, &s_hint2W, &s_hint2H);

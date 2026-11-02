@@ -12,6 +12,7 @@ int PcLegacyXa_IsVoiceAudioDraining(void);
 void PcLegacyXa_SetMasterVolume(float);
 int PcLegacyXa_PlayFile(const char*);
 void PcLegacyXa_StopFile(void);
+int PcLegacyXa_FileAudible(void);
 
 void PcSoftwareXa_PlayWithParams(uint16_t, uint16_t, uint32_t, uint32_t);
 void PcSoftwareXa_Play(uint16_t);
@@ -23,6 +24,7 @@ int PcSoftwareXa_IsVoiceAudioDraining(void);
 void PcSoftwareXa_SetMasterVolume(float);
 int PcSoftwareXa_PlayFile(const char*);
 void PcSoftwareXa_StopFile(void);
+int PcSoftwareXa_FileAudible(void);
 
 #define XA_DISPATCH_VOID(publicName, legacyName, softwareName, args, callargs) \
     void publicName args { \
@@ -58,4 +60,11 @@ int Xa_IsVoiceAudioDraining(void)
     return PcAudioConfig_UsesSoftwareSpu()
         ? PcSoftwareXa_IsVoiceAudioDraining()
         : PcLegacyXa_IsVoiceAudioDraining();
+}
+
+int XaPlayer_FileAudible(void)
+{
+    return PcAudioConfig_UsesSoftwareSpu()
+        ? PcSoftwareXa_FileAudible()
+        : PcLegacyXa_FileAudible();
 }

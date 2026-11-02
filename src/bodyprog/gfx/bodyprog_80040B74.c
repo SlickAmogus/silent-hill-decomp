@@ -2144,8 +2144,13 @@ int Pc_WholeMapEnabled(void)
      * offers to turn PGXP on when the fog is lowered. */
     if (!g_PsxUsePgxp)
         return 0;
+    /* Not in the dark exteriors (black fog: the night town, the late game).
+     * Nothing far off is lit enough to see, and drawing the whole town there
+     * still costs as much as in daylight. */
     if (g_PcConfig.wholeMapExteriors == 2)
-        return g_PsyX_FogStrength < 1.0f;
+        return g_PsyX_FogStrength < 1.0f &&
+               (g_WorldEnvWork.fog.color.r >= 40 || g_WorldEnvWork.fog.color.g >= 40 ||
+                g_WorldEnvWork.fog.color.b >= 40);
     return g_PcConfig.wholeMapExteriors != 0;
 }
 

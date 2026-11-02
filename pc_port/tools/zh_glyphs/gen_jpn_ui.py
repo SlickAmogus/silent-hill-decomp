@@ -14,6 +14,10 @@ CN = {
     '数': (18, 70), '量': (46, 44), '燃': (23, 27), '料': (17, 35), '关': (21, 19), '可': (18, 32),
     '不': (16, 10), '这': (16, 8), '里': (16, 9), '能': (16, 11), '太': (16, 20), '暗': (16, 21),
     '了': (16, 22), '见': (16, 24),
+    '暂': (28, 83), '停': (21, 84), '存': (34, 24), '档': (31, 4), '是': (32, 7), '否': (40, 61),
+    '标': (20, 30), '题': (34, 74), '游': (24, 24), '戏': (29, 51), '打': (16, 41), '头': (19, 72),
+    '目': (44, 60), '时': (16, 77), '随': (24, 18), '机': (16, 40), '模': (27, 70), '式': (28, 68),
+    '快': (22, 41), '速': (34, 14),
 }
 
 # (us literal as C source, japanese, chinese, comment)
@@ -41,6 +45,18 @@ UI = [
     ('==Use_NG==', '==使用不可==', '==不可用=='),
     ("Can't_use_it_here.", 'ここでは使えない。', '这里不能使用。'),
     ('Too_dark_to_look_at\\n\\t\\tthe_item_here.', '暗くて見ることができない', '太暗了看不见。'),
+    # Pause menu and the title's EXIT prompt. The Chinese font has no 战, 领
+    # or 画, hence 打头目时 ("while fighting the boss") and 返回标题.
+    ('\\x07PAUSED', '\x07ポーズ', '\x07暂停'),
+    ('SAVE', 'セーブ', '存档'),
+    # The Chinese font has no 菜, hence 选单 for "menu".
+    ('QUICK_MENU', 'クイックメニュー', '快速选单'),
+    ('YES', 'はい', '是'),
+    ('NO', 'いいえ', '否'),
+    ('RETURN_TO_THE_TITLE_SCREEN?', 'タイトル画面に戻りますか？', '返回标题？'),
+    ('QUIT_THE_GAME?', 'ゲームを終了しますか？', '退出游戏？'),
+    ('Cannot_save_during_a_boss_fight', 'ボス戦ではセーブできません', '打头目时不能存档'),
+    ('Cannot_save_in_a_randomizer_run', 'ランダマイザーではセーブできません', '随机模式不能存档'),
 ]
 INV = [
     ('Equipment', '所持品', '物品'),
@@ -60,6 +76,10 @@ def octal(bs):
         if bs[i] >= 0x80:
             out.append('\\%03o\\%03o' % (bs[i], bs[i + 1]))
             i += 2
+        elif bs[i] < 0x20:
+            out.append('\\%03o' % bs[i])
+            i += 1
+            continue
         else:
             assert bs[i] not in b'\\"'
             out.append(chr(bs[i]))
@@ -90,7 +110,8 @@ def rows(table):
     lines = []
     for us, jp, zh in table:
         lines.append('{ "%s",%s"%s",%s"%s" }, /* %s / %s */' % (
-            us, ' ' * max(1, 22 - len(us)), octal(enc_jp(jp)), ' ', octal(enc_zh(zh)), jp, zh))
+            us, ' ' * max(1, 22 - len(us)), octal(enc_jp(jp)), ' ', octal(enc_zh(zh)),
+            jp.lstrip('\x07'), zh.lstrip('\x07')))
     return '\n'.join(lines)
 
 

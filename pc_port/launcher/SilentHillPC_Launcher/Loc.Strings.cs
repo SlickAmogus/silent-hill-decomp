@@ -158,7 +158,7 @@ namespace SilentHillPC_Launcher
             { "Model Viewer",       new[]{ "Visor de modelos", "Visualizador de modelos", "Visionneuse de modèles", "Modellbetrachter", "Visualizzatore modelli", "モデルビューア", "模型查看器", "Просмотр моделей", "Podgląd modeli" } },
             { "Audio",              new[]{ "Audio", "Áudio", "Audio", "Audio", "Audio", "オーディオ", "音频", "Звук", "Dźwięk" } },
             { "Delete mod…",        new[]{ "Eliminar mod…", "Excluir mod…", "Supprimer le mod…", "Mod löschen…", "Elimina mod…", "Modを削除…", "删除模组…", "Удалить мод…", "Usuń mod…" } },
-            { "Edit name && notes…",new[]{ "Editar nombre y notas…", "Editar nome e notas…", "Modifier le nom et les notes…", "Name && Notizen bearbeiten…", "Modifica nome e note…", "名前とメモを編集…", "编辑名称和备注…", "Изменить имя и заметки…", "Edytuj nazwę i notatki…" } },
+            { "Edit name, author && description…",new[]{ "Editar nombre, autor y descripción…", "Editar nome, autor e descrição…", "Modifier le nom, l'auteur et la description…", "Name, Autor und Beschreibung bearbeiten…", "Modifica nome, autore e descrizione…", "名前・作者・説明を編集…", "编辑名称、作者和描述…", "Изменить название, автора и описание…", "Edytuj nazwę, autora i opis…" } },
             { "One texture…",       new[]{ "Una textura…", "Uma textura…", "Une texture…", "Eine Textur…", "Una texture…", "テクスチャ1枚…", "单个纹理…", "Одна текстура…", "Jedna tekstura…" } },
             { "Every texture…",     new[]{ "Todas las texturas…", "Todas as texturas…", "Toutes les textures…", "Alle Texturen…", "Tutte le texture…", "すべてのテクスチャ…", "所有纹理…", "Все текстуры…", "Wszystkie tekstury…" } },
             { "Enable loose file support (required for load-folder mods)",

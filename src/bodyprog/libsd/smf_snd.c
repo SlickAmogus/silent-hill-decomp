@@ -890,6 +890,24 @@ void SdVabClose(s16 vab_id) // 0x8009FF00
 {
     if (vab_h[vab_id].vab_id_0 != -1)
     {
+#ifdef SH_PC_PORT
+        s32 voice;
+
+        /* SFX still reading this bank must stop before its SPU allocation is
+         * reused. The hospital elevator can leave its arrival sound running
+         * across a floor change; overwriting the bank underneath it turns the
+         * old loop into an unrelated, endlessly repeating siren. Do not stop
+         * sounds from other banks or let a release tail read the replacement. */
+        for (voice = 0; voice < sd_reserved_voice; voice++)
+        {
+            if (smf_port[voice].stat_16 != 0 &&
+                smf_port[voice].midi_ch_3 == 0x20 &&
+                smf_port[voice].vab_id_52 == vab_id)
+            {
+                SdUtKeyOffVWithRROff(voice);
+            }
+        }
+#endif
         SdSpuFree(vab_h[vab_id].vb_start_addr_10);
         vab_h[vab_id].vab_id_0 = -1;
     }

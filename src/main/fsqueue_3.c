@@ -456,6 +456,19 @@ static int Loose_ResolveWhole(const char* base, char* out, size_t outSize)
             snprintf(out, outSize, "%s.png", stem);
             f = Loose_FOpen(out, "rb");
             if (f != NULL) { fclose(f); return 1; }
+
+            /* The launcher's composite (Reference / Extract BIN), installed under
+             * the name it was written with. Each texel already holds the colour
+             * of the palette row the game draws it through, so one image stands
+             * for every row -- what any whole-image form here means. Last, so a
+             * deliberate NAME.png still wins. */
+            snprintf(out, outSize, "%s_reference.dds", stem);
+            f = Loose_FOpen(out, "rb");
+            if (f != NULL) { fclose(f); return 1; }
+
+            snprintf(out, outSize, "%s_reference.png", stem);
+            f = Loose_FOpen(out, "rb");
+            if (f != NULL) { fclose(f); return 1; }
         }
     }
 
@@ -512,6 +525,12 @@ static int Loose_AnyForm(const char* base, int allowImageForms)
             f = Loose_FOpen(p, "rb");
             if (f != NULL) { fclose(f); return 1; }
             snprintf(p, sizeof(p), "%s.png", stem);
+            f = Loose_FOpen(p, "rb");
+            if (f != NULL) { fclose(f); return 1; }
+            snprintf(p, sizeof(p), "%s_reference.dds", stem);
+            f = Loose_FOpen(p, "rb");
+            if (f != NULL) { fclose(f); return 1; }
+            snprintf(p, sizeof(p), "%s_reference.png", stem);
             f = Loose_FOpen(p, "rb");
             if (f != NULL) { fclose(f); return 1; }
         }
@@ -783,6 +802,18 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
                 if (pf == NULL)
                 {
                     snprintf(pngPath, sizeof(pngPath), "gamedata/load/%s/%s.dds",
+                             strippedFolder, baseName);
+                    pf = Loose_FOpen(pngPath, "rb");
+                }
+                if (pf == NULL)
+                {
+                    snprintf(pngPath, sizeof(pngPath), "gamedata/load/%s/%s_reference.dds",
+                             strippedFolder, baseName);
+                    pf = Loose_FOpen(pngPath, "rb");
+                }
+                if (pf == NULL)
+                {
+                    snprintf(pngPath, sizeof(pngPath), "gamedata/load/%s/%s_reference.png",
                              strippedFolder, baseName);
                     pf = Loose_FOpen(pngPath, "rb");
                 }

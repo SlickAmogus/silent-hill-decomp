@@ -385,6 +385,42 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
                     }
                 }
             }
+            /* ...except a LONE ~J2 page that closes the message (map7_s03 msg
+             * 68-69: blank ~J0(1.4) lead-in, then ~J2(1.2) "What the!?" over a
+             * 3.1s clip). Its pages are shorter than the clip, and the close
+             * stops the voice, which cut the line off. The tapes keep the
+             * exemption: their clips run 3-8s past a dozen ~J2 pages, so
+             * holding their last page would stall the scene. */
+            if (pcSingleFileAudio && g_MapMsg_AudioLoadBlock == MapMsgAudioLoadBlock_J2 && g_MapMsg_CurrentIdx > 0)
+            {
+                const u8* p        = (const u8*)g_MapOverlayHdr.mapMessages[g_MapMsg_CurrentIdx];
+                const u8* prev     = (const u8*)g_MapOverlayHdr.mapMessages[g_MapMsg_CurrentIdx - 1];
+                int       hasEnd   = 0;
+                int       prevIsJ2 = 0;
+
+                for (; *p != '\0'; p++)
+                {
+                    if (p[0] == MAP_MSG_CODE_MARKER && p[1] == MAP_MSG_CODE_END)
+                    {
+                        hasEnd = 1;
+                        break;
+                    }
+                }
+                for (; *prev != '\0'; prev++)
+                {
+                    if (*prev == ' ' || *prev == '\t')
+                    {
+                        continue;
+                    }
+                    prevIsJ2 = (prev[0] == MAP_MSG_CODE_MARKER &&
+                                prev[1] == MAP_MSG_CODE_JUMP && prev[2] == '2');
+                    break;
+                }
+                if (hasEnd && !prevIsJ2)
+                {
+                    pcSingleFileAudio = 0;
+                }
+            }
             /* A loose msg_<KEY>.wav added to an UNVOICED box holds too. The
              * clause above cannot cover it: the game never set
              * BgmStatusFlag_VoiceDialog for a line it does not voice, so these

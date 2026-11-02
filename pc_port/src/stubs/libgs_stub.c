@@ -440,6 +440,7 @@ extern void PsyX_SetNextPrimSzExact(unsigned short, unsigned short, unsigned sho
  * the transform, BEFORE these drawers' NormalClip/NormalColorCol clobber the GTE SZ
  * FIFO. Mirrors C2_SZ0..3, so ApplyGtePerVertexDepth's per-poly indexing lines up. */
 extern unsigned short g_PsyX_RtpSz[4];
+extern int PsyX_PGXP_TriBackface(const void*, const void*, const void*, int);
 /* Feed the item face's TRUE unquantized per-vertex depth into the depth system so the
  * GL depth test can separate overlapping faces (radio antenna vs body) that share one
  * coarse OT bucket. The `pz` arg — the drawer's gte_stdp depth cue — is perspective-
@@ -1115,7 +1116,13 @@ void GsTMDfastNTG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
                       &sxy0, &sxy1, &sxy2, &p, &flg);
         if (!(prim->flag & 2)) {
             nclip = NormalClip(sxy0, sxy1, sxy2);
-            if (nclip <= 0) continue;
+            /* Match the PGXP projection used to draw isolated item previews.
+             * Integer NCLIP can discard a thin front face after rounding its
+             * screen vertices, leaving holes as the item rotates. The helper
+             * falls back to integer clipping if precise vertices are missing. */
+            if (g_PcItemPreciseDepth && g_PsxUsePgxp) {
+                if (PsyX_PGXP_TriBackface(&sxy0, &sxy1, &sxy2, nclip)) continue;
+            } else if (nclip <= 0) continue;
         }
 
         otz = p >> shift;

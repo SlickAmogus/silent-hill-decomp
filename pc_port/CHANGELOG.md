@@ -1,5 +1,163 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.10.26.1 -- 2026-10-26
+- This is the first release with the new launcher that supports realtime updates. The PC port is now a rolling release: every change pushed to the project is built automatically and can be installed right away instead of waiting for the next official release. To turn it on, open Build Settings in the launcher and tick "Realtime updates". The Build list then shows the recent automatic builds, "latest" always installs the newest one, and you can pick an older build to roll back if something breaks. Realtime builds are untested, so back up your saves. Leave it unticked to keep getting official releases only
+- New native Achievements screen, reachable from the ACHIEVEMENTS row on the title menu (credit to T-ReXx)
+- New native Controls screen with controller button icons that match your gamepad, and you can switch icon sets (credit to T-ReXx)
+- Blended diagonal animations: in the alternate camera modes Harry's legs and hips now follow diagonal movement instead of sliding sideways (credit to T-ReXx)
+- Optional per-pixel lighting for the original world and characters, including default Harry. Turn on Per-Pixel Lighting in the quick menu (Lighting & Effects page) or set "per_pixel_lighting = 1". It's off by default and costs nothing while off. It comes with a Hero Light that keeps the player character readable in dark scenes, adjustable from Off to High in the same menu ("hero_light", 0 to 3, default 2)
+- glTF character swaps: drop a rigged HERO_<Name>.glb into gamedata/load/CHARA and it shows up as a playable character. Swaps get their own materials (normal maps, roughness/metallic, ambient occlusion and glowing emissive parts), per-pixel lighting, blinking, lip sync, breathing, fingers that close around held weapons and a ragdoll death ("ragdoll = 1"). Each model has an .ini for brightness, fog, flashlight and held weapon placement, and typing skinini in the console reloads it live. See the Skinned Character Replacement Guide for details
+- Essential QoL Mods are now built into the Mod Manager: tick one under the Essential QoL Mods section and press Apply, and it downloads, installs and applies automatically. Current list: HD Font (EU and US), HD Maps, HD Reimagined Images and No Subtitles. Installed ones are managed right from that row, and copies you downloaded yourself are recognized instead of doubled up
+- The Mod Manager now has Author and Description columns, filled from a modinfo.txt a mod can ship
+- Optional quick weapon switching with the number keys and mouse wheel ("quick_weapon_switch" in config.cfg, also in the quick menu)
+- FPS Limit is back in the quick menu
+- New option "crosshair_fps_aim_only = 1" shows the first-person crosshair only while aiming
+- macOS now has a self-contained Silent Hill PC.app with its own launcher
+- Better performance from fewer draw calls and less per-frame graphics work
+- Fixed screen fades running too fast above 60 FPS (Thanks to DurkaEbanaya PR on github)
+- Fixed water texture animation speed above 30 FPS (Also thanks to DurkaEbanaya PR)
+- Fixed the flashlight flare flickering while turning
+- Fixed classic 2D controls getting stuck when aiming after a run
+- Fixed Harry's belt flickering, and cutouts in the large mall TV with PGXP
+- Fixed the controller settings panel so your Cancel and Confirm binds back out and select
+- The mouse cursor is now one square, pixel-exact pointer on every screen
+
+Note: If you would like to submit major changes to the way things work internally, please make an effort to join the community, introduce yourself, and make a case for why you believe the change is necessary. I do not take random complex PRs in most cases.
+
+Commit summaries:
+- macOS: self-contained Silent Hill PC.app with a SwiftUI launcher
+- macOS launcher: prune links into other copies of the app
+- PsyCross: arm64 macOS build fix (WMPROBE tick counter)
+- Merged-format PSX shader (fewer draw calls) + mixshader console A/B
+- Mesh draw: per-vertex colour as closed forms, skip dead shadow copies
+- PsyCross: per-present GL trims (freeze attach, feedback blank memo, merged clear)
+- RetroAchievements: say why the achievements list will not open
+- Native menus: framework core (scroll, text fitting, row page)
+- Native menus: draw and input layer
+- Native menus: draw layer review fixes
+- Native menus: achievements screen
+- Native menus: ACHIEVEMENTS row, scrolling title menu, native achievements
+- Native menus: title menu review fixes
+- Native menus: split bind logic out of the GL bind panel
+- Native menus: switchable gamepad icon sets
+- Native menus: native Controls screen
+- Native menus: Controls screen review fixes
+- Native menus: localize the new screens
+- Native menus: final review fixes
+- Input glyphs: Kenney atlas and generator
+- Input glyphs: atlas generator review fixes
+- Input glyphs: bind, set and auto-detect mapping
+- Input glyphs: atlas registration and controller detection
+- Input glyphs: register the atlas at VRAM x 448 so glyph UVs fit u8
+- Input glyphs: draw Kenney glyphs on the Controls screen
+- Input glyphs: Controls screen review fixes
+- Input glyphs: localization and docs
+- Input glyphs: final review fixes
+- Native menus: Controls Back button, Reset on the right
+- Native menus: right-align the achievements counter
+- Native menus: list every wide key in InputGlyphs.md
+- Mouse cursor: one square, pixel-exact pointer on every screen
+- Native menus: fade out the Controls screen on exit
+- Native menus: scroll NmPage to a row the wheel skips to
+- Native menus: gate the wheel on the cursor being in the picture
+- Native menus: draw achievement text without menu localization
+- Native menus: ignore Escape during the fade into Achievements
+- Native menus: translator notes for every use of MENU.Map / MENU.Reload
+- WIP: integrate optional native quick weapon switching into controls
+- WIP: integrate optional native quick weapon switching into controls
+- WIP: integrate optional native quick weapon switching into controls
+- Use public SDL wheel events in native weapon switching
+- CI: compile Quick Weapons native integration on Windows
+- CI: isolate modified engine object compilation from upstream PsyCross failure
+- CI: attempt full Windows build with temporary MinGW/PsyCross compatibility patch
+- CI: bundle matching MinGW runtime DLLs for Windows native tests
+- CI: recursively bundle matching MinGW DLLs including OpenAL to fix startup entry points
+- Remove temporary CI packaging workflow before upstream review
+- Native menus: log why the ACHIEVEMENTS row is hidden instead of a console toast
+- Native menus: the selection underline glides like the options menus
+- fix: atomically drain quick weapon mouse wheel events
+- Screen fade: run at the intended speed above 60 fps
+- Native menus: text too wide for its space pans instead of ending in "..."
+- Native menus: only the selected row pans; other long rows end in "..."
+- Alt Russian: author's update (three lines)
+- Native menus: pans on screen together run in step
+- Native menus: a panning line no longer jumps away when it reaches x = -1
+- crosshair: add crosshair_fps_aim_only option for aim-only FPS crosshair
+- Merge PR #172: crosshair_fps_aim_only for an aim-only first-person crosshair
+- Merge PR #171: screen fades run at the intended speed above 60 fps
+- Merge PR #169: optional quick weapon switching (number keys, mouse wheel)
+- Quick weapon switching: document quick_weapon_switch in config.cfg
+- Merge PR #162: macOS Silent Hill PC.app with a SwiftUI launcher
+- Nightly releases: attach the macOS app (.dmg) next to the macOS zip
+- macOS launcher: capture the disc path by value for the copy task
+- Characters draw with per-pixel depth under PGXP (belt flicker)
+- Characters: arm each lit prim with its corners' SZ (belt flicker, PGXP off)
+- Skinned glTF character replacements (HERO first)
+- Ragdoll death for skinned replacements (config ragdoll = 1)
+- Skinned replacements: weapon depth, leg spacing, stronger ragdoll, blinking, guide
+- Skinned chara: keep the model's shoulder width
+- Skinned chara guide: hair cards need alpha in the PNG
+- Skinned chara: clavicles keep the model's slope
+- Skinned chara: straighter arms, fist round a held item
+- Skinned chara: non-Mixamo rigs, female voice via HERO.ini
+- PsyCross: Alt+Enter uses the options-menu window path
+- Title menu: show all rows, no scroll arrows
+- Fix classic 2D controls getting stuck when aiming after a run
+- Fix flashlight flare flicker by implementing OuterProduct12
+- Fix water texture animation speed above 30 FPS
+- Skinned chara: stop leg twist, add brightness and fog per model
+- Skinned chara: feet follow Harry's toe splay, per-model flashlight
+- Skinned replacements: Cybil (SIBYL), and lip sync from the voice line
+- Lip sync: a speaker table per voice line instead of pitch alone
+- Skinned Cybil: fill the scratch slots her kept gun hands read; line 48 is Cybil's
+- Skinned shape keys: read sparse morph targets
+- Skinned replacements: one output per drawn instance
+- Play As: HERO_* skinned models become extra Harry characters
+- Fix PGXP cutouts in the large mall TV
+- Skinned characters: visible with PGXP off, indexed and natively lit
+- Skinned swaps: keep Harry's hip frame, soften the waist, fix a lip speaker
+- Skinned swaps breathe
+- Merge PR #176: classic 2D controls no longer stick when aiming after a run
+- Merge PR #177: real OuterProduct12, fixes flashlight flare flicker while turning
+- Merge PR #178: sewer water animation follows game time above 30 FPS
+- Merge PR #179: PGXP cutouts in the large mall TV
+- PsyCross: Linux AArch64 OT pointer fix (PR #18), Linux vblank wait naps (adapted PR #20)
+- Menus: Russian PC-option labels, title marker centring, smaller pointer, PC page pauses play time
+- Skinned Harry: held weapon follows the replacement's fist
+- Skinned Harry: per-model held weapon tuning in the ini
+- Alternate cameras: legs follow diagonal movement
+- Diagonal legs: mix only the channels the clip keys
+- CI: Windows builds on every push, published as realtime builds
+- Launcher: opt-in realtime updates with rollback (2026.10.25.1)
+- PsyCross: newer mingw-w64 header fix; Windows CI reports every failure
+- Windows CI: build the FMV fallback against the shipped ffmpeg's headers
+- Realtime builds: one zip per build instead of one asset per file
+- Realtime changelog: every change since the last official release, by day
+- Realtime release: keep the iOS and Android builds, list them in the notes
+- Diagonal legs: walking turns the hips toward the travel direction
+- Realtime: newest-only release plus a realtime-history release
+- README: Latest Features, web play link, licensing moved to the end
+- Linux/macOS CI: realtime publish no longer copies the archive onto itself
+- Modify support section formatting in README
+- Launcher: one-time offer to turn on realtime updates (2026.10.25.3)
+- Launcher: detect an update by any older launcher key, not launcher_seen_*
+- Launcher: show the one-time realtime offer on fresh installs too
+- Skinned characters: per-pixel lighting and normal maps
+- Launcher: shorter one-time realtime offer text
+- Per-pixel lighting for the stock world and characters, and a hero light
+- Skinned characters: roughness/metallic, occlusion and emissive
+- Skinned characters: full gun placement in the ini, live reload, straight-finger grip
+- Launcher: Essential QoL Mods in the Mod Manager, Author/Description columns, modinfo.txt
+- realtime: keep the iOS AltStore/SideStore source, link it in the notes
+- Skinned characters: fist from the mesh for hands with no finger bones
+- Skinned characters: hand_relax ini setting for empty hands
+- Controller Settings panel: your Cancel/Confirm binds back out and select
+- Play-as: keep a hidden held item hidden across a character swap
+- Launcher: an installed Essential QoL mod is listed once, as its catalog row
+- Quick menu: FPS Limit row on PC and web
+- Update README with screenshot and feature details
+
+
 ## beta-2026.10.16.1 -- 2026-10-16
 - The whole world can finally be seen. The new Fog/World Visibility slider in the launcher controls the thickness of the fog, and if it is set below 1.0 the entire map is drawn in the daylight outdoor parts of the game. I recommend something like 0.85-0.95 for oppressive fog with far away visuals. It needs PGXP, so the launcher will offer to turn it on if you lower the fog without it. Warning: This will impact performance and lowering fog below 1.0 is only recommended on somewhat modern devices. 
 - Lots of optimizations, the game should perform better in general and especially on lower end systems. A background timer no longer eats a whole CPU core, a lot of redundant per-frame graphics and debug work was removed, and texture packs look up their textures faster

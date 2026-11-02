@@ -74,11 +74,12 @@ void CharaData_ApplyRegionPatches(void)
     }
 }
 
-/* NTSC-J spawns Mumblers where the US disc spawns Grey Children in EXACTLY
- * these maps and nowhere else (disc-verified: the JAP overlays' chara group
+/* NTSC-J spawns Mumblers where the US disc spawns Grey Children in
+ * these maps (disc-verified: the JAP overlays' chara group
  * bytes read 9/Mumbler instead of 8/GreyChild there; the global chara file
- * table is byte-identical between the discs). The five are the whole school
- * and the amusement park. Same model+texture swap as the PAL patch, but per
+ * table is byte-identical between the discs). The intro also passes 9 to
+ * Chara_Spawn directly (JAP0 MAP0_S00), outside that group table. These maps
+ * cover the intro, school and amusement park. Same swap as PAL, but per
  * map load and reverted where JP keeps Grey Children. */
 void CharaData_ApplyJpnMapPatches(s32 mapIdx)
 {
@@ -89,13 +90,11 @@ void CharaData_ApplyJpnMapPatches(s32 mapIdx)
         return;
     }
 
-    /* `uncensored` covers this disc too. It was written for PAL and the
-     * comment above is why it has to apply here as well: these five maps are
-     * the ONLY content difference between the JP and US discs, so skipping the
-     * swap makes a JP disc match US exactly -- and CLD3 is right there to load,
-     * the chara file table being byte-identical between them. */
+    /* As on PAL, `uncensored` keeps the Grey Child model. Both sets of
+     * model/texture files are present on the Japanese disc. */
     useMumbler = !g_PcConfig.uncensored &&
-                 (mapIdx == MapIdx_MAP1_S00 || mapIdx == MapIdx_MAP1_S01 ||
+                 ((mapIdx == MapIdx_MAP0_S00 && PcPort_GetJpnOverlayLinkBase() == 0x800CBAA8u) ||
+                  mapIdx == MapIdx_MAP1_S00 || mapIdx == MapIdx_MAP1_S01 ||
                   mapIdx == MapIdx_MAP1_S02 || mapIdx == MapIdx_MAP1_S03 ||
                   mapIdx == MapIdx_MAP6_S04);
 

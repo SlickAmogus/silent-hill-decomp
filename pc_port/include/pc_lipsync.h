@@ -2,6 +2,7 @@
 #ifndef PC_LIPSYNC_H
 #define PC_LIPSYNC_H
 
+#include <stddef.h>
 #include <stdint.h>
 #include <stddef.h> /* NULL in the generated speaker table. */
 

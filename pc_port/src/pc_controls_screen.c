@@ -613,10 +613,12 @@ static void cs_stick_draw(int row, int col, int y)
 
 static void cs_key_draw(const char* v, int col, int y, int color)
 {
-    char        name[NM_LINE_MAX], clean[NM_LINE_MAX];
-    int         glyph  = InputGlyphs_Ready() ? InputGlyphs_ForKey(v) : -1;
+    char        label[NM_LINE_MAX], name[NM_LINE_MAX], clean[NM_LINE_MAX];
+    int         glyph;
     const char* suffix = InputGlyphs_KeySuffix(v);
 
+    BindInput_KeyLabel(v, label, sizeof(label));
+    glyph = InputGlyphs_Ready() ? InputGlyphs_ForKey(label) : -1;
     if (glyph >= 0)
     {
         cs_glyph_cell_draw(glyph, s_colX[col], y, color);
@@ -624,8 +626,14 @@ static void cs_key_draw(const char* v, int col, int y, int color)
             Nm_TextDraw(s_colX[col] + INPUT_GLYPH_PX + 1, y, NM_TEXT_TALL, color, suffix);
         return;
     }
-    BindCore_DisplayKey(v, name, sizeof(name));
-    Nm_SanitizeGlyphs(name, clean, sizeof(clean), 0);
+    BindCore_DisplayKey(label, name, sizeof(name));
+    /* The menu font has no glyph for some layout labels (QWERTZ's dead-key
+     * cedilla); the US name beats a blank cell. */
+    if (Nm_SanitizeGlyphs(name, clean, sizeof(clean), 0) == 0)
+    {
+        BindCore_DisplayKey(v, name, sizeof(name));
+        Nm_SanitizeGlyphs(name, clean, sizeof(clean), 0);
+    }
     cs_fit_draw(s_colX[col], y, color, clean, s_colW[col]);
 }
 

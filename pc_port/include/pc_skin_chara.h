@@ -35,7 +35,9 @@ void  Pc_SkinChara_Bone(void* chara, int boneIdx, MATRIX* worldMat, MATRIX* view
 void  Pc_SkinChara_End(void* chara, void* ot, int shift, int hideHead);
 /* Nonzero for a stock part still drawn beside the replacement: a prop the
  * ILM welds into a body part (Cybil's pistol is her 06LGUN/10RGUN hands). */
-int   Pc_SkinChara_KeepsStockPart(const char partName[8]);
+int   Pc_SkinChara_KeepsStockPart(void* chara, const char partName[8], int bone);
+/* Reads Character Face Animation's models now rather than on first sight. */
+void  Pc_SkinChara_PreloadBuiltins(void);
 /* Transforms and lights a replaced part into the scratch slots without drawing
  * it, for a kept part that reads its seam vertices from there
  * (bodyprog_80055028.c). */
@@ -62,8 +64,12 @@ int   Pc_SkinChara_HeroLightOffset(s32 offQ12[3]);
 /* HERO's replacement fist sits elsewhere in the right hand than Harry's, which
  * the held weapons are modelled round: the transform (Q12 rotation, model-unit
  * shift) from the weapon's frame into that bone's, measured at load plus the
- * ini's gun_raise/gun_out/gun_twist. Returns 0 when it is the identity. */
+ * ini's gun_* settings. Returns 0 when it is the identity. */
 int   Pc_SkinChara_HeroGunAdjust(MATRIX* adj);
+
+/* Re-reads every loaded model's ini, for tuning without a restart. Returns
+ * how many were read. */
+int   Pc_SkinChara_ReloadSettings(void);
 
 #ifdef __cplusplus
 }

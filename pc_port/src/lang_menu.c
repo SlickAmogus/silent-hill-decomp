@@ -107,6 +107,20 @@ static const s_MenuTranslation s_MenuTr[] = {
     { "\x07Is_it_OK_to_format?",
         { "\x07Wirklich_formatieren?", "\x07Vraiment_formater_?", "\x07\xBF" "Formatear?", "\x07" "Formattare?" } },
 
+    /* --- Pause menu --- */
+    { "SAVE",                            { "SPEICHERN", "SAUVEGARDER", "GUARDAR", "SALVA" } },
+    { "QUICK_MENU",                      { "SCHNELLMENÜ", "MENU_RAPIDE", "MENU_RAPIDO", "MENU_RAPIDO" } },
+    /* FONT16 only has capital A-acute, A/O/U-diaeresis and E-acute; any other
+     * capital accent draws as a mark over '*', so those lose the accent. ES/IT
+     * are shortened: the full sentences passed 300 px in capitals. */
+    { "RETURN_TO_THE_TITLE_SCREEN?",     { "ZUR\xDC" "CK_ZUM_TITELBILDSCHIRM?", "RETOURNER_A_L'\xC9" "CRAN_TITRE_?", "\xBFVOLVER_AL_TITULO?", "TORNARE_AL_TITOLO?" } },
+    { "QUIT_THE_GAME?",                  { "SPIEL_BEENDEN?", "QUITTER_LE_JEU_?", "\xBFSALIR_DEL_JUEGO?", "USCIRE_DAL_GIOCO?" } },
+    { "YES",                             { "JA", "OUI", "SI", "SI" } },
+    { "NO",                              { "NEIN", "NON", NULL, NULL } },
+    /* Shortened where the full sentence passed 300 px: the reason line is FONT16 and never shrinks. */
+    { "Cannot_save_during_a_boss_fight", { "Kein_Speichern_im_Bosskampf", "Pas_de_sauvegarde_contre_un_boss", "No_se_puede_guardar_contra_un_jefe", "Impossibile_salvare_contro_un_boss" } },
+    { "Cannot_save_in_a_randomizer_run", { "Kein_Speichern_im_Randomizer", "Pas_de_sauvegarde_en_al\xE9" "atoire", "No_se_puede_guardar_en_aleatorio", "Non_si_salva_in_modalit\xE0_casuale" } },
+
     /* --- Saveload screen chrome + memory card dialogs --- */
     { "FILE", { "DATEI", "FICHIER", "ARCHIVO", NULL   } },
     { "Data", { "Daten", "Fich.",   "Datos",   "Dati" } },
@@ -479,6 +493,9 @@ const char* Pc_LangMenuText(const char* str)
     {
         const char* tr = Pc_LangPackMenu(str);
 
+        if (tr != NULL)
+            return tr;
+        tr = Pc_JpnUiText(str);
         if (tr != NULL)
             return tr;
         /* Not in the pack: a de/fr/es/it pack still has a column below. */

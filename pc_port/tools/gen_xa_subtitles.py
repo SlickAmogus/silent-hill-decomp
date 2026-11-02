@@ -8,6 +8,9 @@ first page, then each page turn) fires SD_Call(cmdTable[audioIdx++]), and a
 cutscene's calls in source order: page k of the call's message consumes the next
 table entry. A message runs on into the next index until a page ends in ~E
 (or a selection code), which is how the renderer decides "more follows".
+A ~J2 page fires nothing (map_msg_display.c returns before its SD_Call): it is
+shown over the clip the page before it started, so it takes no entry, and that
+clip is labelled with the first of its pages that has any text.
 
 Run after map code or the script changes:
     python pc_port/tools/gen_xa_subtitles.py
@@ -35,6 +38,13 @@ def pages(map_name, msg):
         n += 1
         if re.search(r"~[ESC]\d*\s*$", data[k].rstrip()):
             return n
+
+def is_j2(map_name, idx):
+    return re.match(r"\s*~J2", data.get("%s.%d" % (map_name, idx), "")) is not None
+
+def has_text(map_name, idx):
+    t = re.sub(r"~[A-Z]\d*(\([\d.]+\))?", "", data.get("%s.%d" % (map_name, idx), ""))
+    return re.sub(r"[\s_]", "", t) != ""
 
 TABLE_RE = re.compile(r"\b(u8|u16)\s+([A-Za-z_0-9]+)\s*\[\s*\d*\s*\]\s*=\s*\{([^}]*)\}", re.S)
 def tables_in(path):
@@ -87,15 +97,20 @@ for mapdir in sorted(glob.glob(os.path.join(root, "src/maps/map*"))):
             last[key] = msg
             at = pos.get(key, 0)
             n = pages(map_name, msg)
-            for k in range(n):
-                if at + k >= len(entries):
+            fired = [k for k in range(n) if k == 0 or not is_j2(map_name, msg + k)]
+            for e, k in enumerate(fired):
+                if at + e >= len(entries):
                     sys.stderr.write("%s: %s ran past table %s at msg %d\n" % (map_name, var, tbl, msg + k))
                     break
-                cmd = entries[at + k]
+                cmd = entries[at + e]
                 if (cmd & 0xF000) != 0x1000:
                     continue
                 xa = cmd & 0xFFF
-                mk = "%s.%d" % (map_name, msg + k)
+                cover = [k]
+                while cover[-1] + 1 < n and is_j2(map_name, msg + cover[-1] + 1):
+                    cover.append(cover[-1] + 1)
+                shown = [c for c in cover if has_text(map_name, msg + c)]
+                mk = "%s.%d" % (map_name, msg + (shown[0] if shown else k))
                 if xa >= XA_COUNT:
                     continue
                 if keys[xa] is None:
@@ -105,7 +120,7 @@ for mapdir in sorted(glob.glob(os.path.join(root, "src/maps/map*"))):
                 t = re.search(r"~J\d\((\d+(?:\.\d+)?)\)", data.get(mk, ""))
                 if t and abs(float(t.group(1)) - frames[xa] / 60.0) > 2.5:
                     sys.stderr.write("timer %s: %s shows %.1fs, line %d lasts %.1fs\n" % (map_name, mk, float(t.group(1)), xa, frames[xa] / 60.0))
-            pos[key] = at + n
+            pos[key] = at + len(fired)
 
 mapped = sum(1 for k in keys if k)
 sys.stderr.write("%d of %d lines mapped, %d with a second use\n" % (mapped, XA_COUNT, len(alts)))

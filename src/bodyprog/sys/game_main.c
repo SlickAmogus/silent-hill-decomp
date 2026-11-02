@@ -6,6 +6,7 @@
 #include "xa_player.h"
 #include "pc_msg_voice.h"
 #include "pc_dark_harry.h"
+#include "pc_pause_menu.h"
 #include <SDL_timer.h>
 #include <math.h>
 extern void PsyX_EndScene(void);
@@ -1648,6 +1649,30 @@ void DebugCamera_Update(void)
         prevPeriod = curPeriod;
     }
 
+    /* - / + while the inspector is on: cycle the play-as character. The swap
+     * sticks after the viewer is turned off, so this is the quick way to pick
+     * who to play as. */
+    {
+        extern int Pc_ConsoleIsOpen(void);
+        static int prevMinus = 0, prevPlus = 0;
+        int curMinus = g_sdlKeyboardState[SDL_SCANCODE_MINUS] || g_sdlKeyboardState[SDL_SCANCODE_KP_MINUS];
+        int curPlus  = g_sdlKeyboardState[SDL_SCANCODE_EQUALS] || g_sdlKeyboardState[SDL_SCANCODE_KP_PLUS];
+        if (g_DebugAnimKfView && !Pc_ConsoleIsOpen()) {
+            int step = 0;
+            if (curMinus && !prevMinus) step = -1;
+            if (curPlus && !prevPlus)   step = 1;
+            if (step != 0) {
+                extern int         Pc_PlayAs_Cycle(int step);
+                extern const char* Pc_PlayAs_Label(int idx);
+                int idx = Pc_PlayAs_Cycle(step);
+                Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+                SH_DBG_ECHO("[PLAYAS] %s", Pc_PlayAs_Label(idx));
+            }
+        }
+        prevMinus = curMinus;
+        prevPlus  = curPlus;
+    }
+
 
     /* `/` while the inspector is on: cycle the equipped weapon's UPPER-BODY anims
      * (HARRY_BASE_ANIM_INFOS entries 56..75 = anim indices 28..37: aim / fire /
@@ -2432,6 +2457,13 @@ void MainLoop(void) // 0x80032EE0
             Pc_RearLookUpdate();
         }
 
+        /* Hero light: re-derived each frame, as it drops out while the
+         * flashlight is lit unless hero_light_flashlight keeps it. */
+        {
+            extern void Pc_PpLit_Apply(void);
+            Pc_PpLit_Apply();
+        }
+
         /* "Disable D-pad for movement" applies ONLY during gameplay, so the D-pad
          * still navigates menus / inventory / the map. Re-evaluated every frame.
          * The quick options overlay (and the controls panel it opens) sits on
@@ -2657,6 +2689,38 @@ void MainLoop(void) // 0x80032EE0
                 g_PsxPresentLastFrame    = 0;
                 g_PcFreezeReleasePending = 0;
             }
+
+            /* Pause -> OPTION holds the frozen frame through SysState_OptionsMenu's
+             * fade; once the options, save or load screen takes over, the held
+             * capture must not be presented under it. */
+            if (Pc_PauseMenu_ReturnPending() && g_GameWork.gameState != GameState_InGame)
+            {
+                g_PsxPresentLastFrame = 0;
+            }
+
+            /* Back from a screen the pause menu opened. Every one of them returns
+             * through Game_StateSetNext, which leaves sysState at Gameplay. Taken
+             * here, on the screen's last tick, so neither the next tick's hooks
+             * above (quick save, mouse-look grab, extra actions) nor InGame's
+             * Gameplay branch ever see Gameplay. Not on the way out: Pause ->
+             * OPTION fades in SysState_OptionsMenu, and SAVE/LOAD leave InGame
+             * on the same tick. */
+            if (g_GameWork.gameState == GameState_InGame &&
+                g_SysWork.sysState == SysState_Gameplay &&
+                Pc_PauseMenu_TakeReturn())
+            {
+                SysWork_StateSetNext(SysState_GamePaused);
+            }
+
+            /* A load that went through, or the way back to the title: nothing is
+             * coming back to the pause menu. Not the load screen itself (it sits
+             * below MainLoadScreen), whose cancel still returns there. */
+            if (g_GameWork.gameState == GameState_MainLoadScreen ||
+                g_GameWork.gameState == GameState_MainMenu)
+            {
+                Pc_PauseMenu_Reset();
+            }
+            Pc_PauseMenu_AwayUpdate();
         }
 #endif
 
@@ -2748,6 +2812,7 @@ void MainLoop(void) // 0x80032EE0
          * and DMS chunk loads. Tick the queue every frame on PC. */
         ML_TRACE("Fs_QueueUpdate");
         Fs_QueueUpdate();
+        s_sfFsqEnd = (unsigned int)SDL_GetTicks();
 #else
         if (!Sd_AudioStreamingCheck())
         {
@@ -3002,6 +3067,10 @@ void MainLoop(void) // 0x80032EE0
             {
                 static Uint32 s_perfLastMs = 0, s_perfAccumMs = 0, s_perfWorstMs = 0;
                 static u32    s_perfFrames = 0, s_perfVbAccum = 0;
+                /* The same phases as [SLOWFRAME], summed over the window, so an
+                 * area that is slow throughout says whether the game (update)
+                 * or the GPU (present, sync) is holding it back. */
+                static u32    s_perfPhase[6], s_perfPhaseFrames;
                 Uint32        perfNowMs = SDL_GetTicks();
                 if (s_perfLastMs != 0)
                 {
@@ -3035,6 +3104,18 @@ void MainLoop(void) // 0x80032EE0
                                    (int)g_GameWork.gameState, (int)g_SysWork.sysState);
                         }
                     }
+                    if (s_sfSwapEnd != 0 && s_sfSwapEnd >= (unsigned int)s_perfLastMs && s_sfTop >= s_sfSwapEnd &&
+                        s_sfUpdStart >= s_sfTop && s_sfUpdEnd >= s_sfUpdStart && s_sfFsqEnd >= s_sfUpdEnd &&
+                        (unsigned int)perfNowMs >= s_sfFsqEnd)
+                    {
+                        s_perfPhase[0] += s_sfSwapEnd - (unsigned int)s_perfLastMs;
+                        s_perfPhase[1] += s_sfTop - s_sfSwapEnd;
+                        s_perfPhase[2] += s_sfUpdStart - s_sfTop;
+                        s_perfPhase[3] += s_sfUpdEnd - s_sfUpdStart;
+                        s_perfPhase[4] += s_sfFsqEnd - s_sfUpdEnd;
+                        s_perfPhase[5] += (unsigned int)perfNowMs - s_sfFsqEnd;
+                        s_perfPhaseFrames++;
+                    }
                     s_perfVbAccum += (u32)g_UncappedVBlanks;
                     /* A 30-second window, not 256 frames: at 240 fps the frame count
                      * logged every second and was the third-largest source in the log. */
@@ -3047,6 +3128,28 @@ void MainLoop(void) // 0x80032EE0
                                (unsigned long)s_perfWorstMs,
                                (double)s_perfVbAccum / s_perfFrames,
                                (unsigned long)s_perfFrames);
+                        if (s_perfPhaseFrames > 0)
+                        {
+                            extern double g_PsyX_GpuMsSum;
+                            extern int    g_PsyX_GpuMsCount;
+                            double n = (double)s_perfPhaseFrames;
+                            /* gpu: GPU time from one swap to the next (desktop GL only, -1
+                             * elsewhere). It includes any wait for the game's commands, so
+                             * it reads as GPU-bound only when well above update. */
+                            SH_DBG("[PERF]   per frame: present=%.1f tail=%.1f top=%.1f update=%.1f fsq=%.1f sync=%.1f gpu=%.1f ms | mapIdx %d",
+                                   s_perfPhase[0] / n, s_perfPhase[1] / n, s_perfPhase[2] / n, s_perfPhase[3] / n,
+                                   s_perfPhase[4] / n, s_perfPhase[5] / n,
+                                   g_PsyX_GpuMsCount > 0 ? g_PsyX_GpuMsSum / g_PsyX_GpuMsCount : -1.0,
+                                   g_SavegamePtr != NULL ? (int)g_SavegamePtr->mapIdx : -1);
+                        }
+                        {
+                            extern double g_PsyX_GpuMsSum;
+                            extern int    g_PsyX_GpuMsCount;
+                            g_PsyX_GpuMsSum = 0.0;
+                            g_PsyX_GpuMsCount = 0;
+                        }
+                        memset(s_perfPhase, 0, sizeof(s_perfPhase));
+                        s_perfPhaseFrames = 0;
                         s_perfFrames = 0; s_perfAccumMs = 0; s_perfWorstMs = 0; s_perfVbAccum = 0;
                     }
                 }
@@ -3343,7 +3446,15 @@ void MainLoop(void) // 0x80032EE0
              * g_PcWorldDrawnThisFrame already reflects THIS frame -- the hold
              * ends on the very first world frame and nothing is stretched at
              * all. Waiting for a second frame left two stretched ones. */
-            if (bg2dHeld && g_Pc2dBackgroundActive <= 0 && g_PcWorldDrawnThisFrame)
+            /* A presented freeze-frame is the world too: the captured frame is
+             * blitted over the whole window, so holding 4:3 here only framed
+             * the fade drawn over it. Coming back from the Save/Load/Option
+             * screens to the pause menu, the fade-in darkened the 4:3 middle
+             * while the frozen world sat at full brightness in the side bars
+             * for the 300ms the hold outlived the screen. */
+            extern int g_PsxPresentLastFrame;
+            if (bg2dHeld && g_Pc2dBackgroundActive <= 0 &&
+                (g_PcWorldDrawnThisFrame || g_PsxPresentLastFrame))
             {
                 s_bg2dHoldUntilMs = 0;
                 bg2dHeld          = 0;
@@ -3932,7 +4043,27 @@ void MainLoop(void) // 0x80032EE0
             }
         }
 #endif
+#ifdef SH_PC_PORT
+        {
+            /* Hospital kitchens, director's office furniture, the Otherworld
+             * plate door and bloodsucker room window may overlap in the PSX
+             * ordering table. Test opaque world depth only in these rooms;
+             * restore the diagnostic setting before any other OT draw. */
+            extern int g_PsxWorldDepthAlways;
+            int prevWorldDepthAlways = g_PsxWorldDepthAlways;
+            if (g_GameWork.gameState == GameState_InGame && g_SavegamePtr != NULL &&
+                ((g_SavegamePtr->mapIdx == MapIdx_MAP3_S01 &&
+                  (g_SavegamePtr->mapRoomIdx == 10 || g_SavegamePtr->mapRoomIdx == 11)) ||
+                 (g_SavegamePtr->mapIdx == MapIdx_MAP3_S04 && g_SavegamePtr->mapRoomIdx == 10) ||
+                 (g_SavegamePtr->mapIdx == MapIdx_MAP3_S03 &&
+                  (g_SavegamePtr->mapRoomIdx == 29 || g_SavegamePtr->mapRoomIdx == 35))))
+                g_PsxWorldDepthAlways = 0;
+            GsDrawOt(&g_OrderingTable0[g_ActiveBufferIdx]);
+            g_PsxWorldDepthAlways = prevWorldDepthAlways;
+        }
+#else
         GsDrawOt(&g_OrderingTable0[g_ActiveBufferIdx]);
+#endif
 #ifdef SH_PC_PORT
         {
             extern int g_PcPickupItemActive;
@@ -4086,7 +4217,15 @@ void MainLoop(void) // 0x80032EE0
                                   g_SysWork.sysState == SysState_MapScreen   ||
                                   g_SysWork.sysState == SysState_SaveMenu0   ||
                                   g_SysWork.sysState == SysState_SaveMenu1;
-            const int uiIsMenu = uiMenuState && !uiWorldOnScreen;
+            /* While the fade is opaque it IS the image and the gate holds the
+             * framing the fade started under (see its fade branch); the frame
+             * was cleared with that framing too. Narrowing here anyway on the
+             * tick a menu screen took over left the opaque fade in the 4:3
+             * middle and the bars showing that clear, the stale fog colour, for
+             * a frame (entering OPTION from pause or from gameplay). */
+            const int uiFadeOpaque = (g_Screen_FadeStatus & 0x7) >= ScreenFadeState_ResetTimestep &&
+                                     (g_Screen_FadeStatus & 0x7) <= ScreenFadeState_FadeInStart;
+            const int uiIsMenu = uiMenuState && !uiWorldOnScreen && !uiFadeOpaque;
 
             g_PcHorPlusEnabled = uiIsMenu ? 0 : g_PcHorPlusGate;
             g_PsxUIOrthoPass   = 1;

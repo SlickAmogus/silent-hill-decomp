@@ -33,8 +33,30 @@
  * counts from the START of the transition and on PSX the CD read spent most of
  * it, so players rarely saw it as dead black. PC loads at disk speed and would
  * sit out the remainder, so half restores the behaviour rather than the number.
- * Console TXNHOLD; 60 restores the literal constant. */
+ * Console TXNHOLD; non-door loads retain this minimum, and 60 restores the
+ * literal constant there. */
 s32 g_PcTxnHoldFrames = 30;
+
+/* Door loads are hidden by the existing out-fade. Advance the same synchronous
+ * read/post-load queue at storage speed there, rather than one sector/state per
+ * presented frame. Retain the normal queue-empty and chunk-ready gates below;
+ * a bounded drain is never permission to discard an unfinished entry. */
+static bool Pc_IsDoorLoad(void)
+{
+    return !(g_SysWork.sysFlags & SysFlag_DemoActive) &&
+           (g_SysWork.processFlags == ProcessFlag_RoomTransition ||
+            g_SysWork.processFlags == ProcessFlag_OverlayTransition);
+}
+
+static void Pc_DoorLoadDrain(void)
+{
+    extern int g_PcFastBlockingLoads;
+    extern void Fs_QueueDrainNow(void);
+    if (Pc_IsDoorLoad() && g_PcFastBlockingLoads)
+    {
+        Fs_QueueDrainNow();
+    }
+}
 #endif
 
 #ifdef SH_PC_PORT
@@ -173,6 +195,7 @@ void GameBoot_GameStartup(void) // 0x80034964
 
         case 3:
 #ifdef SH_PC_PORT
+            Pc_DoorLoadDrain();
             /* Dump pending queue entries every 60 frames so we can identify
              * which file load is stalling during room/map transitions. The
              * door-transition "crash" is actually a hang here at queueLen>0;
@@ -216,6 +239,9 @@ void GameBoot_GameStartup(void) // 0x80034964
             g_GameWork.gameStateSteps[0]++;
 
         case 6:
+#ifdef SH_PC_PORT
+            Pc_DoorLoadDrain();
+#endif
             if (Fs_QueueGetLength() == 0)
             {
 #ifdef SH_PC_PORT
@@ -304,6 +330,10 @@ void GameBoot_GameStartup(void) // 0x80034964
 
         case 9:
 #ifdef SH_PC_PORT
+            /* Chunk post-processing and BGM initialization can enqueue more
+             * files after step 8. Keep their real completion gate, without
+             * throttling those reads back to one queue tick per frame. */
+            Pc_DoorLoadDrain();
             /* Keep Harry running until the screen has had its minimum time (see
              * Pc_LoadScreenClockTick); the new area's music starts after it. */
             if (Pc_LoadScreenHoldingMinimum())
@@ -347,6 +377,9 @@ void GameBoot_GameStartup(void) // 0x80034964
             break;
 
         case 10:
+#ifdef SH_PC_PORT
+            Pc_DoorLoadDrain();
+#endif
             if (g_SysWork.processFlags == ProcessFlag_BootDemo && !(g_SysWork.sysFlags & SysFlag_DemoActive))
             {
                 Demo_Start();
@@ -368,8 +401,10 @@ void GameBoot_GameStartup(void) // 0x80034964
              * saw it. With PC loading at disk speed we arrive early and wait out
              * the remainder as dead black, a second retail never actually showed.
              * Honouring the number stopped honouring the behaviour. Console:
-             * TXNHOLD <frames>, 60 restores the literal constant. */
-            if (g_SysWork.counters_1C[0] >= g_PcTxnHoldFrames)
+             * TXNHOLD <frames>, 60 restores the literal constant for non-door
+             * loads. A ready door does not owe an artificial black hold: its
+             * fade/sound and all load/init stages still run unchanged. */
+            if (Pc_IsDoorLoad() || g_SysWork.counters_1C[0] >= g_PcTxnHoldFrames)
 #else
             if (g_SysWork.counters_1C[0] >= 60)
 #endif

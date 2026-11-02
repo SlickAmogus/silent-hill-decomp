@@ -8,8 +8,11 @@
 
 #include <SDL.h>
 
+#include "game.h"
+#include "bodyprog/bodyprog.h"
 #include "pc_bind_core.h"
 #include "pc_bind_input.h"
+#include "pc_mouse_cursor.h"
 
 extern const char* PsyX_Pad_ConnectedControllerName(void);
 extern const char* PsyX_Pad_HeldBindName(void);
@@ -59,6 +62,20 @@ static void bp_read_nav(int held[BN_COUNT])
         held[BN_OK]    |= strcmp(pb, "a") == 0;
         held[BN_BACK]  |= strcmp(pb, "b") == 0 || strcmp(pb, "start") == 0;
         held[BN_CLEAR] |= strcmp(pb, "x") == 0;
+    }
+
+    /* The player's own Confirm and Cancel binds, as every other menu takes
+     * them. Escape alone was the only keyboard way out, and Escape is the
+     * default warm-reset bind, so leaving this panel by keyboard reset the
+     * game. Pad bits the mouse produces are left out: a click is read by
+     * bp_mouse, and key_cross = Mouse1 would otherwise act twice. */
+    if (g_GameWorkPtr != NULL && g_Controller0 != NULL)
+    {
+        const s_ControllerConfig* cfg = &g_GameWorkPtr->config.controllerConfig;
+        const u32 padHeld = g_Controller0->heldBtnFlags & ~Pc_MouseCursor_BoundPadBits();
+
+        held[BN_OK]   |= (padHeld & (cfg->enter | cfg->action)) != 0;
+        held[BN_BACK] |= (padHeld & cfg->cancel) != 0;
     }
 }
 
@@ -201,4 +218,24 @@ const char* BindCapture_Update(void)
         }
     }
     return NULL;
+}
+
+void BindInput_KeyLabel(const char* v, char* out, size_t n)
+{
+    SDL_Scancode sc    = (v != NULL) ? SDL_GetScancodeFromName(v) : SDL_SCANCODE_UNKNOWN;
+    const char*  label = NULL;
+
+    if (sc != SDL_SCANCODE_UNKNOWN)
+        label = SDL_GetKeyName(SDL_GetKeyFromScancode(sc));
+    snprintf(out, n, "%s", (label != NULL && label[0] != '\0') ? label : (v != NULL ? v : ""));
+}
+
+int BindInput_ScancodeFromLabel(const char* label)
+{
+    SDL_Keycode  key = SDL_GetKeyFromName(label);
+    SDL_Scancode sc  = (key != SDLK_UNKNOWN) ? SDL_GetScancodeFromKey(key) : SDL_SCANCODE_UNKNOWN;
+
+    /* A character the active layout has no unshifted key for (US "`" on
+     * QWERTZ) is taken as the US position, which is what it always meant. */
+    return (sc != SDL_SCANCODE_UNKNOWN) ? (int)sc : (int)SDL_GetScancodeFromName(label);
 }

@@ -528,6 +528,15 @@ typedef struct {
      * (config key: chara_per_pixel_light) */
     int  charaPerPixelLight;
 
+    /* The game's own human characters blink, move their mouths to their
+     * voice lines and breathe: their face and chest drawn from the port's
+     * gamedata/builtin/CHARA models instead of the stock parts. A replacement
+     * in load/CHARA still takes over. Applies live. Off by default while the
+     * joins are checked; the first build's key, chara_face_anim, shipped on
+     * with gaps at the joints and is ignored, so everyone starts off.
+     * (config key: chara_face_anim2) */
+    int  charaFaceAnim;
+
     /* Stock world and characters lit per pixel: the GTE light sum the PSX runs
      * per vertex, run per fragment instead. Off by default; applies live.
      * (config key: per_pixel_lighting) */
@@ -537,6 +546,11 @@ typedef struct {
      * read in flat daylight and dim rooms: 0 off, 1 low, 2 medium, 3 high.
      * (config key: hero_light) */
     int  heroLight;
+
+    /* 1 keeps that fill on while the flashlight is lit; 0 (default) drops it
+     * then, since the beam already lights the character and the two together
+     * read as a double light. (config key: hero_light_flashlight) */
+    int  heroLightWithFlashlight;
 
     /* Strength of that blur: the gain of its feedback loop, 0 to 1. 1.0 is
      * hardware, where the overlay's own 50/50 composite is the only decay.

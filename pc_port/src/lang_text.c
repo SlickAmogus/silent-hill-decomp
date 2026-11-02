@@ -35,7 +35,6 @@ extern const char* PcPort_GetGameDiscPath(void);
 #define ITEM_TEXT_BASE  0x800C8B68u
 #define ITEM_TEXT_COUNT 195
 #define EUR_OVL_BASE    0x800CB370u
-#define JPN_OVL_BASE    0x800CBBD0u /* JAP Rev 1/2 map-overlay link base (probe-verified) */
 #define USA_OVL_BASE    0x800C9578u /* US map-overlay link base (configs/USA/maps vram) */
 
 /* Fan-translation (modified USA disc) support. Patches like the Spanish
@@ -1601,13 +1600,16 @@ int Pc_LangMenuRowActive(void)
         return 0;
     }
 
-    /* NTSC-J keeps the row in-game as well. The title-screen restriction exists
-     * because a PAL switch rebinds the file table and reloads item text, which
-     * would strand whatever the current map already extracted; the NTSC-J
-     * switch only picks a glyph set, so it is safe at any time. Nothing is lost
-     * by taking the slot: Auto Load is read once, at the Konami logo
-     * (b_konami.c), so its row does nothing in-game anyway and is still
-     * reachable from the title screen where it takes effect. */
+    /* Title screen only, on every disc. A switch rebinds the file table and
+     * reloads item and pack text under a map that already extracted its own,
+     * and switching back and forth in-game (PAL English <-> Polish) crashed or
+     * left text broken. NTSC-J was exempt because its switch only picks a
+     * glyph set, but packs install there too now, so it follows the same rule.
+     * Auto Load, the slot this row takes, is read once at the Konami logo, so
+     * nothing is lost in-game by giving the slot back. */
+    if (g_GameWork.gameStatePrev != GameState_MainMenu)
+        return 0;
+
     if (g_GameRegion == Region_JPN)
         return 1;
 
@@ -1619,10 +1621,7 @@ int Pc_LangMenuRowActive(void)
     if (!g_PcConfig.crossRegionLanguages && g_GameRegion != Region_EUR)
         return 0; /* retail behaviour: this row is Auto Load off a PAL disc */
 
-    /* In-game too off a PAL disc (see SlotsOfferPacks). Auto Load, which the
-     * row replaces, is read once at the Konami logo and does nothing here. */
-    return SlotsCount() > 1 &&
-           (g_GameWork.gameStatePrev == GameState_MainMenu || g_GameRegion != Region_EUR);
+    return SlotsCount() > 1;
 }
 
 const char* Pc_LangItemName(int itemIdx)
@@ -2149,7 +2148,7 @@ void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
 
     /* Each disc links its overlays at its own base. A rebuilt USA disc moves
      * even that, so it is detected rather than assumed. */
-    base     = (g_GameRegion == Region_JPN) ? JPN_OVL_BASE
+    base     = (g_GameRegion == Region_JPN) ? PcPort_GetJpnOverlayLinkBase()
              : (g_GameRegion == Region_EUR) ? EUR_OVL_BASE
                                             : Pc_UsaOverlayLinkBase(ovl, mapIdx);
     tablePsx = *(const unsigned int*)(bytes + 0x34);

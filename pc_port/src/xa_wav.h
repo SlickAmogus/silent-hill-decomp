@@ -15,4 +15,16 @@ int XaWav_Load(const char* path, unsigned char** outPcm, uint32_t* outBytes, int
 /* The override path for a disc line: <gamedata>/load/XA/xa_NNNN.wav. */
 void XaWav_OverridePath(uint16_t xaIdx, char* out, size_t outSize);
 
+/* A text-box file mixed into the disc line that is playing, instead of cutting
+ * it. Start converts to the stream's rate/channels; Mix copies src to dst with
+ * the file added and returns the frames it covered (0 = dst untouched, push
+ * src); Advance commits them once pushed. TakeRest hands back what was never
+ * mixed so it can play on its own when the disc line ends first. */
+int      XaSide_Start(const char* path, int rate, int stereo);
+void     XaSide_Stop(void);
+int      XaSide_Active(void);
+uint32_t XaSide_Mix(const int16_t* src, int16_t* dst, uint32_t frames, int channels);
+void     XaSide_Advance(uint32_t frames);
+int      XaSide_TakeRest(unsigned char** outPcm, uint32_t* outBytes, int* outRate, int* outStereo);
+
 #endif

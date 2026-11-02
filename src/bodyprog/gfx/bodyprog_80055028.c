@@ -17,12 +17,16 @@ extern float g_PsxWorldHScale;
  * 16:9 while the visible half is ~250 -- the additive brightness quad ended in
  * plain sight as hard-edged dark side bands (user-measured cliff at +/-223.8).
  * Same bound as the mesh cull / halo border, plus the PSX +10 edge pad. */
+/* The vfov crop is top-anchored by default (vfov anchor 0), so ALL of the extra
+ * 224*(vs-1) rows land below the projection centre, not half of them: 112*vs
+ * left the bottom ~2 lines at vfov 1.08 without brightness or fog. Sized for the
+ * worst anchor, since the quad is symmetric. */
 static s16 Pc_OverlayQuadHalfH(void)
 {
     extern float g_PsxWorldVScale, g_PsxWorldVShift;
     const float vs = (g_PsxWorldVScale > 1.0f) ? g_PsxWorldVScale : 1.0f;
     const float sh = (g_PsxWorldVShift < 0.0f) ? -g_PsxWorldVShift : g_PsxWorldVShift;
-    return (s16)(112.0f * vs + sh + 8.0f);
+    return (s16)(112.0f + 224.0f * (vs - 1.0f) + sh + 8.0f);
 }
 
 static s16 Pc_OverlayQuadHalfW(void)

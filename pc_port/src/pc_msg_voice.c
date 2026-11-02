@@ -83,12 +83,12 @@ void Pc_MsgVoice_OnEnd(void)
  * appears. Only the AUTO advance consults this; a manual skip is never gated. */
 int Pc_MsgVoice_Holding(void)
 {
-    extern int Xa_IsVoiceAudioDraining(void);
-
     if (!s_fileStarted || !s_holdThisPage)
         return 0;
 
-    if (Xa_IsVoiceAudioDraining())
+    /* The file's own audio, not the disc line it may be mixed into: that one
+     * can run on for a long ambient tail the box was never meant to wait for. */
+    if (XaPlayer_FileAudible())
     {
         s_tailUntilMs = SDL_GetTicks() + (Uint32)g_PcConfig.msgVoiceTailMs;
         return 1;

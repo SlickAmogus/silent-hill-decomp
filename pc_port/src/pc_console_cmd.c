@@ -518,6 +518,8 @@ static const char* const HELP_LINES[] = {
     " fmv <name|#>   play a movie (also intro1-2, end1-5)",
     " kf [n]         keyframe viewer: toggle, or view frame n",
     " playas [name]  play as another character (bare = list)",
+    " playas next / previous  cycle characters (bindable)",
+    " skinini        re-read the character models' .ini files",
     " minimapnomap [0|1]  minimap before the map is found: 0 hide, 1 empty panel",
     " bind <key> <cmd>[;<cmd>...]  run console commands from a key",
     " bind list / unbind <key> / unbindall",
@@ -2392,11 +2394,19 @@ void Pc_ConsoleExec(const char* line)
             cprintf("keyframe viewer %s (keyframe %d / %d)",
                     g_DebugAnimKfView ? "ON" : "OFF", g_DebugAnimKf, maxKf);
         }
+    } else if (strcmp(cmd, "SKININI") == 0) {
+        extern int Pc_SkinChara_ReloadSettings(void);
+        cprintf("re-read %d character .ini file(s)", Pc_SkinChara_ReloadSettings());
     } else if (strcmp(cmd, "PLAYAS") == 0) {
         extern int         Pc_PlayAs_SetByName(const char* name, int save);
         extern int         Pc_PlayAs_Current(void);
         extern const char* Pc_PlayAs_Label(int idx);
-        if (arg[0] != '\0') {
+        if (strcasecmp(arg, "next") == 0 || strcasecmp(arg, "previous") == 0 ||
+            strcasecmp(arg, "prev") == 0) {
+            extern int Pc_PlayAs_Cycle(int step);
+            int step = toupper((unsigned char)arg[0]) == 'N' ? 1 : -1;
+            cprintf("playing as %s", Pc_PlayAs_Label(Pc_PlayAs_Cycle(step)));
+        } else if (arg[0] != '\0') {
             if (Pc_PlayAs_SetByName(arg, 1)) {
                 cprintf("playing as %s", Pc_PlayAs_Label(Pc_PlayAs_Current()));
             } else {
