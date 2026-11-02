@@ -348,6 +348,14 @@ static int       s_itemDepthOn;
 static unsigned s_izTagged, s_izHit, s_izMiss;    /* [ITEMZ] probe counters */
 static float    s_izZMin = 1e9f, s_izZMax = -1e9f;        /* this bracket's SZ span */
 static float    s_izPrevMin = -1.0f, s_izPrevMax = -1.0f; /* previous bracket's span */
+/* The drawers' own coarse otz span, this bracket and the previous one. The fine
+ * re-bucket is mapped INTO this span, not across the whole table: the inventory
+ * draws the centre box's black fill into the same OT at a fixed slot, and the
+ * back-of-ring items must stay on the far side of it. Spreading them over
+ * [otLen/32, otLen-1-otLen/32] carried the item two places from the selection
+ * past the fill -- the "ghost health drink behind the knife" (Xbox 360). */
+static int      s_izCoarseMin = 0x7FFFFFFF, s_izCoarseMax = -1;
+static int      s_izPrevCoarseMin = -1, s_izPrevCoarseMax = -1;
 
 /* THE see-through fix, take 4 — and this one uses no GPU depth at all.
  *
@@ -384,6 +392,8 @@ int Xbox_ItemOtz(const unsigned short* sz4, int coarseOtz, int otLen)
 
     if (avg < s_izZMin) s_izZMin = avg;   /* accumulate THIS bracket's span */
     if (avg > s_izZMax) s_izZMax = avg;
+    if (coarseOtz < s_izCoarseMin) s_izCoarseMin = coarseOtz;
+    if (coarseOtz > s_izCoarseMax) s_izCoarseMax = coarseOtz;
 
     if (!(s_izPrevMax > s_izPrevMin) || s_izPrevMin < 0.0f)
         return coarseOtz;                 /* no calibration yet -> legacy */
@@ -400,6 +410,12 @@ int Xbox_ItemOtz(const unsigned short* sz4, int coarseOtz, int otLen)
         return coarseOtz;
     lo = otLen / 32;                      /* headroom at both ends */
     hi = otLen - 1 - lo;
+    /* Stay inside the coarse span the game itself used (see s_izCoarseMin). */
+    if (s_izPrevCoarseMax > s_izPrevCoarseMin && s_izPrevCoarseMin >= 1) {
+        lo = s_izPrevCoarseMin;
+        hi = s_izPrevCoarseMax;
+        if (hi > otLen - 1) hi = otLen - 1;
+    }
     if (hi <= lo)
         return coarseOtz;
 
@@ -534,6 +550,14 @@ void PsyX_ForceItemDepthEnd(void)
         s_izPrevMin = s_izZMin;
         s_izPrevMax = s_izZMax;
     }
+    /* Coarse span: accumulated at SORT time in Xbox_ItemOtz (before this
+     * bracket's draw), so roll it here and start the next pass fresh. */
+    if (s_izCoarseMax > s_izCoarseMin) {
+        s_izPrevCoarseMin = s_izCoarseMin;
+        s_izPrevCoarseMax = s_izCoarseMax;
+    }
+    s_izCoarseMin = 0x7FFFFFFF;
+    s_izCoarseMax = -1;
     s_izTagged = 0;
     s_itemSzGen++;              /* invalidate this frame's tags in O(1) */
     if (s_itemSzGen == 0) s_itemSzGen = 1;

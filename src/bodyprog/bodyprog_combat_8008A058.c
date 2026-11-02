@@ -621,6 +621,19 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
                                 temp_s0 = Q12_MULT_PRECISE(temp_v0_6, temp_v0_6) + temp6;
 
                                 sp30 = SquareRoot12(temp_s0);
+#ifdef SH_PC_PORT
+                                {   /* [MELEECHK] melee target test: who, how far, the
+                                     * reach it is compared against. Capped. */
+                                    static int s_mc;
+                                    if (s_mc < 60) {
+                                        s_mc++;
+                                        SH_DBG("[MELEECHK] tgt=%d chara=%d dist=%d reach=%d dxyz=(%d,%d,%d) flags=0x%x hp=%d",
+                                               (int)g_SysWork.targetNpcIdx, (int)temp_s1_2->model.charaId,
+                                               (int)sp30, (int)temp_t3_2, (int)temp_v0_4, (int)temp_v0_5,
+                                               (int)temp_v0_6, (unsigned)temp_s1_2->flags, (int)temp_s1_2->health);
+                                    }
+                                }
+#endif
 
                                 if (temp_s1_2->flags & CharaFlag_Unk2)
                                 {
@@ -764,6 +777,30 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
                     }
 #endif
 
+#if defined(SH_XBOX360_PORT)
+                    /* [SHOT] one line per player bullet: ray origin/direction,
+                     * what it hit, and the target's hit band. Capped. */
+                    if (chara == &g_SysWork.playerWork.player)
+                    {
+                        static int s_shotN;
+                        if (s_shotN < 40)
+                        {
+                            s32 tIdx = g_SysWork.targetNpcIdx;
+                            s_SubCharacter* tn = (tIdx >= 0) ? &g_SysWork.npcs[tIdx] : NULL;
+                            s_shotN++;
+                            SH_DBG("[SHOT] #%d from=(%d,%d,%d) dir=(%d,%d,%d) hit=%d chara=%s | tgt id=%d pos=(%d,%d,%d) box(top=%d bot=%d h=%d) cyl(r=%d f2=%d)",
+                                   s_shotN,
+                                   (int)chara->field_44.field_18.vx, (int)chara->field_44.field_18.vy, (int)chara->field_44.field_18.vz,
+                                   (int)chara->field_44.field_48[0].vx, (int)chara->field_44.field_48[0].vy, (int)chara->field_44.field_48[0].vz,
+                                   (int)(temp != 0), ptr ? "YES" : "no",
+                                   tn ? (int)tn->model.charaId : -1,
+                                   tn ? (int)tn->position.vx : 0, tn ? (int)tn->position.vy : 0, tn ? (int)tn->position.vz : 0,
+                                   tn ? (int)tn->collision.box.top : 0, tn ? (int)tn->collision.box.bottom : 0,
+                                   tn ? (int)tn->collision.box.height : 0,
+                                   tn ? (int)tn->collision.cylinder.radius : 0, tn ? (int)tn->collision.cylinder.field_2 : 0);
+                        }
+                    }
+#endif
                     if (temp && ptr != NULL)
                     {
                         chara->field_44.field_48[1].vx = temp_s1_4;
@@ -2007,6 +2044,29 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
 
     for (i = var_v0; i > 0; i--, chara1++, sp18 *= 2)
     {
+#ifdef SH_PC_PORT
+        if (chara1->model.charaId == Chara_AirScreamer && chara == &g_SysWork.playerWork.player)
+        {   /* [HITTEST] what the weapon sweep sees of the Air Screamer. Capped. */
+            static int s_ht;
+            if (s_ht < 200 && chara1->collision.state != 0)
+            {
+                VECTOR3 c2;
+                c2.vx = chara1->position.vx + chara1->collision.shapeOffsets.box.vx;
+                c2.vy = chara1->position.vy;
+                c2.vz = chara1->position.vz + chara1->collision.shapeOffsets.box.vz;
+                s_ht++;
+                SH_DBG("[HITTEST] hp=%d state=%d dist2d=%d pos=(%d,%d,%d) harry=(%d,%d,%d) box(top=%d bot=%d h=%d offY=%d) cyl(r=%d f2=%d) off=(%d,%d)",
+                       (int)chara1->health, (int)chara1->collision.state,
+                       (int)Math_Distance2dGet(&chara->position, &c2),
+                       (int)chara1->position.vx, (int)chara1->position.vy, (int)chara1->position.vz,
+                       (int)chara->position.vx, (int)chara->position.vy, (int)chara->position.vz,
+                       (int)chara1->collision.box.top, (int)chara1->collision.box.bottom,
+                       (int)chara1->collision.box.height, (int)chara1->collision.box.offsetY,
+                       (int)chara1->collision.cylinder.radius, (int)chara1->collision.cylinder.field_2,
+                       (int)chara1->collision.shapeOffsets.box.vx, (int)chara1->collision.shapeOffsets.box.vz);
+            }
+        }
+#endif
         if (g_SysWork.sysState == SysState_GameOver ||
             g_SysWork.playerWork.player.health <= Q12(0.0f) ||
             chara1 == chara ||
@@ -2066,6 +2126,16 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
         {
             var_v1 = true;
         }
+#ifdef SH_PC_PORT
+        if (chara1->model.charaId == Chara_AirScreamer && chara == &g_SysWork.playerWork.player)
+        {   /* [HITSTAGE] step 1: line of sight from the attack origin to the target. */
+            static int s_hr;
+            if (s_hr < 200) { s_hr++;
+                SH_DBG("[HITSTAGE] ray blocked=%d from=(%d,%d,%d) to=(%d,%d,%d)",
+                       (int)var_v1, (int)D_800C47C8[0].vx, (int)D_800C47C8[0].vy, (int)D_800C47C8[0].vz,
+                       (int)D_800C47C8[1].vx, (int)D_800C47C8[1].vy, (int)D_800C47C8[1].vz); }
+        }
+#endif
 
         if (var_v1 == true)
         {
@@ -2088,13 +2158,47 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
         j   = sp58 - countY;
         temp_t2   = Q12_MULT_PRECISE(var_v1, cosAngle) - Q12_MULT_PRECISE(temp_v0_8, sinAngle);
         temp_a0_3 = Q12_MULT_PRECISE(var_v1, sinAngle) + Q12_MULT_PRECISE(temp_v0_8, cosAngle);
-
-        if ((j < (sp48 - temp_s6)) || ((sp3C - temp_s5) < j))
-        {
-            continue;
+#ifdef SH_PC_PORT
+        if (chara1->model.charaId == Chara_AirScreamer && chara == &g_SysWork.playerWork.player)
+        {   /* [HITSTAGE] steps 2-3: vertical band (j in [sp48-h, sp3C-top]) and the
+             * target's local position (t2, a0) against the attack box
+             * x[sp44..sp38] z[sp4C..sp40] widened by the target radius f2. */
+            static int s_hb;
+            if (s_hb < 200) { s_hb++;
+                SH_DBG("[HITSTAGE] band j=%d lo=%d hi=%d | local=(%d,%d) boxX=[%d..%d] boxZ=[%d..%d] f2=%d | origin=(%d,%d,%d)",
+                       (int)j, (int)(sp48 - temp_s6), (int)(sp3C - temp_s5),
+                       (int)temp_t2, (int)temp_a0_3, (int)sp44, (int)sp38, (int)sp4C, (int)sp40,
+                       (int)chara1->collision.cylinder.field_2,
+                       (int)countX, (int)countY, (int)coundZ); }
         }
+#endif
 
-        temp_s3  = chara1->collision.cylinder.field_2;
+#if defined(SH_XBOX360_PORT)
+        /* Air Screamer hit assist (360 port), see func_8006EE0C: let the
+         * swing reach 0.6 m higher, treat the AS body as reaching down to
+         * 0.5 m below its origin, and test XZ against its collision radius
+         * instead of the ~0.14 m joint spread. Player attacks only. */
+        if (chara1->model.charaId == Chara_AirScreamer && chara == &g_SysWork.playerWork.player)
+        {
+            if (temp_s6 < Q12(0.5f))
+            {
+                temp_s6 = Q12(0.5f);
+            }
+            if ((j < (sp48 - Q12(0.6f) - temp_s6)) || ((sp3C - temp_s5) < j))
+            {
+                continue;
+            }
+            temp_s3 = MAX(chara1->collision.cylinder.field_2, chara1->collision.cylinder.radius);
+        }
+        else
+#endif
+        {
+            if ((j < (sp48 - temp_s6)) || ((sp3C - temp_s5) < j))
+            {
+                continue;
+            }
+            temp_s3 = chara1->collision.cylinder.field_2;
+        }
         var_a1_2 = 0;
 
         if (temp_t2 < sp44)

@@ -1004,7 +1004,11 @@ extern "C" const void* GpuNv2a_ReadbackSurface(int fromLastQueued, int* w, int* 
     return NULL;
 }
 
-extern "C" int GpuNv2a_Ms(void) { return 0; }
+/* Milliseconds since boot. NOT a stub: smf_main.c clocks the music sequencer by
+ * it (real-time tempo on the Xbox ports), and a constant 0 meant zero elapsed
+ * time every frame -- every BGM track "played" without ever reaching a note
+ * (no music in the street, the cafe or the Air Screamer fight; run 029). */
+extern "C" int GpuNv2a_Ms(void) { return (int)GetTickCount(); }
 
 extern "C" void GpuNv2a_DrainGpu(void)
 {

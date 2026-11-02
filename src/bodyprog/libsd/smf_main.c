@@ -134,6 +134,17 @@ void smf_timer_stop(void) // 0x800A6EC8
 
 void smf_vsync(void) // 0x800A6F14
 {
+#ifdef SH_PC_PORT
+    {   /* [SMFTICK] is the sequencer being clocked at all? */
+        static unsigned s_calls, s_blocked;
+        extern int GpuNv2a_Ms(void);
+        s_calls++;
+        if (sd_int_flag2) s_blocked++;
+        if ((s_calls % 600) == 1)
+            SH_DBG("[SMFTICK] calls=%u blocked=%u start=%d stat0=%d ms=%d", s_calls, s_blocked,
+                   (int)smf_start_flag, (int)smf_song[0].sd_seq_stat_50A, GpuNv2a_Ms());
+    }
+#endif
     if (sd_int_flag2)
     {
         return;

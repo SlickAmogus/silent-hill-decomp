@@ -40,10 +40,13 @@ int Sh_LogAllow(const char* fmt)
         "[IPD-DRAW]", "[WMAT]", "[MESHDRAW]", "[ALTCULL]", "[A900]", "[POS]",
         "[CAMCHAIN]", "[RTPT]", "[VWMAT]", "[WEDGE]", "[TEXW]", "[RGB]", "[PTYPE]",
         "[PCODE]", "[OTS]", "[FOGPAD]", "[FOGCOL]", "[ABR]", "[TEXVRAM]", "[CHARA-TEX]",
-        "[WOBJ]", "[VCOPY]", "[MESH]", "[CHNK]", "[WSMAT]", "[MELEEDMG]", "[MELEE-SS0]",
+        "[WOBJ]", "[VCOPY]", "[MESH]", "[CHNK]", "[WSMAT]", "[MELEE-SS0]",
         "[MUZZLE]", "[ATTACK-DONE]", "[BOOT0/TIM]", "[TITLELOAD]", "[TITLEPAL]",
         "[TITLEPAGE]", "[TITLESPR]", "[TITLEQ]", "[INVSLOT]", "[IPD-INST]", "[LM-SWAP]",
         "[DMS-RAW]", "[EFFECTS]", "[DPCL]", "[GP-STATE-TXN]", "[PAD] buttons",
+        /* periodic heartbeats: ~25k lines in a long session (run 029) */
+        "[GPU] frame=", "[GPTICK]", "[AUD] renders", "[MEM] tick", "[PGXP]",
+        "[SH-XBOX] vblank", "[BOOT-STEP]", "[WEP_LOAD]", "[SFX]",
     };
     int i;
     if (g_XboxLogDiag)          return 1;

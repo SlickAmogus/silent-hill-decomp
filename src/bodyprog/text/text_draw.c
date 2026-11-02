@@ -1206,7 +1206,7 @@ void Gfx_StringDrawInt(s32 widthMin, s32 val) // 0x8004B9F8
     while (val >= ATLAS_COLUMN_COUNT)
     {
         str--;
-        quotient = (val / ATLAS_COLUMN_COUNT) >> 32;
+        quotient = val / ATLAS_COLUMN_COUNT; /* was "(val / 10) >> 32": a decomp leftover, undefined in C; x86 masks the shift to 0, PowerPC yields 0 -> garbage digits ("??" ammo on the 360) */
         *str     = (val - (quotient * ATLAS_COLUMN_COUNT)) + '0';
 
         if (widthMin > 0)

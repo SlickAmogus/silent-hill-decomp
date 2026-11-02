@@ -1,5 +1,6 @@
 ﻿#include "bodyprog/bodyprog.h"
 #include "bodyprog/game_boot/fs_chara_anim.h"
+#include "sh_log.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/player.h"
 #include "main/rng.h"
@@ -13410,6 +13411,26 @@ void sharedFunc_800D82B8_0_s01(s_SubCharacter* airScreamer)
         airScreamer->collision.state       = 0;
     }
 
+#ifdef SH_PC_PORT
+    {   /* [ASCOL] the Air Screamer's live collision shape, once a second. */
+        static int s_ac;
+        if ((s_ac++ % (sp10 != 0 ? 10 : 60)) == 0)
+            SH_DBG("[ASCOL] pose=%d flags=0x%x hp=%d state=%d pos=(%d,%d,%d) box(top=%d bot=%d h=%d offY=%d f8=%d) cyl(r=%d f2=%d) D70=(%d,%d,%d,%d) ctl=%d step=%d e8=(%d,%d,%d) tgtY=%d p104Y=%d wf=0x%x",
+                   (int)sp10, (unsigned)airScreamerProps.flags, (int)airScreamer->health,
+                   (int)airScreamer->collision.state,
+                   (int)airScreamer->position.vx, (int)airScreamer->position.vy, (int)airScreamer->position.vz,
+                   (int)airScreamer->collision.box.top, (int)airScreamer->collision.box.bottom,
+                   (int)airScreamer->collision.box.height, (int)airScreamer->collision.box.offsetY,
+                   (int)airScreamer->collision.box.field_8,
+                   (int)airScreamer->collision.cylinder.radius, (int)airScreamer->collision.cylinder.field_2,
+                   (int)sharedData_800CAA98_0_s01.field_D70[0][0], (int)sharedData_800CAA98_0_s01.field_D70[0][1],
+                   (int)sharedData_800CAA98_0_s01.field_D70[1][0], (int)sharedData_800CAA98_0_s01.field_D70[1][1],
+                   (int)airScreamer->model.controlState, (int)airScreamer->model.stateStep,
+                   (int)airScreamerProps.field_E8_0, (int)airScreamerProps.field_E8_4, (int)airScreamerProps.field_E8_8,
+                   (int)airScreamerProps.targetPosition.vy, (int)airScreamerProps.position_104.vy,
+                   (unsigned)sharedData_800E21D0_0_s01.flags_0);
+    }
+#endif
     if (airScreamerProps.field_E8_0 == 3)
     {
         airScreamer->collision.box.bottom = Q12_MULT_PRECISE(airScreamer->collision.box.bottom, Q12(1.125f));

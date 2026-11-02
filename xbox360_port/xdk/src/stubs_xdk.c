@@ -23,3 +23,21 @@ void RaBadge_RenderDirect(void) { }
 /* ---- Debug overlay (dbg_overlay_xbox.c) ---------------------------------- */
 
 void DbgOverlay_XboxRender(void) { }
+
+/* ---- test hook: autoplay "WARP" -------------------------------------------- */
+/* Places Harry at (x, z) metres facing rotQ12, for scripted Xenia test runs
+ * (pad_xinput.cpp autoplay). Never reached without an autoplay.txt line. */
+#include "game.h"
+#include "bodyprog/bodyprog.h"
+#include "sh_log.h"
+void Debug_PlayerWarp(float x, float z, int rotQ12)
+{
+    s_SubCharacter* h = &g_SysWork.playerWork.player;
+    h->position.vx = (q19_12)(x * 4096.0f);
+    h->position.vz = (q19_12)(z * 4096.0f);
+    h->rotation.vy = (q3_12)rotQ12;
+    SH_DBG("[WARP] Harry -> (%d, %d) rotY=%d", (int)h->position.vx, (int)h->position.vz, rotQ12);
+}
+
+/* autoplay "EVENT n" -> events_main.c Event_Update test hook. */
+int g_DebugForceEventIdx = -1;

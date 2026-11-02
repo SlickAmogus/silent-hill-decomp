@@ -318,7 +318,17 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
          *     draw and g_PsxPresentLastFrame re-presents the captured frame, so
          *     the only thing sorted is the item. */
         { extern int g_PcItemOtzFine;
-          g_PcItemOtzFine = (g_GameWork.gameState == GameState_InventoryScreen) || (arg2 == 2); }
+#if defined(SH_XBOX360_PORT)
+          /* 360: not for the inventory carousel. The fine re-sort spreads the
+           * ring's items over the whole table and carried the item two places
+           * from the selection in front of the centre box's black fill (the
+           * "ghost health drink behind the knife"). The coarse PSX sort keeps the
+           * box between front and back items, as on hardware. */
+          g_PcItemOtzFine = (arg2 == 2);
+#else
+          g_PcItemOtzFine = (g_GameWork.gameState == GameState_InventoryScreen) || (arg2 == 2);
+#endif
+        }
 #endif
         if (displayItemIdx < 7 && g_PcInvDimStrength > 0) {
             /* depth past center = t[2]+Q8(4) = |Math_Sin(slot*256)| (Q12):

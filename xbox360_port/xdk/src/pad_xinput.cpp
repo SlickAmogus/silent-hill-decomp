@@ -49,9 +49,13 @@ static unsigned short s_lastButtons = 0xFFFF;
  * Needed because Xenia on a locked desktop takes no keyboard input and the
  * new-game path (not the attract demo) is where the big-endian world bugs
  * showed. Absent file = no effect. */
-#define AUTO_MAX  32
+#define AUTO_MAX  640
 #define AUTO_HOLD 12
-struct AutoKey { int frame; int bit; int fired; int hold; };
+struct AutoKey { int frame; int bit; int fired; int hold; float wx, wz; int wr; };
+/* bit == AUTO_WARP: test-only "<frame> WARP x z angleQ12" places Harry (stubs_xdk.c). */
+#define AUTO_WARP (-2)
+extern "C" void Debug_PlayerWarp(float x, float z, int rotQ12);
+extern "C" int  g_DebugForceEventIdx;
 static AutoKey s_auto[AUTO_MAX];
 static int     s_autoN = -1;
 static int     s_autoFrame = 0;
@@ -81,6 +85,24 @@ static void Auto_Load(void)
     /* "<frame> <BUTTON> [hold frames]" - the third field lets a run walk. */
     while (s_autoN < AUTO_MAX && fgets(line, sizeof(line), f)) {
         hold = AUTO_HOLD;
+        {
+            float wx, wz; int wrot;
+            int evn;
+            if (sscanf(line, "%d EVENT %d", &fr, &evn) == 2) {
+                s_auto[s_autoN].frame = fr; s_auto[s_autoN].bit = AUTO_WARP - 1;
+                s_auto[s_autoN].fired = 0;  s_auto[s_autoN].hold = 1;
+                s_auto[s_autoN].wr = evn;
+                s_autoN++;
+                continue;
+            }
+            if (sscanf(line, "%d WARP %f %f %d", &fr, &wx, &wz, &wrot) == 4) {
+                s_auto[s_autoN].frame = fr; s_auto[s_autoN].bit = AUTO_WARP;
+                s_auto[s_autoN].fired = 0;  s_auto[s_autoN].hold = 1;
+                s_auto[s_autoN].wx = wx; s_auto[s_autoN].wz = wz; s_auto[s_autoN].wr = wrot;
+                s_autoN++;
+                continue;
+            }
+        }
         if (sscanf(line, "%d %31s %d", &fr, name, &hold) < 2)
             continue;
         int bit = Auto_BitFor(name);
@@ -181,8 +203,13 @@ extern "C" void Pad_Poll(void)
             if (!s_auto[i].fired) {
                 s_auto[i].fired = 1;
                 SH_DBG("[PAD] autoplay frame %d: bit %d", s_autoFrame, s_auto[i].bit);
+                if (s_auto[i].bit == AUTO_WARP)
+                    Debug_PlayerWarp(s_auto[i].wx, s_auto[i].wz, s_auto[i].wr);
+                if (s_auto[i].bit == AUTO_WARP - 1)
+                    g_DebugForceEventIdx = s_auto[i].wr;
             }
-            PRESS(s_auto[i].bit);
+            if (s_auto[i].bit >= 0)
+                PRESS(s_auto[i].bit);
         }
     }
     #undef PRESS

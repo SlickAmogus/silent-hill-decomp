@@ -752,6 +752,24 @@ void func_8006EE0C(s_RayState_6C* arg0, bool useCylinder, const s_SubCharacter* 
             groundY   -= ev;     /* widen both bounds outward (sign-agnostic).  */
             arg0->field_C += Q12_TO_Q8(Q12_MULT(r, g_PcBulletRadMul));
         }
+#if defined(SH_XBOX360_PORT)
+        /* Air Screamer hit assist (360 port). Its hull is the bone joints,
+         * which sit 0.4-1.15 m ABOVE its origin, and its box-path radius is
+         * the joint spread halved (~0.14 m). Hovering at the usual 1.6 m that
+         * is a 0.14 m wide target 2.1-2.9 m up; bullets fired without a lock
+         * go out level at chest height and miss every time (console run 031).
+         * Reach the band down to 0.5 m below the origin and use the real
+         * collision radius, like the PC port's fat hitbox above. */
+        if (g_PcBulletHitActive && useCylinder != true && chara->model.charaId == Chara_AirScreamer)
+        {
+            q19_12 low = chara->position.vy + Q12(0.5f);
+            if (topHeight < low)
+            {
+                topHeight = low;
+            }
+            arg0->field_C += Q12_TO_Q8(chara->collision.cylinder.radius);
+        }
+#endif
     }
 #endif
 

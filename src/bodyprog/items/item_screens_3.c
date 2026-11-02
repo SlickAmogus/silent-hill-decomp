@@ -1168,6 +1168,28 @@ void Gfx_ItemScreens_DrawInit(u32* selectedItemId) // 0x8004F764
 
         Inventory_PlayerItemScroll(selectedItemId);
 
+#ifdef SH_PC_PORT
+        {   /* [INVRING] where each carousel position puts its item (the "ghost
+             * health drink behind the knife"). Logged when the selection changes. */
+            static s32 s_lastSel = -2;
+            if (g_Inventory_SelectedItemIdx != s_lastSel && g_Inventory_ScrollTransitionTimer == 0)
+            {
+                s32 k;
+                s_lastSel = g_Inventory_SelectedItemIdx;
+                for (k = 0; k < 8; k++)
+                {
+                    s32 sl = D_800C3E18[k];
+                    SH_DBG("[INVRING] pos=%d slot=%d id=%d t=(%d,%d,%d) tmd=%p sel=%d",
+                           (int)k, (int)sl,
+                           (sl >= 0 && sl < INV_ITEM_COUNT_MAX) ? (int)g_SavegamePtr->items[sl].id_0 : -1,
+                           (int)g_Items_Coords[k].coord.t[0], (int)g_Items_Coords[k].coord.t[1],
+                           (int)g_Items_Coords[k].coord.t[2], (void*)g_Items_ItemsModelData[k].tmd,
+                           (int)g_Inventory_SelectedItemIdx);
+                }
+            }
+        }
+#endif
+
         // Player items.
         for (i = 0, obj = &g_Items_ItemsModelData[0]; i < 7; i++, obj++)
         {

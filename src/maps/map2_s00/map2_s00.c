@@ -2746,12 +2746,12 @@ void func_800EE5D0(void) // 0x800EE5D0
         for (e = 0; e < 32; e++)
         {
             const u8* s = src + (e * 12);
-            dst[e].positionX         = *(const s32*)(s + 0);
+            dst[e].positionX         = (s32)((u32)s[0] | ((u32)s[1] << 8) | ((u32)s[2] << 16) | ((u32)s[3] << 24)); /* LE disc data */
             dst[e].charaId           = (s8)s[4];
             dst[e].rotationY         = s[5];
             dst[e].flags             = (s8)s[6];
             dst[e].gameDifficultyMin = s[7] & 0xF;
-            dst[e].positionZ         = *(const s32*)(s + 8);
+            dst[e].positionZ         = (s32)((u32)s[8] | ((u32)s[9] << 8) | ((u32)s[10] << 16) | ((u32)s[11] << 24)); /* LE disc data */
         }
     }
     g_SavegamePtr->ovlEnemyStates[10] = g_SavegamePtr->ovlEnemyStates[idx];

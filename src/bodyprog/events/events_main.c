@@ -97,6 +97,27 @@ void Event_Update(bool disableButtonEvents) // 0x800373CC
 
     g_MapEventLastUsedItem = InvItemId_Unequipped;
 
+#if defined(SH_XBOX360_PORT)
+    /* Test hook (autoplay "EVENT n", pad_xinput.cpp): dispatch map event n as
+     * if its trigger had fired. Only ever set by a scripted Xenia run. */
+    {
+        extern int g_DebugForceEventIdx;
+        if (g_DebugForceEventIdx >= 0 && g_MapOverlayHdr.mapEvents != NULL &&
+            g_SysWork.sysState == SysState_Gameplay && !Player_IsBusy())
+        {
+            s_EventData* ev = &g_MapOverlayHdr.mapEvents[g_DebugForceEventIdx];
+            SH_DBG("[EVENTHOOK] forcing event %d sysState=%d param=%d",
+                   g_DebugForceEventIdx, (int)ev->sysState, (int)ev->eventParam);
+            { extern void SH_DebugLogFlush(void); SH_DebugLogFlush(); }
+            g_DebugForceEventIdx = -1;
+            g_MapEventData       = ev;
+            g_MapEventSysState   = ev->sysState;
+            g_MapEventParam      = ev->eventParam;
+            return;
+        }
+    }
+#endif
+
     mapEvent = &g_MapOverlayHdr.mapEvents[-1];
 
 #ifdef SH_PC_PORT

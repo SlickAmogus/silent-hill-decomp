@@ -122,8 +122,13 @@ void AsRodata_Reformat(void)
         int i;
         for (i = 0; i < 11; i++)
         {
-            dst->sfxVolumes_CE8[i].id_0           = rd16(&src[0xCE8 + i * 4]);
-            dst->sfxVolumes_CE8[i].volume_2.val16 = rd16(&src[0xCE8 + i * 4 + 2]);
+            dst->sfxVolumes_CE8[i].id_0 = rd16(&src[0xCE8 + i * 4]);
+            /* air_screamer.c reads volume_2.val8, the FIRST byte of the
+             * union. Loading it as a 16-bit value put that byte in the high
+             * half on big-endian, so val8 read 0: every Air Screamer sound
+             * (cries, wing beats) played at zero volume on the 360. Copy the
+             * raw bytes as they are. */
+            memcpy(&dst->sfxVolumes_CE8[i].volume_2, &src[0xCE8 + i * 4 + 2], 2);
         }
     }
 
@@ -158,13 +163,31 @@ void AsRodata_Reformat(void)
     dst->ptr_D48[4] = (SVECTOR*)&g_AsPtrD48Vecs[11];
 
     /* field_D5C[4][2] — 16 B s16 array. */
-    memcpy(dst->field_D5C, &src[0xD5C], 4 * 2 * sizeof(s16));
+    {   /* s16 elements, little-endian on disc: a raw copy left them byte-
+         * reversed on big-endian hosts. */
+        int i;
+        for (i = 0; i < 4 * 2; i++)
+            ((s16*)dst->field_D5C)[i] = rds16(&src[0xD5C + i * 2]);
+    }
 
     /* unk_D6C[4] — 4 B s8 array. */
     memcpy(dst->unk_D6C, &src[0xD6C], 4);
 
     /* field_D70[2][2] — 8 B s16 array. */
-    memcpy(dst->field_D70, &src[0xD70], 2 * 2 * sizeof(s16));
+    {   /* Collision cylinder bottom / radius per pose (air_screamer.c). A raw
+         * copy left them byte-reversed on the Xbox 360, so the Air Screamer's
+         * hit cylinder was garbage: neither the knife nor the pistol could hit
+         * it (only the x256 knife range of an older build reached). */
+        int i;
+        for (i = 0; i < 2 * 2; i++)
+            ((s16*)dst->field_D70)[i] = rds16(&src[0xD70 + i * 2]);
+        /* Rows 2-4 lie past the extracted blob; recovered from MAP0_S01.BIN
+         * (the 12 bytes after 0xD78). Without them the hit cylinder in poses
+         * 2-4 -- most of the fight -- had radius 0: no gun or knife could hit. */
+        dst->field_D70[2][0] = -327;  dst->field_D70[2][1] = 2662;
+        dst->field_D70[3][0] = -1228; dst->field_D70[3][1] = 2867;
+        dst->field_D70[4][0] = 0;     dst->field_D70[4][1] = 1433;
+    }
 
     SH_LOG("AsRodata_Reformat: populated sharedData_800CAA98_0_s01 from %d-byte raw extract",
            0xD78);

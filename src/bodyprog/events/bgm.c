@@ -323,6 +323,28 @@ void Bgm_Update(s32 bgmFlags, q19_12 fadeSpeed, s_BgmLayerLimits* layerLimits) /
         isMusicPlayer = true;
     }
 
+#ifdef SH_PC_PORT
+    {   /* [BGMSTATE] one line per change of the inputs that decide whether any
+     * layer plays: requested flags, layer-0/1 volumes, the start state machine,
+     * the playing sequence (field_E) and the track index. */
+        static s32 s_lf = -1, s_ls = -1, s_le = -1, s_lb = -1, s_la = -1;
+        const s32  a = (isBgmLayerActive ? 1 : 0) | (isMusicPlayer ? 2 : 0);
+        if (bgmFlags != s_lf || D_800A99A0 != s_ls || temp_s2 != s_le ||
+            g_GameWork.bgmIdx != s_lb || a != s_la)
+        {
+            s_lf = bgmFlags; s_ls = D_800A99A0; s_le = temp_s2;
+            s_lb = g_GameWork.bgmIdx; s_la = a;
+            SH_DBG("[BGMSTATE] flags=0x%x state=%d seqCmd=%d bgmIdx=%d ovlBgm=%d active=%d player=%d vol0=%d vol1=%d map=%d ev(asDied,49,fmv,47,146)=%d%d%d%d%d",
+                   bgmFlags, D_800A99A0, temp_s2, g_GameWork.bgmIdx, g_MapOverlayHdr.bgmIdx,
+                   a & 1, (a >> 1) & 1, layerVols[0], layerVols[1], g_SavegamePtr->mapIdx,
+                   Savegame_EventFlagGet(EventFlag_M0S01_AirScreamerDied) ? 1 : 0,
+                   Savegame_EventFlagGet(EventFlag_49) ? 1 : 0,
+                   Savegame_EventFlagGet(EventFlag_M0S01_FmvStarted) ? 1 : 0,
+                   Savegame_EventFlagGet(EventFlag_47) ? 1 : 0,
+                   Savegame_EventFlagGet(EventFlag_146) ? 1 : 0);
+        }
+    }
+#endif
     if (isMusicPlayer)
     {
         if (cond0)

@@ -8,6 +8,14 @@
 
 #include "bodyprog/libsd.h"
 
+/* The KDT header (Seqhdr) is raw little-endian disc data that the parser reads
+ * through the struct. Read its fields byte-wise so they mean the same thing on
+ * a big-endian host: natively the 360 saw tracks_C byte-reversed (0 or
+ * clamped), so every music sequence started and played no notes (run 029). */
+#define KDT_LE16(p) ((u32)((const u8*)(p))[0] | ((u32)((const u8*)(p))[1] << 8))
+#define KDT_LE32(p) ((u32)((const u8*)(p))[0] | ((u32)((const u8*)(p))[1] << 8) | \
+                     ((u32)((const u8*)(p))[2] << 16) | ((u32)((const u8*)(p))[3] << 24))
+
 SMF_SONG smf_song[2];
 
 extern s32 time_flag; // Only used in this file.
@@ -269,15 +277,15 @@ u8 readheader(s32 file_no) // 0x800A7428
         case KDT_MODE:
             seqh = (Seqhdr*)smf_song[file_no].mf_data_ptr_504;
 
-            smf_song[file_no].mf_division_528 = seqh->tb_8;
-            smf_song[file_no].mf_tracks_526   = seqh->tracks_C;
+            smf_song[file_no].mf_division_528 = KDT_LE32(&seqh->tb_8);
+            smf_song[file_no].mf_tracks_526   = KDT_LE32(&seqh->tracks_C);
 
             if (smf_song[file_no].mf_tracks_526 > 32)
             {
                 smf_song[file_no].mf_tracks_526 = 32;
             }
 
-            smf_song[file_no].mf_data_size_518 = seqh->size_4;
+            smf_song[file_no].mf_data_size_518 = KDT_LE32(&seqh->size_4);
             smf_song[file_no].mf_format_524    = 1;
             break;
     }
@@ -844,7 +852,7 @@ u8 midi_file_out(s32 file_no) // 0x800A8674
                 p = &smf_song[file_no].tracks_0[tr];
 
                 p->mf_data_loc_0     = loc;
-                p->mf_track_length_8 = seqh->tr_size_10[tr];
+                p->mf_track_length_8 = KDT_LE16(&seqh->tr_size_10[tr]);
 
                 loc += p->mf_track_length_8;
 

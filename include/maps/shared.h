@@ -116,7 +116,9 @@ typedef struct
     SVECTOR*    ptr_D48[5];
     s16         field_D5C[4][2]; // Related to animations. Move offset distances?
     s8          unk_D6C[4];
-    s16         field_D70[2][2];
+    s16         field_D70[5][2]; // Collision {bottom, radius} per pose. air_screamer.c indexes it
+                                 // with sharedFunc_800D4A80_0_s01's result (0..4), so it is 5 rows,
+                                 // not the 2 the struct used to declare (poses 2-4 read zeros on PC).
 } s_func_800D2E04;
 
 typedef struct
