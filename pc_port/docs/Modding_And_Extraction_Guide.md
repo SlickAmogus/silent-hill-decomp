@@ -134,9 +134,13 @@ via the same ISO9660 reader the game uses).
   (`TimConverter.cs` mirrors `hires_override.c`: BGR555, `cx==0` transparent, STP ignored).
 - **Build reference composites** — a second checkbox in the extract dialog. When set, EVERY
   texture the disc's geometry draws (995 of 996 — world chunks and items included, not just
-  characters) also gets a `NAME_reference.png` beside it in one pass: the correct in-game look
-  to paint over and *Rebuild* (see §5.1). Same result as *Reference ▾ → Every texture…*, which
-  also builds the whole-tree palette-row index the composites are derived from.
+  characters) also gets a `NAME_reference.png` beside it in one pass: the correct in-game
+  look, which installs as it is or can be painted over and *Rebuilt* (see §5.1). The
+  composites are built before *Delete original TIM* removes anything, so the two boxes work
+  together. Tick *Put composites in a subfolder* to collect them under `composites/` in the
+  extract instead, laid out like the disc, so its `BG`, `CHARA`... folders copy straight into
+  `gamedata/load`. Same result as *Reference ▾ → Every texture…*, which also builds the whole-tree
+  palette-row index the composites are derived from.
 - **TIM → PNG…** / **Bulk → PNG…** — convert individual `.TIM` files, or recursively
   convert every `.TIM` under a folder to `<name>.png` in place (with an option to delete the
   originals). This is the quick way to turn an extracted texture tree into PNGs for the
@@ -475,6 +479,19 @@ offset 4 of an `.IPD` (world geometry chunk). Materials are matched to their `.T
   `refs/<FOLDER>/<NAME>_reference.png` for every texture on the disc and prints per-class
   coverage. A sheet no model references (2D backgrounds, UI, effect atlases) is emitted as
   its plain decode — there is no row map to recover for it.
+- **Install a composite directly.** No *Rebuild* needed. The game loads
+  `gamedata/load/<FOLDER>/NAME_reference.png` (or BC7 `NAME_reference.dds`) under the name
+  the tools wrote it with, as one image for every palette row of that texture. That is
+  exactly what a composite is: each texel already holds the colour of the row the game draws
+  it with. Upscale or repaint the composites at any size and copy them in, or convert them
+  with *DDS ▾ → Convert folder → BC7…* first. This is the easy route for an environment
+  upscale: one image per `BG` sheet instead of one per palette row. Texels no model reaches
+  are filled from palette row 0, the row the game falls back to, so an upscaler has real
+  neighbours at every island edge and nothing drawn outside the model data turns into a
+  hole. A sheet past the 20% shared limit below keeps the per-row route, since its palette
+  variants would collapse into one. Priority for one texture, highest first: a
+  `NAME.TIM.pNN.png` set, `NAME.TIM.png`, `NAME.png`, then `NAME_reference.png`; at each
+  step a `.dds` beats a `.png`.
 - **Build one Reference** — *Reference…* in the Mod Manager, or
   `python3 clut_tool.py compose BG/THR0003F.TIM --index clut_index.json` (or point it at a
   model: `compose CHARA/DOB.ILM`, which without `--index` uses only that one model). Edit

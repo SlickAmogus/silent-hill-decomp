@@ -58,6 +58,7 @@ void        Ios_EnsureModFolders(void);
 #include "gpu.h"
 #include "sh_log.h"
 #include "psx_memory.h"
+#include "miniz.h"          /* mz_crc32: distinguish Japanese retail revisions */
 #include "pc_config.h"
 #include "hires_override.h" /* HiresOverride_ClampBudgetToVram */
 #include "pc_audio_config.h"
@@ -535,6 +536,12 @@ unsigned int PcPort_FileTableStartSector(int fileIdx)
  * offsets are chosen here from whichever disc is present. */
 static char g_GameDiscPath[1024] = { 0 };
 static int  g_DiscResolved       = 0;
+static u32  s_JpnOverlayLinkBase = 0x800CBBD0u;
+
+u32 PcPort_GetJpnOverlayLinkBase(void)
+{
+    return s_JpnOverlayLinkBase;
+}
 
 /* Read the boot executable name (SLUS/SLES/SLPM prefix) from a BIN's ISO9660
  * root directory to identify the region. Returns a Region_* value or -1. */
@@ -543,7 +550,6 @@ static int Pc_DetectRegionFromBin(const char* path)
     FILE*         f = fopen(path, "rb");
     unsigned char sec[2048];
     unsigned int  rlba;
-    unsigned int  exeLba = 0;
     unsigned      o;
     int           region = -1;
 
@@ -573,24 +579,9 @@ static int Pc_DetectRegionFromBin(const char* path)
                      memcmp(&sec[o + 33], "SIPS", 4) == 0)
             {
                 region = Region_JPN;
-                exeLba = sec[o + 2] | (sec[o + 3] << 8) | (sec[o + 4] << 16) | ((unsigned)sec[o + 5] << 24);
             }
         }
         o += L;
-    }
-
-    /* NTSC-J: the region tables in this build are for the Rev 1/Rev 2 exe
-     * (SLPM-86192 99-06-02, PS-X EXE t_size 0x13800). The first print shifts
-     * the containers and file table slightly — flag it rather than misload. */
-    if (region == Region_JPN && exeLba != 0)
-    {
-        unsigned int tSize = 0;
-        fseek(f, (long)exeLba * 2352 + 24, SEEK_SET);
-        if (fread(sec, 1, 2048, f) == 2048 && memcmp(sec, "PS-X EXE", 8) == 0)
-            tSize = sec[0x1C] | (sec[0x1D] << 8) | (sec[0x1E] << 16) | ((unsigned)sec[0x1F] << 24);
-        if (tSize != 0x13800)
-            SH_WARN("NTSC-J disc looks like the FIRST PRINT (exe t_size %#x, expected 0x13800 for Rev 1/2) — "
-                    "using Rev 1/2 tables; some files may misload", tSize);
     }
 
     fclose(f);
@@ -724,6 +715,25 @@ static void Pc_RemapFileTableFromDisc(const char* discPath)
 static void Pc_ApplyDiscRegion(const char* discPath, e_GameRegion region)
 {
     Fs_InitFileTableForRegion(region);
+    s_JpnOverlayLinkBase = 0x800CBBD0u;
+    if (region == Region_JPN && discPath && discPath[0])
+    {
+        unsigned char* exe = NULL;
+        unsigned       size = 0;
+
+        /* Both revisions use SLPM-86192 AND t_size 0x13800. Use the same
+         * first-4096-byte fingerprint as silentassets, not that header size.
+         * The existing disc-table remap below supplies Rev 0's sectors. */
+        if (Pc_ReadDiscExe(discPath, &exe, &size))
+        {
+            if (size >= 4096 && mz_crc32(0, exe, 4096) == 0x1532C55Cu)
+            {
+                s_JpnOverlayLinkBase = 0x800CBAA8u;
+                SH_LOG("NTSC-J Rev 0 (1999-01-26): using original overlay link base");
+            }
+            free(exe);
+        }
+    }
     if (discPath && discPath[0])
         Pc_RemapFileTableFromDisc(discPath);
     /* Also to the log file: the "Disc:" SH_LOG line only reaches stdout/the
@@ -976,6 +986,7 @@ static void PrintBanner(void)
 }
 
 static int s_SkipToGameArg = 0;
+static const char* s_RendererArg = NULL;
 
 static void ParseArgs(int argc, char* argv[])
 {
@@ -993,11 +1004,17 @@ static void ParseArgs(int argc, char* argv[])
              * ever SET it, so the option silently did nothing. */
             s_SkipToGameArg = 1;
         }
+        else if (strcmp(argv[i], "-renderer") == 0 && i + 1 < argc)
+        {
+            s_RendererArg = argv[i + 1];
+            i++;
+        }
         else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0)
         {
             printf("Usage: SilentHillPC [options]\n");
             printf("Options:\n");
             printf("  -data <path>    Path to game data directory or CD image\n");
+            printf("  -renderer <name> Override the config's renderer (gl, d3d11, vulkan, ...)\n");
             printf("  -h, --help      Show this help\n");
             exit(0);
         }
@@ -1190,7 +1207,9 @@ int main(int argc, char* argv[])
 
     /* Log file is NOT opened until after config load. SH_DBG calls before
      * that point are silently no-ops (the macro short-circuits on a NULL
-     * handle). Avoids creating SilentHill.log when enable_debug_log=0. */
+     * handle). Avoids creating SilentHill.log when enable_debug_log=0.
+     * The relaunch hook is registered first so it runs last of all. */
+    atexit(PsyX_Backend_RelaunchAtExit);
     atexit(Sh_LogAtExitFlush);
     Sh_InstallCrashFilter();
 
@@ -1246,6 +1265,14 @@ int main(int argc, char* argv[])
         snprintf(s_ConfigPathUsed, sizeof(s_ConfigPathUsed), "%s", chosen);
     }
 
+    /* The relaunch after a lost Vulkan/D3D11 device passes "-renderer gl";
+     * config.cfg itself is not rewritten, the user's choice stays theirs. */
+    if (s_RendererArg)
+    {
+        strncpy(g_PcConfig.renderer, s_RendererArg, sizeof(g_PcConfig.renderer) - 1);
+        g_PcConfig.renderer[sizeof(g_PcConfig.renderer) - 1] = '\0';
+    }
+
     /* After the config load, or the parsed skip_intros would clobber it.
      * map0_s00 is the compiled-in default, so a config still naming it counts as
      * "no level picked" and gets the bus level, which has a save point. */
@@ -1270,6 +1297,11 @@ int main(int argc, char* argv[])
              * Generated fresh each build by cmake/gen_build_info.cmake. */
             #include "sh_build_info.h"
             SH_DBG("[SH] build " SH_BUILD_GIT_HASH " (" SH_BUILD_STAMP ")");
+            {
+                /* The [PERF] line's GPU time: only measured when there is a log to read it. */
+                extern int g_PsyX_GpuTimerWanted;
+                g_PsyX_GpuTimerWanted = 1;
+            }
         }
         /* Say WHERE this log and the config actually are. The log is the one
          * thing a remote user is asked to find, and when it silently lands in a
@@ -1614,6 +1646,14 @@ int main(int argc, char* argv[])
             SH_LOG("Render: native PSX resolution, %dx%d window", windowWidth, windowHeight);
     }
 
+    /* Before the pads open: over Bluetooth, SDL keeps DualShock 4 / DualSense in
+     * simple reports unless told otherwise, and those carry no touchpad (the
+     * puzzle cursor's trackpad) and no rumble. Steam flips them itself, which is
+     * why the touchpad only worked under Steam. Once on, the pad stays in this
+     * mode until power-cycled, which non-SDL DirectInput apps can't read. */
+    SDL_SetHint(SDL_HINT_JOYSTICK_HIDAPI_PS4_RUMBLE, "1");
+    SDL_SetHint(SDL_HINT_JOYSTICK_HIDAPI_PS5_RUMBLE, "1");
+
     /* Initialize PsyCross (creates SDL2 window + OpenGL context) */
     SH_LOG("Initializing PsyCross (SDL2 + OpenGL)...");
     PsyX_Initialise("Silent Hill", windowWidth, windowHeight, g_PcConfig.fullscreen);
@@ -1651,6 +1691,14 @@ int main(int argc, char* argv[])
 #if defined(__EMSCRIPTEN__)
     Web_TrackWindowSize();
 #endif
+
+    /* SDL starts text input with the window, which attaches the OS input
+     * method to it. A CJK IME in native mode then eats every key press (they
+     * arrive as VK_PROCESSKEY), so WASD and the rest never reach the keyboard
+     * state. Stopping it also turns off SDL_TEXTINPUT, which keeps SDL from
+     * re-attaching the IME on focus regain. The console turns text events back
+     * on for itself (dbg_overlay.c). */
+    SDL_StopTextInput();
 
     /* Needs the GL context, so it runs here rather than beside the system-RAM
      * clamp above. Same rule as that one: only ever lowers. */
@@ -1824,6 +1872,16 @@ int main(int argc, char* argv[])
     {
         Pc_FlashlightModeApply(g_PcConfig.flashlightMode, 0);
         SH_LOG("Flashlight mode: %s", Pc_FlashlightModeLabel(g_PcConfig.flashlightMode));
+    }
+
+    {
+        extern void Pc_PpLit_Apply(void);
+        Pc_PpLit_Apply();
+    }
+
+    {
+        extern void Pc_SkinChara_PreloadBuiltins(void);
+        Pc_SkinChara_PreloadBuiltins();
     }
 
     /* Select the backend before applying backend-specific controls. */

@@ -655,14 +655,20 @@ def _render_composite(tim, rowmap):
     pal = tim["palettes"]
     ix = tim["idx"]
     ch = tim["clutH"]
+    # Texels no model reaches take row 0: a composite installed whole is the slot's
+    # row 0 and every row the runtime lacks falls back to it, so that is what anything
+    # outside the model union already samples. Left transparent, an upscaler's
+    # filtering bled the holes into the islands' edges.
     for i in range(W * H):
         r = rowmap[i]
-        if r < 0:
-            continue
         if r >= ch:
             oob += 1
-            continue  # left transparent
-        covered += 1
+        elif r >= 0:
+            covered += 1
+        else:
+            r = 0
+        if r >= ch:
+            r = 0
         y, x = divmod(i, W)
         _bgr555(pal[r][ix[y][x]], rgba, i * 4)
     return rgba, covered, oob

@@ -572,6 +572,39 @@ static const char* s_ItemDesc(u8 id) {
         return lang;
     return (idx >= 0 && idx < n && g_ItemDescriptions[idx]) ? g_ItemDescriptions[idx] : "";
 }
+
+/* The inventory's x positions are retail's, tuned to the English label and
+ * item-name widths. Translated text is wider and ran into its neighbour
+ * ("NombrBalas de revólverReserva83"), so positions grow by how much wider
+ * the translation is than the English it replaces. */
+static s32 Inventory_LangGrow(const char* en)
+{
+    s32 grow = Pc_LangMenuTextWidth(Pc_LangMenuText(en)) - Pc_LangMenuTextWidth(en);
+    return grow > 0 ? grow : 0;
+}
+
+static s32 Inventory_ItemNameX(void)
+{
+    return 68 + Inventory_LangGrow("Name:");
+}
+
+/* Tags after the item name (Stock:, ==On==, ...) keep the English right edge
+ * so their counts stay put. One that would overlap the name more than the
+ * English layout does drops to the empty row below it; comparing against
+ * the English overlap leaves retail English exactly as it was. Returns y. */
+static s32 Inventory_NameRowTagPosition(s32 x, const char* tag, u8 itemId)
+{
+    s32         idx    = (s32)itemId - 32;
+    s32         n      = (s32)(sizeof(INVENTORY_ITEM_NAMES) / sizeof(INVENTORY_ITEM_NAMES[0]));
+    const char* usName = (idx >= 0 && idx < n && INVENTORY_ITEM_NAMES[idx]) ? INVENTORY_ITEM_NAMES[idx] : "";
+    s32         gapEn  = x - (68 + Pc_LangMenuTextWidth(usName));
+    s32         tagX   = x - Inventory_LangGrow(tag);
+    s32         gap    = tagX - (Inventory_ItemNameX() + Pc_LangMenuTextWidth(Pc_LangMenuText(s_ItemName(itemId))));
+    s32         y      = (gap < 0 && gap < gapEn) ? 216 : 200;
+
+    Gfx_StringSetPosition(tagX, y);
+    return y;
+}
 #endif
 
 // TODO: `Items_` subsystem globals and funcs could be part of `Inventory_` instead, not sure yet.
@@ -2057,6 +2090,10 @@ void Gfx_Inventory_ItemDescriptionDraw(s32* selectedItemId) // 0x8005192C
     s32 idx;
 
     DVECTOR stringPos = { 208, 200 };
+#ifdef SH_PC_PORT
+    s32 stockGrow = 0;
+    s32 stockY    = 200;
+#endif
 
     char* D_80027F14[] = {
         "Can't_use_it_here.",
@@ -2104,6 +2141,9 @@ void Gfx_Inventory_ItemDescriptionDraw(s32* selectedItemId) // 0x8005192C
         {
             if (i == idx)
             {
+#ifdef SH_PC_PORT
+                Gfx_StringSetPosition(((idx + 1 >= 10) ? 45 : 55) + Inventory_LangGrow("No."), 184);
+#else
                 if (idx + 1 >= 10)
                 {
                     Gfx_StringSetPosition(45, 184);
@@ -2112,6 +2152,7 @@ void Gfx_Inventory_ItemDescriptionDraw(s32* selectedItemId) // 0x8005192C
                 {
                     Gfx_StringSetPosition(55, 184);
                 }
+#endif
 
                 Gfx_StringDrawInt(2, i + 1);
                 i = g_SavegamePtr->inventorySlotCount;
@@ -2122,13 +2163,22 @@ void Gfx_Inventory_ItemDescriptionDraw(s32* selectedItemId) // 0x8005192C
     if (INV_ITEM_GROUP(g_Inventory_EquippedItem) == InvItemGroup_GunWeapons &&
         g_Inventory_EquippedItem != InvItemId_HyperBlaster)
     {
+#ifdef SH_PC_PORT
+        /* Centred over the gun like retail's English, label and count together. */
+        stockGrow = Inventory_LangGrow(D_80027F94[0]);
+        Gfx_StringSetPosition(122 - stockGrow / 2, 30);
+#else
         Gfx_StringSetPosition(122, 30);
+#endif
         Gfx_StringDraw(D_80027F94[0], 10);
 
         for (i = 0; i < g_SavegamePtr->inventorySlotCount; i++)
         {
             if (g_Inventory_EquippedItem == g_SavegamePtr->items[i].id_0)
             {
+#ifdef SH_PC_PORT
+                Gfx_StringSetPosition(((g_SavegamePtr->items[i].count_1 >= 10) ? 178 : 188) + stockGrow - stockGrow / 2, 30);
+#else
                 if (g_SavegamePtr->items[i].count_1 >= 10)
                 {
                     Gfx_StringSetPosition(178, 30);
@@ -2137,6 +2187,7 @@ void Gfx_Inventory_ItemDescriptionDraw(s32* selectedItemId) // 0x8005192C
                 {
                     Gfx_StringSetPosition(188, 30);
                 }
+#endif
                 Gfx_StringDrawInt(2, g_SavegamePtr->items[i].count_1);
             }
         }
@@ -2153,7 +2204,11 @@ void Gfx_Inventory_ItemDescriptionDraw(s32* selectedItemId) // 0x8005192C
     switch (g_SavegamePtr->items[idx].id_0)
     {
         case InvItemId_Flashlight:
+#ifdef SH_PC_PORT
+            Inventory_NameRowTagPosition(stringPos.vx, D_80027F94[Game_FlashlightIsOn() ? 1 : 2], g_SavegamePtr->items[idx].id_0);
+#else
             Gfx_StringSetPosition(stringPos.vx, stringPos.vy);
+#endif
             if (!Game_FlashlightIsOn())
             {
                 Gfx_StringDraw(D_80027F94[2], 10);
@@ -2165,7 +2220,12 @@ void Gfx_Inventory_ItemDescriptionDraw(s32* selectedItemId) // 0x8005192C
             break;
 
         case InvItemId_PocketRadio:
+#ifdef SH_PC_PORT
+            Inventory_NameRowTagPosition(stringPos.vx, D_80027F94[(g_SavegamePtr->itemToggleFlags & ItemToggleFlag_RadioOn) ? 1 : 2],
+                                         g_SavegamePtr->items[idx].id_0);
+#else
             Gfx_StringSetPosition(stringPos.vx, stringPos.vy);
+#endif
             if (g_SavegamePtr->itemToggleFlags & ItemToggleFlag_RadioOn)
             {
                 Gfx_StringDraw(D_80027F94[1], 10);
@@ -2177,7 +2237,22 @@ void Gfx_Inventory_ItemDescriptionDraw(s32* selectedItemId) // 0x8005192C
             break;
 
         case InvItemId_HyperBlaster:
+#ifdef SH_PC_PORT
+            switch (Inventory_HyperBlasterFunctionalTest())
+            {
+                case 2:
+                    Inventory_NameRowTagPosition(stringPos.vx - 16, D_80027F94[3], g_SavegamePtr->items[idx].id_0);
+                    break;
+                case 1:
+                    Inventory_NameRowTagPosition(stringPos.vx - 16, D_80027F94[4], g_SavegamePtr->items[idx].id_0);
+                    break;
+                default:
+                    Inventory_NameRowTagPosition(stringPos.vx - 16, D_80027F94[5], g_SavegamePtr->items[idx].id_0);
+                    break;
+            }
+#else
             Gfx_StringSetPosition(stringPos.vx - 16, stringPos.vy);
+#endif
             switch (Inventory_HyperBlasterFunctionalTest())
             {
                 case 2: // If Hyper Blaster connected (Port 1) or player has unlocked it.
@@ -2203,10 +2278,19 @@ void Gfx_Inventory_ItemDescriptionDraw(s32* selectedItemId) // 0x8005192C
         case InvItemId_HandgunBullets:
         case InvItemId_RifleShells:
         case InvItemId_ShotgunShells:
+#ifdef SH_PC_PORT
+            stockY = Inventory_NameRowTagPosition(stringPos.vx, D_80027F94[0], g_SavegamePtr->items[idx].id_0);
+#else
             Gfx_StringSetPosition(stringPos.vx, stringPos.vy);
+#endif
             Gfx_StringDraw(D_80027F94[0], 10);
             if (g_SavegamePtr->items[idx].id_0 != (u8)InvItemId_Empty)
             {
+#ifdef SH_PC_PORT
+                Gfx_StringSetPosition((g_SavegamePtr->items[idx].count_1 >= 100) ? 260 :
+                                      (g_SavegamePtr->items[idx].count_1 >= 10)  ? 270 : 280,
+                                      stockY);
+#else
                 if (g_SavegamePtr->items[idx].count_1 >= 100)
                 {
                     Gfx_StringSetPosition(260, 200);
@@ -2219,6 +2303,7 @@ void Gfx_Inventory_ItemDescriptionDraw(s32* selectedItemId) // 0x8005192C
                 {
                     Gfx_StringSetPosition(280, 200);
                 }
+#endif
                 Gfx_StringDrawInt(3, g_SavegamePtr->items[idx].count_1);
             }
             break;
@@ -2233,7 +2318,7 @@ void Gfx_Inventory_ItemDescriptionDraw(s32* selectedItemId) // 0x8005192C
     {
         case 0:
             g_Inventory_ItemNameTimer++;
-            Gfx_StringSetPosition(68, 200);
+            Gfx_StringSetPosition(Inventory_ItemNameX(), 200);
             if (Gfx_StringDraw(s_ItemName(g_SavegamePtr->items[idx].id_0), g_Inventory_ItemNameTimer) == true)
             {
                 g_Inventory_ItemNameTimer   = 100;
@@ -2243,7 +2328,7 @@ void Gfx_Inventory_ItemDescriptionDraw(s32* selectedItemId) // 0x8005192C
 
         case 1:
             g_Inventory_DescriptionRollTimer += 2;
-            Gfx_StringSetPosition(68, 200);
+            Gfx_StringSetPosition(Inventory_ItemNameX(), 200);
             Gfx_StringDraw(s_ItemName(g_SavegamePtr->items[idx].id_0), 100);
 
             if (idx == g_Inventory_SelectedItemIdx)
@@ -2263,7 +2348,7 @@ void Gfx_Inventory_ItemDescriptionDraw(s32* selectedItemId) // 0x8005192C
         case 2:
         case 3:
         case 4:
-            Gfx_StringSetPosition(68, 200);
+            Gfx_StringSetPosition(Inventory_ItemNameX(), 200);
             Gfx_StringDraw(s_ItemName(g_SavegamePtr->items[idx].id_0), 100);
             Gfx_StringSetPosition(30, 232);
 
@@ -4144,6 +4229,7 @@ void Gfx_Items_Display(s_TmdFile* tmd, s32 displayItemIdx, s32 loadableItemIdx)
         }
         if (obj != NULL) {
             u8 modernItemId = Pc_ItemUnq_TakeRequestedItemId(loadableItemIdx);
+            Pc_ItemUnq_FixLiquidUvs(modernItemId, obj);
 
             GsLinkObject4_PC(obj, &g_Items_ItemsModelData[displayItemIdx]);
             if (modernItemId != InvItemId_Unequipped &&
@@ -4393,6 +4479,7 @@ void func_80054A04(u8 itemId) // 0x80054A04
             }
             if (_obj != NULL) {
                 D_800C3E08.id = 0;
+                Pc_ItemUnq_FixLiquidUvs(D_800AE187, _obj);
                 GsLinkObject4_PC(_obj, &D_800C3E08);
                 Pc_ModernMesh_LinkObject(Pc_ItemUnq_FromItemId(D_800AE187), &D_800C3E08);
             } else {

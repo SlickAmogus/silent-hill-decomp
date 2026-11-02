@@ -383,6 +383,27 @@ bool Screen_BackgroundMotionBlur(s32 vBlanks) // 0x80031CCC
 
             addPrimFast(ot, sprt, 4);
 
+#ifdef SH_PC_PORT
+            /* 127 is the decay frame: the copy takes one 5-bit level off the
+             * stored frame. While the loading screen steps every N vblanks the
+             * vblank count has the same parity on every step, so the choice is
+             * made per step there (see g_PcLoadScreenStep). */
+            {
+                extern bool Pc_LoadScreenPaced(void);
+                extern s32  g_PcLoadScreenStep;
+                const bool  decay = Pc_LoadScreenPaced() ? ((g_PcLoadScreenStep & 1) == 0)
+                                                         : ((VSync(SyncMode_Count) % vBlanks) == 0);
+
+                if (decay)
+                {
+                    setRGBC0(sprt, 127, 127, 127, PRIM_RECT | RECT_TEXTURE);
+                }
+                else
+                {
+                    setRGBC0(sprt, 128, 128, 128, PRIM_RECT | RECT_TEXTURE);
+                }
+            }
+#else
             if ((VSync(SyncMode_Count) % vBlanks) == 0)
             {
                 setRGBC0(sprt, 127, 127, 127, PRIM_RECT | RECT_TEXTURE);
@@ -391,6 +412,7 @@ bool Screen_BackgroundMotionBlur(s32 vBlanks) // 0x80031CCC
             {
                 setRGBC0(sprt, 128, 128, 128, PRIM_RECT | RECT_TEXTURE);
             }
+#endif
 
 #ifdef SH_PC_PORT
             setWH(sprt, tileW, 224);

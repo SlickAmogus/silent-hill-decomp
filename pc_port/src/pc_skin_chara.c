@@ -38,6 +38,7 @@
 #include "hires_override.h"
 #include "pc_config.h"
 #include "pc_lipsync.h"
+#include "pc_pplit.h"
 #include "pc_modern_mesh.h"
 #include "pc_modern_shader.h"
 #include "pc_modern_vertex.h"
@@ -121,6 +122,217 @@ static const PcSkinRestBone s_sibylRest[PC_SKIN_BONES] = {
     { { 3924, -31, 566, -24, 3987, 23, -563, 24, 3933 }, { 17, -35, -8 }, { 20.1f, -17.6f, 2.3f } },
 };
 
+/* Cheryl (SRL.ILM, its ANM keyframe 0). */
+static const PcSkinRestBone s_srlRest[PC_SKIN_BONES] = {
+    { { 4096, 0, 0, 0, 4096, 0, 0, 0, 4096 }, { 0, 0, 0 }, { 0, 0, 0 } },
+    { { 4064, 32, -128, 0, 4032, 448, 128, -448, 4032 }, { 0, -183, 0 }, { -0.1f, -209.8f, 0.1f } },
+    { { 4028, 38, -253, 14, 3976, 665, 253, -665, 3972 }, { -1, -252, -5 }, { -3.1f, -265.8f, 6.3f } },
+    { { 127, 31, 4032, -445, 4000, 0, -4001, -445, 127 }, { 0, -228, -7 }, { -25.1f, -226.4f, -7.3f } },
+    { { 4000, 124, 35, 0, -598, 3951, 126, -3953, -598 }, { -24, -225, -9 }, { -29.8f, -210.1f, -8.7f } },
+    { { 3952, -312, -204, 217, 2, 3951, -320, -3963, 26 }, { -28, -195, -14 }, { -33.7f, -173.6f, -11.8f } },
+    { { 3921, -310, -203, 215, 1, 3920, -318, -3933, 25 }, { -38, -153, -14 }, { -37.5f, -140.9f, -7.6f } },
+    { { 127, 31, 4032, -445, 4000, 0, -4001, -445, 127 }, { 0, -228, -7 }, { 24.5f, -226.5f, -5.5f } },
+    { { 4000, 126, 27, 0, -348, 3979, 126, -3981, -348 }, { 23, -225, -7 }, { 28.8f, -210.2f, -5.4f } },
+    { { 3811, 1091, 264, -261, -24, 3949, 1084, -3823, 38 }, { 27, -194, -10 }, { 32.8f, -172.9f, -6.9f } },
+    { { 3781, 1082, 261, -259, -24, 3918, 1075, -3794, 37 }, { 37, -153, -8 }, { 35.6f, -140.7f, -2.0f } },
+    { { -4064, 0, 0, 0, 4064, 96, 0, 96, -4064 }, { 0, -183, 0 }, { 0.0f, -166.6f, 1.3f } },
+    { { -4001, 0, -381, -9, 4032, 94, 381, 95, -4001 }, { -12, -140, 1 }, { -13.7f, -99.6f, 1.6f } },
+    { { -3970, -188, -379, -198, 4000, 93, 373, 112, -3970 }, { -12, -81, 2 }, { -14.0f, -47.2f, -0.1f } },
+    { { -3939, -196, -372, -197, 3970, -2, 370, 18, -3942 }, { -16, -11, 3 }, { -15.0f, -2.1f, 11.8f } },
+    { { 4032, 0, -286, -7, 4032, -96, 285, 95, 4032 }, { 11, -140, 1 }, { 14.1f, -99.6f, 1.5f } },
+    { { 4000, 220, -284, -228, 4000, -96, 277, 109, 4000 }, { 11, -81, 2 }, { 12.8f, -47.1f, -0.2f } },
+    { { 3968, 227, -275, -227, 3971, 29, 274, -17, 3972 }, { 14, -11, 3 }, { 13.3f, -2.5f, 11.4f } },
+};
+/* Dahlia (DARIA.ILM, its ANM keyframe 0). */
+static const PcSkinRestBone s_dariaRest[PC_SKIN_BONES] = {
+    { { 4096, 0, 0, 0, 4096, 0, 0, 0, 4096 }, { 0, 0, 0 }, { 0, 0, 0 } },
+    { { 4064, -64, 288, 64, 4064, 192, -288, -160, 4064 }, { 8, -271, -8 }, { 8.7f, -309.5f, -3.8f } },
+    { { 4014, 395, -230, -357, 3996, 498, 276, -446, 4024 }, { 9, -371, -9 }, { 7.0f, -381.0f, -1.9f } },
+    { { -289, -50, 4032, 0, 4041, 63, -4040, 31, -286 }, { 8, -331, -6 }, { -25.3f, -341.0f, -12.9f } },
+    { { 3646, -1659, -302, 468, 325, 3973, -1620, -3655, 492 }, { -28, -324, -4 }, { -34.7f, -296.5f, -6.3f } },
+    { { 3604, -1706, 16, 466, 1058, 3818, -1636, -3465, 1165 }, { -36, -271, 4 }, { -41.2f, -253.9f, 4.9f } },
+    { { 3509, -1794, -312, 652, 609, 3855, -1714, -3488, 831 }, { -40, -231, 18 }, { -43.2f, -211.9f, 25.4f } },
+    { { -277, -61, 4032, -602, 3981, 31, -3985, -573, -285 }, { 8, -331, -6 }, { 41.0f, -340.9f, -16.7f } },
+    { { 3524, 1938, 212, -250, 51, 4002, 1932, -3499, 172 }, { 43, -323, -10 }, { 49.6f, -295.6f, -13.2f } },
+    { { 3481, 1963, -49, -249, 579, 3932, 1944, -3407, 634 }, { 49, -269, -6 }, { 54.6f, -251.9f, -7.0f } },
+    { { 2984, 2601, 71, 14, -109, 3954, 2608, -2979, -88 }, { 51, -228, 2 }, { 52.4f, -207.4f, 5.1f } },
+    { { -4064, -32, -32, -32, 4064, 160, 32, 160, -4064 }, { 8, -271, -8 }, { 7.8f, -248.3f, -4.7f } },
+    { { -3999, 92, -410, 113, 4015, -163, 387, -193, -4010 }, { -9, -212, -6 }, { -11.9f, -181.9f, -14.2f } },
+    { { -3969, 97, -395, 80, 3968, 215, 385, 188, -3966 }, { -8, -150, -10 }, { -8.3f, -88.9f, -15.7f } },
+    { { -3949, 40, 8, 38, 3951, -45, -27, -59, -3955 }, { -2, -30, -13 }, { -2.1f, -20.2f, -2.0f } },
+    { { 3934, 314, 854, -383, 4019, 169, -843, -258, 3943 }, { 23, -212, -6 }, { 28.6f, -182.7f, -16.8f } },
+    { { 3901, 276, 868, -319, 3998, 39, -872, -120, 3913 }, { 27, -150, -11 }, { 30.8f, -89.1f, -22.1f } },
+    { { 3655, 151, 1581, -194, 3976, 9, -1589, -92, 3656 }, { 29, -29, -22 }, { 33.8f, -19.9f, -12.3f } },
+};
+/* Lisa (LISA.ILM, its ANM keyframe 0). */
+static const PcSkinRestBone s_lisaRest[PC_SKIN_BONES] = {
+    { { 4096, 0, 0, 0, 4096, 0, 0, 0, 4096 }, { 0, 0, 0 }, { 0, 0, 0 } },
+    { { 4064, -64, 160, 64, 4064, 64, -160, -64, 4064 }, { 0, -280, 0 }, { -0.5f, -313.7f, 0.6f } },
+    { { 4033, 168, 226, -160, 4039, -222, -219, 181, 4034 }, { 1, -368, -7 }, { -0.8f, -387.4f, -0.3f } },
+    { { -161, -92, 4031, 31, 4033, 95, -4034, 33, -160 }, { 0, -344, -7 }, { -27.3f, -342.9f, -4.7f } },
+    { { 3962, 506, -97, 119, -81, 4002, 505, -3967, -94 }, { -32, -345, -6 }, { -33.0f, -319.5f, -5.9f } },
+    { { 3935, 445, -190, 117, 670, 3923, 470, -3896, 652 }, { -34, -291, -8 }, { -36.3f, -270.3f, -6.3f } },
+    { { 3894, -351, -484, 499, 190, 3914, -326, -3911, 236 }, { -37, -246, -1 }, { -40.0f, -225.5f, 3.2f } },
+    { { -163, -22, 4032, 190, 4036, 31, -4037, 189, -159 }, { 0, -344, -7 }, { 27.0f, -342.1f, -7.4f } },
+    { { 4010, 31, 114, -106, -348, 3999, 57, -4007, -357 }, { 31, -344, -9 }, { 32.5f, -315.4f, -10.4f } },
+    { { 3978, 82, 105, -103, 409, 3970, 87, -3980, 402 }, { 32, -290, -14 }, { 34.2f, -269.0f, -13.6f } },
+    { { 3514, 1806, -14, -20, 71, 3946, 1812, -3532, 50 }, { 33, -244, -10 }, { 32.3f, -223.2f, -6.8f } },
+    { { -4064, 32, -128, 32, 4064, 32, 128, 32, -4064 }, { 0, -280, 0 }, { 0.0f, -259.9f, -4.3f } },
+    { { -3991, -166, -478, -162, 4035, -220, 473, -185, -3992 }, { -16, -225, 0 }, { -18.4f, -173.3f, -4.8f } },
+    { { -3960, -147, -481, -161, 4012, -61, 469, -28, -3969 }, { -20, -139, -4 }, { -21.8f, -103.5f, -8.0f } },
+    { { -3973, 8, -168, -8, 3986, -48, 154, -47, -3975 }, { -24, -53, -5 }, { -23.6f, -31.6f, 0.8f } },
+    { { 4026, 59, 318, -62, 4033, 93, -318, -97, 4027 }, { 16, -225, -1 }, { 17.1f, -173.3f, -5.5f } },
+    { { 3994, 51, 316, -62, 3999, 186, -316, -191, 3993 }, { 17, -139, -4 }, { 17.2f, -103.7f, -9.5f } },
+    { { 3956, 3, 404, -4, 3977, -5, -411, 2, 3963 }, { 18, -54, -9 }, { 18.6f, -32.7f, -3.0f } },
+};
+/* Bloody Lisa (BLISA.ILM, its ANM keyframe 0). */
+static const PcSkinRestBone s_blisaRest[PC_SKIN_BONES] = {
+    { { 4096, 0, 0, 0, 4096, 0, 0, 0, 4096 }, { 0, 0, 0 }, { 0, 0, 0 } },
+    { { 4064, 64, -64, -64, 4064, 128, 64, -128, 4064 }, { 0, -280, 0 }, { -1.5f, -313.6f, 1.4f } },
+    { { 4007, 159, 445, -175, 4029, 118, -442, -158, 4008 }, { -2, -368, -6 }, { -3.2f, -386.7f, 2.4f } },
+    { { 63, 63, 4032, -127, 4032, -64, -4033, -127, 63 }, { -1, -344, -6 }, { -28.4f, -341.7f, -4.8f } },
+    { { 3999, 150, -114, 3, 2291, 3290, 186, -3289, 2291 }, { -33, -344, -7 }, { -34.0f, -323.5f, 8.2f } },
+    { { 3968, 91, -140, 20, 2861, 2739, 158, -2741, 2861 }, { -35, -300, 24 }, { -37.1f, -284.3f, 37.8f } },
+    { { 3686, 29, -1348, 1143, 2064, 3145, 741, -3353, 1944 }, { -37, -268, 57 }, { -44.9f, -253.1f, 69.6f } },
+    { { 63, 63, 4032, -127, 4032, -64, -4033, -127, 63 }, { -1, -344, -6 }, { 26.0f, -342.5f, -4.1f } },
+    { { 3972, -296, 473, -331, 1497, 3696, -435, -3712, 1467 }, { 30, -345, -6 }, { 34.2f, -319.2f, 5.5f } },
+    { { 3909, 382, 665, -750, 2580, 2911, -126, -2984, 2626 }, { 36, -295, 14 }, { 41.3f, -278.8f, 26.4f } },
+    { { 2941, 2102, 1591, -2509, 1473, 2655, 853, -2974, 2446 }, { 43, -261, 44 }, { 50.4f, -248.5f, 59.3f } },
+    { { -4032, 96, -384, 96, 4064, -32, 384, -32, -4032 }, { 0, -280, 0 }, { 0.1f, -259.2f, -3.8f } },
+    { { -3990, 263, 538, 244, 4026, -307, -543, -271, -3960 }, { -15, -225, 1 }, { -12.0f, -172.9f, -4.8f } },
+    { { -3959, 248, 539, 242, 4001, -211, -539, -177, -3936 }, { -10, -139, -5 }, { -7.3f, -103.8f, -10.3f } },
+    { { -3959, 12, 418, 27, 3989, -77, -403, -83, -3928 }, { -5, -54, -9 }, { -5.4f, -32.5f, -3.6f } },
+    { { 3981, 388, 478, -34, 3317, -2266, -602, 2233, 3273 }, { 17, -225, -2 }, { 23.1f, -180.4f, 19.7f } },
+    { { 3949, 18, 610, -34, 3980, 207, -598, -207, 3925 }, { 25, -154, 45 }, { 24.6f, -118.9f, 39.5f } },
+    { { 3501, -433, 1813, -225, 3706, 1323, -1843, -1258, 3244 }, { 25, -69, 40 }, { 25.8f, -46.9f, 38.4f } },
+};
+/* Alessa (AR.ILM, its ANM keyframe 0). */
+static const PcSkinRestBone s_arRest[PC_SKIN_BONES] = {
+    { { 4096, 0, 0, 0, 4096, 0, 0, 0, 4096 }, { 0, 0, 0 }, { 0, 0, 0 } },
+    { { 4000, -64, -768, 0, 4064, -224, 768, 224, 4000 }, { -4, -251, 12 }, { -3.3f, -280.8f, 9.1f } },
+    { { 4008, -168, -378, 84, 4020, -443, 384, 429, 3997 }, { -2, -331, 3 }, { -2.2f, -349.9f, 8.1f } },
+    { { 760, -88, 3968, 349, 4025, 0, -3962, 347, 762 }, { -2, -303, 1 }, { -31.2f, -304.3f, -3.7f } },
+    { { 4012, 36, -28, -1, 26, 4020, 26, -4034, 34 }, { -34, -296, -5 }, { -36.6f, -285.5f, -3.0f } },
+    { { 3980, -1, -33, -1, 622, 3953, -6, -3967, 632 }, { -39, -257, -5 }, { -40.7f, -235.0f, -3.2f } },
+    { { 3791, -1025, -282, 313, 253, 3939, -1004, -3834, 312 }, { -44, -207, 3 }, { -44.5f, -190.9f, 7.9f } },
+    { { 761, -45, 3969, 285, 4028, -32, -3966, 290, 760 }, { -2, -303, 1 }, { 25.6f, -304.4f, 7.2f } },
+    { { 3694, 1515, 425, -498, -14, 3974, 1512, -3715, 182 }, { 28, -296, 7 }, { 30.7f, -286.0f, 10.2f } },
+    { { 3653, 1583, 193, -494, 572, 3913, 1529, -3619, 730 }, { 35, -258, 10 }, { 38.5f, -236.4f, 13.1f } },
+    { { 2973, 2571, 485, -581, -134, 3916, 2559, -3024, 273 }, { 41, -209, 20 }, { 41.0f, -192.6f, 24.4f } },
+    { { -3904, 128, 1184, 32, 4064, -352, -1184, -320, -3872 }, { -4, -251, 12 }, { -2.4f, -234.1f, 7.0f } },
+    { { -4035, -390, 161, -366, 3987, 535, -223, 495, -3994 }, { -17, -216, 0 }, { -22.0f, -161.0f, 4.4f } },
+    { { -4004, -368, 198, -364, 3979, 121, -222, 81, -3982 }, { -27, -119, 12 }, { -28.7f, -85.1f, 8.3f } },
+    { { -3965, 36, 561, 87, 3949, 246, -552, 257, -3898 }, { -35, -34, 9 }, { -35.8f, -21.9f, 19.5f } },
+    { { 3993, 406, -488, -447, 4017, -334, 448, 401, 3976 }, { 13, -216, 10 }, { 17.5f, -160.9f, 11.9f } },
+    { { 3961, 445, -443, -444, 3985, 47, 444, 21, 3951 }, { 22, -118, 19 }, { 25.1f, -84.3f, 14.9f } },
+    { { 3903, 152, 726, -154, 3986, -84, -721, 82, 3863 }, { 31, -33, 15 }, { 32.8f, -20.4f, 24.8f } },
+};
+/* ghost Alessa (TAR.ILM, its ANM keyframe 0). */
+static const PcSkinRestBone s_tarRest[PC_SKIN_BONES] = {
+    { { 4096, 0, 0, 0, 4096, 0, 0, 0, 4096 }, { 0, 0, 0 }, { 0, 0, 0 } },
+    { { 4032, 96, -512, -96, 4064, 160, 512, -128, 4032 }, { 0, -195, 4 }, { -0.8f, -221.3f, 5.4f } },
+    { { 4036, -31, 0, 12, 4035, 177, -4, -143, 4032 }, { -1, -263, -6 }, { -2.3f, -280.7f, 7.0f } },
+    { { 697, 63, 3977, -164, 4033, -56, -3977, -131, 696 }, { 0, -240, -7 }, { -28.1f, -239.9f, -7.1f } },
+    { { 3924, 801, 191, -51, -731, 3946, 814, -3875, -683 }, { -24, -236, -12 }, { -31.3f, -223.2f, -11.0f } },
+    { { 3905, 752, -31, -63, 352, 3955, 747, -3888, 378 }, { -27, -206, -19 }, { -32.2f, -183.4f, -17.2f } },
+    { { 3467, -1866, 219, -11, 432, 3922, -1907, -3432, 391 }, { -35, -164, -17 }, { -31.1f, -152.5f, -10.4f } },
+    { { 513, 46, 4000, 223, 4015, -96, -3981, 252, 508 }, { 0, -240, -7 }, { 26.2f, -241.3f, 1.3f } },
+    { { 3992, 305, 137, -117, -500, 3960, 315, -3957, -470 }, { 23, -237, -4 }, { 30.2f, -224.7f, -0.2f } },
+    { { 3960, 328, 53, -117, 540, 3934, 312, -3924, 568 }, { 27, -207, -8 }, { 32.7f, -184.8f, -3.8f } },
+    { { 3349, 2083, -95, -164, 392, 3920, 2080, -3328, 459 }, { 35, -165, -2 }, { 31.1f, -153.6f, 4.6f } },
+    { { -4064, 128, -96, 128, 4064, -96, 96, -96, -4064 }, { 0, -195, 4 }, { 0.4f, -178.0f, 5.4f } },
+    { { -4034, 82, -93, 64, 3930, 893, 128, 893, -3928 }, { -11, -151, 3 }, { -12.1f, -115.0f, 10.2f } },
+    { { -4003, 10, -123, 63, 3661, -1622, 127, -1621, -3661 }, { -10, -94, 16 }, { -10.1f, -69.4f, 2.0f } },
+    { { -3980, 167, 159, 91, 3642, -1586, -195, -1585, -3654 }, { -10, -30, -13 }, { -10.3f, -20.5f, -9.4f } },
+    { { 3994, -250, -486, 238, 4017, -143, 501, 136, 3988 }, { 13, -152, 2 }, { 14.6f, -115.2f, 3.9f } },
+    { { 3962, -237, -489, 236, 3988, -48, 497, 41, 3960 }, { 9, -94, 3 }, { 7.7f, -66.2f, 0.1f } },
+    { { 3944, -19, -486, 16, 3969, -48, 490, 67, 3929 }, { 4, -24, 3 }, { 3.4f, -16.8f, 10.1f } },
+};
+/* the Incubator (MAR.ILM, its ANM keyframe 0). */
+static const PcSkinRestBone s_marRest[PC_SKIN_BONES] = {
+    { { 4096, 0, 0, 0, 4096, 0, 0, 0, 4096 }, { 0, 0, 0 }, { 0, 0, 0 } },
+    { { 3968, 96, -928, -352, 3904, -1056, 896, 1120, 3808 }, { 8, -251, 16 }, { 7.5f, -282.3f, 4.8f } },
+    { { 3937, 95, -921, -350, 3873, -1048, 889, 1111, 3778 }, { 7, -327, -10 }, { 4.6f, -346.9f, -8.3f } },
+    { { 826, 435, 3940, -1131, 3849, -197, -3770, -1047, 932 }, { 8, -299, -6 }, { -19.6f, -296.5f, -13.6f } },
+    { { 3898, 321, -969, 803, 1254, 3702, 625, -3753, 1164 }, { -22, -290, -16 }, { -27.5f, -280.4f, -11.7f } },
+    { { 3004, 1132, -2415, 503, 3279, 2171, 2578, -1911, 2289 }, { -36, -255, -6 }, { -53.8f, -241.1f, 7.7f } },
+    { { 2438, 2153, -2314, 633, 2492, 2972, 3045, -2149, 1168 }, { -70, -228, 20 }, { -81.9f, -218.0f, 26.6f } },
+    { { 808, 480, 3934, -258, 3990, -441, -3936, -149, 862 }, { 8, -299, -6 }, { 35.3f, -301.3f, 0.6f } },
+    { { 3685, 1126, 1159, -1430, 1012, 3588, 742, -3691, 1341 }, { 39, -295, 0 }, { 44.4f, -286.0f, 5.7f } },
+    { { 3264, -100, 2291, -1746, 2442, 2588, -1430, -3137, 1954 }, { 53, -262, 13 }, { 70.6f, -246.1f, 24.9f } },
+    { { 2548, 20, 3044, -2422, 2388, 1998, -1780, -3142, 1558 }, { 85, -231, 36 }, { 97.9f, -225.1f, 45.2f } },
+    { { -4064, -64, 0, -64, 4032, -448, 32, -448, -4032 }, { 8, -251, 16 }, { 7.7f, -234.8f, 10.4f } },
+    { { -4001, -127, 468, -116, 4024, 74, -441, 63, -3998 }, { -9, -217, 8 }, { -10.6f, -180.3f, 6.9f } },
+    { { -3970, -116, 467, -116, 3994, -21, -438, -32, -3969 }, { -13, -119, 9 }, { -18.4f, -81.1f, 5.2f } },
+    { { -3911, 222, 524, 228, 3972, 12, -496, 36, -3932 }, { -16, -34, 4 }, { -18.4f, -20.1f, 18.0f } },
+    { { 4003, 191, 579, -193, 4025, -58, -609, 29, 3989 }, { 23, -216, 8 }, { 24.8f, -179.8f, 6.4f } },
+    { { 3971, 175, 578, -192, 3994, 36, -605, -65, 3958 }, { 27, -118, 8 }, { 29.1f, -80.8f, 3.9f } },
+    { { 3722, 226, 1398, -256, 3959, 25, -1420, -136, 3706 }, { 30, -33, 2 }, { 37.1f, -19.1f, 14.2f } },
+};
+/* the bloodied Incubator (BAR.ILM, its ANM keyframe 0). */
+static const PcSkinRestBone s_barRest[PC_SKIN_BONES] = {
+    { { 4096, 0, 0, 0, 4096, 0, 0, 0, 4096 }, { 0, 0, 0 }, { 0, 0, 0 } },
+    { { 3584, 1504, -1216, 128, 2336, 3328, 1920, -2976, 1984 }, { 36, -63, -24 }, { 24.1f, -84.5f, 0.4f } },
+    { { 4033, -168, -41, 44, 380, 4037, -179, -4006, 352 }, { 7, -112, 32 }, { 7.6f, -106.3f, 51.4f } },
+    { { 1059, -522, 3868, -1489, 3651, 870, -3583, -1672, 731 }, { 19, -100, 9 }, { -10.3f, -105.6f, 2.7f } },
+    { { 3947, 586, -493, 295, 1006, 3858, 676, -3809, 923 }, { -13, -100, 0 }, { -17.3f, -89.5f, 3.6f } },
+    { { 3926, 189, -676, 346, 2681, 2906, 588, -2917, 2598 }, { -22, -63, 8 }, { -28.9f, -44.1f, 24.7f } },
+    { { -58, -3024, -2534, 3417, -1285, 1457, -1971, -2177, 2619 }, { -35, -27, 40 }, { -42.4f, -19.8f, 53.1f } },
+    { { 1518, 1649, 3351, -2864, 2823, -148, -2381, -2348, 2238 }, { 19, -100, 9 }, { 42.3f, -100.1f, 23.8f } },
+    { { 1120, 3419, 1750, 61, -1862, 3528, 3821, -935, -603 }, { 48, -96, 21 }, { 52.5f, -85.1f, 22.2f } },
+    { { 950, 3703, -1044, 78, 1019, 3813, 3837, -936, 130 }, { 66, -62, 18 }, { 59.5f, -36.7f, 21.7f } },
+    { { -1922, 3407, -395, -3322, -1982, -630, -728, 29, 3869 }, { 53, -14, 23 }, { 48.1f, -14.6f, 38.6f } },
+    { { -2208, -704, 3328, -1984, 3488, -576, -2784, -1952, -2240 }, { 36, -63, -24 }, { 36.2f, -49.2f, -34.1f } },
+    { { -323, -3967, 587, -3987, 370, 340, -371, -557, -3982 }, { 24, -41, -55 }, { -11.2f, -37.9f, -61.6f } },
+    { { -321, 1732, 3575, -3956, 211, -451, -369, -3599, 1708 }, { -73, -32, -69 }, { -46.9f, -35.4f, -106.9f } },
+    { { -1065, 3578, 1323, -3796, -833, -806, -443, -1475, 3656 }, { -33, -28, -145 }, { -25.6f, -29.4f, -163.3f } },
+    { { -155, -3930, 846, 3872, -355, -990, 1067, 777, 3819 }, { 41, -26, -33 }, { 2.0f, -20.6f, -36.2f } },
+    { { -154, 1665, -3604, 3841, 991, 307, 1058, -3475, -1655 }, { -55, -35, -15 }, { -36.2f, -9.8f, -70.6f } },
+    { { 1712, 3405, -966, 3509, -1495, 988, 506, -1293, -3714 }, { -16, -15, -89 }, { -6.9f, -15.5f, -106.6f } },
+};
+/* Kaufmann (KAU.ILM, its ANM keyframe 0). */
+static const PcSkinRestBone s_kauRest[PC_SKIN_BONES] = {
+    { { 4096, 0, 0, 0, 4096, 0, 0, 0, 4096 }, { 0, 0, 0 }, { 0, 0, 0 } },
+    { { 4064, -64, 320, 64, 4064, -160, -320, 160, 4064 }, { 0, -247, 0 }, { 0.6f, -306.2f, -3.4f } },
+    { { 4031, -12, -63, -16, 4022, -386, 63, 410, 4021 }, { 1, -382, -10 }, { -0.5f, -394.2f, -2.7f } },
+    { { -315, -108, 4031, 0, 4038, 95, -4039, 2, -317 }, { 0, -334, -12 }, { -40.5f, -332.2f, -12.5f } },
+    { { 3947, -436, -521, 503, -98, 3965, -439, -3998, -29 }, { -44, -336, -9 }, { -51.2f, -314.9f, -10.8f } },
+    { { 3909, -624, -374, 497, 1013, 3806, -499, -3812, 1096 }, { -59, -291, -13 }, { -63.3f, -253.1f, 2.8f } },
+    { { 3878, -620, -372, 493, 1005, 3776, -496, -3783, 1087 }, { -66, -225, 6 }, { -70.0f, -204.9f, 22.7f } },
+    { { -319, -27, 4032, 222, 4030, 31, -4030, 219, -319 }, { 0, -334, -12 }, { 39.8f, -330.8f, -18.7f } },
+    { { 3989, 316, 284, -351, 536, 3950, 299, -3969, 539 }, { 43, -334, -16 }, { 49.2f, -312.8f, -15.0f } },
+    { { 3952, 430, 206, -357, 1377, 3709, 358, -3723, 1390 }, { 54, -288, -13 }, { 57.0f, -251.6f, 5.6f } },
+    { { 1989, 3364, 590, -1618, 314, 3571, 3030, -2045, 1520 }, { 57, -223, 11 }, { 54.7f, -203.3f, 29.0f } },
+    { { -4064, 64, -128, 64, 4064, -352, 128, -352, -4032 }, { 0, -247, 0 }, { 0.5f, -217.6f, -1.2f } },
+    { { -3937, -871, 301, -846, 3946, 446, -370, 356, -3988 }, { -16, -200, -4 }, { -27.1f, -165.7f, 1.0f } },
+    { { -3907, -797, 450, -840, 3933, -274, -368, -369, -3959 }, { -34, -123, 2 }, { -43.4f, -82.0f, -2.8f } },
+    { { -3925, 76, 709, -2, 3972, -472, -682, -497, -3885 }, { -50, -43, -14 }, { -54.1f, -25.6f, -1.4f } },
+    { { 3968, 660, -334, -670, 3970, -478, 245, 494, 3991 }, { 16, -200, -5 }, { 25.5f, -165.7f, 1.3f } },
+    { { 3937, 712, -167, -665, 3926, 471, 243, -461, 3950 }, { 28, -123, 4 }, { 37.3f, -82.0f, -1.6f } },
+    { { 3898, -34, 728, 31, 3966, 112, -756, -120, 3874 }, { 42, -44, -14 }, { 46.3f, -28.0f, 0.0f } },
+};
+/* the ghost doctor (DOC.ILM, its ANM keyframe 0). */
+static const PcSkinRestBone s_docRest[PC_SKIN_BONES] = {
+    { { 4096, 0, 0, 0, 4096, 0, 0, 0, 4096 }, { 0, 0, 0 }, { 0, 0, 0 } },
+    { { 4064, 32, -96, -32, 4064, 224, 96, -224, 4064 }, { 0, -275, 0 }, { -0.4f, -329.1f, -2.7f } },
+    { { 4030, -26, -221, 70, 4018, 477, 217, -478, 4015 }, { -1, -387, 2 }, { -3.1f, -404.6f, 13.8f } },
+    { { -31, 28, 4035, -95, 4039, -7, -4043, -96, -34 }, { -1, -355, 4 }, { -39.3f, -352.5f, -3.3f } },
+    { { 4004, -98, -166, 180, -630, 3963, -133, -3967, -630 }, { -41, -355, 4 }, { -46.5f, -331.7f, -4.8f } },
+    { { 3976, -223, 113, 4, 1169, 3810, -232, -3807, 1136 }, { -44, -305, -4 }, { -48.7f, -272.1f, -0.8f } },
+    { { 3692, -1392, 112, 350, 1103, 3780, -1350, -3530, 1127 }, { -47, -246, 13 }, { -50.6f, -223.3f, 23.7f } },
+    { { 62, 129, 4031, -318, 4026, -127, -4028, -316, 100 }, { -1, -355, 4 }, { 36.8f, -354.6f, -3.2f } },
+    { { 3998, 38, 168, -155, -1003, 3875, 133, -3880, -1001 }, { 38, -357, 4 }, { 43.5f, -334.7f, -7.0f } },
+    { { 3973, 138, -86, 51, 800, 3898, 175, -3893, 798 }, { 40, -308, -9 }, { 45.0f, -275.0f, -8.7f } },
+    { { 3714, 1309, -86, -190, 771, 3867, 1321, -3629, 791 }, { 42, -248, 3 }, { 46.1f, -224.3f, 11.5f } },
+    { { -4064, 64, -192, 64, 4064, 128, 192, 128, -4064 }, { 0, -275, 0 }, { 0.2f, -251.7f, -0.4f } },
+    { { -4016, -279, 34, -248, 4001, 314, -44, 301, -4037 }, { -16, -232, 2 }, { -22.2f, -172.8f, 3.1f } },
+    { { -3985, -257, 110, -247, 3901, -826, -44, -849, -3933 }, { -23, -143, 8 }, { -29.5f, -86.3f, -12.8f } },
+    { { -3912, 133, 676, 167, 3954, 37, -679, 48, -3945 }, { -30, -38, -23 }, { -34.7f, -23.9f, -17.4f } },
+    { { 4015, 186, 509, -181, 4033, -37, -512, 25, 4020 }, { 16, -232, 0 }, { 20.3f, -172.6f, -1.9f } },
+    { { 3983, 107, 528, -180, 3975, 562, -508, -573, 3960 }, { 20, -142, 0 }, { 23.6f, -84.0f, -17.7f } },
+    { { 3926, 86, 722, -86, 3996, -16, -739, 4, 3950 }, { 21, -35, -24 }, { 26.6f, -21.0f, -18.7f } },
+};
+
 /* A character the loader can retarget onto: its rest pose, sole height and
  * toe directions at rest (x, z, from the sole of 14LFOOT and 17RFOOT, which
  * splay), and whether its voice is female, which is how lip sync tells the
@@ -133,6 +345,7 @@ typedef struct
     float                 toe[2][2];
     int                   femaleVoice;
     const char*           alt; /* model whose glTF it wears when it has none */
+    const char*           voice; /* speaker name its lines carry, if not its own */
 } PcSkinRestDef;
 
 static const PcSkinRestDef s_restDefs[] = {
@@ -141,7 +354,17 @@ static const PcSkinRestDef s_restDefs[] = {
     /* Monster Cybil is Cybil's rig and mesh with other textures: MSB.ILM posed
      * by SBL.ANM's rest frame measures exactly s_sibylRest. Her own MSB.ANM
      * has no standing frame to take a rest from. */
-    { "MSB", s_sibylRest, -7.5f, { { -0.1840f, 0.9829f }, { 0.1715f, 0.9852f } }, 1, "SIBYL" },
+    { "MSB", s_sibylRest, -7.5f, { { -0.1840f, 0.9829f }, { 0.1715f, 0.9852f } }, 1, "SIBYL", "SIBYL" },
+    { "SRL", s_srlRest, 4.1f, { { 0.2092f, 0.9779f }, { -0.1916f, 0.9815f } }, 1 },
+    { "DARIA", s_dariaRest, -11.9f, { { -0.0122f, 0.9999f }, { 0.4101f, 0.9121f } }, 1 },
+    { "LISA", s_lisaRest, -14.6f, { { 0.0472f, 0.9989f }, { 0.0967f, 0.9953f } }, 1 },
+    { "BLISA", s_blisaRest, -15.3f, { { -0.1031f, 0.9947f }, { -0.8551f, 0.5185f } }, 1, NULL, "LISA" },
+    { "AR", s_arRest, -10.1f, { { -0.1909f, 0.9816f }, { 0.2362f, 0.9717f } }, 1 },
+    { "TAR", s_tarRest, -3.9f, { { -0.0048f, 1.0000f }, { -0.0874f, 0.9962f } }, 1 },
+    { "MAR", s_marRest, -8.9f, { { -0.1363f, 0.9907f }, { 0.3609f, 0.9326f } }, 1 },
+    { "BAR", s_barRest, -0.4f, { { -0.7532f, 0.6578f }, { -0.0849f, 0.9964f } }, 1 },
+    { "KAU", s_kauRest, -8.1f, { { -0.2550f, 0.9669f }, { 0.2585f, 0.9660f } }, 0 },
+    { "DOC", s_docRest, -8.4f, { { -0.2123f, 0.9772f }, { 0.2213f, 0.9752f } }, 0 },
 };
 
 /* Where each bone's segment ends: a child joint, the midpoint of two (the
@@ -207,8 +430,18 @@ typedef struct
     unsigned char*  nrgba;    /* normal map, if the material has one */
     int             nw, nh;
     u32             ntexture;
+    /* Occlusion, roughness and metalness packed into R, G and B, the layout
+     * glTF's ORM convention already uses, so one sampler serves all three. */
+    unsigned char*  orgba;
+    int             ow, oh;
+    u32             otexture;
+    float           metal, rough, aoStrength;
+    unsigned char*  ergba;    /* emissive */
+    int             ew, eh;
+    u32             etexture;
     signed char     texFrom[4]; /* per map: the earlier material of this model that decoded the
                                  * same image, whose texture this one draws with; -1 = its own */
+    float           emissive[3];
     GrModernVertex* out[PC_SKIN_INST][2];
     u32*            idx[PC_SKIN_INST][2];
     int             idxCount[PC_SKIN_INST][2];
@@ -232,7 +465,7 @@ enum { PC_SKIN_MORPH_BLINK, PC_SKIN_MORPH_MOUTH, PC_SKIN_MORPH_GRIP_L, PC_SKIN_M
  * point light's position so its row can be aimed from each pixel. */
 typedef struct
 {
-    int   on, point;
+    int   on, point, flat;
     float L[3][3], l1Mag, lightPos[3];
     float LC[3][3], BK[3];
     float bright;
@@ -286,6 +519,8 @@ typedef struct
     int         gunTwist, gunPitch, gunYaw; /* ini: degrees */
     int         handRelax; /* ini: percent of the fist held with empty hands */
     int         female;
+    int         native; /* built in game space (SH_NATIVE node): the game's own parts */
+    u32         nativeBones; /* the bones whose stock parts it replaces */
     int         brightness; /* percent of the lit vertex colour */
     int         fogPct;     /* percent of the game's fog amount */
     int         beamPct;    /* percent of the flashlight beam it takes */
@@ -721,14 +956,40 @@ static void Skin_FileRelease(const struct cgltf_memory_options* mem, const struc
 static void Skin_DecodeTexture(const cgltf_texture* tex, const char* gltfPath, unsigned char** rgba, int* w,
                                int* h, const char* what);
 
-enum { SKIN_MAP_BASE, SKIN_MAP_NORMAL };
+/* metallicRoughness (G rough, B metal) and occlusion (R) are separate glTF
+ * textures that are often the same image; either may be missing, and they need
+ * not share a size, so the other is sampled nearest onto the first's grid. */
+static void Skin_PackOrm(PcSkinMat* mat, unsigned char* mr, int mw, int mh, unsigned char* ao, int aw, int ah)
+{
+    int w = mr ? mw : aw, h = mr ? mh : ah, x, y;
+
+    if ((mr == NULL && ao == NULL) || w <= 0 || h <= 0 || (mat->orgba = (unsigned char*)malloc((size_t)w * h * 4)) == NULL)
+        return;
+    for (y = 0; y < h; y++)
+    {
+        for (x = 0; x < w; x++)
+        {
+            unsigned char* o = &mat->orgba[((size_t)y * w + x) * 4];
+            o[0] = ao ? ao[(((size_t)(y * ah / h)) * aw + (x * aw / w)) * 4] : 255;
+            o[1] = mr ? mr[((size_t)y * w + x) * 4 + 1] : 255;
+            o[2] = mr ? mr[((size_t)y * w + x) * 4 + 2] : 255;
+            o[3] = 255;
+        }
+    }
+    mat->ow = w;
+    mat->oh = h;
+}
+
+enum { SKIN_MAP_BASE, SKIN_MAP_NORMAL, SKIN_MAP_ORM, SKIN_MAP_EMISSIVE };
 
 static void Skin_MapFields(PcSkinMat* mat, int map, unsigned char*** rgba, int** w, int** h, u32** tex)
 {
     switch (map)
     {
-        case SKIN_MAP_BASE: *rgba = &mat->rgba;  *w = &mat->w;  *h = &mat->h;  *tex = &mat->texture;  break;
-        default:            *rgba = &mat->nrgba; *w = &mat->nw; *h = &mat->nh; *tex = &mat->ntexture; break;
+        case SKIN_MAP_BASE:   *rgba = &mat->rgba;  *w = &mat->w;  *h = &mat->h;  *tex = &mat->texture;  break;
+        case SKIN_MAP_NORMAL: *rgba = &mat->nrgba; *w = &mat->nw; *h = &mat->nh; *tex = &mat->ntexture; break;
+        case SKIN_MAP_ORM:    *rgba = &mat->orgba; *w = &mat->ow; *h = &mat->oh; *tex = &mat->otexture; break;
+        default:              *rgba = &mat->ergba; *w = &mat->ew; *h = &mat->eh; *tex = &mat->etexture; break;
     }
 }
 
@@ -746,8 +1007,17 @@ static const cgltf_image* Skin_MapImage(const cgltf_material* m, int map, const 
             if (m->has_pbr_metallic_roughness)
                 t = m->pbr_metallic_roughness.base_color_texture.texture;
             break;
-        default:
+        case SKIN_MAP_NORMAL:
             t = m->normal_texture.texture;
+            break;
+        case SKIN_MAP_ORM:
+            if (m->has_pbr_metallic_roughness)
+                t = m->pbr_metallic_roughness.metallic_roughness_texture.texture;
+            if (m->occlusion_texture.texture != NULL)
+                *second = m->occlusion_texture.texture->image;
+            break;
+        default:
+            t = m->emissive_texture.texture;
             break;
     }
     return t != NULL ? t->image : NULL;
@@ -809,18 +1079,53 @@ static u32 Skin_MapTexture(PcSkinChara* ch, int m, int map)
 static void Skin_LoadImage(PcSkinChara* ch, int mi, const cgltf_material* m, const char* gltfPath)
 {
     PcSkinMat* mat = &ch->mats[mi];
-    int i;
+    unsigned char *mr = NULL, *ao = NULL;
+    int mw = 0, mh = 0, aw = 0, ah = 0, i, j, shared[4];
+    float es;
 
     memset(mat->texFrom, -1, sizeof(mat->texFrom));
+
+    /* Without a metallic-roughness block glTF means fully metallic and rough,
+     * which on a model that simply never set one reads as dull grey metal. */
+    mat->metal = 0.0f;
+    mat->rough = 0.6f;
+    mat->aoStrength = 1.0f;
     if (m == NULL)
         return;
-    for (i = 0; i < 2; i++)
-        mat->texFrom[i] = (signed char)Skin_SharedMap(ch, mi, i);
-    if (m->has_pbr_metallic_roughness && mat->texFrom[SKIN_MAP_BASE] < 0)
-        Skin_DecodeTexture(m->pbr_metallic_roughness.base_color_texture.texture, gltfPath, &mat->rgba, &mat->w,
-                           &mat->h, m->name);
-    if (mat->texFrom[SKIN_MAP_NORMAL] < 0)
+    for (i = 0; i < 4; i++)
+        shared[i] = Skin_SharedMap(ch, mi, i);
+    if (m->has_pbr_metallic_roughness)
+    {
+        if (shared[SKIN_MAP_BASE] < 0)
+            Skin_DecodeTexture(m->pbr_metallic_roughness.base_color_texture.texture, gltfPath, &mat->rgba, &mat->w,
+                               &mat->h, m->name);
+        if (shared[SKIN_MAP_ORM] < 0)
+            Skin_DecodeTexture(m->pbr_metallic_roughness.metallic_roughness_texture.texture, gltfPath, &mr, &mw,
+                               &mh, m->name);
+        mat->metal = m->pbr_metallic_roughness.metallic_factor;
+        mat->rough = m->pbr_metallic_roughness.roughness_factor;
+    }
+    if (shared[SKIN_MAP_NORMAL] < 0)
         Skin_DecodeTexture(m->normal_texture.texture, gltfPath, &mat->nrgba, &mat->nw, &mat->nh, m->name);
+    if (m->occlusion_texture.texture != NULL)
+    {
+        if (shared[SKIN_MAP_ORM] < 0)
+            Skin_DecodeTexture(m->occlusion_texture.texture, gltfPath, &ao, &aw, &ah, m->name);
+        mat->aoStrength = m->occlusion_texture.scale;
+    }
+    Skin_PackOrm(mat, mr, mw, mh, ao, aw, ah);
+    free(mr);
+    free(ao);
+    es = m->has_emissive_strength ? m->emissive_strength.emissive_strength : 1.0f;
+    for (i = 0; i < 3; i++)
+        mat->emissive[i] = m->emissive_factor[i] * es;
+    if ((mat->emissive[0] > 0.0f || mat->emissive[1] > 0.0f || mat->emissive[2] > 0.0f) &&
+        shared[SKIN_MAP_EMISSIVE] < 0)
+        Skin_DecodeTexture(m->emissive_texture.texture, gltfPath, &mat->ergba, &mat->ew, &mat->eh, m->name);
+    else if (mat->emissive[0] <= 0.0f && mat->emissive[1] <= 0.0f && mat->emissive[2] <= 0.0f)
+        shared[SKIN_MAP_EMISSIVE] = -1;
+    for (j = 0; j < 4; j++)
+        mat->texFrom[j] = (signed char)shared[j];
 }
 
 #if defined(__ANDROID__) || defined(SH_IOS) || defined(__EMSCRIPTEN__)
@@ -1411,6 +1716,31 @@ static int Skin_Load(PcSkinChara* ch, const char* path)
         return 0;
     }
     skin = &data->skins[0];
+    /* A model built from the game's own parts, posed at the rest frame and in
+     * its units, is marked by a node named SH_NATIVE. It covers only some
+     * bones (the face and chest), so it is neither fitted to Harry's height
+     * nor reweighted, and the stock parts it does not cover keep drawing. */
+    ch->native = 0;
+    ch->nativeBones = 0;
+    for (ni = 0; ni < data->nodes_count; ni++)
+    {
+        const char* nn = data->nodes[ni].name;
+        if (nn == NULL || strncmp(nn, "SH_NATIVE", 9) != 0)
+            continue;
+        ch->native = 1;
+        /* "SH_NATIVE 1 2": the bones it replaces. Shared seam vertices bound
+         * to other bones (the shoulders' edge of the chest) do not count. */
+        for (nn += 9; *nn != '\0';)
+        {
+            char* end;
+            long b = strtol(nn, &end, 10);
+            if (end == nn)
+                break;
+            if (b >= 0 && b < PC_SKIN_BONES)
+                ch->nativeBones |= 1u << b;
+            nn = end;
+        }
+    }
     if (skin->joints_count == 0 || skin->joints_count > PC_SKIN_MAX_JOINTS || skin->inverse_bind_matrices == NULL)
     {
         SH_DBG("[SKIN] %s: skin has %u joints / no inverse bind matrices", path, (unsigned)skin->joints_count);
@@ -1476,7 +1806,7 @@ static int Skin_Load(PcSkinChara* ch, const char* path)
                 }
         }
     }
-    if (totalVerts == 0 || maxY <= minY || armCount == 0 || armY / armCount <= minY)
+    if (totalVerts == 0 || maxY <= minY || (!ch->native && (armCount == 0 || armY / armCount <= minY)))
     {
         SH_DBG("[SKIN] %s: no skinned geometry", path);
         cgltf_free(data);
@@ -1489,10 +1819,18 @@ static int Skin_Load(PcSkinChara* ch, const char* path)
      * and neck are taller than the PSX ones, so height-matching left the arms
      * a few inches low and pinning them raised the shoulders into peaks; at
      * shoulder height the wrists already sit where the game holds weapons. */
-    scale = (ch->def->soleY - (float)ch->def->rest[4].T[1]) / (armY / armCount - minY);
-    offX = -hipsPos[0] * scale;
-    offZ = -hipsPos[2] * scale;
-    offY = ch->def->soleY + minY * scale;
+    if (ch->native)
+    {
+        scale = 1.0f;
+        offX = offY = offZ = 0.0f;
+    }
+    else
+    {
+        scale = (ch->def->soleY - (float)ch->def->rest[4].T[1]) / (armY / armCount - minY);
+        offX = -hipsPos[0] * scale;
+        offZ = -hipsPos[2] * scale;
+        offY = ch->def->soleY + minY * scale;
+    }
 #define TO_GAME(src, dst) do { (dst)[0] = (src)[0] * scale + offX; (dst)[1] = -(src)[1] * scale + offY; (dst)[2] = (src)[2] * scale + offZ; } while (0)
 
     ch->verts = (PcSkinVert*)calloc((size_t)totalVerts, sizeof(PcSkinVert));
@@ -1689,6 +2027,7 @@ static int Skin_Load(PcSkinChara* ch, const char* path)
      * Weight shared by both thighs (a seat plate or crotch split evenly)
      * landed halfway between two legs that move apart and crumpled, so that
      * share rides the hips. */
+    if (!ch->native)
     {
         float y0 = anchor[1][1], span = (anchor[1][1] - anchor[2][1]) * 0.35f;
 
@@ -1872,6 +2211,38 @@ static int Skin_Load(PcSkinChara* ch, const char* path)
         else if (b == 4 || b == 8 || b == 12 || b == 13 || b == 15 || b == 16)
             anchor[b][0] = ch->def->rest[b].T[0];
     }
+    /* Native parts are posed by the rest frame itself, so every bone keeps it
+     * and each vertex's bone-local position is the ILM's own. Keyframe
+     * rotations are 7-bit, far from orthonormal, so the transpose that undoes
+     * a modern rig's rotation would land these vertices half a unit off the
+     * stock parts beside them: R holds the inverse's transpose instead, which
+     * the bone-local transform below and the shape keys' rt then apply. */
+    if (ch->native)
+        for (b = 0; b < PC_SKIN_BONES; b++)
+        {
+            float m[9], det;
+            M3_FromQ12(ch->def->rest[b].R, m);
+            det = m[0] * (m[4] * m[8] - m[5] * m[7]) - m[1] * (m[3] * m[8] - m[5] * m[6]) +
+                  m[2] * (m[3] * m[7] - m[4] * m[6]);
+            if (det > 1e-6f || det < -1e-6f)
+            {
+                R[b][0] = (m[4] * m[8] - m[5] * m[7]) / det;
+                R[b][1] = (m[5] * m[6] - m[3] * m[8]) / det;
+                R[b][2] = (m[3] * m[7] - m[4] * m[6]) / det;
+                R[b][3] = (m[2] * m[7] - m[1] * m[8]) / det;
+                R[b][4] = (m[0] * m[8] - m[2] * m[6]) / det;
+                R[b][5] = (m[1] * m[6] - m[0] * m[7]) / det;
+                R[b][6] = (m[1] * m[5] - m[2] * m[4]) / det;
+                R[b][7] = (m[2] * m[3] - m[0] * m[5]) / det;
+                R[b][8] = (m[0] * m[4] - m[1] * m[3]) / det;
+            }
+            else
+                memcpy(R[b], m, sizeof(m));
+            anchor[b][0] = ch->def->rest[b].T[0];
+            anchor[b][1] = ch->def->rest[b].T[1];
+            anchor[b][2] = ch->def->rest[b].T[2];
+            k[b] = 1.0f;
+        }
 
     Skin_FillTangents(ch, gpos, gnrm, gtan);
 
@@ -2269,9 +2640,9 @@ static PcSkinChara* Skin_Entry(const char* name, const char* file, const char* b
             return NULL;
     if (ch == NULL)
     {
-        /* Full, a model is refused and the character draws stock: every
-         * file looked for used to keep a slot, found or not, and a session
-         * with many play-as swaps ran out. */
+        /* Full, a model is refused and the character draws stock -- which
+         * play-as swaps did once every stock character looked for a
+         * replacement and each miss kept a slot. */
         if (s_charaCount >= PC_SKIN_MAX_CHARA)
         {
             SH_DBG("[SKIN] no room for %s (%d models loaded)", file, s_charaCount);
@@ -2312,6 +2683,23 @@ static PcSkinChara* Skin_Entry(const char* name, const char* file, const char* b
     return ch;
 }
 
+/* Character Face Animation's models, read up front: parsing a glTF and its
+ * textures the first time a character appears hitched the scene it entered. */
+void Pc_SkinChara_PreloadBuiltins(void)
+{
+    char file[20], path[112];
+    int  i;
+
+    if (!g_PcConfig.charaFaceAnim)
+        return;
+    for (i = 0; i < (int)(sizeof(s_restDefs) / sizeof(s_restDefs[0])); i++)
+    {
+        snprintf(file, sizeof(file), "@%s", s_restDefs[i].name);
+        snprintf(path, sizeof(path), "gamedata/builtin/CHARA/%s", s_restDefs[i].name);
+        Skin_Entry(s_restDefs[i].name, file, path, &s_restDefs[i]);
+    }
+}
+
 void Pc_SkinChara_SetHeroFile(const char* file)
 {
     snprintf(s_heroFile, sizeof(s_heroFile), "%s", file != NULL ? file : "");
@@ -2326,7 +2714,7 @@ void* Pc_SkinChara_Begin(s_Skeleton* skel, const void* boneCoords)
     const PcSkinRestDef* def = NULL;
     int i;
 
-    if (!g_PcConfig.allowLooseFiles || skel == NULL || skel->bones_4 == NULL)
+    if ((!g_PcConfig.allowLooseFiles && !g_PcConfig.charaFaceAnim) || skel == NULL || skel->bones_4 == NULL)
         return NULL;
     hdr = skel->bones_4->bone.modelInfo.modelHdr;
     if (hdr == NULL)
@@ -2349,34 +2737,47 @@ void* Pc_SkinChara_Begin(s_Skeleton* skel, const void* boneCoords)
     if (def == NULL)
         return NULL;
 
-    /* A play-as Harry swap loads its own file; one that is gone or broken
-     * falls back to HERO.glb, then to the stock model. */
-    if (strcmp(name, "HERO") == 0 && s_heroFile[0] != '\0')
+    if (g_PcConfig.allowLooseFiles)
     {
-        char dir[96], *slash;
-        snprintf(dir, sizeof(dir), "%s", base);
-        slash = strrchr(dir, '/');
-        if (slash != NULL)
+        /* A play-as Harry swap loads its own file; one that is gone or broken
+         * falls back to HERO.glb, then to the stock model. */
+        if (strcmp(name, "HERO") == 0 && s_heroFile[0] != '\0')
         {
-            *slash = '\0';
-            snprintf(path, sizeof(path), "%s/%s", dir, s_heroFile);
-            ch = Skin_Entry(name, s_heroFile, path, def);
-            if (ch != NULL && ch->state != 1)
-                ch = NULL;
+            char dir[96], *slash;
+            snprintf(dir, sizeof(dir), "%s", base);
+            slash = strrchr(dir, '/');
+            if (slash != NULL)
+            {
+                *slash = '\0';
+                snprintf(path, sizeof(path), "%s/%s", dir, s_heroFile);
+                ch = Skin_Entry(name, s_heroFile, path, def);
+                if (ch != NULL && ch->state != 1)
+                    ch = NULL;
+            }
+        }
+        if (ch == NULL)
+            ch = Skin_Entry(name, name, base, def);
+        if ((ch == NULL || ch->state != 1) && def->alt != NULL)
+        {
+            char altBase[96], *slash;
+            snprintf(altBase, sizeof(altBase), "%s", base);
+            slash = strrchr(altBase, '/');
+            if (slash != NULL)
+            {
+                snprintf(slash + 1, sizeof(altBase) - (size_t)(slash + 1 - altBase), "%s", def->alt);
+                ch = Skin_Entry(def->alt, def->alt, altBase, def);
+            }
         }
     }
-    if (ch == NULL)
-        ch = Skin_Entry(name, name, base, def);
-    if ((ch == NULL || ch->state != 1) && def->alt != NULL)
+    /* No replacement: the game's own parts with a face that blinks and speaks
+     * and a chest that breathes (Character Face Animation), from the port's
+     * own folder rather than load/, so a mod still wins. */
+    if ((ch == NULL || ch->state != 1) && g_PcConfig.charaFaceAnim)
     {
-        char altBase[96], *slash;
-        snprintf(altBase, sizeof(altBase), "%s", base);
-        slash = strrchr(altBase, '/');
-        if (slash != NULL)
-        {
-            snprintf(slash + 1, sizeof(altBase) - (size_t)(slash + 1 - altBase), "%s", def->alt);
-            ch = Skin_Entry(def->alt, def->alt, altBase, def);
-        }
+        char file[20];
+        snprintf(file, sizeof(file), "@%s", name);
+        snprintf(path, sizeof(path), "gamedata/builtin/CHARA/%s", name);
+        ch = Skin_Entry(name, file, path, def);
     }
     if (ch == NULL)
         return NULL;
@@ -2388,11 +2789,16 @@ void* Pc_SkinChara_Begin(s_Skeleton* skel, const void* boneCoords)
     return ch;
 }
 
-int Pc_SkinChara_KeepsStockPart(const char partName[8])
+int Pc_SkinChara_KeepsStockPart(void* chara, const char partName[8], int bone)
 {
+    const PcSkinChara* ch = (const PcSkinChara*)chara;
     char n[9];
     memcpy(n, partName, 8);
-    n[8] = '\0';
+    n[8] = 0;
+    /* A native model replaces only the bones it names. */
+    if (ch != NULL && ch->native)
+        return bone < 0 || bone >= PC_SKIN_BONES ||
+               !(ch->nativeBones ? (ch->nativeBones >> bone) & 1 : ch->byBoneCount[bone] != 0);
     return strstr(n, "GUN") != NULL;
 }
 
@@ -2864,7 +3270,7 @@ static void Skin_Ragdoll(PcSkinChara* ch)
     float dt = g_DeltaTime / 4096.0f;
     int i;
 
-    if (!g_PcConfig.ragdoll || !ch->isPlayer || !ch->have[1] || !ch->have[11])
+    if (!g_PcConfig.ragdoll || ch->native || !ch->isPlayer || !ch->have[1] || !ch->have[11])
     {
         s_rd.active = 0;
         return;
@@ -2951,7 +3357,11 @@ static float Skin_MouthWeight(PcSkinChara* ch)
     int female, mine;
     float level = Pc_Lip_Level(&speaker, &female);
 
-    mine = speaker != NULL ? strcmp(speaker, ch->name) == 0 : female == ch->def->femaleVoice;
+    /* A line with no speaker on record falls back to the voice's pitch. Every
+     * stock character now has a face, so for them only the player takes that
+     * guess; two women in a scene would otherwise both mouth one line. */
+    mine = speaker != NULL ? strcmp(speaker, ch->def->voice != NULL ? ch->def->voice : ch->name) == 0
+                           : female == ch->def->femaleVoice && (!ch->native || ch->isPlayer);
     if (level > 0.0f && mine && !(s_rd.active && ch->isPlayer))
         target = level;
     rate = target > ch->mouth ? 30.0f : 14.0f;
@@ -3047,7 +3457,12 @@ static void Skin_FrameLight(PcSkinChara* ch, int buf)
     int b, ref = -1, r, c;
 
     memset(lt, 0, sizeof(*lt));
-    if (!g_PcConfig.charaPerPixelLight || !Pc_ModernShader_SkinLit() || g_WorldEnvWork.field_0 == 0)
+    /* A native face sits on the stock body, so it is lit the way the body is. */
+    if (!(ch->native ? g_PcConfig.perPixelLighting : g_PcConfig.charaPerPixelLight) || !Pc_ModernShader_SkinLit())
+        return;
+    /* Mode 0 is one flat colour for the whole body; only the hero light has
+     * anything to add to it. */
+    if (g_WorldEnvWork.field_0 == 0 && g_PsyX_HeroLight[3] <= 0.0f)
         return;
     for (b = 0; b < PC_SKIN_BONES; b++)
         if (ch->have[b] && ch->lit[b] && (ref < 0 || ch->byBoneCount[b] > ch->byBoneCount[ref]))
@@ -3058,6 +3473,13 @@ static void Skin_FrameLight(PcSkinChara* ch, int buf)
     rw = ch->rw[ref];
     s_rvSign = (rv[0] * (rv[4] * rv[8] - rv[5] * rv[7]) - rv[1] * (rv[3] * rv[8] - rv[5] * rv[6]) +
                 rv[2] * (rv[3] * rv[7] - rv[4] * rv[6])) < 0.0f ? -1.0f : 1.0f;
+    lt->bright = ch->brightness / 100.0f;
+    if (g_WorldEnvWork.field_0 == 0)
+    {
+        lt->flat = 1;
+        lt->on = 1;
+        return;
+    }
     for (r = 0; r < 3; r++)
     {
         for (c = 0; c < 3; c++)
@@ -3071,6 +3493,28 @@ static void Skin_FrameLight(PcSkinChara* ch, int buf)
     /* Mode 1 aims row 1 at the point light from each bone's origin
      * (func_8005A478); its length is the distance falloff, kept as is. */
     lt->point = (g_WorldEnvWork.field_0 == 1);
+    if (lt->point)
+    {
+        int k = 0;
+        for (r = 1; r < 3; r++)
+            if (V3_Len(lt->L[r]) > V3_Len(lt->L[k]))
+                k = r;
+        /* func_8005A478 writes the point light into row 0 (CR8/CR9) and the
+         * shader re-aims row 1; the sum is the same with rows and colour
+         * columns swapped together. */
+        if (k != 1)
+        {
+            for (c = 0; c < 3; c++)
+            {
+                float t = lt->L[k][c];
+                lt->L[k][c] = lt->L[1][c];
+                lt->L[1][c] = t;
+                t = lt->LC[c][k];
+                lt->LC[c][k] = lt->LC[c][1];
+                lt->LC[c][1] = t;
+            }
+        }
+    }
     lt->l1Mag = V3_Len(lt->L[1]);
     d[0] = g_WorldEnvWork.field_60.vx / 16.0f - ch->tw[ref][0];
     d[1] = g_WorldEnvWork.field_60.vy / 16.0f - ch->tw[ref][1];
@@ -3253,6 +3697,8 @@ int Pc_SkinChara_PrepareDraw(u32 handle, PcModernDrawBinding* binding)
             return 0;
     }
     Skin_MapTexture(ch, m, SKIN_MAP_NORMAL);
+    Skin_MapTexture(ch, m, SKIN_MAP_ORM);
+    Skin_MapTexture(ch, m, SKIN_MAP_EMISSIVE);
     /* Depth is normalized here, at draw time, as the stock prims are. With PGXP
      * off the divisor is the SZ maximum that each GsDrawOt swaps in; read at
      * sort time it came from the frame's last OT -- the 2D one, near zero --
@@ -3296,10 +3742,12 @@ int Pc_SkinChara_PrepareDraw(u32 handle, PcModernDrawBinding* binding)
 void Pc_SkinChara_ApplyLighting(u32 handle, unsigned int program)
 {
     enum { U_LIT, U_NMAP, U_NTEX, U_POINT, U_L0, U_L1, U_L2, U_L1MAG, U_LPOS, U_LC0, U_LC1, U_LC2, U_BK, U_BRIGHT,
-           U_COUNT };
+           U_FLAT, U_ORM, U_ORMTEX, U_MAT, U_EMIS, U_EMISON, U_EMISTEX, U_COUNT };
     static const char* const names[U_COUNT] = { "u_skinLit", "u_skinNormalMap", "u_skinNormalTex", "u_skinPoint",
                                                 "u_skinL0", "u_skinL1", "u_skinL2", "u_skinL1Mag", "u_skinLightPos",
-                                                "u_skinLC0", "u_skinLC1", "u_skinLC2", "u_skinBK", "u_skinBright" };
+                                                "u_skinLC0", "u_skinLC1", "u_skinLC2", "u_skinBK", "u_skinBright",
+                                                "u_skinFlat", "u_skinOrm", "u_skinOrmTex", "u_skinMat",
+                                                "u_skinEmissive", "u_skinEmissiveOn", "u_skinEmissiveTex" };
     static unsigned int s_program;
     static GLint loc[U_COUNT];
     int ci = (int)((handle >> 8) & 0xFF), inst = (int)((handle >> 6) & 3), buf = (int)((handle >> 5) & 1),
@@ -3318,15 +3766,34 @@ void Pc_SkinChara_ApplyLighting(u32 handle, unsigned int program)
     if (loc[U_LIT] < 0)
         return;
     if (!(handle & PC_SKIN_HANDLE_FLAG) || ci >= s_charaCount || s_chara[ci].state != 1 ||
-        m >= s_chara[ci].matCount || !s_chara[ci].light[inst][buf].on)
+        m >= s_chara[ci].matCount)
     {
         glUniform1i(loc[U_LIT], 0);
+        glUniform1i(loc[U_EMISON], 0);
         return;
     }
     ch = &s_chara[ci];
     lt = &ch->light[inst][buf];
     mat = &ch->mats[m];
+    /* Glow does not depend on the light, so it shows in per-vertex mode too.
+     * Units 0-2 are the scene texture, the shadow map and the decode table;
+     * 3 to 5 are this material's normal, ORM and emissive maps. */
+    glUniform1i(loc[U_EMISON], mat->etexture != 0);
+    if (mat->etexture != 0)
+    {
+        glUniform3fv(loc[U_EMIS], 1, mat->emissive);
+        glUniform1i(loc[U_EMISTEX], 5);
+        glActiveTexture(GL_TEXTURE5);
+        glBindTexture(GL_TEXTURE_2D, mat->etexture);
+        glActiveTexture(GL_TEXTURE0);
+    }
+    if (!lt->on)
+    {
+        glUniform1i(loc[U_LIT], 0);
+        return;
+    }
     glUniform1i(loc[U_LIT], 1);
+    glUniform1i(loc[U_FLAT], lt->flat);
     glUniform1i(loc[U_POINT], lt->point);
     glUniform3fv(loc[U_L0], 1, lt->L[0]);
     glUniform3fv(loc[U_L1], 1, lt->L[1]);
@@ -3339,12 +3806,23 @@ void Pc_SkinChara_ApplyLighting(u32 handle, unsigned int program)
     glUniform3fv(loc[U_BK], 1, lt->BK);
     glUniform1f(loc[U_BRIGHT], lt->bright);
     glUniform1i(loc[U_NMAP], mat->ntexture != 0);
-    /* Units 0-2 are the scene texture, the shadow map and the decode table. */
     if (mat->ntexture != 0)
     {
         glUniform1i(loc[U_NTEX], 3);
         glActiveTexture(GL_TEXTURE3);
         glBindTexture(GL_TEXTURE_2D, mat->ntexture);
+        glActiveTexture(GL_TEXTURE0);
+    }
+    {
+        const float pbr[3] = { mat->metal, mat->rough, mat->aoStrength };
+        glUniform3fv(loc[U_MAT], 1, pbr);
+    }
+    glUniform1i(loc[U_ORM], mat->otexture != 0);
+    if (mat->otexture != 0)
+    {
+        glUniform1i(loc[U_ORMTEX], 4);
+        glActiveTexture(GL_TEXTURE4);
+        glBindTexture(GL_TEXTURE_2D, mat->otexture);
         glActiveTexture(GL_TEXTURE0);
     }
 }

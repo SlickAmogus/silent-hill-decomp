@@ -185,6 +185,8 @@ static void XaOverride_Free(void)
 extern float g_PcXaVolume;
 
 /* Start playing s_ovPcm; returns its length in ms. */
+static uint32_t StartFilePcm(unsigned char* pcm, uint32_t bytes, int rate, int stereo, int lineGap);
+
 static uint32_t StartPcm(uint16_t xaIdx, int rate, int stereo)
 {
     const uint32_t chunkBytes = XA_SECTORS_PER_BUFFER * XA_SAMPLES_PER_SECTOR * sizeof(int16_t);
@@ -362,6 +364,7 @@ static uint32_t CalculateSectorsFromDuration(uint32_t vyncFrames, int sampleRate
 
 // Initialize playback for a specific XA index
 void PcSoftwareXa_Play(uint16_t xaIdx) {
+    XaSide_Stop();
     /* Every rejection must clear the streaming-state flags:
      * Sd_XaAudioPlayTaskAdd sets xaAudioIdx_4/D_800C37DC BEFORE the task
      * pool reaches us, so bailing without the signal leaves
@@ -505,6 +508,7 @@ void PcSoftwareXa_Stop(void) {
     g_XaPlayer.isPlaying = 0;
     Pc_Lip_Stop();
     XaOverride_Free();
+    XaSide_Stop();
     /* Clear all the streaming-state flags that Sd_AudioStreamingCheck consults.
      * Skip when this Stop is the queued-Stop-before-Play in Sd_XaAudioPlayTaskAdd:
      * in that case Sd_TaskPoolExecute case 2 already preserves xaAudioIdx_4
@@ -518,6 +522,17 @@ void PcSoftwareXa_PlayWithParams(uint16_t xaIdx, uint16_t fileIdx, uint32_t sect
     (void)sectorOffset;
     (void)numSectors;
     PcSoftwareXa_Play(xaIdx);
+}
+
+static int PushFrames(const int16_t* pcm, int frames, int channels) {
+    static int16_t s_mixBuf[XA_SECTORS_PER_BUFFER * XA_SAMPLES_PER_SECTOR];
+    uint32_t mixed = XaSide_Mix(pcm, s_mixBuf, (uint32_t)frames, channels);
+    if (!PsyX_AudioPushXaFrames(mixed ? s_mixBuf : pcm, (uint32_t)frames,
+                                (uint32_t)g_XaPlayer.sampleRate, (uint32_t)channels)) {
+        return 0;
+    }
+    XaSide_Advance(mixed);
+    return 1;
 }
 
 /* Decode up to XA_SECTORS_PER_BUFFER matching sectors and queue them into the
@@ -537,8 +552,7 @@ static int FillAndQueueOne(void) {
         }
         memcpy(g_XaPlayer.pcmBuffer, s_ovPcm + s_ovPos, n);
         frames = (int)(n / (uint32_t)(channels * 2));
-        if (!PsyX_AudioPushXaFrames(g_XaPlayer.pcmBuffer, (uint32_t)frames,
-                                    (uint32_t)g_XaPlayer.sampleRate, (uint32_t)channels)) {
+        if (!PushFrames(g_XaPlayer.pcmBuffer, frames, channels)) {
             return 0;
         }
         Pc_Lip_Feed(g_XaPlayer.xaIdx, g_XaPlayer.pcmBuffer, frames, g_XaPlayer.sampleRate, channels);
@@ -589,8 +603,7 @@ static int FillAndQueueOne(void) {
 
     int channels = g_XaPlayer.isStereo ? 2 : 1;
     int frames = totalSamples / channels;
-    if (!PsyX_AudioPushXaFrames(g_XaPlayer.pcmBuffer, (uint32_t)frames,
-                                (uint32_t)g_XaPlayer.sampleRate, (uint32_t)channels)) {
+    if (!PushFrames(g_XaPlayer.pcmBuffer, frames, channels)) {
         return 0;
     }
     Pc_Lip_Feed(g_XaPlayer.xaIdx, g_XaPlayer.pcmBuffer, frames, g_XaPlayer.sampleRate, channels);
@@ -639,6 +652,17 @@ void PcSoftwareXa_Update(void) {
     Pc_Lip_Stop();
     XaOverride_Free();
     Xa_SignalPlaybackFinished();
+
+    /* A text-box file mixed into this line outlasted it: the rest plays on its own. */
+    {
+        unsigned char* pcm;
+        uint32_t       bytes;
+        int            rate, stereo;
+        if (XaSide_TakeRest(&pcm, &bytes, &rate, &stereo)) {
+            StartFilePcm(pcm, bytes, rate, stereo, 0);
+            SH_DBG("[XA] mixed file continues alone after xaIdx line ended");
+        }
+    }
 }
 
 /* True only while the voice is ACTUALLY producing audio — the true-drain
@@ -710,27 +734,12 @@ void PcSoftwareXa_SetMasterVolume(float v) {
     PsyX_AudioSetXaMasterGain((double)v);
 }
 
-int PcSoftwareXa_PlayFile(const char* path)
+/* Takes ownership of pcm. */
+static uint32_t StartFilePcm(unsigned char* pcm, uint32_t bytes, int rate, int stereo, int lineGap)
 {
-    unsigned char* pcm;
-    uint32_t       bytes, wavMs;
-    int            rate = 0, stereo = 0;
-    FILE*          probe;
-    Uint32         nowMs;
+    uint32_t wavMs;
+    Uint32   nowMs;
 
-    if (!g_PcConfig.allowLooseFiles) return 0;
-    /* A disc line still producing audio keeps the output; its pad tail (audio
-     * drained, finish signal pending) may be cut so the file can start. */
-    if (g_XaPlayer.isPlaying && g_XaPlayer.xaIdx != XA_FILE_IDX && PcSoftwareXa_IsVoiceAudioDraining()) return 0;
-    /* Existence check before Stop: a missing file must not cut a pad tail. */
-    probe = fopen(path, "rb");
-    if (!probe) return 0;
-    fclose(probe);
-
-    if (g_XaPlayer.isPlaying) {
-        PcSoftwareXa_Stop();
-    }
-    if (!XaWav_Load(path, &pcm, &bytes, &rate, &stereo)) return 0;
     XaOverride_Free();
     s_ovPcm    = pcm;
     s_ovBytes  = bytes;
@@ -739,17 +748,52 @@ int PcSoftwareXa_PlayFile(const char* path)
     wavMs = StartPcm(XA_FILE_IDX, rate, stereo);
     nowMs = SDL_GetTicks();
     s_xaPadEndMs      = nowMs + wavMs;
-    s_xaSeekEndMs     = g_PcConfig.cutsceneLineGapMs > 0 ? nowMs + (Uint32)g_PcConfig.cutsceneLineGapMs : 0;
+    s_xaSeekEndMs     = (lineGap && g_PcConfig.cutsceneLineGapMs > 0) ? nowMs + (Uint32)g_PcConfig.cutsceneLineGapMs : 0;
     /* The SPU mixes its CD input only while the serial attribute is on; the
      * game's XA task switches it on after every Play and off after every Stop
      * (sd_call.c), and this file plays outside that task. */
     SsSetSerialAttr(0, 0, 1);
+    return wavMs;
+}
+
+int PcSoftwareXa_PlayFile(const char* path)
+{
+    unsigned char* pcm;
+    uint32_t       bytes, wavMs;
+    int            rate = 0, stereo = 0;
+    FILE*          probe;
+
+    if (!g_PcConfig.allowLooseFiles) return 0;
+    /* Existence check before Stop: a missing file must not cut a pad tail. */
+    probe = fopen(path, "rb");
+    if (!probe) return 0;
+    fclose(probe);
+
+    /* A disc line still producing audio keeps playing (the box can sit over
+     * the tail of a longer stream) and the file is mixed into it; its pad
+     * tail (audio drained, finish signal pending) may be cut instead. */
+    if (g_XaPlayer.isPlaying && g_XaPlayer.xaIdx != XA_FILE_IDX && PcSoftwareXa_IsVoiceAudioDraining()) {
+        return XaSide_Start(path, g_XaPlayer.sampleRate, g_XaPlayer.isStereo);
+    }
+
+    if (g_XaPlayer.isPlaying) {
+        PcSoftwareXa_Stop();
+    }
+    if (!XaWav_Load(path, &pcm, &bytes, &rate, &stereo)) return 0;
+    wavMs = StartFilePcm(pcm, bytes, rate, stereo, 1);
     SH_DBG("[XA] file %s %s %dHz %ums", path, stereo ? "stereo" : "mono", rate, wavMs);
     return 1;
 }
 
+int PcSoftwareXa_FileAudible(void)
+{
+    if (XaSide_Active()) return 1;
+    return g_XaPlayer.xaIdx == XA_FILE_IDX && PcSoftwareXa_IsVoiceAudioDraining();
+}
+
 void PcSoftwareXa_StopFile(void)
 {
+    XaSide_Stop();
     if (g_XaPlayer.isPlaying && g_XaPlayer.xaIdx == XA_FILE_IDX) {
         SsSetSerialAttr(0, 0, 0);
         PcSoftwareXa_Stop();

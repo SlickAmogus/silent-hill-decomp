@@ -937,8 +937,7 @@ public class ControlsForm : Form
     private void KeyBox_Enter(object sender, EventArgs e)
     {
         TextBox tb = (TextBox)sender;
-        tb.Tag = tb.Text;            // remember current value
-        tb.Text = ListenPrompt;
+        tb.Text = ListenPrompt;      // the value itself stays in Tag
         tb.BackColor = Listening;
         // The click that focuses a box must not also bind as Mouse1.
         ignoreNextMouseBind = true;
@@ -948,7 +947,7 @@ public class ControlsForm : Form
     {
         TextBox tb = (TextBox)sender;
         if (tb.Text == ListenPrompt && tb.Tag != null)
-            tb.Text = (string)tb.Tag; // left without pressing a key -> restore
+            tb.Text = KeyLabel((string)tb.Tag); // left without pressing a key -> restore
         tb.BackColor = PanelBack;
         ignoreNextMouseBind = false;
     }
@@ -975,11 +974,10 @@ public class ControlsForm : Form
             return;
         }
 
-        Keys kc = ResolveSidedModifier(e.KeyCode);
-        string name;
-        if (KeyToSdl.TryGetValue(kc, out name))
+        string name = CaptureName(ResolveSidedModifier(e.KeyCode));
+        if (name != null)
         {
-            tb.Text = name;
+            tb.Text = KeyLabel(name);
             tb.Tag = name;          // so Leave keeps it
             ActiveControl = null;   // commit + stop listening
         }
@@ -1057,6 +1055,74 @@ public class ControlsForm : Form
         return k;
     }
 
+    [DllImport("user32.dll")]
+    private static extern uint MapVirtualKey(uint uCode, uint uMapType);
+
+    private const uint MAPVK_VK_TO_VSC  = 0;
+    private const uint MAPVK_VSC_TO_VK  = 1;
+    private const uint MAPVK_VK_TO_CHAR = 2;
+
+    // SDL scancode names are US-layout key positions, so a config means the same
+    // physical keys on every layout. The Keys value follows the key's label
+    // instead: on QWERTZ the key labelled Y is Keys.Y but scancode "Z" to the
+    // game. Keys whose label moves with the layout are therefore captured by
+    // their PC scancode and shown by their label on the active layout.
+    private static readonly Dictionary<uint, string> ScanToSdl = BuildScanMap();
+    private static readonly Dictionary<string, uint> SdlToScan = BuildSdlToScan();
+
+    private static Dictionary<uint, string> BuildScanMap()
+    {
+        var m = new Dictionary<uint, string>();
+        AddScanRow(m, 0x02, "1234567890-=");
+        AddScanRow(m, 0x10, "QWERTYUIOP[]");
+        AddScanRow(m, 0x1E, "ASDFGHJKL;'`");
+        AddScanRow(m, 0x2C, "ZXCVBNM,./");
+        m[0x2B] = "\\";
+        return m;
+    }
+
+    private static void AddScanRow(Dictionary<uint, string> m, uint first, string keys)
+    {
+        for (int i = 0; i < keys.Length; i++)
+            m[first + (uint)i] = keys[i].ToString();
+    }
+
+    private static Dictionary<string, uint> BuildSdlToScan()
+    {
+        var m = new Dictionary<string, uint>(StringComparer.OrdinalIgnoreCase);
+        foreach (var kv in ScanToSdl)
+            m[kv.Value] = kv.Key;
+        return m;
+    }
+
+    // Letters, top-row digits and the OEM punctuation keys. The gate matters:
+    // keypad / shares scancode 0x35 with / and would otherwise capture as it.
+    private static bool IsLayoutKey(Keys k)
+    {
+        int vk = (int)k;
+        return (vk >= 'A' && vk <= 'Z') || (vk >= '0' && vk <= '9') ||
+               (vk >= 0xBA && vk <= 0xC0) || (vk >= 0xDB && vk <= 0xDF);
+    }
+
+    private static string CaptureName(Keys k)
+    {
+        string name;
+        if (IsLayoutKey(k) && ScanToSdl.TryGetValue(MapVirtualKey((uint)k, MAPVK_VK_TO_VSC), out name))
+            return name;
+        return KeyToSdl.TryGetValue(k, out name) ? name : null;
+    }
+
+    private static string KeyLabel(string name)
+    {
+        uint sc;
+        if (string.IsNullOrEmpty(name) || !SdlToScan.TryGetValue(name, out sc))
+            return name;
+        uint vk = MapVirtualKey(sc, MAPVK_VSC_TO_VK);
+        // The top bit flags a dead key; its character is still the label.
+        uint ch = (vk != 0) ? (MapVirtualKey(vk, MAPVK_VK_TO_CHAR) & 0x7FFFFFFF) : 0;
+        return (ch > ' ') ? char.ToUpperInvariant((char)ch).ToString() : name;
+    }
+
     // --- Load / save ----------------------------------------------------
 
     private void AddStyle(string id, string label)
@@ -1131,7 +1197,7 @@ public class ControlsForm : Form
     private static void SetControlValue(Control c, string val, string fallback)
     {
         TextBox tb = c as TextBox;
-        if (tb != null) { tb.Text = val; tb.Tag = val; return; }
+        if (tb != null) { tb.Text = KeyLabel(val); tb.Tag = val; return; }
         ComboBox cb = c as ComboBox;
         if (cb != null)
         {
@@ -1150,7 +1216,8 @@ public class ControlsForm : Form
         TextBox tb = c as TextBox;
         if (tb != null)
         {
-            string v = (tb.Text == ListenPrompt) ? (tb.Tag as string ?? "") : tb.Text.Trim();
+            // Tag holds the saved name; Text is its label on the active layout.
+            string v = (tb.Tag as string ?? "").Trim();
             return v.Length == 0 ? "NONE" : v;
         }
         ComboBox cb = c as ComboBox;

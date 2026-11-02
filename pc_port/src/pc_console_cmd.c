@@ -59,7 +59,6 @@
 #include "pc_credits.h"
 #include "pc_pick.h"
 #include "pc_binds.h"
-#include "lang_text.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -519,6 +518,7 @@ static const char* const HELP_LINES[] = {
     " fmv <name|#>   play a movie (also intro1-2, end1-5)",
     " kf [n]         keyframe viewer: toggle, or view frame n",
     " playas [name]  play as another character (bare = list)",
+    " playas next / previous  cycle characters (bindable)",
     " skinini        re-read the character models' .ini files",
     " minimapnomap [0|1]  minimap before the map is found: 0 hide, 1 empty panel",
     " bind <key> <cmd>[;<cmd>...]  run console commands from a key",
@@ -1932,7 +1932,6 @@ void Pc_ConsoleExec(const char* line)
         else if (arg[0] == '0') g_PsxPgxpDepthStats = 0;
         else g_PsxPgxpDepthStats = !g_PsxPgxpDepthStats;
         cprintf("PGXP depth-channel stats dump: %s", g_PsxPgxpDepthStats ? "ON" : "OFF");
-#if defined(SH_RETROACHIEVEMENTS)
     } else if (strcmp(cmd, "RAWHY") == 0) {
         /* Dump an achievement's conditions + the values we return, to SilentHill.log. */
         extern int Pc_Ra_Why(const char*);
@@ -1955,10 +1954,6 @@ void Pc_ConsoleExec(const char* line)
         {
             cprintf("Achievement toast preview (real achievement + badge)");
         }
-/* RAWHY/RATOAST reach into pc_retroachievements.c, which compiles to nothing
- * when the rcheevos build is off (Android: no libcurl), so the commands go with
- * it rather than leaving undefined references at link. */
-#endif
     } else if (strcmp(cmd, "PGXPWORLDDEPTH") == 0) {
         /* Depth-channel kill-switch: OFF suppresses FLAT world promotion
          * (GL_ALWAYS painter + viewZ flat depth), dropping depth behavior
@@ -2059,11 +2054,22 @@ void Pc_ConsoleExec(const char* line)
         else
             g_PsxFeedbackExact = !g_PsxFeedbackExact;
         cprintf("loading trail: %s", g_PsxFeedbackExact ? "sharp (pixel-exact store)" : "soft (old filtered store)");
+    } else if (strcmp(cmd, "FBSCREEN") == 0) {
+        /* Framebuffer feedback at render resolution: 1 = the loading trail,
+         * door fade, dream overlays and soft focus read a 1:1 capture of the
+         * frame with the PS1's 5-bit arithmetic, 0 = the 320x224 VRAM store
+         * (a blocky or soft ghost under a sharp scene). Bare toggles. */
+        extern int g_PsxFeedbackScreen;
+        if (arg[0] == '0' || arg[0] == '1')
+            g_PsxFeedbackScreen = (arg[0] == '1');
+        else
+            g_PsxFeedbackScreen = !g_PsxFeedbackScreen;
+        cprintf("framebuffer feedback: %s", g_PsxFeedbackScreen ? "render resolution" : "320x224 VRAM store");
     } else if (strcmp(cmd, "FBDAMP") == 0) {
         /* Gain of the framebuffer-feedback loop that produces the door out-fade
-         * and the loading-screen trail. 0.65 = shipped; ~0.996 (255/256) is
-         * retail-length decay but diverged to a grey field last time it was
-         * tried, so it is tunable here rather than baked in. */
+         * and the loading-screen trail. 1.0 = the hardware loop (the opaque
+         * copy is identity, the 127/128 frames take one 5-bit level off); lower
+         * fades the trail faster than a PS1 does. */
         /* Second argument is the gain for a BLENDING reader (the dream
          * overlays), which is unity by default because the overlay's own 50/50
          * composite is already the decay hardware relies on. */
@@ -2406,7 +2412,12 @@ void Pc_ConsoleExec(const char* line)
         extern int         Pc_PlayAs_SetByName(const char* name, int save);
         extern int         Pc_PlayAs_Current(void);
         extern const char* Pc_PlayAs_Label(int idx);
-        if (arg[0] != '\0') {
+        if (strcasecmp(arg, "next") == 0 || strcasecmp(arg, "previous") == 0 ||
+            strcasecmp(arg, "prev") == 0) {
+            extern int Pc_PlayAs_Cycle(int step);
+            int step = toupper((unsigned char)arg[0]) == 'N' ? 1 : -1;
+            cprintf("playing as %s", Pc_PlayAs_Label(Pc_PlayAs_Cycle(step)));
+        } else if (arg[0] != '\0') {
             if (Pc_PlayAs_SetByName(arg, 1)) {
                 cprintf("playing as %s", Pc_PlayAs_Label(Pc_PlayAs_Current()));
             } else {

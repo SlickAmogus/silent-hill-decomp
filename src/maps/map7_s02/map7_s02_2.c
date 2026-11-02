@@ -15,6 +15,9 @@
 #include "maps/characters/ghost_doctor.h"
 #include "maps/characters/kaufmann.h"
 #include "maps/characters/lisa.h"
+#ifdef SH_PC_PORT
+#include "pc_mouse_cursor.h"
+#endif
 
 #include "../src/maps/chara_util.c" // 0x800D8C74
 
@@ -2394,10 +2397,21 @@ void func_800DFDDC(void) // 0x800DFDDC
         case 9:
             Event_BgTextureCmd(BgTextureCmd_Draw, 0, false);
 
+#ifdef SH_PC_PORT
+            Pc_MouseCursor_PuzzleOverride(&sharedData_800E2CA8_7_s01, &sharedData_800E2CAC_7_s01);
+            /* Stick integration was per RENDERED frame -- the cursor flew 8x
+             * faster at 240fps. Scale by dt (30fps norm), like the elevator. */
+            sharedData_800E2CA8_7_s01 += TIMESTEP_SCALE_30_FPS(g_DeltaTime, (g_Controller0->sticks_24.sticks_0.leftX * 16384) / 75);
+#else
             sharedData_800E2CA8_7_s01 += (g_Controller0->sticks_24.sticks_0.leftX * 16384) / 75;
+#endif
             sharedData_800E2CA8_7_s01  = CLAMP_RANGE(sharedData_800E2CA8_7_s01, Q12(-80.0f), Q12(80.0f));
 
+#ifdef SH_PC_PORT
+            sharedData_800E2CAC_7_s01 += TIMESTEP_SCALE_30_FPS(g_DeltaTime, (g_Controller0->sticks_24.sticks_0.leftY * 16384) / 75);
+#else
             sharedData_800E2CAC_7_s01 += (g_Controller0->sticks_24.sticks_0.leftY * 16384) / 75;
+#endif
             sharedData_800E2CAC_7_s01  = CLAMP_RANGE(sharedData_800E2CAC_7_s01, Q12(-80.0f), Q12(80.0f));
 
             Game_TimerUpdate();
@@ -3190,10 +3204,21 @@ void func_800E32E0(void) // 0x800E32E0
         case 4:
             Event_BgTextureCmd(BgTextureCmd_Draw, 0, false);
 
+#ifdef SH_PC_PORT
+            Pc_MouseCursor_PuzzleOverride(&sharedData_800E2CA8_7_s01, &sharedData_800E2CAC_7_s01);
+            /* Stick integration was per RENDERED frame -- the cursor flew 8x
+             * faster at 240fps. Scale by dt (30fps norm), like the elevator. */
+            sharedData_800E2CA8_7_s01 += TIMESTEP_SCALE_30_FPS(g_DeltaTime, (g_Controller0->sticks_24.sticks_0.leftX * 16384) / 75);
+#else
             sharedData_800E2CA8_7_s01 += (g_Controller0->sticks_24.sticks_0.leftX * 16384) / 75;
+#endif
             sharedData_800E2CA8_7_s01  = CLAMP_RANGE(sharedData_800E2CA8_7_s01, Q12(-120.0f), Q12(120.0f));
 
+#ifdef SH_PC_PORT
+            sharedData_800E2CAC_7_s01 += TIMESTEP_SCALE_30_FPS(g_DeltaTime, (g_Controller0->sticks_24.sticks_0.leftY * 16384) / 75);
+#else
             sharedData_800E2CAC_7_s01 += (g_Controller0->sticks_24.sticks_0.leftY * 16384) / 75;
+#endif
             sharedData_800E2CAC_7_s01  = CLAMP_RANGE(sharedData_800E2CAC_7_s01, Q12(-120.0f), Q12(120.0f));
 
             Game_TimerUpdate();

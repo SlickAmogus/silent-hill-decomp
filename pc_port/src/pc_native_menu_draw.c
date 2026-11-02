@@ -74,6 +74,18 @@ void Nm_TextDraw(int x, int y, int size, int color, const char* s)
     Gfx_StringsReset2dLayerIdx();
 }
 
+/* A scaled glyph is a POLY_FT4, and on a world frame (g_PsxFrame3dClass, which
+ * the in-game pause still is) PsyCross marks every POLY as world geometry and
+ * filters it with the world. Naming the strings bucket exempts it; safe here
+ * because a frame that shows a menu over the frozen capture puts no world
+ * prims in that bucket. The value persists, so the caller clears it. */
+void Nm_TextBucketMark2d(int on)
+{
+    extern int g_PsxUi2dBucket;
+
+    g_PsxUi2dBucket = on ? NM_OT_TEXT : -1;
+}
+
 void Nm_TextDrawVerbatim(int x, int y, int size, int color, const char* s)
 {
     g_PcLangMenuVerbatim = 1;

@@ -2,6 +2,7 @@
 
 #ifdef SH_PC_PORT
 #include "sh_log.h"
+#include "pc_pause_menu.h"
 #endif
 
 #include <memory.h>
@@ -129,6 +130,7 @@ void Game_WarmBoot(void) // 0x80034264
         g_PsxPresentLastFrame    = 0;
         g_PcFreezeReleasePending = 0;
     }
+    Pc_PauseMenu_Reset();
 #endif
 
     DrawSync(SyncMode_Wait);

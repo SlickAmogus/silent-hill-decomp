@@ -114,12 +114,15 @@ typedef enum _GameRegion
 {
     Region_USA = 0,
     Region_EUR = 1, /** PAL (SLES-01514). */
-    Region_JPN = 2, /** NTSC-J (SLPM-86192). Rev 1/Rev 2 (JAP1/JAP2) discs share
-                     *  the file table + overlay link base; the first print
-                     *  (JAP0) differs and is detected but not yet supported. */
+    Region_JPN = 2, /** NTSC-J (SLPM-86192). Rev 1/Rev 2 (JAP1/JAP2) share an
+                     *  overlay link base; Rev 0 (JAP0) is selected separately. */
 } e_GameRegion;
 
 extern e_GameRegion g_GameRegion;
+
+/** @brief Link base of the mounted Japanese disc's map overlays (Rev 0 differs
+ * from Rev 1/2). Selected from the boot executable, not its shared serial. */
+u32 PcPort_GetJpnOverlayLinkBase(void);
 
 /** @brief Populate g_FileTable and g_FileXaLoc for the detected disc region.
  * g_FileTable keeps the US-canonical shape/indices so every FILE_* enum

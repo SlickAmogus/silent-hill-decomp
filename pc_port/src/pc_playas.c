@@ -118,6 +118,11 @@ static int PlayAs_NameTaken(const char* name)
     return 0;
 }
 
+static int PlayAs_SwapCmp(const void* a, const void* b)
+{
+    return strcmp(((const PcPlayAsChara*)a)->name, ((const PcPlayAsChara*)b)->name);
+}
+
 static int PlayAs_Roster(void)
 {
     DIR* d;
@@ -169,6 +174,10 @@ static int PlayAs_Roster(void)
         SH_DBG("[PLAYAS] Harry swap %s -> PLAYAS %s", n, sw->name);
     }
     closedir(d);
+    /* readdir order is the filesystem's, so sort or the cycle order would
+     * differ per machine. */
+    qsort(&s_playable[PLAYAS_BUILTIN], (size_t)(s_playCount - PLAYAS_BUILTIN),
+          sizeof(s_playable[0]), PlayAs_SwapCmp);
     return s_playCount;
 }
 
@@ -864,6 +873,7 @@ int Pc_PlayAs_SetByIndex(int idx, int save)
              * into the PSX slab writes through its window. */
             s32 pump        = 0;
             s32 savedItemId = g_WorldGfxWork.heldItem.itemId;
+            s32 savedHidden = g_WorldGfxWork.heldItem.bone.modelInfo.field_0 & (1 << 31);
             s32 weaponAttack;
 
             Item_HeldItemModelFree();
@@ -882,6 +892,16 @@ int Pc_PlayAs_SetByIndex(int idx, int save)
              * directly by scene code and would be destroyed for the rest of
              * the scene. */
             WorldGfx_PlayerHeldItemSet(savedItemId);
+
+            /* Item_HeldItemModelFree cleared the hidden bit with the rest of the
+             * slot. Scenes park items there hidden: the cafe leaves the handgun
+             * Cybil hands over in Harry's slot, hidden and unequipped, and a
+             * swap afterwards put it in his hand until the inventory was next
+             * opened. */
+            if (savedHidden)
+            {
+                func_8003D03C();
+            }
 
             /* Tap-normalize the attach arg for the same +10/+20 reason; only
              * melee packs an input type (guns are ids 32+ and stay Tap). */

@@ -8,6 +8,9 @@
 #include "maps/particle.h"
 #include "maps/characters/creeper.h"
 #include "maps/characters/player.h"
+#ifdef SH_PC_PORT
+#include "pc_mouse_cursor.h"
+#endif
 
 #include "maps/shared/sharedFunc_800D929C_0_s00.h" // 0x800D10C0
 

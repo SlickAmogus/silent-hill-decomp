@@ -70,13 +70,15 @@ int Dds_BptcSupported(void)
     for (i = 0; i < n; i++)
     {
         const char* e = (const char*)glGetStringi(GL_EXTENSIONS, (GLuint)i);
-        if (e != NULL && strcmp(e, "GL_ARB_texture_compression_bptc") == 0)
+        /* GLES (ANGLE, mobile) names the same formats EXT; same enums. */
+        if (e != NULL && (strcmp(e, "GL_ARB_texture_compression_bptc") == 0 ||
+                          strcmp(e, "GL_EXT_texture_compression_bptc") == 0))
         {
             s_bptcOk = 1;
             break;
         }
     }
-    SH_DBG("[DDS] BC7 (GL_ARB_texture_compression_bptc): %s",
+    SH_DBG("[DDS] BC7 (texture_compression_bptc): %s",
            s_bptcOk ? "supported" : "NOT supported — .dds mods are decoded on the CPU");
     return s_bptcOk;
 }

@@ -417,7 +417,7 @@ void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* boneCoor
     {
         for (curBone = skel->bones_4; curBone != NULL; curBone = curBone->next)
             if (curBone->bone.modelInfo.modelHdr != NULL &&
-                Pc_SkinChara_KeepsStockPart(curBone->bone.modelInfo.modelHdr->name.str))
+                Pc_SkinChara_KeepsStockPart(skinChara, curBone->bone.modelInfo.modelHdr->name.str, (u8)curBone->bone.idx))
                 skinKeepsStock = 1;
     }
 #endif
@@ -456,7 +456,7 @@ void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* boneCoor
                 if (skinChara != NULL)
                 {
                     Pc_SkinChara_Bone(skinChara, _hb, &worldMat, &viewMat);
-                    if (!Pc_SkinChara_KeepsStockPart(curBone->bone.modelInfo.modelHdr->name.str))
+                    if (!Pc_SkinChara_KeepsStockPart(skinChara, curBone->bone.modelInfo.modelHdr->name.str, _hb))
                     {
                         if (skinKeepsStock)
                             Pc_PartFillScratch(&curBone->bone.modelInfo, &viewMat);

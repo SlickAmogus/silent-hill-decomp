@@ -24,12 +24,16 @@ extern float g_PsxWorldHScale;
  * 16:9 while the visible half is ~250 -- the additive brightness quad ended in
  * plain sight as hard-edged dark side bands (user-measured cliff at +/-223.8).
  * Same bound as the mesh cull / halo border, plus the PSX +10 edge pad. */
+/* The vfov crop is top-anchored by default (vfov anchor 0), so ALL of the extra
+ * 224*(vs-1) rows land below the projection centre, not half of them: 112*vs
+ * left the bottom ~2 lines at vfov 1.08 without brightness or fog. Sized for the
+ * worst anchor, since the quad is symmetric. */
 static s16 Pc_OverlayQuadHalfH(void)
 {
     extern float g_PsxWorldVScale, g_PsxWorldVShift;
     const float vs = (g_PsxWorldVScale > 1.0f) ? g_PsxWorldVScale : 1.0f;
     const float sh = (g_PsxWorldVShift < 0.0f) ? -g_PsxWorldVShift : g_PsxWorldVShift;
-    return (s16)(112.0f * vs + sh + 8.0f);
+    return (s16)(112.0f + 224.0f * (vs - 1.0f) + sh + 8.0f);
 }
 
 static s16 Pc_OverlayQuadHalfW(void)
@@ -64,6 +68,7 @@ static s16 Pc_OverlayQuadHalfW(void)
 #include "pc_config.h"
 #include "hires_override.h"
 #include "pc_wide_lm.h"
+#include "pc_pplit.h"
 
 /* Called above their definitions. Without a prototype in scope Clang
  * synthesises `int f()` at the call site and then rejects the real
@@ -2459,6 +2464,9 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
 
     gte_lddqa(g_WorldEnvWork.field_4C);
     gte_lddqb_0();
+#ifdef SH_PC_PORT
+    Pc_PpLit_Light(mat);
+#endif
 
     for (curMeshHdr = modelHdr->meshHdrs; curMeshHdr < &modelHdr->meshHdrs[modelHdr->meshCount]; curMeshHdr++)
     {
@@ -2484,6 +2492,11 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
                 func_80057A3C(curMeshHdr, normalOffset, scratchData, &g_WorldEnvWork.field_74);
                 break;
         }
+
+#ifdef SH_PC_PORT
+        if (g_WorldEnvWork.field_0 != 0)
+            Pc_PpLit_WorldMesh(curMeshHdr, normalOffset, mat);
+#endif
 
 #ifdef SH_PC_PORT
         {
@@ -3233,6 +3246,11 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                         gte_dpcl();
                         gte_strgb(&poly3->r3);
 #endif
+#ifdef SH_PC_PORT
+                        if (g_PsyX_PpLitActive)
+                            Pc_PpLit_WorldPrim(poly3, scratchData->field_380.s_0.field_14, scratchData->field_380.s_0.field_15,
+                                               scratchData->field_380.s_0.field_16, scratchData->field_380.s_0.field_17);
+#endif
 
                         *(s32*)&poly3->u0 = *(s32*)&prim->field_0;
                         *(s32*)&poly3->u1 = *(s32*)&prim->field_4 & 0xFFFFFF;
@@ -3452,6 +3470,11 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                     gte_ldrgb(&scratchData->field_380.s_0.field_8);
                     gte_dpcl();
                     gte_strgb(&poly3->r3);
+#endif
+#ifdef SH_PC_PORT
+                    if (g_PsyX_PpLitActive)
+                        Pc_PpLit_WorldPrim(poly3, scratchData->field_380.s_0.field_14, scratchData->field_380.s_0.field_15,
+                                           scratchData->field_380.s_0.field_16, scratchData->field_380.s_0.field_17);
 #endif
 
                     *(s32*)&poly3->u0 = *(s32*)&prim->field_0;
@@ -4449,6 +4472,9 @@ void func_8005A21C(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
 #ifndef SH_PC_PORT
     modelHdr     = modelInfo->modelHdr;
 #endif
+#ifdef SH_PC_PORT
+    Pc_PpLit_Light(mat);
+#endif
     vertOffset   = modelHdr->vertexOffset;
     normalOffset = modelHdr->normalOffset;
 
@@ -4460,6 +4486,9 @@ void func_8005A21C(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
         {
             func_8005AA08(curMeshHdr, normalOffset, (s_GteScratchData2*)scratchData);
         }
+#ifdef SH_PC_PORT
+        Pc_PpLit_CharaMesh(curMeshHdr, normalOffset, mat);
+#endif
 
         func_8005AC50(curMeshHdr, (s_GteScratchData2*)scratchData, otTag, (s32)(intptr_t)arg2);
     }
@@ -4915,6 +4944,11 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
             }
 
             poly.gt3->code = ((prim->field_6.flags >> 15) * 2) | 0x34;
+#ifdef SH_PC_PORT
+            if (g_PsyX_PpLitActive)
+                Pc_PpLit_CharaPrim(poly.gt3, scratchData->u.s_1.field_4, scratchData->u.s_1.field_5,
+                                   scratchData->u.s_1.field_6, scratchData->u.s_1.field_6);
+#endif
 
             *(s32*)&poly.gt3->u0 = *(s32*)&prim->field_0 + scratchData->u.s_1.field_8;
             *(s32*)&poly.gt3->u1 = *(s32*)&prim->field_4 & 0xFFFFFF;
@@ -5038,6 +5072,11 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
             }
 
             poly.gt4->code = ((prim->field_6.flags >> 15) * 2) | 0x3C;
+#ifdef SH_PC_PORT
+            if (g_PsyX_PpLitActive)
+                Pc_PpLit_CharaPrim(poly.gt4, scratchData->u.s_1.field_4, scratchData->u.s_1.field_5,
+                                   scratchData->u.s_1.field_6, scratchData->u.s_1.field_7);
+#endif
 
             *(s32*)&poly.gt4->u0 = *(s32*)&prim->field_0 + scratchData->u.s_1.field_8;
             *(s32*)&poly.gt4->u1 = *(s32*)&prim->field_4 & 0xFFFFFF;

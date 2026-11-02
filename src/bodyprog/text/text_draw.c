@@ -47,22 +47,30 @@ static s32 g_Strings2dLayerIdx = 6;
 static s32         s_MsgScale = Q12(1.0f);
 static s32         s_MsgAnchorY;
 
-/* One scaled message glyph. The layout is still computed at 1x; each glyph is
- * then mapped about (0, s_MsgAnchorY), which scales its size, the advance and
- * the line spacing together. A SPRT draws texels 1:1 and cannot be resized, so
- * the low-res path draws a POLY_FT4 as well, from the same packet cursor its
+/* Gfx_StringDraw size (Pc_StringScaleSet): Q12 factor applied about the
+ * string's start position. 1.0 leaves every glyph on the original path. */
+static s32 s_PcStringScale = Q12(1.0f);
+
+void Pc_StringScaleSet(s32 scale)
+{
+    s_PcStringScale = scale;
+}
+
+/* One scaled glyph. The layout is still computed at 1x; each glyph is then
+ * mapped about (ax, ay), which scales its size, the advance and the line
+ * spacing together. A SPRT draws texels 1:1 and cannot be resized, so the
+ * low-res path draws a POLY_FT4 as well, from the same packet cursor its
  * SPRTs would have used. Its UVs match the high-res FT4 the game already emits. */
-static void Pc_MsgGlyphQuad(GsOT* ot, PACKET** lowResPacket, s32 x, s32 y,
-                            u32 u, u32 v, u32 clut, u32 page, u32 color)
+static void Pc_ScaledGlyphQuad(GsOT* ot, PACKET** lowResPacket, s32 ax, s32 ay, s32 scale,
+                               s32 x, s32 y, u32 u, u32 v, u32 clut, u32 page, u32 color)
 {
     bool      hiRes = g_SysWork.enableHighResGlyphs;
     POLY_FT4* poly  = (POLY_FT4*)(hiRes ? GsOUT_PACKET_P : *lowResPacket);
     s32       yMul  = hiRes ? 2 : 1;
-    s32       ay    = s_MsgAnchorY * yMul;
-    s32       x0    = (x * s_MsgScale) >> 12;
-    s32       y0    = ay + (((y * yMul) - ay) * s_MsgScale >> 12);
-    s32       w     = (FONT_12X16_GLYPH_SIZE_X * s_MsgScale) >> 12;
-    s32       h     = ((hiRes ? g_FontLayout->hiResGlyphBottom : 15) * s_MsgScale) >> 12;
+    s32       x0    = ax + (((x - ax) * scale) >> 12);
+    s32       y0    = (ay * yMul) + (((y - ay) * yMul * scale) >> 12);
+    s32       w     = (FONT_12X16_GLYPH_SIZE_X * scale) >> 12;
+    s32       h     = ((hiRes ? g_FontLayout->hiResGlyphBottom : 15) * scale) >> 12;
 
     setPolyFT4(poly);
     setRGB0(poly, (s8)color, (s8)(color >> 8), (s8)(color >> 16));
@@ -78,6 +86,13 @@ static void Pc_MsgGlyphQuad(GsOT* ot, PACKET** lowResPacket, s32 x, s32 y,
         GsOUT_PACKET_P = (PACKET*)poly + sizeof(POLY_FT4);
     else
         *lowResPacket = (PACKET*)poly + sizeof(POLY_FT4);
+}
+
+/* Message glyphs are laid out about x = 0 (lines are centred there). */
+static void Pc_MsgGlyphQuad(GsOT* ot, PACKET** lowResPacket, s32 x, s32 y,
+                            u32 u, u32 v, u32 clut, u32 page, u32 color)
+{
+    Pc_ScaledGlyphQuad(ot, lowResPacket, 0, s_MsgAnchorY, s_MsgScale, x, y, u, v, clut, page, color);
 }
 
 /* DISABLED, and it must stay disabled until the exemption can name primitives
@@ -360,6 +375,8 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
 #ifdef SH_PC_PORT
     s32       cutL;
     s32       cutR;
+    s32       posX0;
+    s32       posY0;
 #endif
 
     // Create local argument copies.
@@ -379,6 +396,10 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
     // Set base screen position.
     posX = g_StringPosition.vx;
     posY = g_StringPosition.vy;
+#ifdef SH_PC_PORT
+    posX0 = posX;
+    posY0 = posY;
+#endif
 
     glyphColor = STRING_COLORS[g_StringColorId];
     ot         = &g_OtTags0[g_ActiveBufferIdx][g_Strings2dLayerIdx];
@@ -435,7 +456,12 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
             if (Pc_GlyphClip(posX, &cutL, &cutR) &&
                 Pc_KanjiCell((u16)(((u32)charCode << 8) | strCpy[1]), &kPage, &kU, &kV, &kClut))
             {
-                if (g_SysWork.enableHighResGlyphs)
+                if (s_PcStringScale != Q12(1.0f))
+                {
+                    Pc_ScaledGlyphQuad(ot, &packet, posX0, posY0, s_PcStringScale, posX, posY,
+                                       (u32)kU, (u32)kV, (u32)kClut, kPage, glyphColor);
+                }
+                else if (g_SysWork.enableHighResGlyphs)
                 {
                     glyphPoly = (POLY_FT4*)GsOUT_PACKET_P;
 
@@ -524,7 +550,12 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
                 }
 
                 // Draw glyph sprite.
-                if (g_SysWork.enableHighResGlyphs)
+                if (s_PcStringScale != Q12(1.0f))
+                {
+                    Pc_ScaledGlyphQuad(ot, &packet, posX0, posY0, s_PcStringScale, posX, drawY, (u32)u0, (u32)vTop,
+                                       (u32)g_FontLayout->packedClut, page, glyphColor);
+                }
+                else if (g_SysWork.enableHighResGlyphs)
                 {
                     glyphPoly = (POLY_FT4*)GsOUT_PACKET_P;
 

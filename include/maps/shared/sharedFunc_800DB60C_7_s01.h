@@ -82,10 +82,21 @@ void sharedFunc_800DB60C_7_s01(void)
         case 4:
             Event_BgTextureCmd(BgTextureCmd_Draw, 0, false);
 
+#ifdef SH_PC_PORT
+            Pc_MouseCursor_PuzzleOverride(&sharedData_800E2CA8_7_s01, &sharedData_800E2CAC_7_s01);
+            /* Stick integration was per RENDERED frame -- the cursor flew 8x
+             * faster at 240fps. Scale by dt (30fps norm), like the elevator. */
+            sharedData_800E2CA8_7_s01 += TIMESTEP_SCALE_30_FPS(g_DeltaTime, (g_Controller0->sticks_24.sticks_0.leftX << 13) / 75);
+#else
             sharedData_800E2CA8_7_s01 += (g_Controller0->sticks_24.sticks_0.leftX << 13) / 75;
+#endif
             sharedData_800E2CA8_7_s01  = CLAMP_RANGE(sharedData_800E2CA8_7_s01, Q12(-115.0f), Q12(115.0f));
 
+#ifdef SH_PC_PORT
+            sharedData_800E2CAC_7_s01 += TIMESTEP_SCALE_30_FPS(g_DeltaTime, (g_Controller0->sticks_24.sticks_0.leftY << 13) / 75);
+#else
             sharedData_800E2CAC_7_s01 += (g_Controller0->sticks_24.sticks_0.leftY << 13) / 75;
+#endif
             sharedData_800E2CAC_7_s01  = CLAMP_RANGE(sharedData_800E2CAC_7_s01, Q12(-105.0f), Q12(105.0f));
 
             Game_TimerUpdate();

@@ -123,3 +123,123 @@ int XaWav_Load(const char* path, unsigned char** outPcm, uint32_t* outBytes, int
     *outStereo = (channels == 2);
     return 1;
 }
+
+/* A text-box voice file mixed into a disc line that is still producing audio
+ * (map1_s02: Harry's thoughts appear over the tail of Cheryl's stream). Held
+ * in the stream's own rate and channel count so it adds sample for sample. */
+static int16_t* s_sidePcm    = NULL;
+static uint32_t s_sideFrames = 0;
+static uint32_t s_sidePos    = 0;
+static int      s_sideRate   = 0;
+static int      s_sideStereo = 0;
+
+void XaSide_Stop(void)
+{
+    free(s_sidePcm);
+    s_sidePcm    = NULL;
+    s_sideFrames = 0;
+    s_sidePos    = 0;
+}
+
+int XaSide_Start(const char* path, int rate, int stereo)
+{
+    unsigned char* pcm;
+    uint32_t       bytes, inFrames, outFrames, i;
+    int            inRate = 0, inStereo = 0;
+    int            inCh, outCh = stereo ? 2 : 1;
+    int16_t*       in;
+    int16_t*       out;
+
+    if (rate <= 0 || !XaWav_Load(path, &pcm, &bytes, &inRate, &inStereo)) return 0;
+    inCh      = inStereo ? 2 : 1;
+    in        = (int16_t*)pcm;
+    inFrames  = bytes / (uint32_t)(inCh * 2);
+    outFrames = (uint32_t)(((uint64_t)inFrames * (uint32_t)rate) / (uint32_t)inRate);
+    out       = (int16_t*)malloc((size_t)outFrames * (size_t)outCh * 2 + 2);
+    if (!out || inFrames == 0) { free(out); free(pcm); return 0; }
+    for (i = 0; i < outFrames; i++)
+    {
+        uint64_t srcPos = (uint64_t)i * (uint32_t)inRate;
+        uint32_t idx    = (uint32_t)(srcPos / (uint32_t)rate);
+        int64_t  frac   = (int64_t)(srcPos % (uint32_t)rate);
+        uint32_t nxt    = (idx + 1 < inFrames) ? idx + 1 : idx;
+        int      c;
+        for (c = 0; c < outCh; c++)
+        {
+            int a, b;
+            if (inCh == outCh)
+            {
+                a = in[idx * inCh + c];
+                b = in[nxt * inCh + c];
+            }
+            else if (inCh == 1)
+            {
+                a = in[idx];
+                b = in[nxt];
+            }
+            else
+            {
+                a = (in[idx * 2] + in[idx * 2 + 1]) / 2;
+                b = (in[nxt * 2] + in[nxt * 2 + 1]) / 2;
+            }
+            out[i * outCh + c] = (int16_t)(a + (int)(((int64_t)(b - a) * frac) / rate));
+        }
+    }
+    free(pcm);
+    XaSide_Stop();
+    s_sidePcm    = out;
+    s_sideFrames = outFrames;
+    s_sideRate   = rate;
+    s_sideStereo = stereo;
+    SH_DBG("[XA] file %s mixed over the playing line (%ums)", path,
+           (unsigned)(((uint64_t)outFrames * 1000u) / (uint32_t)rate));
+    return 1;
+}
+
+int XaSide_Active(void)
+{
+    return s_sidePcm != NULL && s_sidePos < s_sideFrames;
+}
+
+uint32_t XaSide_Mix(const int16_t* src, int16_t* dst, uint32_t frames, int channels)
+{
+    uint32_t n, i;
+    int      c;
+
+    if (!XaSide_Active() || channels != (s_sideStereo ? 2 : 1)) return 0;
+    n = s_sideFrames - s_sidePos;
+    if (n > frames) n = frames;
+    memcpy(dst, src, (size_t)frames * (size_t)channels * 2);
+    for (i = 0; i < n; i++)
+    {
+        for (c = 0; c < channels; c++)
+        {
+            int v = dst[i * channels + c] + s_sidePcm[(s_sidePos + i) * channels + c];
+            dst[i * channels + c] = (int16_t)(v > 32767 ? 32767 : (v < -32768 ? -32768 : v));
+        }
+    }
+    return n;
+}
+
+void XaSide_Advance(uint32_t frames)
+{
+    s_sidePos += frames;
+    if (s_sidePos > s_sideFrames) s_sidePos = s_sideFrames;
+}
+
+int XaSide_TakeRest(unsigned char** outPcm, uint32_t* outBytes, int* outRate, int* outStereo)
+{
+    int      ch = s_sideStereo ? 2 : 1;
+    uint32_t bytes;
+
+    if (!XaSide_Active()) return 0;
+    bytes   = (s_sideFrames - s_sidePos) * (uint32_t)ch * 2;
+    *outPcm = (unsigned char*)malloc(bytes);
+    if (!*outPcm) { XaSide_Stop(); return 0; }
+    memcpy(*outPcm, s_sidePcm + (size_t)s_sidePos * (size_t)ch, bytes);
+    *outBytes  = bytes;
+    *outRate   = s_sideRate;
+    *outStereo = s_sideStereo;
+    XaSide_Stop();
+    return 1;
+}

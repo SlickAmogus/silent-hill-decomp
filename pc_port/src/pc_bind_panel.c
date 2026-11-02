@@ -128,13 +128,15 @@ static const char* bp_pretty_key(const char* v)
         { "Mouse4", "Mouse 4" },      { "Mouse5", "Mouse 5" },
         { "MouseWheelUp", "Wheel Up" }, { "MouseWheelDown", "Wheel Down" },
     };
+    static char label[64];
     int i;
     for (i = 0; i < (int)(sizeof(map) / sizeof(map[0])); i++)
     {
         if (SDL_strcasecmp(v, map[i].id) == 0)
             return Pc_LangQuick(map[i].name);
     }
-    return v;
+    BindInput_KeyLabel(v, label, sizeof(label));
+    return label;
 }
 
 /* Labels as printed on the connected pad: PlayStation symbols for Sony pads,
