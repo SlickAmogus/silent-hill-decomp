@@ -3068,6 +3068,52 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                      * original path set — classic is not this shim's business. */
                 }
 
+                /* Katana lunge. Retail's Player_LowerBodyUpdate (case Attack)
+                 * steps the stab forward through moveSpeed, and the alternate
+                 * cameras never run that machine, so the katana stood still in
+                 * all of them. Same numbers and triggers: the tap stab on its
+                 * first Attack tick (stateStep 0, which nothing else advances
+                 * here), the hold thrust once the swing passes its hit
+                 * keyframe; 0x444 per tick in Attack, the aim rate after. */
+                if (g_DebugThirdPersonCam)
+                {
+                    static q19_12 s_pcKatanaLunge = Q12(0.0f);
+                    int inAttack = (extra->lowerBodyState == PlayerLowerBodyState_Attack);
+                    s32 wa       = g_SysWork.playerCombat.weaponAttack;
+
+                    if (inAttack && wa < WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap) &&
+                        WEAPON_ATTACK_ID_GET(wa) == EquippedWeaponId_Katana)
+                    {
+                        if (wa == WEAPON_ATTACK(EquippedWeaponId_Katana, AttackInputType_Hold))
+                        {
+                            if (s_pcKatanaLunge == Q12(0.0f) &&
+                                extra->model.anim.keyframeIdx >= D_800C44F0[D_800AF220].field_4 + 7)
+                            {
+                                s_pcKatanaLunge = Q12(5.0f);
+                            }
+                        }
+                        else if (player->model.stateStep == 0 && !g_Player_IsAttacking)
+                        {
+                            s_pcKatanaLunge = Q12(5.0f);
+                        }
+                        if (player->model.stateStep == 0)
+                        {
+                            player->model.stateStep++;
+                        }
+                    }
+
+                    if (s_pcKatanaLunge != Q12(0.0f))
+                    {
+                        s_pcKatanaLunge -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, inAttack ? 0x444 : Q12(0.4f));
+                        if (s_pcKatanaLunge < Q12(0.0f))
+                        {
+                            s_pcKatanaLunge = Q12(0.0f);
+                        }
+                        D_800C4550            = s_pcKatanaLunge;
+                        g_Player_HeadingAngle = Q12_ANGLE(0.0f);
+                    }
+                }
+
                 /* Trigger footstep sounds based on animation keyframes.
                  * Save/restore D_800C4550 because func_8007B924 overwrites it
                  * with moveDistance which isn't set on PC. */

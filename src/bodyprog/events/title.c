@@ -114,7 +114,7 @@ static s32 MainMenu_RowY(void)
 
 /* The Exit prompt is drawn with the rows' own Gfx_String path, not the native
  * menu font, so it keeps the title's vertically squashed glyphs. The question
- * takes the first row's place and the answers the row below it. */
+ * takes OPTION's row and the answers the row below it. */
 #define MAINMENU_COLUMN_X 158
 
 static const char* const s_ExitConfirmLabels[2] = { "YES", "NO" };
@@ -122,8 +122,18 @@ static const s32         s_ExitConfirmCx[2]     = { MAINMENU_COLUMN_X - 40, MAIN
 
 static s32 MainMenu_ExitConfirmY(void)
 {
+    s32 i;
+
     MainMenu_LayoutSync();
-    return MainMenu_RowY() + (Nm_SlotBase(s_MainMenu_RowCount, MAINMENU_WINDOW_SLOTS) * MAINMENU_ROW_PITCH);
+    for (i = 0; i < s_MainMenu_RowCount; i++)
+    {
+        if (s_MainMenu_Order[i] == MainMenuEntry_Option)
+        {
+            break;
+        }
+    }
+    return MainMenu_RowY() +
+           ((Nm_SlotBase(s_MainMenu_RowCount, MAINMENU_WINDOW_SLOTS) + i - s_MainMenu_Scroll.top) * MAINMENU_ROW_PITCH);
 }
 
 static s32 MainMenu_TextWidth(const char* str)

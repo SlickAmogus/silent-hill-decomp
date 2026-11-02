@@ -25,6 +25,8 @@ extern void PsyX_SPUAL_SetKeyOnMasterExempt(int on);
 #define PM_CONFIRM_Y 104
 #define PM_ANSWER_DY 24
 #define PM_TEXT_H    16
+/* The rows under PAUSED; the heading and the confirm prompt stay full size. */
+#define PM_ROW_SCALE Q12(0.75f)
 
 static const char* const s_RowLabels[PM_ROW_COUNT] = { "CONTINUE", "QUICK_MENU", "SAVE", "LOAD", "OPTION", "EXIT" };
 static const char* const s_AnswerLabels[2]         = { "YES", "NO" };
@@ -42,24 +44,33 @@ static int    s_quickMenuPending;
 /* SAVE, LOAD or EXIT -> Yes chosen; carried out once the fade-out is black. */
 static PmAction s_fadeAct;
 
-/* Centred the way MainMenu_MainTextDraw centres the title rows. */
-static int MarkedLabelX(int cx, const char* label)
+static int Scaled(int v, s32 scale)
 {
-    return cx - ((Nm_TextWidth(label) + Nm_TextWidth("[")) / 2);
+    return (v * scale) >> 12;
 }
 
-static void MarkedLabelDraw(int cx, int y, int color, const char* label, int sel)
+/* Centred the way MainMenu_MainTextDraw centres the title rows. */
+static int MarkedLabelX(int cx, const char* label, s32 scale)
+{
+    return cx - (Scaled(Nm_TextWidth(label) + Nm_TextWidth("["), scale) / 2);
+}
+
+/* Each string scales about its own start, so the starts are laid out from
+ * the scaled widths. */
+static void MarkedLabelDraw(int cx, int y, int color, const char* label, int sel, s32 scale)
 {
     const char* mark = sel ? "[" : "_";
-    int         x    = MarkedLabelX(cx, label);
+    int         x    = MarkedLabelX(cx, label, scale);
 
+    Pc_StringScaleSet(scale);
     Nm_TextDraw(x, y, NM_TEXT_TALL, color, mark);
-    x += Nm_TextWidth(mark);
+    x += Scaled(Nm_TextWidth(mark), scale);
     Nm_TextDraw(x, y, NM_TEXT_TALL, color, label);
     if (sel)
     {
-        Nm_TextDraw(x + Nm_TextWidth(label), y, NM_TEXT_TALL, color, "]");
+        Nm_TextDraw(x + Scaled(Nm_TextWidth(label), scale), y, NM_TEXT_TALL, color, "]");
     }
+    Pc_StringScaleSet(Q12(1.0f));
 }
 
 void Pc_PauseMenu_ConfirmDraw(const char* question, int yes, int y)
@@ -70,7 +81,7 @@ void Pc_PauseMenu_ConfirmDraw(const char* question, int yes, int y)
     for (i = 0; i < 2; i++)
     {
         MarkedLabelDraw(s_AnswerCx[i], y + PM_ANSWER_DY, StringColorId_White, s_AnswerLabels[i],
-                        (i == 0) ? (yes != 0) : (yes == 0));
+                        (i == 0) ? (yes != 0) : (yes == 0), Q12(1.0f));
     }
 }
 
@@ -86,7 +97,7 @@ int Pc_PauseMenu_ConfirmHover(const NmInput* in, int y)
     for (i = 0; i < 2; i++)
     {
         const char* label = s_AnswerLabels[i];
-        int         x     = MarkedLabelX(s_AnswerCx[i], label);
+        int         x     = MarkedLabelX(s_AnswerCx[i], label, Q12(1.0f));
         int         w     = Nm_TextWidth("[") + Nm_TextWidth(label) + Nm_TextWidth("]");
 
         if (in->mouseX >= x && in->mouseX < x + w)
@@ -178,7 +189,7 @@ static void PauseMenu_Draw(void)
     {
         MarkedLabelDraw(160, PM_ROW_Y + (i * PM_ROW_PITCH),
                         (mask & (1u << i)) ? StringColorId_White : StringColorId_DarkGrey,
-                        s_RowLabels[i], i == s_menu.sel);
+                        s_RowLabels[i], i == s_menu.sel, PM_ROW_SCALE);
     }
 }
 

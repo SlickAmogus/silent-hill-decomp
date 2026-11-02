@@ -5,6 +5,9 @@
 #include <psyq/strings.h>
 
 #include "bodyprog/bodyprog.h"
+#ifdef SH_PC_PORT
+#include "bodyprog/player.h" /* the pickup freeze keeps Harry's body states; not self-contained, after bodyprog.h */
+#endif
 #include "bodyprog/events/bodyprog_data_800A99B4.h"
 #include "bodyprog/events/events_util.h"
 #include "bodyprog/screen/screen_data.h"
@@ -1123,6 +1126,9 @@ void Event_ItemTake(e_InvItemId itemId, s32 itemCount, e_EventFlag eventFlagIdx,
     s32 mapMsgIdxCpy = mapMsgIdx;
 
 #ifdef SH_PC_PORT
+    static s32 s_pcFreezeState, s_pcFreezeLower, s_pcFreezeUpper;
+    static s32 s_pcFreezeStep[2], s_pcFreezeCtrl[2];
+
     /* Randomizer: rewrite this world pickup into a healing item, a weapon the
      * player lacks, or ammo for a gun they carry. Keyed on eventFlagIdx (which
      * uniquely identifies the pickup) and cached, because this function is a
@@ -1161,6 +1167,23 @@ void Event_ItemTake(e_InvItemId itemId, s32 itemCount, e_EventFlag eventFlagIdx,
     switch (g_SysWork.sysStateSteps[1])
     {
         case EventState_Initialize:
+#ifdef SH_PC_PORT
+            /* Player_ControlFreeze/Unfreeze zero both models' stateStep, and
+             * the lower-body None case restarts the Idle anim from its first
+             * keyframe on stateStep 0. Retail's world ran live through the
+             * prompt, so that restart was one more change in a moving scene;
+             * here the room behind the prompt is a capture of the pose Harry
+             * had when it opened, and the restart showed as a hop between
+             * that capture and the first live frame. Carry the sub-states
+             * across the freeze so he resumes from the captured pose. */
+            s_pcFreezeState = g_SysWork.playerWork.extra.state;
+            s_pcFreezeLower = g_SysWork.playerWork.extra.lowerBodyState;
+            s_pcFreezeUpper = g_SysWork.playerWork.extra.upperBodyState;
+            s_pcFreezeStep[0] = g_SysWork.playerWork.player.model.stateStep;
+            s_pcFreezeStep[1] = g_SysWork.playerWork.extra.model.stateStep;
+            s_pcFreezeCtrl[0] = g_SysWork.playerWork.player.model.controlState;
+            s_pcFreezeCtrl[1] = g_SysWork.playerWork.extra.model.controlState;
+#endif
             // Freeze player and start loading item model.
             g_MapOverlayHdr.playerControlFreeze();
             Event_InvItemCmd(InvItemCmd_QueueLoad, itemId, 0, false);
@@ -1221,6 +1244,20 @@ void Event_ItemTake(e_InvItemId itemId, s32 itemCount, e_EventFlag eventFlagIdx,
 
             // Restore player control.
             g_MapOverlayHdr.playerControlUnfreeze(false);
+#ifdef SH_PC_PORT
+            /* Plain standing or walking only; anything else keeps retail's
+             * reset. Unfreeze set the state itself back to None. */
+            if (s_pcFreezeState == PlayerState_None &&
+                s_pcFreezeUpper == PlayerUpperBodyState_None &&
+                s_pcFreezeLower <= PlayerLowerBodyState_RunLeft)
+            {
+                g_SysWork.playerWork.extra.lowerBodyState     = (e_PlayerLowerBodyState)s_pcFreezeLower;
+                g_SysWork.playerWork.player.model.stateStep    = s_pcFreezeStep[0];
+                g_SysWork.playerWork.extra.model.stateStep     = s_pcFreezeStep[1];
+                g_SysWork.playerWork.player.model.controlState = s_pcFreezeCtrl[0];
+                g_SysWork.playerWork.extra.model.controlState  = s_pcFreezeCtrl[1];
+            }
+#endif
             SysWork_StateSetNext(SysState_Gameplay);
             break;
     }

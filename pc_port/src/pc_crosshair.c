@@ -125,6 +125,10 @@ void Pc_CrosshairDraw(void)
      * unless crosshair_fps_aim_only is set, which makes it aim-only too. */
     if (!g_SysWork.playerCombat.isAiming &&
         (g_ControlStyle != ControlStyle_Fps || g_PcConfig.crosshairFpsAimOnly)) return;
+    /* Guns pack as id + inputType * 10 from Handgun/Tap up; everything below
+     * that (melee, unarmed, NO_VALUE) has nothing to aim. */
+    if (g_PcConfig.crosshairHideMelee &&
+        g_SysWork.playerCombat.weaponAttack < WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap)) return;
 
     if (!s_inited)
     {

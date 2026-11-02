@@ -573,6 +573,10 @@ typedef struct {
      * pushed along the last hit. Stock models are never affected.
      * (config key: ragdoll) */
     int ragdoll;
+
+    /* 1 = no crosshair while a melee weapon, or nothing, is equipped, in every
+     * camera; guns keep it. (config key: crosshair_hide_melee) */
+    int crosshairHideMelee;
 } s_PcConfig;
 
 extern s_PcConfig g_PcConfig;
