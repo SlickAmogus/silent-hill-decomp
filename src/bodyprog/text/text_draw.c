@@ -275,6 +275,15 @@ void Gfx_StringSetColor(s16 colorId) // 0x8004A8DC
     g_StringColorId = colorId;
 }
 
+#ifdef SH_XBOX_PORT
+/* The colour persists between draws and some screens inherit it (Controller
+ * Config's presets pane), so overlay text drawn after the game's restores it. */
+s16 Gfx_StringColorGet(void)
+{
+    return g_StringColorId;
+}
+#endif
+
 bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
 {
     #define WIDE_SPACE_SIZE 10

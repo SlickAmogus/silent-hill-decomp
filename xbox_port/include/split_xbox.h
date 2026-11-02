@@ -87,6 +87,12 @@ int  Split_PacedVSync(int* vblanks, int* prevVblanks); /* game_main.c pacing: 1 
 int  Split_DeathHold(void);                /* 1 = hold instead of the game over */
 int  Split_DeathHolding(void);
 
+/* HUD (pc_minimap.c): when this frame shows two views, player p's view as a
+ * rect in OT2 prim coordinates {left, right, top, bottom}, its size against the
+ * whole frame (Q12) and that player; 0 when it shows one view. */
+struct _SubCharacter;
+int  Split_HudView(int p, int rect[4], int* scaleQ12, struct _SubCharacter** chara);
+
 #ifdef __cplusplus
 }
 #endif

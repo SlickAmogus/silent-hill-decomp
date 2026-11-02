@@ -9,6 +9,7 @@
  */
 #include <stdio.h>
 #include <stdlib.h>   /* atoi (per-run log index) */
+#include <string.h>
 #include <xboxkrnl/xboxkrnl.h>
 
 #include "sh_log.h"
@@ -26,7 +27,94 @@ void (*g_ShOverlayPushLine)(const char*) = NULL;
  * are deliberately NOT in the list, so they always log. */
 int g_XboxLogDiag = 0;
 
+/* Log 078 ran 260 MB (4.4 M lines) over a session left paused for days with
+ * log_diag=1: 3.2 M [BIGPRIM] lines, and every periodic summary kept coming
+ * while nothing happened. So: the per-prim / per-collision floods need
+ * log_diag=2; the periodic summaries stop while the game is idle (a held frame
+ * -- pause, message, pickup -- or no button pressed for IDLE_MS); and the file
+ * has a ceiling: past CAP_QUIET it logs as log_diag=0, past CAP_STOP only
+ * crash reports. Sh_LogCheck (from the ~1 s flush) keeps these states. */
+#define IDLE_MS   (2u * 60u * 1000u)
+#define CAP_QUIET (40L * 1024L * 1024L)
+#define CAP_STOP  (80L * 1024L * 1024L)
+
+static int s_logIdle;
+static int s_logCap; /* 0 open, 1 quiet, 2 crash reports only */
+
+static int Sh_LogPrefix(const char* fmt, const char* const* list, int n)
+{
+    int i;
+
+    for (i = 0; i < n; i++)
+    {
+        const char* g = list[i];
+        const char* f = fmt;
+
+        while (*g && *g == *f) { g++; f++; }
+        if (*g == '\0')
+            return 1;
+    }
+    return 0;
+}
+
+static const char* const FLOODS[] = {
+    "[BIGPRIM]", "[COLL-MISS]", "[WALL-HIT]", "[WALLANIM]", "[FLEX]", "[WALLSTOP]",
+};
+
+static const char* const PERIODIC[] = {
+    "[FT]", "[OTT]", "[OTS]", "[ABR]", "[FOGPAD]", "[FOGST]", "[UIDIAG]", "[UPD]", "[UPD2]",
+    "[CHNK]", "[MEM]", "[PERF]", "[SH-XBOX] vblank", "[NV2A] vertex pool", "[SH_AUDIO] pump",
+    "[SH_AUDIO] ring underrun", "[SPLIT] %d frames", "[SLOWFRAME]", "[POST]", "[RA] http", "[NET]",
+};
+
+static int Sh_LogAllowEx(const char* fmt);
+
 int Sh_LogAllow(const char* fmt)
+{
+    if (!fmt)
+        return 1;
+    if (s_logCap >= 2)
+        return strncmp(fmt, "[FATAL]", 7) == 0;
+    if (fmt[0] == '[')
+    {
+        if (Sh_LogPrefix(fmt, FLOODS, (int)(sizeof(FLOODS) / sizeof(FLOODS[0]))) && g_XboxLogDiag < 2)
+            return 0;
+        if (s_logIdle && Sh_LogPrefix(fmt, PERIODIC, (int)(sizeof(PERIODIC) / sizeof(PERIODIC[0]))))
+            return 0;
+    }
+    return Sh_LogAllowEx(fmt);
+}
+
+/* The ~1 s flush: idle state and the size ceiling. */
+static void Sh_LogCheck(void)
+{
+    extern int      g_PsxPresentLastFrame;
+    extern unsigned g_XbPadLastActivityMs;
+    const unsigned  now  = (unsigned)KeTickCount;
+    const int       idle = g_PsxPresentLastFrame || (now - g_XbPadLastActivityMs) >= IDLE_MS;
+    long            size;
+
+    if (idle != s_logIdle)
+    {
+        s_logIdle = 0;
+        SH_DBG("[LOG] %s", idle ? "idle: periodic summaries paused" : "active: periodic summaries resumed");
+        s_logIdle = idle;
+    }
+
+    size = ftell(g_ShDebugLog);
+    if (s_logCap < 1 && size >= CAP_QUIET)
+    {
+        SH_DBG("[LOG] %ld MB: diagnostics off for the rest of this run", size >> 20);
+        s_logCap = 1;
+    }
+    if (s_logCap < 2 && size >= CAP_STOP)
+    {
+        SH_DBG("[LOG] %ld MB: only crash reports from here", size >> 20);
+        s_logCap = 2;
+    }
+}
+
+static int Sh_LogAllowEx(const char* fmt)
 {
     static const char* const GATED[] = {
         "[SH_AUDIO]", "[SH_BGM]", "[UIDIAG]", "[UPD]", "[UPD2]", "[POST]",
@@ -52,7 +140,7 @@ int Sh_LogAllow(const char* fmt)
          * per-window summaries, not per-frame floods. */
     };
     int i;
-    if (g_XboxLogDiag)          return 1;   /* diag on: keep everything */
+    if (g_XboxLogDiag && !s_logCap) return 1; /* diag on: keep everything */
     if (!fmt || fmt[0] != '[')  return 1;   /* non-tagged line: keep */
     for (i = 0; i < (int)(sizeof(GATED) / sizeof(GATED[0])); i++) {
         const char* g = GATED[i];
@@ -134,7 +222,10 @@ void SH_DebugLogInit(void)
 void SH_DebugLogFlush(void)
 {
     if (g_ShDebugLog)
+    {
+        Sh_LogCheck();
         fflush(g_ShDebugLog);
+    }
 }
 
 /* Heap-headroom probe. The reformat leak fixes should keep free RAM roughly flat

@@ -33,7 +33,10 @@ int       g_PsxAspectRaw         = 0;
 float     g_PsxWorldDisp[2]      = { 0.0f, 0.0f };
 float     g_PsxWorldOrtho[4]     = { 0.0f, 0.0f, 0.0f, 0.0f };
 int       g_PsxWorldOrthoValid   = 0;
-float     g_PcHudRect[4]         = { 0.0f, 0.0f, 0.0f, 0.0f };
+/* The OT2 layer's visible rect in prim coordinates {left, right, top, bottom}:
+ * the in-game 320x224 frame around its centre, the rect PsyCross latches at
+ * 4:3. The minimap places itself against it; zeros put it in mid-screen. */
+float     g_PcHudRect[4]         = { -160.0f, 160.0f, -112.0f, 112.0f };
 float     g_PcWorldOrthoRect[4]  = { 0.0f, 0.0f, 0.0f, 0.0f };
 int       g_PsxFrame3dClass      = 0;
 int       g_PsxItemTakeActive    = 0;

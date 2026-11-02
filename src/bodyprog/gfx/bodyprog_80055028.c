@@ -1,5 +1,9 @@
 #include "game.h"
 #include "inline_no_dmpsx.h"
+#ifdef SH_XBOX_PORT
+#include <stdint.h>
+#include <string.h>
+#endif
 #ifdef SH_PC_PORT
 #include "pc_config.h"
 /* The pixel aspect the renderer is really using (PsyX_render.cpp). NOT
@@ -2281,6 +2285,78 @@ static void CharaPrimProbe_Note(const s_ModelInfo* modelInfo, const char* what)
 int g_PcCharaGhostDraw = 0;
 #endif
 
+#ifdef SH_XBOX_PORT
+/* Data the game can point at lives in the image, the heap or contiguous memory:
+ * never the first 64 KB or the stack/kernel range at the top. */
+static int Xb_DataPtrOk(const void* p)
+{
+    const uintptr_t a = (uintptr_t)p;
+
+    return a >= 0x10000u && a < 0xD0000000u;
+}
+
+static int Xb_ModelSane(const s_ModelInfo* modelInfo, void* caller)
+{
+    static const void* s_seen[8];
+    static int         s_seenCount;
+    const s_ModelHeader* hdr = modelInfo->modelHdr;
+    const s_MeshHeader*  m;
+    const s_MeshHeader*  bad = NULL;
+    int                  i;
+
+    if (!Xb_DataPtrOk(hdr->meshHdrs))
+    {
+        bad = hdr->meshHdrs;
+    }
+    else
+    {
+        for (m = hdr->meshHdrs; m < &hdr->meshHdrs[hdr->meshCount]; m++)
+        {
+            if ((m->primitiveCount && !Xb_DataPtrOk(m->primitives)) ||
+                (m->vertexCount && (!Xb_DataPtrOk(m->verticesXy) || !Xb_DataPtrOk(m->verticesZ))) ||
+                (m->normalCount && !Xb_DataPtrOk(m->normals)) ||
+                (m->unkCount_3 && !Xb_DataPtrOk(m->unkPtr_14)))
+            {
+                bad = m;
+                break;
+            }
+        }
+        if (bad == NULL)
+            return 1;
+    }
+
+    for (i = 0; i < s_seenCount; i++)
+        if (s_seen[i] == hdr)
+            return 0;
+    if (s_seenCount < 8)
+    {
+        extern int g_XbSplitSidePass;
+        extern int SplitRender_InView2(void);
+        char       name[9];
+
+        s_seen[s_seenCount++] = hdr;
+        memcpy(name, hdr->name.str, 8);
+        name[8] = '\0';
+        for (i = 0; i < 8; i++)
+            if (name[i] && (name[i] < 0x20 || name[i] > 0x7E))
+                name[i] = '?';
+        if (!Xb_DataPtrOk(hdr->meshHdrs))
+            SH_DBG("[MODEL-BAD] '%s' hdr=%p idx=%d meshHdrs=%p caller=%p side=%d view2=%d",
+                   name, (const void*)hdr, (int)modelInfo->modelIdx, (const void*)hdr->meshHdrs,
+                   caller, g_XbSplitSidePass, SplitRender_InView2());
+        else
+            SH_DBG("[MODEL-BAD] '%s' hdr=%p idx=%d mesh %d/%d (prim %d@%p vtx %d@%p unk %d@%p) caller=%p side=%d view2=%d",
+                   name, (const void*)hdr, (int)modelInfo->modelIdx,
+                   (int)(bad - hdr->meshHdrs), (int)hdr->meshCount,
+                   (int)bad->primitiveCount, (void*)bad->primitives,
+                   (int)bad->vertexCount, (void*)bad->verticesXy,
+                   (int)bad->unkCount_3, (void*)bad->unkPtr_14,
+                   caller, g_XbSplitSidePass, SplitRender_InView2());
+    }
+    return 0;
+}
+#endif
+
 void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat, MATRIX* worldMat, u16 arg5) // 0x80057090
 {
     s32            temp_a0;
@@ -2306,6 +2382,17 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat
     }
 
     if (modelHdr == NULL) {
+        return;
+    }
+#endif
+#ifdef SH_XBOX_PORT
+    /* A split-screen hardware log (078) faulted here on the first frame after the
+     * alley gate's room load: a mesh with no vertices and an unkPtr_14 of 0/-1,
+     * i.e. a header left over from data the load replaced. Such a model is
+     * skipped rather than read, and reported once with its caller, so the next
+     * log names who still held it. */
+    if (!Xb_ModelSane(modelInfo, __builtin_return_address(0)))
+    {
         return;
     }
 #endif

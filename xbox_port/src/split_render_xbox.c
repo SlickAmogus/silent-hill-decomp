@@ -28,6 +28,7 @@
 #include "split_internal_xbox.h"
 #include "sh_log.h"
 
+#include <math.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -327,6 +328,28 @@ void SplitRender_ViewRect(int layout, int idx, GpuXboxView* v)
             v->cropH = frameH;
             break;
     }
+}
+
+/* The 2D layer (OT2) is drawn over the whole content rect, centred on the
+ * 320x224 frame: prim (0,0) is its middle. A view's rect maps back into that
+ * space, and the HUD in it shrinks by the view's share of the frame: about 0.7
+ * for the band layouts, 0.5 for the whole-picture ones (half-size frames). */
+int Split_HudView(int p, int rect[4], int* scaleQ12, struct _SubCharacter** chara)
+{
+    const int   cx = g_Nv2aContentX, cw = g_Nv2aContentW, ch = g_Nv2aContentH;
+    GpuXboxView v;
+
+    if (!g_XbSplitTwoViews || !s_v2Built || s_inV2 || cw <= 0 || ch <= 0)
+        return 0;
+
+    SplitRender_ViewRect(g_PcConfig.splitLayout, p & 1, &v);
+    rect[0]   = ((v.x - cx) * 320) / cw - 160;
+    rect[1]   = ((v.x + v.w - cx) * 320) / cw - 160;
+    rect[2]   = (v.y * 224) / ch - 112;
+    rect[3]   = ((v.y + v.h) * 224) / ch - 112;
+    *scaleQ12 = (int)(sqrtf((float)(v.w * v.h) / (float)(cw * ch)) * 4096.0f + 0.5f);
+    *chara    = Split_PlayerChara(p & 1);
+    return 1;
 }
 
 /* ---- present ---- */

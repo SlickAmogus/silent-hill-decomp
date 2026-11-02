@@ -61,6 +61,7 @@ static int            s_p2Joined;
 static unsigned char* s_padBuf  = 0;            /* P1: &g_GameWork.rawController */
 static unsigned char* s_pad2Buf = 0;            /* P2: g_Controller1's analogController */
 static unsigned char  s_p2Raw[8];
+unsigned              g_XbPadLastActivityMs; /* KeTickCount of the last button change, either pad */
 
 /* Rumble targets per PSX socket (0 = port 1, 0x10 = port 2), sampled per frame
  * by Pad_Poll (USB-safe) out of the actuator buffers PadSetAct registered. */
@@ -544,6 +545,21 @@ void Pad_Poll(void)
             Pad_BuildPsx(&rep, &s_dev[s_plDev[1]], 0, s_p2Raw);
         else
             Pad_FillIdle(s_p2Raw);
+    }
+
+    /* The log goes quiet while nobody touches a pad (sh_log_xbox.c). Buttons
+     * only: the left stick reaches them through the d-pad, and analog noise
+     * would count as activity. */
+    {
+        static unsigned s_last;
+        const unsigned  now = (unsigned)s_padBuf[2] | ((unsigned)s_padBuf[3] << 8) |
+                              (s_p2Joined ? ((unsigned)s_p2Raw[2] << 16) | ((unsigned)s_p2Raw[3] << 24) : 0u);
+
+        if (now != s_last)
+        {
+            s_last                = now;
+            g_XbPadLastActivityMs = (unsigned)KeTickCount;
+        }
     }
 }
 

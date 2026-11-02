@@ -1297,7 +1297,8 @@ void PcConfig_Load(const char* path)
         }
         else if (strcmp(key, "log_diag") == 0)
         {
-            g_PcConfig.logDiag = (atoi(value) != 0);
+            /* 1 = diagnostics, 2 = also the per-prim / per-collision floods. */
+            g_PcConfig.logDiag = atoi(value) < 0 ? 0 : atoi(value) > 2 ? 2 : atoi(value);
         }
         else if (strcmp(key, "ra_password") == 0)
         {

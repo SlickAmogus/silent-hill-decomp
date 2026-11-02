@@ -117,6 +117,8 @@ void Pc_LowHealthGlowUpdate(void)
  * Called from DbgOverlay_XboxRender (main menu onward). */
 void Xbox_FpsCounterRender(void)
 {
+    extern int g_PsxPresentLastFrame;
+    extern s16 Gfx_StringColorGet(void);
     static u32 s_winStartMs;
     static s32 s_winFrames;
     static s32 s_fps;
@@ -137,6 +139,11 @@ void Xbox_FpsCounterRender(void)
 
     if (corner < 1 || corner > 4)
         return;
+    /* A held frame (pause, pickup, map message) re-presents the last live one,
+     * counter included: a live reading over it would show two, so the frozen
+     * one stands until play resumes. */
+    if (g_PsxPresentLastFrame)
+        return;
 
     v = (s_fps < 0) ? 0 : (s_fps > 999 ? 999 : s_fps);
     n = 0;
@@ -145,9 +152,26 @@ void Xbox_FpsCounterRender(void)
     buf[n++] = (char)('0' + v % 10);
     memcpy(buf + n, "_FPS", 5);
 
+    /* Text y spans the 224-line frame and a glyph is 16 tall: SCREEN_HEIGHT (240)
+     * put the bottom corners' digits below the screen. */
     x = (corner == 1 || corner == 3) ? 8 : SCREEN_WIDTH - 8 - 58;
-    y = (corner == 1 || corner == 2) ? 4 : SCREEN_HEIGHT - 20;
-    Gfx_StringSetColor(StringColorId_Green);
-    Gfx_StringSetPosition(x, y);
-    Gfx_StringDraw(buf, 12);
+    y = (corner == 1 || corner == 2) ? 4 : FRAMEBUFFER_HEIGHT_PROGRESSIVE - 4 - 16;
+
+    /* Bucket 0 of OT2 is walked last, so the counter sits on top of the minimap
+     * and the screen fade, like the PC overlay. The 448-line screens (title,
+     * inventory, paper map) take the hi-res glyph path, which doubles y into
+     * their frame. The game's text state is put back afterwards. */
+    {
+        const s16 color = Gfx_StringColorGet();
+        const int hiRes = g_SysWork.enableHighResGlyphs;
+
+        Gfx_StringSetColor(StringColorId_Green);
+        Gfx_StringSetPosition(x, y);
+        Gfx_Strings2dLayerIdxSet(0);
+        g_SysWork.enableHighResGlyphs = (g_GameWork.gsScreenHeight == FRAMEBUFFER_HEIGHT_INTERLACED);
+        Gfx_StringDraw(buf, 12);
+        g_SysWork.enableHighResGlyphs = hiRes;
+        Gfx_StringsReset2dLayerIdx();
+        Gfx_StringSetColor(color);
+    }
 }

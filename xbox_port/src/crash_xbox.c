@@ -40,6 +40,9 @@
 extern void SH_DebugLogFlush(void); /* sh_log_xbox.c (not declared in sh_log.h) */
 
 #define XBE_BASE            0x00010000u
+/* .text spans 0x11000..~0x550000 today; the bound leaves room to grow while
+ * excluding the data sections and the heap far above them. */
+#define CODE_END            0x00600000u
 #define STATUS_ACCESS_VIOLATION 0xC0000005u
 
 /* Re-entrancy latch: if logging itself faults, the nested dispatch reaches us
@@ -139,6 +142,35 @@ static EXCEPTION_DISPOSITION __cdecl Crash_UnhandledHandler(
                     break;
                 ebp = next;
                 depth++;
+            }
+        }
+
+        /* The game code is built without frame pointers in places, so the chain
+         * above can stop after one frame (log 078). Every stack word that falls in
+         * the code range is listed too: most are return addresses, and the map
+         * resolves them. */
+        if (ctx)
+        {
+            uint32_t sp    = ctx->Esp & ~3u;
+            int      found = 0;
+            int      i;
+
+            for (i = 0; i < 1024 && found < 24; i++, sp += 4)
+            {
+                uint32_t v;
+
+                if ((sp & 0xFFF) == 0 || i == 0)
+                {
+                    if (!Crash_PtrReadable(sp))
+                        break;
+                }
+                v = *(volatile uint32_t*)sp;
+                if (v >= XBE_BASE + 0x1000u && v < CODE_END)
+                {
+                    SH_DBG("[FATAL] stk[+%03x] %08lx (xbe+%08lx)", (unsigned)(i * 4),
+                           (unsigned long)v, (unsigned long)(v - XBE_BASE));
+                    found++;
+                }
             }
         }
 

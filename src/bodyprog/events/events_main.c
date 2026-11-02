@@ -222,6 +222,27 @@ void Event_Update(bool disableButtonEvents) // 0x800373CC
             continue;
         }
 
+#ifdef SH_XBOX_PORT
+        /* Split screen: the story follows Player 1. A scripted trigger that fires
+         * just by walking into it (a cutscene, a flag, a movie) is Player 1's to
+         * set off; Player 2 walking ahead set the alley's chase flags out of order
+         * and left Player 1 unable to progress (log 078). What a player does on
+         * purpose -- doors, pickups, examining, using items -- either may do, and
+         * a door takes both. */
+        {
+            extern int g_XbSplitActive;
+            extern int Split_WorkOwner(void);
+
+            if (g_XbSplitActive && Split_WorkOwner() == 1 &&
+                mapEvent->activationType != TriggerActivationType_Button &&
+                mapEvent->activationType != TriggerActivationType_Item &&
+                (mapEvent->sysState == SysState_EventCallback || mapEvent->sysState == SysState_EventSetFlag ||
+                 mapEvent->sysState == SysState_Fmv))
+            {
+                continue;
+            }
+        }
+#endif
         mapPoint = &g_MapOverlayHdr.mapPoints[mapEvent->pointOfInterestIdx];
 
         switch (mapEvent->triggerType)

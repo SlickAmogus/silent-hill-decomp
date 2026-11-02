@@ -122,6 +122,7 @@ const unsigned char* TexPack_LastComposeDds(size_t* outSize) { if (outSize) *out
  * stays one code path. */
 static int            Pc_LooseImageOverridePath(s32 idx, char* out, unsigned cap) { (void)idx; (void)out; (void)cap; return 0; }
 static unsigned char* Pc_LooseSlurp(const char* path, long* outSize)             { (void)path; (void)outSize; return 0; }
+#include "split_xbox.h" /* a panel in each player's view */
 #else
 #include "pc_loose_files.h"
 #endif
@@ -556,7 +557,22 @@ typedef struct
     int lum, semi;
 } s_MmView;
 
-static POLY_FT4 s_markPrim[2][MM_MARK_MAX];
+#ifdef SH_XBOX_PORT
+/* Split screen: with two views up, each player gets a panel in their own view
+ * (Pc_MinimapUpdate below), so the prims come in a bank per player. */
+#define MM_BANKS 2
+static struct
+{
+    int on;      /* this pass draws a split-screen panel */
+    int bank;    /* its prims */
+    int rect[4]; /* its view, in prim coordinates {left, right, top, bottom} */
+    int scale;   /* the view's size against the whole frame, Q12 */
+} s_mmSplit;
+#else
+#define MM_BANKS 1
+#endif
+
+static POLY_FT4 s_markPrim[2 * MM_BANKS][MM_MARK_MAX];
 
 /* Build the visible paper-map markings as textured prims over the map image.
  * Mirrors func_80068E0C's table walk and flag test exactly; only the output
@@ -678,16 +694,20 @@ static int mm_markers_build(int buf, const s_MmView* vw)
     return count;
 }
 
+#ifdef SH_XBOX_PORT
+static void mm_update(void)
+#else
 void Pc_MinimapUpdate(void)
+#endif
 {
-    static POLY_F3  s_ring[2][MM_SEG];   /* circle: black outline + backing disc */
-    static POLY_F3  s_fill[2][MM_SEG];   /* circle: dark interior when no map */
-    static POLY_FT3 s_fan[2][MM_SEG];    /* circle: the map image */
-    static TILE     s_sqOut[2];          /* square: black outline */
-    static TILE     s_sqFill[2];         /* square: dark interior when no map */
-    static POLY_FT4 s_sqMap[2];          /* square: the map image */
-    static POLY_F3  s_mark[2];
-    static DR_TPAGE s_tp[2];
+    static POLY_F3  s_ring[2 * MM_BANKS][MM_SEG];   /* circle: black outline + backing disc */
+    static POLY_F3  s_fill[2 * MM_BANKS][MM_SEG];   /* circle: dark interior when no map */
+    static POLY_FT3 s_fan[2 * MM_BANKS][MM_SEG];    /* circle: the map image */
+    static TILE     s_sqOut[2 * MM_BANKS];          /* square: black outline */
+    static TILE     s_sqFill[2 * MM_BANKS];         /* square: dark interior when no map */
+    static POLY_FT4 s_sqMap[2 * MM_BANKS];          /* square: the map image */
+    static POLY_F3  s_mark[2 * MM_BANKS];
+    static DR_TPAGE s_tp[2 * MM_BANKS];
     int       buf, i;
     s32       packed, px, py;
     int       haveMap, round, semi, op, lum;
@@ -715,10 +735,16 @@ void Pc_MinimapUpdate(void)
     lum  = (128 * op) / 100;
     if (lum < 1) lum = 1;
 
+#ifdef SH_XBOX_PORT
+    if (s_mmSplit.bank == 0) /* once a frame with two panels: it counts idle frames */
+#endif
     mm_map_load_tick(mm_effective_map_idx());
 
     buf   = g_ActiveBufferIdx;
-    ot    = &g_OtTags0[buf][4];
+#ifdef SH_XBOX_PORT
+    buf  += 2 * s_mmSplit.bank;
+#endif
+    ot    = &g_OtTags0[g_ActiveBufferIdx][4];
     round = (g_PcConfig.minimap == 2); /* 1 = square, 2 = circle */
 
     /* --- corner placement ---
@@ -756,6 +782,20 @@ void Pc_MinimapUpdate(void)
         if (mmSize < 8) mmSize = 8;
         mkScale = (s32)(((sc * 4096.0f) / 100.0f) + 0.5f);
     }
+#ifdef SH_XBOX_PORT
+    /* A split-screen panel takes the same corner of its player's view, and
+     * shrinks with the view. */
+    if (s_mmSplit.on)
+    {
+        hudL    = s_mmSplit.rect[0];
+        hudR    = s_mmSplit.rect[1];
+        hudT    = s_mmSplit.rect[2];
+        hudB    = s_mmSplit.rect[3];
+        mmSize  = mm_scaled(mmSize, s_mmSplit.scale);
+        mkScale = mm_scaled(mkScale, s_mmSplit.scale);
+        if (mmSize < 8) mmSize = 8;
+    }
+#endif
     switch (g_PcConfig.minimapCorner)
     {
         case 1:  x0 = hudR - MM_MARGIN - mmSize;
@@ -981,6 +1021,46 @@ void Pc_MinimapUpdate(void)
     }
     AddPrim(ot, &s_tp[buf]);
 }
+
+#ifdef SH_XBOX_PORT
+/* One panel, or in split screen one in each player's view following that
+ * player. The map query and the arrow read the player in the g_SysWork slots,
+ * so for the other player's panel that player's pose stands in there for the
+ * pass; the query only reads it, and nothing else runs in between. */
+void Pc_MinimapUpdate(void)
+{
+    s_SubCharacter* slot = &g_SysWork.playerWork.player;
+    int             p;
+
+    if (!g_PcConfig.minimap) return;
+
+    for (p = 0; p < 2; p++)
+    {
+        struct _SubCharacter* c;
+        VECTOR3               pos;
+        SVECTOR3              rot;
+
+        if (!Split_HudView(p, s_mmSplit.rect, &s_mmSplit.scale, &c)) break;
+
+        s_mmSplit.on   = 1;
+        s_mmSplit.bank = p;
+        pos            = slot->position;
+        rot            = slot->rotation;
+        slot->position = c->position;
+        slot->rotation = c->rotation;
+        mm_update();
+        slot->position = pos;
+        slot->rotation = rot;
+    }
+    /* A split frame whose views were not built this tick (leaving a pause, it
+     * re-presents the frozen two-view picture) gets no panel, not a
+     * full-screen one. */
+    if (!s_mmSplit.on && !g_XbSplitTwoViews) mm_update();
+
+    s_mmSplit.on   = 0;
+    s_mmSplit.bank = 0;
+}
+#endif
 
 /* The GL overlay is gone; keep the symbol so dbg_overlay.c's call is harmless. */
 void Pc_MinimapDraw(void) {}

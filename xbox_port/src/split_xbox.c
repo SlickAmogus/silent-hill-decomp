@@ -475,9 +475,124 @@ static void Sx_SameGunRule(int outP)
         g_SysWork.playerCombat.currentWeaponAmmo = 0;
 }
 
+/* ---- health items and ammo: each player's own ---- */
+
+/* The inventory list is shared (keys, puzzle items, weapons, maps), but each
+ * player carries their own health drinks, first aid kits, ampoules and rounds.
+ * s_cons[p] is player p's count of each as of their last turn in the slots;
+ * the savegame holds the slot player's. A count that went up during a turn was
+ * a pickup and the partner gets the same; one that went down was used, and only
+ * by that player. */
+static const u8 SX_CONS_ID[] = {
+    InvItemId_HealthDrink, InvItemId_FirstAidKit, InvItemId_Ampoule,
+    InvItemId_HandgunBullets, InvItemId_RifleShells, InvItemId_ShotgunShells,
+};
+#define SX_CONS_N ((int)sizeof(SX_CONS_ID))
+
+static int s_cons[2][SX_CONS_N];
+
+static int Sx_ConsCount(u8 id)
+{
+    int i, n = 0;
+
+    for (i = 0; i < INV_ITEM_COUNT_MAX; i++)
+        if (g_SavegamePtr->items[i].id_0 == id)
+            n += g_SavegamePtr->items[i].count_1;
+    return n;
+}
+
+/* The stock merge caps (func_8004F190). */
+static int Sx_ConsCap(u8 id)
+{
+    return INV_ITEM_GROUP(id) == InvItemGroup_GunAmmo ? 200 : 100;
+}
+
+/* Both players as the inventory stands now (a join, a load). */
+static void Sx_ConsReset(void)
+{
+    int k;
+
+    for (k = 0; k < SX_CONS_N; k++)
+        s_cons[0][k] = s_cons[1][k] = Sx_ConsCount(SX_CONS_ID[k]);
+}
+
+/* Player p leaves the slots: their counts are kept, and what they picked up
+ * goes to the partner too. */
+static void Sx_ConsLeave(int p)
+{
+    int k;
+
+    for (k = 0; k < SX_CONS_N; k++)
+    {
+        const int now = Sx_ConsCount(SX_CONS_ID[k]);
+        const int got = now - s_cons[p][k];
+
+        if (got > 0)
+        {
+            int* o = &s_cons[p ^ 1][k];
+
+            *o = (*o + got > Sx_ConsCap(SX_CONS_ID[k])) ? Sx_ConsCap(SX_CONS_ID[k]) : *o + got;
+        }
+        s_cons[p][k] = now;
+    }
+}
+
+/* Player p enters the slots: the savegame takes their counts. An item they have
+ * none of leaves the list and one only they have joins it, through the stock
+ * sort and command passes, so the inventory screen reads exactly as for one
+ * player. */
+static void Sx_ConsEnter(int p)
+{
+    int changed = 0;
+    int k, i;
+
+    for (k = 0; k < SX_CONS_N; k++)
+    {
+        const u8  id   = SX_CONS_ID[k];
+        const int want = s_cons[p][k];
+        int       at   = NO_VALUE;
+
+        if (Sx_ConsCount(id) == want)
+            continue;
+        for (i = 0; i < INV_ITEM_COUNT_MAX; i++)
+        {
+            if (g_SavegamePtr->items[i].id_0 == id)
+            {
+                if (at == NO_VALUE)
+                    at = i;
+                else
+                {
+                    g_SavegamePtr->items[i].id_0    = (u8)InvItemId_Empty;
+                    g_SavegamePtr->items[i].count_1 = 0;
+                }
+            }
+        }
+        if (at == NO_VALUE)
+        {
+            for (i = 0; i < INV_ITEM_COUNT_MAX && at == NO_VALUE; i++)
+                if (g_SavegamePtr->items[i].id_0 == (u8)InvItemId_Empty)
+                    at = i;
+            if (at == NO_VALUE)
+                continue; /* a full list (40 kinds): the item stays as it is */
+            g_SavegamePtr->items[at].id_0 = id;
+        }
+        g_SavegamePtr->items[at].count_1 = (u8)want;
+        if (want == 0)
+            g_SavegamePtr->items[at].id_0 = (u8)InvItemId_Empty;
+        changed = 1;
+    }
+    if (changed)
+    {
+        g_SavegamePtr->inventorySlotCount = func_8004F190(g_SavegamePtr);
+        func_8004EF48();
+    }
+}
+
 /* ---- the exchange ---- */
 
-static void Sx_ExchangeEx(int teardown)
+/* own: the exchange is a real change of turn and the consumables follow the
+ * player. Not for the frozen-pose draws, which swap there and straight back. */
+static void Sx_ExchangeFull(int teardown, int own)
 {
     int i;
 
@@ -488,6 +603,8 @@ static void Sx_ExchangeEx(int teardown)
 
     Sx_SameGunRule(s_owner);
     Sx_WeaponWindow(teardown);
+    if (own)
+        Sx_ConsLeave(s_owner);
 
     for (i = 0; i < s_entCount; i++)
         Sx_MemSwap(s_ent[i].p, s_side + s_ent[i].off, s_ent[i].n);
@@ -513,14 +630,17 @@ static void Sx_ExchangeEx(int teardown)
     Pc_PlayAs_CtxExchange(&s_sidePlayAs);
 
     s_owner ^= 1;
+    if (own)
+        Sx_ConsEnter(s_owner);
     s_equipIn[s_owner] = g_SavegamePtr->equippedWeapon;
     if (!teardown)
         Sx_AmmoFixIncoming();
 }
 
+
 static void Sx_Exchange(void)
 {
-    Sx_ExchangeEx(0);
+    Sx_ExchangeFull(0, 1);
 }
 
 static void Sx_PadsSwap(void)
@@ -1130,6 +1250,7 @@ static void Sx_P2Join(void)
     s_sideSave.healthSaturation = 0;
     s_equipIn[0]                = p1Eq;
     s_equipIn[1]                = InvItemId_Unequipped;
+    Sx_ConsReset();
 
     /* ...with Player 2's own identity. */
     held = SIDE(s_HeldItem, s_offHeld);
@@ -1341,7 +1462,7 @@ static void Sx_Teardown(int keepSession)
     if (s_npcSwapped)
         Split_SwapNpcSet();
     if (s_owner != 0)
-        Sx_ExchangeEx(1);
+        Sx_ExchangeFull(1, 1);
     if (s_padsSwapped)
         Sx_PadsSwap();
     memset(&g_GameWork.controllers[1], 0, sizeof(g_GameWork.controllers[1]));
@@ -1775,7 +1896,7 @@ void Split_SidePass(void)
             /* Frozen this frame: the last pose, cached in its bones, in both views.
              * Its streaming points are refreshed under its own camera, since after
              * a hand-over they still describe the other player. */
-            Sx_ExchangeEx(1);
+            Sx_ExchangeFull(1, 0);
             if (SplitRender_ViewPos(1) != NULL)
             {
                 SplitRender_PublishPub(1);
@@ -1788,7 +1909,7 @@ void Split_SidePass(void)
                 Sx_DrawSlotPlayer(0);
                 Sx_DrawSlotPlayer(1);
             }
-            Sx_ExchangeEx(1);
+            Sx_ExchangeFull(1, 0);
         }
     }
 
