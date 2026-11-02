@@ -93,7 +93,7 @@ extern const char* const PC_PGXP_FOG_MSG;
 /* CONTROLS is appended last, so every existing section index -- and the "Next
  * page (X)" label baked into each table -- stays where it was. Its rows differ
  * by platform (s_page5 / s_pageControls). */
-#define QO_PAGES    6
+#define QO_PAGES    7
 #define QO_DD_MAX     64  /* dropdown entries cached */
 #define QO_DD_VISIBLE 8
 
@@ -194,12 +194,28 @@ typedef struct
  * s_page0 and s_pageControls are AT capacity on a phone. Anything
  * further on those three needs the ceiling raised, or the rows split onto
  * another page. */
+/* Graphics is two sections, as on pc-port: one page of nineteen rows was a
+ * stripe per row on a desktop and, on a phone, four chunks under one title. */
 static const QoRowDef s_page0[] = {
     { ROW_OPT,   "texture_filter",       0, NULL },  /* Texture_Filter */
     { ROW_OPT,   "msaa",                 0, NULL },  /* Antialiasing (restart) */
     { ROW_OPT,   "post_process",         0, NULL },
     { ROW_OPT,   "tonemap",              0, NULL },
     { ROW_OPT,   "fog_strength",         0, NULL },
+    { ROW_OPT,   "bullet_decals",        0, NULL },
+    { ROW_EXTRA, NULL, QO_X_FACEANIM,       "Character Face Animation" },
+    /* Frame cap, beside Weather_Rate for the same reason the Options menu puts
+     * them together: both decide how fast the world ticks. */
+    { ROW_OPT,   "fps_cap",              0, NULL },  /* FPS_Limit */
+    { ROW_OPT,   "weather_sim_hz",       0, NULL },  /* Weather_Rate: 30 or 60 Hz */
+    { ROW_PAGE,  NULL, 0,                   "Next page  (Graphics 2)" },
+    { ROW_CLOSE, NULL, 0,                   "Close" },
+};
+
+_Static_assert(sizeof(s_page0) / sizeof(s_page0[0]) <= QO_MAX_ROWS,
+               "s_page0 exceeds QO_MAX_ROWS; raise the ceiling or split the page");
+
+static const QoRowDef s_pageGfx2[] = {
     { ROW_OPT,   "flashlight_mode",      0, NULL },
     { ROW_OPT,   "flashlight_intensity", 0, NULL },
     { ROW_OPT,   "flashlight_size",      0, NULL },
@@ -212,18 +228,12 @@ static const QoRowDef s_page0[] = {
     { ROW_EXTRA, NULL, QO_X_PPLIGHT,        "Per-Pixel Lighting" },
     { ROW_EXTRA, NULL, QO_X_HEROLIGHT,      "Hero Light" },
     { ROW_EXTRA, NULL, QO_X_HEROLIGHTFL,    "Hero Light with Flashlight" },
-    { ROW_EXTRA, NULL, QO_X_FACEANIM,       "Character Face Animation" },
-    { ROW_OPT,   "bullet_decals",        0, NULL },
-    /* Frame cap, beside Weather_Rate for the same reason the Options menu puts
-     * them together: both decide how fast the world ticks. */
-    { ROW_OPT,   "fps_cap",              0, NULL },  /* FPS_Limit */
-    { ROW_OPT,   "weather_sim_hz",       0, NULL },  /* Weather_Rate: 30 or 60 Hz */
     { ROW_PAGE,  NULL, 0,                   "Next page  (HUD & Audio)" },
     { ROW_CLOSE, NULL, 0,                   "Close" },
 };
 
-_Static_assert(sizeof(s_page0) / sizeof(s_page0[0]) <= QO_MAX_ROWS,
-               "s_page0 exceeds QO_MAX_ROWS; raise the ceiling or split the page");
+_Static_assert(sizeof(s_pageGfx2) / sizeof(s_pageGfx2[0]) <= QO_MAX_ROWS,
+               "s_pageGfx2 exceeds QO_MAX_ROWS; raise the ceiling or split the page");
 
 static const QoRowDef s_page1[] = {
     { ROW_OPT,   "minimap",              0, NULL },
@@ -522,32 +532,34 @@ _Static_assert(sizeof(s_pageControls) / sizeof(s_pageControls[0]) <= QO_MAX_ROWS
 static const QoRowDef* qo_section_rows(int page, int* count)
 {
 #if defined(QO_MOBILE)
-    if (page == 5) { *count = (int)(sizeof(s_pageControls) / sizeof(s_pageControls[0])); return s_pageControls; }
+    if (page == 6) { *count = (int)(sizeof(s_pageControls) / sizeof(s_pageControls[0])); return s_pageControls; }
 #else
-    if (page == 5) { *count = (int)(sizeof(s_page5) / sizeof(s_page5[0])); return s_page5; }
+    if (page == 6) { *count = (int)(sizeof(s_page5) / sizeof(s_page5[0])); return s_page5; }
 #endif
-    if (page == 1) { *count = (int)(sizeof(s_page1) / sizeof(s_page1[0])); return s_page1; }
-    if (page == 2) return qo_view_page(count);
-    if (page == 3) return qo_cheat_page(PC_CHEATS_PAGE_CHEATS, "Next page  (Debug)",    count);
-    if (page == 4) return qo_cheat_page(PC_CHEATS_PAGE_DEBUG,  "Next page  (Controls)", count);
+    if (page == 1) { *count = (int)(sizeof(s_pageGfx2) / sizeof(s_pageGfx2[0])); return s_pageGfx2; }
+    if (page == 2) { *count = (int)(sizeof(s_page1) / sizeof(s_page1[0])); return s_page1; }
+    if (page == 3) return qo_view_page(count);
+    if (page == 4) return qo_cheat_page(PC_CHEATS_PAGE_CHEATS, "Next page  (Debug)",    count);
+    if (page == 5) return qo_cheat_page(PC_CHEATS_PAGE_DEBUG,  "Next page  (Controls)", count);
     *count = (int)(sizeof(s_page0) / sizeof(s_page0[0]));
     return s_page0;
 }
 
 static const char* const s_pageTitles[QO_PAGES] = {
-    "QUICK OPTIONS  -  GRAPHICS", "QUICK OPTIONS  -  HUD & AUDIO",
+    "QUICK OPTIONS  -  GRAPHICS 1", "QUICK OPTIONS  -  GRAPHICS 2",
+    "QUICK OPTIONS  -  HUD & AUDIO",
     "QUICK OPTIONS  -  VIEW & ASPECT",
     "QUICK OPTIONS  -  CHEATS",   "QUICK OPTIONS  -  DEBUG",
     "QUICK OPTIONS  -  CONTROLS" };
 
-/* The same six, without the prefix: the navigation row names the neighbouring
+/* The same seven, without the prefix: the navigation row names the neighbouring
  * pages and the title builds itself from one. Parallel to s_pageTitles. */
 static const char* const s_pageNames[QO_PAGES] = {
-    "GRAPHICS", "HUD & AUDIO", "VIEW & ASPECT", "CHEATS", "DEBUG", "CONTROLS" };
+    "GRAPHICS 1", "GRAPHICS 2", "HUD & AUDIO", "VIEW & ASPECT", "CHEATS", "DEBUG", "CONTROLS" };
 
 /* The View section's index here. pc-port numbers ten fixed pages and has its
- * own enum for this; these six sections are chunked per platform instead. */
-#define QO_PG_VIEW 2
+ * own enum for this; these seven sections are chunked per platform instead. */
+#define QO_PG_VIEW 3
 
 /* ------------------------------------------------------------------ */
 /* Mobile pagination                                                   */
@@ -2432,7 +2444,7 @@ void Pc_QuickOptions_Draw(void)
     {
         /* The View page (2) titles by the active camera, which can change while
          * the page is open, so key the bake on it too and re-bake on a switch. */
-        int viewMode = (s_page == 2) ? qo_view_cam_mode() : -1;
+        int viewMode = (s_page == QO_PG_VIEW) ? qo_view_cam_mode() : -1;
         if (s_bakedForPx != px || s_bakedForPage != s_page || s_bakedForViewMode != viewMode)
         {
             qo_free_text();

@@ -38,8 +38,12 @@ static int SDLCALL Web_ResizeWatch(void* userdata, SDL_Event* ev)
     if (ev->type == SDL_WINDOWEVENT && ev->window.event == SDL_WINDOWEVENT_RESIZED &&
         ev->window.data1 > 0 && ev->window.data2 > 0)
     {
-        g_PcConfig.windowWidth  = ev->window.data1;
-        g_PcConfig.windowHeight = ev->window.data2;
+        /* The event carries CSS points; the window is ALLOW_HIGHDPI, so the
+         * drawable, and everything the config size feeds, is pixels. */
+        const double pr = emscripten_get_device_pixel_ratio();
+
+        g_PcConfig.windowWidth  = (int)(ev->window.data1 * pr + 0.5);
+        g_PcConfig.windowHeight = (int)(ev->window.data2 * pr + 0.5);
     }
     return 1;
 }

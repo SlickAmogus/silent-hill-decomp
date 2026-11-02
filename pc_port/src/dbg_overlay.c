@@ -1619,7 +1619,11 @@ void DbgOverlay_Update(void)
             int    wx, wy;
             Uint32 mb   = SDL_GetMouseState(&wx, &wy);
             int    lmb  = (mb & SDL_BUTTON(SDL_BUTTON_LEFT)) != 0;
-            int    vpTop = g_windowHeight - (s_hit_vp[1] + s_hit_vp[3]);
+            int    vpTop;
+            /* Window points -> drawable pixels (a no-op except on high-DPI
+             * windows, iOS and the web), the space the viewport is in. */
+            PsyX_ScaleWindowToDrawable(&wx, &wy);
+            vpTop = g_windowHeight - (s_hit_vp[1] + s_hit_vp[3]);
             int    px   = wx - s_hit_vp[0];
             int    py   = wy - vpTop;
             int    cw   = GLYPH_W * SCALE;
@@ -2298,6 +2302,7 @@ void DbgOverlay_Render(void)
             float cx0, cy0;
 
             SDL_GetMouseState(&wx, &wy);
+            PsyX_ScaleWindowToDrawable(&wx, &wy);
             cx0 = -1.0f + 2.0f * (float)(wx - vp[0]) / (float)vp[2];
             cy0 =  1.0f - 2.0f * (float)(wy - (g_windowHeight - (vp[1] + vp[3]))) / (float)vp[3];
             draw_panel(s_cursor_tex, cx0, cy0,
