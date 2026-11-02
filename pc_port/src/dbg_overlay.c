@@ -10,6 +10,8 @@
 #include <SDL_timer.h>
 #include <SDL_mouse.h>     /* console pointer + click-drag selection */
 #include <SDL_clipboard.h> /* console Ctrl+C / Ctrl+V */
+#include <SDL_events.h>    /* SDL_EventState: console text input */
+#include <PsyX/PsyX_public.h>
 #include <stdlib.h> /* exit() for the console `quit` command */
 #include "bodyprog/bodyprog.h"
 #include "sh_log.h"
@@ -592,6 +594,47 @@ static void Console_Paste(void)
     }
     s_console_dirty = 1;
     SDL_free(clip);
+}
+
+/* Typed characters come from SDL_TEXTINPUT, i.e. Windows' own WM_CHAR, so they
+ * follow the active keyboard layout (QWERTZ's Y and Z, AltGr symbols). NULL is
+ * PsyCross's Backspace notification; the console handles Backspace itself. */
+static void Console_OnText(const char* s)
+{
+    if (s == NULL || !g_PcConsoleInputActive)
+        return;
+    for (; *s; s++) {
+        unsigned char c = (unsigned char)*s;
+        if (c < 32 || c > 126)
+            continue;
+        if (c == ' ' && s_input_cur == 0)
+            continue;
+        if (c >= 'a' && c <= 'z')
+            c -= 32; /* commands arrive uppercase */
+        Console_InsertChar((char)c);
+    }
+}
+
+/* Text events only while the console takes input, and never with the IME
+ * attached: SDL_StopTextInput detaches it (main_pc.c), and enabling only the
+ * event state keeps WM_CHAR flowing without re-attaching it. SDL re-attaches
+ * the IME itself when the window regains focus with text events on, so that
+ * case is undone here too -- otherwise a CJK IME would swallow the console key
+ * and the console could not be closed. */
+static void Console_SyncTextInput(void)
+{
+    static int s_on      = 0;
+    static int s_focused = 1;
+    int        focused   = SDL_GetKeyboardFocus() != NULL;
+
+    if (g_PcConsoleInputActive != s_on || (s_on && focused && !s_focused)) {
+        g_cfg_gameOnTextInput = Console_OnText;
+        SDL_StopTextInput();
+        if (g_PcConsoleInputActive)
+            SDL_EventState(SDL_TEXTINPUT, SDL_ENABLE);
+        s_on = g_PcConsoleInputActive;
+    }
+    s_focused = focused;
 }
 
 /* PsyCross asks SDL for a CORE profile context (PsyX_render.cpp), and these
@@ -1631,73 +1674,27 @@ void DbgOverlay_Update(void)
         }
     }
 
-    /* Interactive input: A-Z and 0-9 append, Backspace deletes, Enter
-     * submits. Edge-detected against s_prev_keys. The submitted command is
-     * echoed half-life style; `quit` exits the game, anything else prints
-     * "Command not found!". Submitting or tapping `~` unpauses. */
+    /* Interactive input: characters arrive through Console_OnText, Backspace
+     * deletes, Enter submits. Edge-detected against s_prev_keys. The submitted
+     * command is echoed half-life style; `quit` exits the game, anything else
+     * prints "Command not found!". Submitting or tapping `~` unpauses.
+     *
+     * `[`, `]` and `\` are also the graphics-effect binds, but
+     * Dbg_GfxBindActive returns 0 while the console is open, so typing them
+     * cannot also fire the effect. */
+    Console_SyncTextInput();
     if (g_PcConsoleInputActive) {
-        int sc;
-        int ctrl = ks[SDL_SCANCODE_LCTRL] || ks[SDL_SCANCODE_RCTRL];
+        /* Windows sends AltGr as Left Ctrl + Right Alt, and AltGr chords type
+         * symbols on most non-US layouts, so they are not Ctrl chords. */
+        int ctrl = (ks[SDL_SCANCODE_LCTRL] || ks[SDL_SCANCODE_RCTRL]) && !ks[SDL_SCANCODE_RALT];
 
         /* Ctrl+C copies the click-drag selection to the system clipboard;
-         * Ctrl+V appends the clipboard's first line to the prompt. Chorded
-         * keys must not ALSO type — the character loop below is Ctrl-gated. */
+         * Ctrl+V appends the clipboard's first line to the prompt. */
         if (ctrl && ks[SDL_SCANCODE_C] && !s_prev_keys[SDL_SCANCODE_C])
             Console_CopySelection();
         if (ctrl && ks[SDL_SCANCODE_V] && !s_prev_keys[SDL_SCANCODE_V])
             Console_Paste();
 
-        if (!ctrl)
-        for (sc = SDL_SCANCODE_A; sc <= SDL_SCANCODE_0; sc++) { /* A..Z, 1..9, 0 are contiguous */
-            if (ks[sc] && !s_prev_keys[sc]) {
-                char c;
-                if (sc <= SDL_SCANCODE_Z)
-                    c = (char)('A' + (sc - SDL_SCANCODE_A));
-                else if (sc == SDL_SCANCODE_0)
-                    c = '0';
-                else
-                    c = (char)('1' + (sc - SDL_SCANCODE_1));
-                Console_InsertChar(c);
-            }
-        }
-        /* Space separates command from argument; `-` types `_` (map and FMV
-         * names use underscores, and the console has no shift handling). */
-        if (ks[SDL_SCANCODE_SPACE] && !s_prev_keys[SDL_SCANCODE_SPACE] &&
-            s_input_cur > 0) {
-            Console_InsertChar(' ');
-        }
-        /* Punctuation. Shift gives the upper glyph; there is no full shift
-         * handling, just this table.
-         *
-         * `;` is load-bearing: it is how `bind` separates the commands in one
-         * bind ("bind k kill;spawn groaner"), and without a key for it that
-         * syntax could not be typed at all. The quote keys are here for the
-         * same reason -- they are the other thing people reach for when a
-         * separator does not work.
-         *
-         * `[`, `]` and `\` are also the graphics-effect binds, but
-         * Dbg_GfxBindActive returns 0 while the console is open, so typing
-         * them cannot also fire the effect. */
-        {
-            int shift = ks[SDL_SCANCODE_LSHIFT] || ks[SDL_SCANCODE_RSHIFT];
-            const struct { int sc; char lo, hi; } syms[] = {
-                { SDL_SCANCODE_MINUS,        '-',  '_' },
-                { SDL_SCANCODE_EQUALS,       '=',  '+' },
-                { SDL_SCANCODE_PERIOD,       '.',  '.' },
-                { SDL_SCANCODE_SEMICOLON,    ';',  ':' },
-                { SDL_SCANCODE_APOSTROPHE,   '\'', '"' },
-                { SDL_SCANCODE_COMMA,        ',',  '<' },
-                { SDL_SCANCODE_SLASH,        '/',  '?' },
-                { SDL_SCANCODE_LEFTBRACKET,  '[',  '{' },
-                { SDL_SCANCODE_RIGHTBRACKET, ']',  '}' },
-                { SDL_SCANCODE_BACKSLASH,    '\\', '|' },
-            };
-            int i;
-            for (i = 0; i < (int)(sizeof(syms) / sizeof(syms[0])); i++) {
-                if (ks[syms[i].sc] && !s_prev_keys[syms[i].sc])
-                    Console_InsertChar(shift ? syms[i].hi : syms[i].lo);
-            }
-        }
         /* Backspace hold-repeats like a text editor: one delete on the press
          * edge, then after a short delay a steady 25/sec while held (faster
          * than Dbg_HoldRepeat's 100ms floor, which felt sluggish for text). */

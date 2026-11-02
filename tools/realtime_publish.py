@@ -55,7 +55,9 @@ LAUNCHER_NAME = "SilentHillPC_Launcher.exe"
 # Newest-only builds other workflows replace in place (build-linux/-macos on
 # pc-port, build-ios on ios-port, build-android on android-port). Never pruned.
 FIXED_ASSETS = {INDEX_NAME, CHANGELOG_NAME, "SHPC-linux-x64.tar.gz", "SHPC-macos-arm64.zip",
-                "SilentHill-ios-unsigned.ipa", "SilentHill-android.apk"}
+                "SilentHill-ios-unsigned.ipa", "SilentHill-android.apk",
+                # The AltStore/SideStore source build-ios.yml rewrites each iOS build.
+                "altstore-source.json"}
 HISTORY_TAG = "realtime-history"
 WIN_ZIP_PREFIX = "SHPC_rt-"
 
@@ -73,7 +75,7 @@ RELEASE_NOTES = """Automatic builds of every push, for players who want changes 
 **Newest Windows build: {version}** (`{commit}`, {date} UTC)
 - Windows: [{zip_name}]({zip_url}): unzip into a folder and run `SilentHillPC_Launcher.exe` or `SilentHillPC.exe`. Put your `Silent Hill (USA).bin` in `gamedata/`.
 - Linux: `SHPC-linux-x64.tar.gz` · macOS: `SHPC-macos-arm64.zip` (newest `pc-port` builds)
-- iOS: `SilentHill-ios-unsigned.ipa` (newest `ios-port` build; sideload with Sideloadly or AltStore, which sign it for your device)
+- iOS: `SilentHill-ios-unsigned.ipa` (newest `ios-port` build; sideload with Sideloadly or AltStore, which sign it for your device). To get every new build as an update, add this source in AltStore or SideStore: `https://github.com/{repo}/releases/download/realtime/altstore-source.json`
 - Android: `SilentHill-android.apk` (newest `android-port` build; installs over the released APK)
 
 To follow these builds from the launcher instead: **Build Settings → Realtime updates**. It installs only the files that changed, and you can roll back to any of the last {keep} Windows builds from the same menu. `CHANGELOG_REALTIME.md` lists what changed."""
@@ -359,7 +361,8 @@ def main():
     realtime_url = f"https://github.com/{a.repo}/releases/tag/{a.tag}"
     history_url = f"https://github.com/{a.repo}/releases/tag/{HISTORY_TAG}"
     notes = RELEASE_NOTES.format(keep=a.keep, version=version, commit=a.commit[:9], date=date,
-                                 zip_name=zip_name, zip_url=base_url + zip_name, history_url=history_url)
+                                 zip_name=zip_name, zip_url=base_url + zip_name, history_url=history_url,
+                                 repo=a.repo)
     hist_notes = HISTORY_NOTES.format(keep=a.keep, realtime_url=realtime_url)
 
     log(f"Build {version} from {a.commit[:9]}: {zip_name} ({os.path.getsize(zip_path) // (1 << 20)} MB, "

@@ -21,9 +21,9 @@ void Gfx_CursorDraw(s32 x0, s16 y0, s32 x1, s16 y1, s16 arg4, s16 arg5, s16 arg6
     POLY_FT4* poly;
 
 #ifdef SH_PC_PORT
-    /* Shared chokepoint for every free-cursor puzzle — hand the mouse-cursor
-     * system this puzzle's current cursor position (framebuffer centre-origin px)
-     * so it can servo the cursor to the mouse pointer. */
+    /* Shared chokepoint for every free-cursor puzzle — tells the mouse-cursor
+     * system one is on screen (mouse clicks land as enter/cancel) and where the
+     * puzzle's clamp left its cursor (the OS pointer is held to it). */
     { extern void Pc_MouseCursor_NoteCursorDrawn(int curX, int curY); Pc_MouseCursor_NoteCursorDrawn(x0, y0); }
 #endif
 

@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include "bodyprog/sound/sound_system.h"
 extern int Pc_ConsoleIsOpen(void);
+extern int g_DebugAnimKfView;
 
 extern const unsigned char* g_sdlKeyboardState;
 extern int PsyX_RawControllerButtonHeld(int sdlGameControllerButton);
@@ -404,6 +405,8 @@ static void Pc_QuickWeaponInputUpdate(void)
     }
     if (!g_PcQuickWeaponsEnabled || !g_SavegamePtr || !Pc_ActionSafe() ||
         Pc_ConsoleIsOpen() || g_PcQuickOptionsActive) return;
+    /* The keyframe viewer's - / + cycle the play-as character. */
+    if (target == 10 && g_DebugAnimKfView) target = -1;
     if (target >= 0) {
         s32 slot = Pc_FindItemSlot(s_quickWeaponOrder[target]);
         if (slot != NO_VALUE && g_SavegamePtr->equippedWeapon != s_quickWeaponOrder[target])

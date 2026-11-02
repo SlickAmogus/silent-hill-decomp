@@ -131,6 +131,7 @@ s_PcConfig g_PcConfig = {
     .crosshairStyle      = 0, /* 0 = cross (+), 1 = dot, 2 = circle, 3 = dashes/gap */
     .crosshairSize       = 100.0f,
     .crosshairFpsAimOnly = 0, /* FPS crosshair: 0 = always shown, 1 = only while aiming */
+    .crosshairHideMelee  = 0, /* 1 = no crosshair unless a gun is equipped */
     .ragdoll             = 0,
     .textSize            = 100.0f,
     .aimAssist           = 1, /* OTS/TPS free-aim aim assist (mouse body-coverage + controller auto-aim) */
@@ -164,6 +165,7 @@ s_PcConfig g_PcConfig = {
     .minimapShowWithoutMap   = 0, /* no map found: no minimap (1 = empty panel + arrow) */
     .dreamBlur               = 1, /* dream/ghosting screen blur (0 = loading trail only) */
     .charaPerPixelLight      = 1,
+    .charaFaceAnim           = 0,
     .perPixelLighting        = 0,
     .heroLight               = 2,
     .dreamBlurStrength       = 1.0f, /* feedback gain of that blur; 1.0 = hardware */
@@ -1174,6 +1176,10 @@ void PcConfig_Load(const char* path)
         {
             g_PcConfig.crosshairFpsAimOnly = (atoi(value) != 0);
         }
+        else if (strcmp(key, "crosshair_hide_melee") == 0)
+        {
+            g_PcConfig.crosshairHideMelee = (atoi(value) != 0);
+        }
         else if (strcmp(key, "ragdoll") == 0)
         {
             g_PcConfig.ragdoll = (atoi(value) != 0);
@@ -1371,9 +1377,17 @@ else if (strcmp(key, "enable_plugins") == 0)
         {
             g_PcConfig.charaPerPixelLight = (atoi(value) != 0);
         }
+        else if (strcmp(key, "chara_face_anim2") == 0)
+        {
+            g_PcConfig.charaFaceAnim = (atoi(value) != 0);
+        }
         else if (strcmp(key, "per_pixel_lighting") == 0)
         {
             g_PcConfig.perPixelLighting = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "hero_light_flashlight") == 0)
+        {
+            g_PcConfig.heroLightWithFlashlight = atoi(value) != 0;
         }
         else if (strcmp(key, "hero_light") == 0)
         {

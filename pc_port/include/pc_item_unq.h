@@ -20,6 +20,10 @@
  */
 s32 Pc_ItemUnq_FromItemId(u8 itemId);
 
+struct TMD_STRUCT;
+/* Correct stock Unknown Liquid UVs and overlapping translucent liquid faces. */
+void Pc_ItemUnq_FixLiquidUvs(u8 itemId, struct TMD_STRUCT* model);
+
 /* One-shot latch for the requested item id.
  *
  * Gfx_Items_Display (0x80054720) is a matching retail function, so it cannot

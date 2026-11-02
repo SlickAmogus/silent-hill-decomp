@@ -11,6 +11,7 @@
 #include "sh_log.h"
 
 #include "pc_binds.h"
+#include "pc_bind_input.h"
 #include "pc_config.h"
 #include "pc_mod_registry.h" /* Pc_Console_Print */
 
@@ -184,7 +185,9 @@ static int SetBind(const char* keyName, const char* cmds, int quiet)
         }
     }
 
-    sc  = SDL_GetScancodeFromName(key);
+    /* The key is named the way it is labelled, as the user typed it, so the
+     * same bind line means the same key cap on any layout. */
+    sc  = (SDL_Scancode)BindInput_ScancodeFromLabel(key);
     why = KeyRefusal(key, sc);
     if (why != NULL)
     {
@@ -309,7 +312,7 @@ void PcBinds_CmdUnbind(const char* arg)
         return;
     }
 
-    sc   = SDL_GetScancodeFromName(arg);
+    sc   = (SDL_Scancode)BindInput_ScancodeFromLabel(arg);
     slot = (sc != SDL_SCANCODE_UNKNOWN) ? FindByScancode((int)sc) : -1;
     if (slot < 0)
     {
@@ -376,6 +379,22 @@ void PcBinds_Update(const unsigned char* keyState)
      * they never switched on. */
     if (!g_PcAllowDebugControls)
         return;
+
+    /* Config binds are parsed before SDL knows the keyboard layout, when a
+     * label can only resolve to its US position; redo them now that it does. */
+    {
+        static int s_relabelled = 0;
+        if (!s_relabelled)
+        {
+            s_relabelled = 1;
+            for (i = 0; i < s_bindCount; i++)
+            {
+                int sc = BindInput_ScancodeFromLabel(s_binds[i].key);
+                if (sc != SDL_SCANCODE_UNKNOWN)
+                    s_binds[i].scancode = sc;
+            }
+        }
+    }
 
     for (i = 0; i < s_bindCount; i++)
     {

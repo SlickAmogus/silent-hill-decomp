@@ -142,6 +142,11 @@ int Pc_MapMsgPagePending(void);
 
 /** Makes the pending continuation the current page. */
 void Pc_MapMsgPageAdvance(void);
+
+/** Size for the strings `Gfx_StringDraw` draws from now on, Q12, scaled
+ * about each string's start position. Measure them with the unscaled width
+ * times the scale. Set it back to Q12(1.0f) when done. */
+void Pc_StringScaleSet(s32 scale);
 #endif
 
 void func_8004B658(void);

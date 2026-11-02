@@ -10,6 +10,9 @@
 #include "maps/characters/creeper.h"
 #include "maps/characters/player.h"
 #include "maps/characters/puppet_nurse.h"
+#ifdef SH_PC_PORT
+#include "pc_mouse_cursor.h"
+#endif
 
 #include "../src/maps/characters/player.c"
 

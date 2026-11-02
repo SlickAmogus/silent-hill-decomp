@@ -821,20 +821,37 @@ QoL feature, not a fix (config `mouse_cursor`, default on; inert while the
 TPS/OTS/FPS camera captures the pointer). Game-code touch points:
 
 - **`Gfx_CursorDraw`** (`bodyprog_800881B8.c`): SH_PC_PORT hook — the shared
-  chokepoint every free-cursor puzzle (piano, plate, door panels, map pan)
-  draws through. Hands `pc_mouse_cursor.c` the puzzle's current cursor position
-  (framebuffer centre-origin px) and left/right click into enter/cancel on
-  `g_Controller0`, so all puzzles gain mouse control with no per-puzzle code.
-  Cursor control is an **absolute servo** (commit `18a49bc42`): the injector
-  deflects the left stick proportional to the error between the puzzle's own
-  cursor and the framebuffer point the mouse is over. The earlier delta-velocity
-  injection lost range to the stick's ±127 clamp and the height scaling — at
-  sensitivity 1 a full mouse sweep only covered ~62% of the puzzle's cursor
-  range (e.g. piano X∈[-89,85]/Y∈[-71,84]px, moved by `leftX*16384/75`), so the
-  cursor stopped ~2/3 down. The servo is closed-loop on the puzzle's own cursor,
-  so it converges on exactly where the mouse points regardless of framebuffer
-  height, stick scale, or the clamp; it engages on a mouse move and releases on
-  arrival so an idle mouse leaves a real pad's stick alone.
+  chokepoint every free-cursor puzzle (piano, plate, elevator, door panels)
+  draws through. Marks a puzzle as on screen, so left/right click land as
+  enter/cancel on `g_Controller0` and the TPS/OTS capture lets the pointer go.
+- **Puzzle cursor placement** (2026-10-26): each puzzle calls
+  `Pc_MouseCursor_PuzzleOverride(&cursorX, &cursorY)` just before it adds the
+  stick to its Q12 cursor (12 sites: `map1_s01` piano, `map3_s03` x2,
+  `map5_s01`, `map7_s01_2` x2, `map7_s02_2` x2, and the shared
+  `sharedFunc_800D15F0_3_s01.h` elevator / `sharedFunc_800DB60C_7_s01.h` 3x3
+  door). While the mouse owns the cursor it is written straight to the point
+  under the pointer, the same absolute mapping the menus use; the puzzle's own
+  clamp still bounds it. A mouse move takes ownership, a stick past
+  `STICK_THRESHOLD` hands it back, and the stick is zeroed while the mouse owns
+  it so pad drift can't offset the cursor. When the puzzle's clamp holds the
+  cursor short of the pointer, `Gfx_CursorDraw` reports the clamped position
+  and the OS pointer is warped back onto it (`SDL_WarpMouseInWindow`, window
+  focused only), so the pointer can't wander past the original bounds and have
+  to travel back before the cursor leaves the edge. This replaced the absolute servo
+  (`18a49bc42`), which steered the stick proportionally toward the pointer:
+  capped at ±127 (~6.8 px per 30 Hz frame) and easing in, so it felt floaty
+  and stopped up to 3 px short.
+- **Puzzle touchpad** (2026-10-26): a DualShock 4 / DualSense touchpad drag
+  moves the puzzle cursor relative to where it is (trackpad style, one full
+  swipe = picture width, Y scaled by `MC_TOUCHPAD_ASPECT` 0.5), and a touchpad
+  press confirms. Polled with `SDL_GameControllerGetTouchpadFinger` on every
+  pad PsyX has open (borrowed via `SDL_GameControllerFromInstanceID`, so
+  PsyCross is untouched); the finger already dragging keeps the cursor. Whichever
+  of stick, mouse and touchpad moved last owns the cursor. Over Bluetooth SDL
+  keeps these pads in simple reports (no touchpad, no rumble) unless
+  `SDL_HINT_JOYSTICK_HIDAPI_PS4_RUMBLE` / `_PS5_RUMBLE` are set, so `main_pc.c`
+  sets both before `PsyX_Initialise`; Steam used to be the only thing switching
+  them. Once on, a pad stays in extended reports until power-cycled.
 - **`GameState_MainMenu_Update`** (`events/title.c`): hover selects / click
   confirms on the entry list and difficulty rows (hit-tests the authored row
   bands: y=184+i*20 and y=204+i*20); draws the pointer after the text. The
@@ -3282,3 +3299,86 @@ keyframes), which is why sideways sprint always worked. Clamp dropped so forward
 matches, and the aim-run states joined the exhaustion group so sprinting with a
 weapon up tires him at the usual rate.
 
+
+## Keyboard layouts and IMEs (2026-10-26, launcher 2026.10.26.2)
+
+**A CJK IME ate the keyboard.** SDL2 starts text input when it creates the
+window, which attaches the OS input method to it. With Microsoft Pinyin in
+Chinese mode every key press reaches the window as `VK_PROCESSKEY`, and SDL's
+IME handler swallows those, so `SDL_GetKeyboardState` never saw WASD, Shift or
+the console key: no movement, no run, a console that would not close, and F10
+blocked behind it (`g_PcConsoleInputActive`). `main_pc.c` now calls
+`SDL_StopTextInput()` right after `PsyX_Initialise`. That detaches the IME and
+also turns `SDL_TEXTINPUT` off, which matters: with text events on, SDL
+re-attaches the IME every time the window regains focus.
+
+**The console typed US positions.** It built characters from scancodes
+(`'A' + (sc - SDL_SCANCODE_A)` plus a punctuation table), so QWERTZ typed Z for
+Y and AltGr symbols were unreachable. It now takes characters from
+`SDL_TEXTINPUT` (Windows' own `WM_CHAR`) through PsyCross's
+`g_cfg_gameOnTextInput`. `Console_SyncTextInput` enables only the event state,
+never `SDL_StartTextInput`, so the IME stays detached while the console is open,
+and redoes that after a focus regain. AltGr (Left Ctrl + Right Alt on Windows)
+no longer counts as Ctrl for Ctrl+C / Ctrl+V.
+
+**Key names showed US positions.** Saved binds stay SDL scancode names (US
+positions), so a config means the same physical keys on any layout. Only the
+display changed: `BindInput_KeyLabel` (`pc_bind_input.c`) maps a saved name to
+its label on the active layout, used by the native Controls screen (glyph and
+text), the F10 bind panel and the F10 footer. Console `bind` / `unbind` resolve
+the typed name by label (`BindInput_ScancodeFromLabel`); config binds are
+parsed before SDL knows the layout, so `PcBinds_Update` re-resolves them once.
+Console binds made on a non-US layout before this were saved under the US
+letter and now point at the other key.
+
+**The launcher captured labels but saved positions.** `ControlsForm` mapped the
+WinForms `Keys` value, which follows the key's label, straight to an SDL
+scancode name, so binding the key labelled Y on QWERTZ bound the key labelled
+Z in game. Letters, top-row digits and OEM punctuation are now captured by PC
+scancode (`MapVirtualKey`, gated by `IsLayoutKey` because keypad `/` shares
+scancode 0x35 with `/`), and each box shows its key's label on the active
+layout. The saved name lives in the box's `Tag`; its text is display only.
+
+## Pause menu (2026-10-28)
+
+**PAUSED became a menu.** On PC, `SysState_GamePaused_Update` keeps its
+freeze, its `SD_Call(3)` mute and the debug L3 combo, then hands the rest to
+`Pc_PauseMenu_Update` (`pc_port/src/pc_pause_menu.c`): CONTINUE / SAVE / LOAD /
+OPTION / EXIT in FONT16 with the title's quote marks, over the frozen frame.
+The retail blink and pause-bind resume stay under `#else`. The rows and the Yes/No
+popup are a renderer-free model (`pc_pause_menu_core.c`, `pc_pause_menu_test`).
+SAVE and LOAD open the same screens as F6 / F8 (`Pc_QuickSave_Open*Screen`).
+In a randomizer run or with a live boss they are darkened, and a reason line
+shows.
+
+**Leaving and coming back.** SAVE / LOAD / OPTION set a pending return, and
+PsyCross's `g_PsxFreezeCaptureHold` keeps the paused frame from being
+overwritten while the other screen draws. The MainLoop post-update block hands
+the state back to `SysState_GamePaused` on the same tick the screen returns to
+InGame. A hook in the dispatch block would see `Game_StateSetNext`'s forced
+Gameplay sysState first and tick the world once. `Pc_PauseMenu_Reset` clears
+the return on MainLoadScreen / MainMenu, `Game_WarmBoot`, and any exit that
+leaves the pause. `options.c` gates `Game_TimerUpdate` while a return is
+pending, so the clear time does not run.
+
+**Fades.** The Hor+ gate in `MainLoop` held 4:3 for 300 ms after any 2D
+background screen and only let go early on a frame where the world was drawn.
+A frozen world is never drawn, so on the way back from Save / Options the fade
+darkened a 4:3 window while the presented frame filled the side bars. A
+presented freeze-frame now ends that hold too. While the fade is opaque, the
+UI pass keeps the gate's framing instead of narrowing to 4:3 for a menu state,
+which also removes one frame of fog-grey bars on gameplay -> Options. SAVE /
+LOAD / EXIT fade out like the game's own exits: the menu goes on confirm and
+SAVELOAD.BIN loads under the fade. EXIT -> Yes sets `SysFlag_DoWarmReset` only
+once the screen is black.
+
+**Sound.** The pause keeps vanilla's master-volume mute. Its menu cues key on
+with `PsyX_SPUAL_SetKeyOnMasterExempt`, which mixes those voices after master.
+It covers only key-ons from the game thread, so sequencer notes stay muted.
+Opened from the pause, Save / Load / Options keep the mute and arm the same
+exemption for their own cues (`Pc_PauseMenu_AwayUpdate`). Any exit other than
+back to the pause lifts the mute. Opened any other way, they are vanilla.
+
+**Title EXIT.** `MainMenuEntry_Exit` (a port row) now asks "QUIT THE GAME?"
+before `exit(0)`. The prompt is drawn with the rows' own `Gfx_String` path on
+the first row's place, and it holds the attract timer while open.
