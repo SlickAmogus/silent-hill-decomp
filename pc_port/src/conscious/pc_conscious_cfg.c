@@ -24,9 +24,9 @@ PcConCfg     g_PcCon;
 PcConProfile g_PcConProf[PCCON_PROF_N];
 
 static const char* const s_profSlug[PCCON_PROF_N] = { "grey_children", "groaner", "romper", "air_screamer",
-                                                      "night_flutter" };
+                                                      "night_flutter", "dark_harry" };
 static const char* const s_profName[PCCON_PROF_N] = { "Grey Children", "Groaner", "Romper", "Air Screamer",
-                                                      "Night Flutter" };
+                                                      "Night Flutter", "Dark Harry" };
 
 static const struct { const char* name; const char* text; } s_moods[PCCON_MOOD_N] = {
     { "As written", NULL },
@@ -108,6 +108,7 @@ static int Cfg_Items(CfgItem* it)
     ADD("prompts", CI_INT, &g_PcCon.prompts, 0);
     ADD("voice_volume", CI_FLT, &g_PcCon.voiceVolume, 0);
     ADD("monster_incite_chance", CI_FLT, &g_PcCon.monsterInciteChance, 0);
+    ADD("dark_harry_call_chance", CI_FLT, &g_PcCon.darkHarryCallChance, 0);
     ADD("max_turns", CI_INT, &g_PcCon.maxTurns, 0);
     ADD("monster_max_turns", CI_INT, &g_PcCon.monsterMaxTurns, 0);
     ADD("listen_seconds", CI_FLT, &g_PcCon.listenSec, 0);
@@ -235,6 +236,14 @@ static const char s_template[] =
     "# at all (then they argue, and either fight each other or come for him together).\n"
     "monster_incite_chance = 0.35\n"
     "\n"
+    "# Dark Harry: the thing wearing Harry's face that walks out of the fog at you.\n"
+    "# The AFKEGG console command puts him in the map; this is the chance, per line a\n"
+    "# monster says to you, that it calls him for help instead. Talking is the only\n"
+    "# thing that stops him. dark_harry_talk = 0 below turns him off completely.\n"
+    "dark_harry_call_chance = 0.05\n"
+    "# His voice: empty = the voice on your ElevenLabs account named Harry, if any.\n"
+    "dark_harry_voice =\n"
+    "\n"
     "# 1 = each of Harry's lines goes out with a screenshot, so they can see what he means.\n"
     "# Needs a model that takes images (deepseek-chat / deepseek-flash do); one that\n"
     "# refuses them gets text only from then on.\n"
@@ -277,6 +286,7 @@ static void Cfg_Defaults(PcConCfg* c)
     c->monsterMaxTurns  = 8;
     SDL_strlcpy(c->monsterVoices, "N2lVS1w4EtoT3dr4eOWO,IKne3meq5aSn9XLyUdCD,JBFqnCBsd6RMkjVDRZzb,onwK4e9ZLuTAKqWW03F9,jfIS2w2yJi0grJZPyEsk,SOYHLrjzK2X1ezoPC6cr,pNInz6obpgDQGcFmaJgB,nPczCjzI2devNBz1zQrb", sizeof(c->monsterVoices));
     c->monsterInciteChance = 0.35f;
+    c->darkHarryCallChance = 0.05f;
     c->vision      = 1;
     c->visionWidth = 640;
     c->visionSave  = 1;
@@ -445,6 +455,8 @@ void PcCon_CfgLoad(void)
     if (g_PcCon.monsterMaxTurns < 1) g_PcCon.monsterMaxTurns = 1;
     if (g_PcCon.monsterInciteChance < 0.0f) g_PcCon.monsterInciteChance = 0.0f;
     if (g_PcCon.monsterInciteChance > 1.0f) g_PcCon.monsterInciteChance = 1.0f;
+    if (g_PcCon.darkHarryCallChance < 0.0f) g_PcCon.darkHarryCallChance = 0.0f;
+    if (g_PcCon.darkHarryCallChance > 1.0f) g_PcCon.darkHarryCallChance = 1.0f;
     if (g_PcCon.visionWidth < 160)   g_PcCon.visionWidth = 160;
     if (g_PcCon.visionWidth > 1600)  g_PcCon.visionWidth = 1600;
     {

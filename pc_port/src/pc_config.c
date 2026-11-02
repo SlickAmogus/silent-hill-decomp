@@ -32,8 +32,7 @@ s_PcConfig g_PcConfig = {
     .fpsCap         = 30,
     .weatherSimHz      = 60,   /* per-frame weather sim; 30 = the console's cadence */
     .cutsceneLineGapMs = 300,
-    .darkHarry         = 1,   /* on by default for now */
-    .darkHarryAfkSec   = 300, /* five minutes */
+    .darkHarry         = 1,
     .darkHarryDistance = 14,
     .darkHarryX        = 0,   /* unset: see dark_harry_x */
     .darkHarryZ        = 0,
@@ -599,13 +598,6 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "dark_harry") == 0)
         {
             g_PcConfig.darkHarry = (atoi(value) != 0);
-        }
-        else if (strcmp(key, "dark_harry_afk_sec") == 0)
-        {
-            int v = atoi(value);
-            if (v < 5)    v = 5;
-            if (v > 3600) v = 3600;
-            g_PcConfig.darkHarryAfkSec = v;
         }
         else if (strcmp(key, "dark_harry_distance") == 0)
         {

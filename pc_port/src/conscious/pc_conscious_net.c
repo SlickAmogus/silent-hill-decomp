@@ -388,6 +388,30 @@ static int Net_JudgeSpared(const char* judgeText)
     return d;
 }
 
+/* Dark Harry does not bargain: he stops only when he is genuinely talked
+ * down, so the default is that he keeps coming. */
+static int Net_JudgeDark(const char* judgeText)
+{
+    static const char sys[] =
+        "You read a scene from a horror game. A dark copy of a man named Harry is walking toward the real "
+        "Harry to kill him, and Harry keeps talking to make it stop. It is very hard to convince: it stops "
+        "ONLY if its LATEST line clearly says it is stopping for good, turning away, leaving, letting him go, "
+        "giving up, or that he has won / was right / is the real one. Taunts, questions, doubts, hesitation, "
+        "threats, 'maybe', pausing to think, or saying it is still coming all mean it keeps coming. "
+        "Answer with exactly one word: STOP or COMING.";
+    static const char* const words[] = { "STOP", "COMING" };
+    static const int         dec[]   = { PCCON_DECIDE_RELEASE, PCCON_DECIDE_TALK };
+    char* ans = Net_OneShot(sys, judgeText, 400);
+    int   d;
+
+    if (!ans)
+        return PCCON_DECIDE_TALK;
+    d = Net_LastWord(ans, words, dec, 2, PCCON_DECIDE_TALK);
+    SH_DBG("[CONSCIOUS] dark judge said '%.60s' -> %d", ans, d);
+    free(ans);
+    return d;
+}
+
 static short* Net_Tts(const char* text, const char* voiceId, const PcConVoiceTune* tune, unsigned int* outSamples)
 {
     char   url[256], hdr[320];
@@ -801,6 +825,7 @@ static void Net_Run(NetJob* j, PcConResult* r)
             snprintf(t, n, "%s\nTHEIR LATEST LINE: \"%s\"", j->judgeText, r->text);
             r->decision = j->judgeKind == PCCON_JUDGE_ARGUE    ? Net_JudgeArgue(t)
                           : j->judgeKind == PCCON_JUDGE_SPARED ? Net_JudgeSpared(t)
+                          : j->judgeKind == PCCON_JUDGE_DARK   ? Net_JudgeDark(t)
                                                                : Net_Judge(t);
             free(t);
         }

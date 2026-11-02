@@ -81,6 +81,7 @@ enum
     ID_MTURNS,
     ID_RANGE,
     ID_INCITE,
+    ID_CALL,
     ID_TEMP,
     /* profile */
     ID_TALK,
@@ -194,6 +195,10 @@ static void cm_voice_for_test(int prof, char* out, int cap)
     {
         SDL_strlcpy(out, v, (size_t)cap);
     }
+    else if (prof == PCCON_PROF_DARK)
+    {
+        SDL_strlcpy(out, Pc_Conscious_DarkVoice(), (size_t)cap);
+    }
     else if (prof == PCCON_PROF_GANG || !g_PcCon.monsterVoices[0])
     {
         SDL_strlcpy(out, g_PcCon.voiceId, (size_t)cap);
@@ -214,6 +219,7 @@ static void cm_test_voice(void)
         "Ha! I jump on you. I sit on you. Then I bite. You want to talk first? Fine.",
         "Down there on the ground, so slow, so small. I see everything from up here.",
         "Shhh... the dark is mine. You are very far from home, aren't you?",
+        "Cheryl? ...No. You're not her. And you're not me. Keep walking, Harry. I'll catch up.",
     };
     const PcConProfile* p = &g_PcConProf[s_prof];
     PcConVoiceTune      t;
@@ -766,7 +772,7 @@ static void cm_add(const char* label, int kind, int id)
 static void cm_build(int page, int sel)
 {
     static const char* const profLabels[PCCON_PROF_N] = { "Grey_Children", "Groaner", "Romper", "Air_Screamer",
-                                                          "Night_Flutter" };
+                                                          "Night_Flutter", "Dark_Harry" };
     int i;
 
     s_page = page;
@@ -796,11 +802,14 @@ static void cm_build(int page, int sel)
         cm_add("Patience_(Monsters)", RK_STEP, ID_MTURNS);
         cm_add("Hearing_Range", RK_STEP, ID_RANGE);
         cm_add("Trick_Chance", RK_STEP, ID_INCITE);
+        cm_add("Call_Dark_Harry", RK_STEP, ID_CALL);
         cm_add("Creativity", RK_STEP, ID_TEMP);
         break;
 
     default:
-        cm_add("Talks", RK_TOGGLE, ID_TALK);
+        /* His switch is whether he exists at all: off, and nothing can put
+         * him in the map. */
+        cm_add(s_prof == PCCON_PROF_DARK ? "Enabled" : "Talks", RK_TOGGLE, ID_TALK);
         cm_add("Voice", RK_STEP, ID_VOICE);
         cm_add("Test_Voice", RK_ACTION, ID_TEST);
         cm_add("Mood", RK_STEP, ID_MOOD);
@@ -834,7 +843,11 @@ static void cm_value(int id, char* out, int cap)
     out[0] = '\0';
     if (id >= ID_PROF0 && id < ID_PROF0 + PCCON_PROF_N)
     {
-        SDL_strlcpy(out, g_PcConProf[id - ID_PROF0].talk ? "Talks" : "Silent", (size_t)cap);
+        const int talk = g_PcConProf[id - ID_PROF0].talk;
+        if (id - ID_PROF0 == PCCON_PROF_DARK)
+            SDL_strlcpy(out, cm_onoff(talk), (size_t)cap);
+        else
+            SDL_strlcpy(out, talk ? "Talks" : "Silent", (size_t)cap);
         return;
     }
     switch (id)
@@ -855,13 +868,23 @@ static void cm_value(int id, char* out, int cap)
     case ID_MTURNS:   snprintf(out, (size_t)cap, "%d turns", g_PcCon.monsterMaxTurns); break;
     case ID_RANGE:    snprintf(out, (size_t)cap, "%d m", (int)(g_PcCon.monsterHearRange + 0.5f)); break;
     case ID_INCITE:   snprintf(out, (size_t)cap, "%d in 100", (int)(g_PcCon.monsterInciteChance * 100.0f + 0.5f)); break;
+    case ID_CALL:     snprintf(out, (size_t)cap, "%d in 100", (int)(g_PcCon.darkHarryCallChance * 100.0f + 0.5f)); break;
     case ID_TEMP:     snprintf(out, (size_t)cap, "%.1f", g_PcCon.llmTemperature); break;
 
     case ID_TALK:     SDL_strlcpy(out, cm_onoff(p->talk), (size_t)cap); break;
     case ID_VOICE:
     {
         int v = cm_voice_index(p->voice);
-        if (v == -1)
+        if (v == -1 && s_prof == PCCON_PROF_DARK)
+        {
+            /* Nothing chosen: the account's Harry, named if the list is in. */
+            int a = cm_voice_index(Pc_Conscious_DarkVoice());
+            if (a >= 0)
+                snprintf(out, (size_t)cap, "%s (auto)", s_voices[a].name);
+            else
+                SDL_strlcpy(out, "Harry (auto)", (size_t)cap);
+        }
+        else if (v == -1)
             SDL_strlcpy(out, s_prof == PCCON_PROF_GANG ? "Default" : "Random", (size_t)cap);
         else if (v == -2)
             snprintf(out, (size_t)cap, "Custom %.8s", p->voice);
@@ -926,6 +949,7 @@ static int cm_step(int id, int dir)
             g_PcCon.monsterFleeRange = g_PcCon.monsterHearRange + 2.0f;
         break;
     case ID_INCITE:   g_PcCon.monsterInciteChance = cm_stepf(g_PcCon.monsterInciteChance, dir, 0.05f, 0.0f, 1.0f); break;
+    case ID_CALL:     g_PcCon.darkHarryCallChance = cm_stepf(g_PcCon.darkHarryCallChance, dir, 0.01f, 0.0f, 1.0f); break;
     case ID_TEMP:     g_PcCon.llmTemperature = cm_stepf(g_PcCon.llmTemperature, dir, 0.1f, 0.2f, 1.6f); break;
 
     case ID_TALK:     p->talk = !p->talk; break;

@@ -14,6 +14,26 @@
   <img width="3440" height="1440" alt="build Screenshot 2026 10 26 - 22 38 03 43" src="https://github.com/user-attachments/assets/92876446-9a5a-4069-8cd2-5071149b7fe5" />
 21:9 3440x1440 resolution, per-pixel character lighting, Anti-aliasing, Anisotropic filtering + dithering
 
+## This Branch: Conscious NPCs
+
+`silenthill-conscious` is an experimental branch where the monsters talk back. The grey children at the end of the opening alley question you before they attack; Groaners, Rompers, Air Screamers and Night Flutters stop and listen when you speak near them. Talk your way out, insult them, bargain, or turn them on each other. Their lines are written by an LLM (DeepSeek by default, or any OpenAI-compatible endpoint such as Ollama or LM Studio) and spoken through ElevenLabs; your microphone is transcribed by ElevenLabs Scribe. Windows builds only for now (the HTTP layer is WinHTTP).
+
+**Setup**
+
+1. Run the game once. It writes `conscious.cfg` next to the exe.
+2. DeepSeek: create a key at https://platform.deepseek.com/api_keys and set `llm_key = sk-...`. For a local model, point `llm_url` at your server instead (examples are in the file).
+3. ElevenLabs: create a key under your profile at https://elevenlabs.io/app/settings/api-keys and set `elevenlabs_key = ...`. Without one, set `tts = 0` and `stt = 0` for typed, text-only conversations.
+4. In game: **V** toggles the mic, **Y** types a line, **M** opens the Conscious menu (voices, moods, personalities, and every toggle). Keys and API keys live only in `conscious.cfg`; the launcher never touches it.
+
+**Dark Harry**
+
+A see-through copy of Harry that walks out of the fog toward you and does not stop for anything the controls do. If he reaches you, you die (a continue is saved the moment he appears). He speaks in Harry's voice: by default the voice named "Harry" on your ElevenLabs account, or pick one on his page in the Conscious menu.
+
+- Type `afkegg` in the console (needs `allow_debug_controls = 1`) to bring him, and `afkeggstop` to send him away.
+- Any monster you are talking to has a 5% chance per line to call him instead of dealing with you itself (`dark_harry_call_chance`, also in the menu).
+- Talking is the only thing that stops him. Each time you speak he stops and listens, answers, and keeps coming unless you truly convince him. There is no turn limit, but after three failed attempts he stops stopping and runs at you. He still hears you, and the right words still send him back into the fog.
+- To turn him off completely: Conscious menu, **Dark Harry**, **Enabled: Off** (or `dark_harry_talk = 0` in `conscious.cfg`).
+
 ## Latest Features
 
 - **See the whole town.** Turn the fog/visibility slider in the launcher below 1.0 and the outdoor maps render all the way out instead of fading into fog. It needs PGXP, and the launcher offers to turn that on for you.

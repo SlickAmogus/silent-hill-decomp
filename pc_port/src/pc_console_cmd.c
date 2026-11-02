@@ -25,7 +25,7 @@
  *   INFO                 - name, health, position and state of the selection
  *   GOTO / BRING         - Harry to the selection / the selected enemy to Harry
  *   FREEZE [0|1|ALL|NONE] - hold enemies still (UNFREEZE = FREEZE 0)
- *   AFKEGG                  - trigger the Dark Harry easter egg now (debug)
+ *   AFKEGG / AFKEGGSTOP  - put Dark Harry in the map now / send him away
  *   NOCOL / NOCOLLIDE [0|1] - phase the selection (player if none) out of
  *                             collision except the ground
  *   BIND <key> <cmds>    - run one or more console commands from a key;
@@ -1470,15 +1470,23 @@ void Pc_ConsoleExec(const char* line)
         cmd_select(arg);
     } else if (strcmp(cmd, "SCALE") == 0) {
         cmd_scale(arg);
-    } else if (strcmp(cmd, "AFKEGG") == 0) {
-        /* Debug trigger for the Dark Harry easter egg (pc_dark_harry.c), so it
-         * can be tested without standing still for five minutes. */
-        extern const char* Pc_DarkHarry_Spawn(void);
-        const char* why = Pc_DarkHarry_Spawn();
+    } else if (strcmp(cmd, "AFKEGG") == 0 || strcmp(cmd, "DARKHARRY") == 0) {
+        /* Dark Harry (pc_dark_harry.c), through the conscious engine that
+         * owns whether he may appear and what he does once he has. */
+        extern const char* Pc_Conscious_DarkSpawn(void);
+        const char* why = Pc_Conscious_DarkSpawn();
         if (why == NULL) {
             cprintf("afkegg: he is here");
         } else {
             cprintf("afkegg: refused - %s", why);
+        }
+    } else if (strcmp(cmd, "AFKEGGSTOP") == 0 || strcmp(cmd, "DARKHARRYSTOP") == 0) {
+        extern const char* Pc_Conscious_DarkStop(void);
+        const char* why = Pc_Conscious_DarkStop();
+        if (why == NULL) {
+            cprintf("afkeggstop: he is gone");
+        } else {
+            cprintf("afkeggstop: %s", why);
         }
     } else if (strcmp(cmd, "NOCOL") == 0 || strcmp(cmd, "NOCOLLIDE") == 0) {
         cmd_nocol(arg);

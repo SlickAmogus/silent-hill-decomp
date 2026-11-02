@@ -36,6 +36,7 @@ typedef struct
     int   monsterMaxTurns;
     char  monsterVoices[640];  /* comma-separated ElevenLabs voice ids */
     float monsterInciteChance; /* 0..1: that turning them on each other works at all */
+    float darkHarryCallChance; /* 0..1: per monster turn, that it calls Dark Harry for help */
     int   vision;              /* send what the camera sees with each of Harry's lines */
     int   visionWidth;         /* pixels; the shot is scaled down to this */
     int   visionSave;          /* also write the last shot to conscious_view.jpg */
@@ -62,6 +63,7 @@ enum
     PCCON_PROF_ROMPER,
     PCCON_PROF_SCREAMER,
     PCCON_PROF_FLUTTER,
+    PCCON_PROF_DARK,           /* Dark Harry: talk = he can appear at all */
     PCCON_PROF_N
 };
 
@@ -141,6 +143,7 @@ void PcConNet_SubmitStt(unsigned int gen, unsigned char* wav, unsigned long wavL
 #define PCCON_JUDGE_TURN  0  /* ATTACK / RELEASE / TALK */
 #define PCCON_JUDGE_ARGUE 1  /* FIGHT / UNITE */
 #define PCCON_JUDGE_SPARED 2 /* ATTACK / TALK: they let him go, only a blatant insult undoes it */
+#define PCCON_JUDGE_DARK   3 /* RELEASE / TALK: Dark Harry stops for good, or keeps coming */
 
 typedef struct
 {
@@ -207,6 +210,15 @@ int         PcConChat_DisplayActive(void);
 void        PcConChat_Clear(void);
 /* SDL scancode -> the character it types, or 0. */
 char        PcConChat_Glyph(int sc, int shift);
+
+/* ---- Dark Harry (pc_conscious.c) ---------------------------------- */
+
+/* The console's AFKEGG / AFKEGGSTOP. Spawn returns NULL or why not. */
+const char* Pc_Conscious_DarkSpawn(void);
+const char* Pc_Conscious_DarkStop(void);
+/* The voice he speaks in when his profile names none: the account's voice
+ * called Harry if there is one, else a stock one. */
+const char* Pc_Conscious_DarkVoice(void);
 
 /* ---- menu (pc_conscious_menu.c) ----------------------------------- */
 

@@ -64,13 +64,12 @@ typedef struct {
     int cutsceneLineGapMs; /* min silence (ms) between cutscene voice lines — simulates PSX CD
                             * seek latency so tightly-timed lines don't run together. Applied as a
                             * MINIMUM (never shortens an authored gap). 0 = off. Default 300. */
-    /* "Dark Harry" easter egg (pc_dark_harry.c), NOT original-game behaviour.
-     * darkHarry 0 = off entirely. afkSec = seconds of no input before he
-     * appears; distance = how far out, in world units, which wants to be the
-     * fog wall for the intended effect. (config keys: dark_harry,
-     * dark_harry_afk_sec, dark_harry_distance) */
+    /* "Dark Harry" (pc_dark_harry.c), NOT original-game behaviour. On the
+     * conscious branch he is put in the map by the console or by a monster
+     * calling for help, and talked to like the other monsters. darkHarry 0 =
+     * off entirely; distance = how far out he appears, in world units, which
+     * wants to be the fog wall. (config keys: dark_harry, dark_harry_distance) */
     int darkHarry;
-    int darkHarryAfkSec;
     int darkHarryDistance;
     /* Fixed spot he appears at, in HUNDREDTHS of a world unit (1250 = 12.5).
      * Both zero = no landmark set, fall back to "ahead of the player at

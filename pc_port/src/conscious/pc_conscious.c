@@ -40,6 +40,18 @@
  * past monster_flee_range or hitting one ends it at once: they say something
  * about it and attack. Spared or attacking, they still answer when he talks.
  *
+ * DARK HARRY - the see-through copy of Harry (pc_dark_harry.c) that the
+ * console (AFKEGG) or a monster calling for help (dark_harry_call_chance per
+ * monster line) puts in the map. He walks at Harry and nothing the controls
+ * do sends him away. When Harry speaks he stops and listens, answers in
+ * Harry's own voice, and the judge decides: RELEASE only if he was truly
+ * talked down, and he walks back into the fog; anything else and he comes on
+ * again. No patience limit: every failed attempt he just resumes. After
+ * DK_STOPS failures he stops stopping and runs, still listening, still able
+ * to be talked down. His conversation runs beside the monsters': while they
+ * are mid-negotiation Harry's words are theirs; otherwise, if he is here,
+ * they are his, and no new monster stops to listen while he is around.
+ *
  * Only this file reads game state. V is Circle and Y does nothing anywhere
  * else; both only become the mic and chat keys while the mic icon is up.
  */
@@ -58,6 +70,7 @@
 
 #include "pc_voice_clip.h"
 #include "pc_conscious.h"
+#include "pc_dark_harry.h"
 #include "pc_conscious_hook.h"
 #include "pc_conscious_menu.h"
 #include "sh_log.h"
@@ -166,16 +179,18 @@ static int          s_lastVoice = -1;
 /* What each one heard and said, while it lives: one per field slot, and
  * MEM_GANG for the grey children, who speak as one. */
 #define MEM_GANG SLOT_N
+#define MEM_DARK (SLOT_N + 1)
 typedef struct
 {
     struct { int own; char* text; } l[HIST_MAX];
     int n;
 } Mem;
-static Mem s_mem[SLOT_N + 1];
+static Mem s_mem[SLOT_N + 2];
 
 static SDL_Scancode s_scMic  = SDL_SCANCODE_UNKNOWN;
 static SDL_Scancode s_scChat = SDL_SCANCODE_UNKNOWN;
 static int          s_prevMic, s_prevChat;
+static int          s_dkCallPending;     /* a monster's next line calls Dark Harry */
 static int          s_swallow;
 static int          s_micMaskHold;
 static int          s_iconUp;
@@ -224,6 +239,35 @@ static const char s_fieldRules[] =
     "flatters you in a way that lands -- you MAY let him go: say it plainly (tell him to get lost) and warn him. "
     "Otherwise question him, bargain, threaten what MIGHT happen. "
     "Lines in [brackets] describe what is happening; never repeat the brackets.";
+
+static const char s_darkSelf[] =
+    "You are DARK HARRY: a translucent, flickering copy of Harry Mason that walked out of the fog of "
+    "Silent Hill (1999) and is coming for the real one. You have his face, his voice, his memories and his "
+    "flat, deadpan way of talking -- and you are certain that YOU are the real Harry and he is the thing "
+    "that is wrong. You want your life back: Cheryl, the car, the town. You are calm, patient, quietly "
+    "unnerving and darkly funny in Harry's own awkward, literal way: you ask strange plain questions, you "
+    "state horrible things flatly, you notice small details about him and comment on them. You never "
+    "shout. You do not stop walking for anyone.";
+
+static const char s_darkRules[] =
+    " The man in front of you is %s, who believes he is the real Harry: a writer searching this town for his "
+    "missing seven-year-old daughter Cheryl. You are walking toward him; when you reach him he dies and you "
+    "take his place. He is talking to make you stop. "
+    "Rules: reply with ONE to THREE short sentences, under 40 words, meant to be spoken out loud in Harry's "
+    "quiet voice. No stage directions, no asterisks, no emojis, no narration, no quotation marks around your "
+    "line. Stay in character no matter what he says; you know nothing about video games, AI or the real world. "
+    "You are VERY hard to convince. Flattery, begging, threats, insults, jokes, bargains and nonsense do "
+    "nothing: answer them in his own words and keep coming. Only something that truly shakes you -- proof "
+    "only the real Harry could know, a reason that puts Cheryl first, a genuinely clever argument that you "
+    "are the copy -- may make you stop for good; if it does, say so plainly (that you are stopping, turning "
+    "back into the fog, letting him go). Otherwise make it clear you are still coming. "
+    "Lines in [brackets] describe what is happening; never repeat the brackets.";
+
+static const char* const s_darkFallback[] = {
+    "Cheryl? ...No. You're not her. And you're not me. Keep talking, if it helps.",
+    "I heard you. I'm still coming. That's not a threat. It's just what happens next.",
+    "You keep saying my name like it's yours. Hm. We'll sort that out in a minute.",
+};
 
 static const char* const s_fallback[] = {
     "Hey! HEY! This is OUR alley, grown-up. Who are you and what do you want?",
@@ -314,15 +358,15 @@ const char* PcCon_DefaultPersona(int prof)
     case PCCON_PROF_GROANER: return Mon_Self(Chara_Groaner);
     case PCCON_PROF_ROMPER:  return Mon_Self(Chara_Romper);
     case PCCON_PROF_FLUTTER: return Mon_Self(Chara_NightFlutter);
+    case PCCON_PROF_DARK:    return s_darkSelf;
     default:                 return Mon_Self(Chara_AirScreamer);
     }
 }
 
 /* Who it is (the player's rewrite, if there is one), its mood, and whatever
  * the player added. */
-static void Con_Self(int charaId, char* out, int cap)
+static void Con_SelfProf(int prof, char* out, int cap)
 {
-    const int           prof = Prof_Of(charaId);
     const PcConProfile* p    = &g_PcConProf[prof];
     const char*         mood = PcCon_MoodText(p->mood);
 
@@ -338,6 +382,11 @@ static void Con_Self(int charaId, char* out, int cap)
         SDL_strlcat(out, " More about you: ", (size_t)cap);
         SDL_strlcat(out, p->extra, (size_t)cap);
     }
+}
+
+static void Con_Self(int charaId, char* out, int cap)
+{
+    Con_SelfProf(Prof_Of(charaId), out, cap);
 }
 
 static const char* Mon_Look(int charaId)
@@ -584,40 +633,19 @@ static char* Con_BuildArgueMsgs(int spk, int other, const char* instruction)
     return out;
 }
 
-static char* Con_BuildMsgs(void)
+/* The chat messages: the system prompt, then the last HIST_SENT lines of a
+ * memory, the two roles taking turns as the APIs want. */
+static char* Msgs_FromMem(const char* sys, const Mem* m)
 {
-    char       sys[sizeof(s_persona) + sizeof(s_fieldRules) + sizeof(s_vision) + 1536 + 2048];
-    size_t     cap = sizeof(sys) * 2 + 256;
-    char*      out;
-    const Mem* m = &s_mem[Con_MemOf()];
-    int        i, from, role = -1;
+    size_t cap = strlen(sys) * 2 + 256;
+    char*  out;
+    int    i, from, role = -1;
 
     for (i = 0; i < m->n; i++)
         cap += strlen(m->l[i].text) * 2 + 48;
     out = (char*)malloc(cap);
     if (!out)
         return NULL;
-    if (s_mode == MODE_FIELD)
-    {
-        Fld_System(sys, (int)sizeof(sys));
-    }
-    else
-    {
-        Con_Self(Chara_GreyChild, sys, (int)sizeof(sys));
-        snprintf(sys + strlen(sys), sizeof(sys) - strlen(sys), s_persona, g_PcCon.playerName);
-        if (s_angry)
-            SDL_strlcat(sys, s_attacking, sizeof(sys));
-        else if (s_gangSpared)
-            SDL_strlcat(sys, s_letGo, sizeof(sys));
-    }
-    if (g_PcCon.vision)
-    {
-        int field = s_mode == MODE_FIELD;
-        snprintf(sys + strlen(sys), sizeof(sys) - strlen(sys), " ");
-        snprintf(sys + strlen(sys), sizeof(sys) - strlen(sys), s_vision, g_PcCon.playerName, g_PcCon.playerName,
-                 Mon_Look(field ? Fld_LeaderChara() : Chara_GreyChild),
-                 field ? " (any other monsters near you are the ones listening with you)" : " and your gang");
-    }
     strcpy(out, "[{\"role\":\"system\",\"content\":\"");
     PcCon_JsonEscapeCat(out, (int)cap, sys);
     strcat(out, "\"}");
@@ -646,6 +674,34 @@ static char* Con_BuildMsgs(void)
         strcat(out, "\"}");
     strcat(out, "]");
     return out;
+}
+
+static char* Con_BuildMsgs(void)
+{
+    char sys[sizeof(s_persona) + sizeof(s_fieldRules) + sizeof(s_vision) + 1536 + 2048];
+
+    if (s_mode == MODE_FIELD)
+    {
+        Fld_System(sys, (int)sizeof(sys));
+    }
+    else
+    {
+        Con_Self(Chara_GreyChild, sys, (int)sizeof(sys));
+        snprintf(sys + strlen(sys), sizeof(sys) - strlen(sys), s_persona, g_PcCon.playerName);
+        if (s_angry)
+            SDL_strlcat(sys, s_attacking, sizeof(sys));
+        else if (s_gangSpared)
+            SDL_strlcat(sys, s_letGo, sizeof(sys));
+    }
+    if (g_PcCon.vision)
+    {
+        int field = s_mode == MODE_FIELD;
+        snprintf(sys + strlen(sys), sizeof(sys) - strlen(sys), " ");
+        snprintf(sys + strlen(sys), sizeof(sys) - strlen(sys), s_vision, g_PcCon.playerName, g_PcCon.playerName,
+                 Mon_Look(field ? Fld_LeaderChara() : Chara_GreyChild),
+                 field ? " (any other monsters near you are the ones listening with you)" : " and your gang");
+    }
+    return Msgs_FromMem(sys, &s_mem[Con_MemOf()]);
 }
 
 static char* Con_BuildJudge(void)
@@ -744,22 +800,17 @@ static const PcConProfile* Con_SpkProf(int slot)
  * so the fraction below holds under hfov/vfov, pillarbox and Hor+ alike. */
 extern float g_PcWorldOrthoRect[4];
 
-/* Just above the head, as a fraction of the picture. 0 when behind the camera. */
-static int Con_HeadOnScreen(int npc, float* fx, float* fy)
+/* Just above a head headY metres over (x, y, z), as a fraction of the
+ * picture. 0 when behind the camera. */
+static int Pos_HeadOnScreen(s32 px, s32 py, s32 pz, float headY, float* fx, float* fy)
 {
-    MATRIX               mat;
-    SVECTOR              v;
-    long                 sxy = 0, p = 0, flag = 0, otz;
-    float                x, y, w, h;
-    const s_SubCharacter* c;
+    MATRIX  mat;
+    SVECTOR v;
+    long    sxy = 0, p = 0, flag = 0, otz;
+    float   x, y, w, h;
 
-    if (npc < 0 || npc >= NPC_N || g_SysWork.npcs[npc].model.charaId == Chara_None)
-        return 0;
-    c = &g_SysWork.npcs[npc];
     memset(&v, 0, sizeof(v));
-    Vw_WorldScreenMatrixAtPositionGet(&mat, c->position.vx,
-                                      c->position.vy - (q19_12)(Mon_HeadY(c->model.charaId) * 4096.0f),
-                                      c->position.vz);
+    Vw_WorldScreenMatrixAtPositionGet(&mat, px, py - (q19_12)(headY * 4096.0f), pz);
     SetRotMatrix(&mat);
     SetTransMatrix(&mat);
     otz = RotTransPers(&v, &sxy, &p, &flag);
@@ -780,6 +831,15 @@ static int Con_HeadOnScreen(int npc, float* fx, float* fy)
     if (*fy < 0.10f) *fy = 0.10f;
     if (*fy > 0.85f) *fy = 0.85f;
     return 1;
+}
+
+static int Con_HeadOnScreen(int npc, float* fx, float* fy)
+{
+    const s_SubCharacter* c;
+    if (npc < 0 || npc >= NPC_N || g_SysWork.npcs[npc].model.charaId == Chara_None)
+        return 0;
+    c = &g_SysWork.npcs[npc];
+    return Pos_HeadOnScreen(c->position.vx, c->position.vy, c->position.vz, Mon_HeadY(c->model.charaId), fx, fy);
 }
 
 static int Con_Awake(void)
@@ -871,10 +931,16 @@ static int Fld_Grudge(int i)
            s_fld[i].chara == g_SysWork.npcs[i].model.charaId && Con_DistToPlayer(i) <= g_PcCon.monsterHearRange;
 }
 
+static int Dk_On(void);
+static int Dk_CanBeCalled(void);
+
 static int Fld_Candidates(void)
 {
     int i, n = 0;
     if (!g_PcCon.monsters || g_SavegamePtr == NULL || Con_InScene())
+        return 0;
+    /* Dark Harry owns the scene: nobody else stops to listen while he is here. */
+    if (Pc_DarkHarry_Active() && Dk_On())
         return 0;
     for (i = 0; i < NPC_N && i < SLOT_N; i++)
         if (Fld_Candidate(i) || Fld_Grudge(i))
@@ -1100,6 +1166,7 @@ static void Con_Reset(void)
     s_argue          = 0;
     s_argA = s_argB  = -1;
     s_fight          = 0;
+    s_dkCallPending  = 0;
     memset(s_calmSeenMs, 0, sizeof(s_calmSeenMs));
     for (i = 0; i < SLOT_N; i++)
     {
@@ -1448,6 +1515,18 @@ static void Con_PlayerTurn(const char* content)
                                    "tell him he is done and that you are going to get him NOW.]", content);
         Con_SubmitTurn(buf, PCCON_DECIDE_ATTACK);
     }
+    else if (s_mode == MODE_FIELD && Dk_CanBeCalled() && Con_Rand01() < g_PcCon.darkHarryCallChance)
+    {
+        /* It would rather not deal with him itself. The attack starts with
+         * the line; he arrives as it is said (Con_Speak). */
+        SH_DBG("[CONSCIOUS] field: the %s calls Dark Harry", Con_SpeakerName());
+        snprintf(buf, sizeof(buf), "%s\n[You are done talking to him. You call for help: howl or shout for the "
+                                   "Dark One, the thing that wears HIS face and walks out of the fog, to come and "
+                                   "take him. Say so plainly, and that you will keep him here until it arrives.]",
+                 content);
+        s_dkCallPending = 1;
+        Con_SubmitTurn(buf, PCCON_DECIDE_ATTACK);
+    }
     else if (s_mode == MODE_FIELD && !s_fight && Fld_Parts(NULL) >= 2 && s_lastHarry[0])
     {
         char scene[900];
@@ -1522,6 +1601,16 @@ static void Con_Speak(const char* text, const short* pcm, unsigned int samples, 
         SH_DBG("[CONSCIOUS] field: attack (their line meant attack)");
         Fld_Unleash();
     }
+    if (s_dkCallPending)
+    {
+        const char* why;
+        s_dkCallPending = 0;
+        why = Pc_DarkHarry_Spawn(1);
+        if (why == NULL)
+            PcConChat_Add(PCCHAT_SYSTEM, NULL, "[Something answers from the fog behind you.]");
+        else
+            SH_DBG("[CONSCIOUS] Dark Harry did not come: %s", why);
+    }
     if (s_mode == MODE_FIELD && s_argue == 3 && decision == PCCON_DECIDE_FIGHT)
     {
         Fld_StartFight(s_argA, s_argB);
@@ -1561,6 +1650,372 @@ static int Con_Words(const char* s)
     return n;
 }
 
+
+/* ------------------------------------------------------------------ */
+/* Dark Harry                                                          */
+/* ------------------------------------------------------------------ */
+
+/* His turns travel through the same worker with this bit in their
+ * generation, so a result is never mistaken for one of the monsters'. */
+#define DK_GEN_BIT   0x40000000u
+#define DK_NAME      "Dark Harry"
+#define DK_STOPS     3      /* failed attempts he still stops for */
+#define DK_HEAD_Y    1.45f
+#define DK_STOCK_VOICE "SOYHLrjzK2X1ezoPC6cr"   /* ElevenLabs library "Harry" */
+
+enum { DK_OFF = 0, DK_WALK, DK_HEARING, DK_THINKING, DK_SPEAKING };
+
+static int          s_dk;
+static float        s_dkT;
+static unsigned int s_dkGen = DK_GEN_BIT | 1;
+static int          s_dkFails;
+static int          s_dkDecision;
+static unsigned int s_dkClip;
+static char         s_dkLine[400];
+static float        s_dkLineT, s_dkLineDur, s_dkHold, s_dkLinger;
+static char         s_dkAutoVoice[64];
+
+static int Dk_On(void)
+{
+    return g_PcCon.enabled && g_PcConProf[PCCON_PROF_DARK].talk;
+}
+
+static int Dk_CanBeCalled(void)
+{
+    return Dk_On() && !Pc_DarkHarry_Active();
+}
+
+/* The monsters are mid-negotiation: Harry's words are theirs. Once they
+ * attack, or let him go, or nobody is talking, they are Dark Harry's. */
+static int Con_Negotiating(void)
+{
+    if (s_state == CS_OFF || s_state == CS_HOSTILE)
+        return 0;
+    return !s_angry && !Con_Spared();
+}
+
+static int Dk_Owns(void)
+{
+    return Pc_DarkHarry_Active() && Dk_On() && !Con_Negotiating();
+}
+
+const char* Pc_Conscious_DarkVoice(void)
+{
+    if (g_PcConProf[PCCON_PROF_DARK].voice[0])
+        return g_PcConProf[PCCON_PROF_DARK].voice;
+    return s_dkAutoVoice[0] ? s_dkAutoVoice : DK_STOCK_VOICE;
+}
+
+/* The account's own Harry, if there is one: the first voice named Harry. */
+static void Dk_VoicesSeen(const char* list)
+{
+    const char* p = list;
+    while (*p)
+    {
+        const char* tab = strchr(p, '\t');
+        const char* nl  = strchr(p, '\n');
+        const char* q;
+        if (!tab || !nl || tab > nl)
+            break;
+        for (q = tab + 1; q + 5 <= nl; q++)
+        {
+            if (SDL_strncasecmp(q, "harry", 5) == 0)
+            {
+                size_t n = (size_t)(tab - p);
+                if (n >= sizeof(s_dkAutoVoice))
+                    n = sizeof(s_dkAutoVoice) - 1;
+                memcpy(s_dkAutoVoice, p, n);
+                s_dkAutoVoice[n] = '\0';
+                SH_DBG("[CONSCIOUS] Dark Harry speaks with the account's '%.*s'", (int)(nl - tab - 1), tab + 1);
+                return;
+            }
+        }
+        p = nl + 1;
+    }
+}
+
+static float Dk_Gain(void)
+{
+    float d = Pc_DarkHarry_Dist();
+    if (d <= 3.0f)
+        return g_PcCon.voiceVolume;
+    d = 1.0f - (d - 3.0f) / (g_PcCon.hearRange - 3.0f);
+    return d < 0.0f ? 0.0f : d * g_PcCon.voiceVolume;
+}
+
+/* Stops for the first DK_STOPS attempts; after that he keeps coming. */
+static void Dk_HoldIf(void)
+{
+    Pc_DarkHarry_Hold(s_dkFails < DK_STOPS);
+}
+
+static void Dk_End(void)
+{
+    if (s_dk != DK_OFF)
+        SH_DBG("[CONSCIOUS] Dark Harry: over after %d refusal(s)", s_dkFails);
+    Pc_VoiceClip_Stop(s_dkClip);
+    s_dkClip  = 0;
+    s_dkGen++;
+    s_dkFails = 0;
+    s_dkHold  = 0.0f;
+    s_dk      = DK_OFF;
+    s_dkT     = 0.0f;
+    Mem_Clear(MEM_DARK);
+}
+
+static char* Dk_BuildMsgs(void)
+{
+    char sys[4096];
+    char rules[sizeof(s_darkRules) + 64];
+
+    Con_SelfProf(PCCON_PROF_DARK, sys, (int)sizeof(sys));
+    snprintf(rules, sizeof(rules), s_darkRules, g_PcCon.playerName);
+    SDL_strlcat(sys, rules, sizeof(sys));
+    if (s_dkFails > 0)
+        snprintf(sys + strlen(sys), sizeof(sys) - strlen(sys),
+                 " You have already refused to stop %d time%s and started walking again.", s_dkFails,
+                 s_dkFails == 1 ? "" : "s");
+    if (s_dkFails >= DK_STOPS)
+        SDL_strlcat(sys, " You are done pausing for him: you are running at him now, though you still hear "
+                         "every word and could still be stopped by the right ones.", sizeof(sys));
+    if (g_PcCon.vision)
+    {
+        SDL_strlcat(sys, " ", sizeof(sys));
+        snprintf(sys + strlen(sys), sizeof(sys) - strlen(sys), s_vision, g_PcCon.playerName, g_PcCon.playerName,
+                 "a second, see-through, flickering copy of that same man", "");
+    }
+    return Msgs_FromMem(sys, &s_mem[MEM_DARK]);
+}
+
+static char* Dk_BuildJudge(void)
+{
+    size_t     cap = 512;
+    char*      out;
+    const Mem* m = &s_mem[MEM_DARK];
+    int        i, from = m->n > 12 ? m->n - 12 : 0;
+
+    for (i = from; i < m->n; i++)
+        cap += strlen(m->l[i].text) + 32;
+    out = (char*)malloc(cap);
+    if (!out)
+        return NULL;
+    snprintf(out, cap, "The monster: DARK HARRY, a copy of Harry walking at him. Times it has already refused "
+                       "to stop: %d.\nCONVERSATION:\n", s_dkFails);
+    for (i = from; i < m->n; i++)
+    {
+        if (m->l[i].own)
+            strcat(out, "DARK HARRY: ");
+        strcat(out, m->l[i].text);
+        strcat(out, "\n");
+    }
+    return out;
+}
+
+static void Dk_Speak(const char* text, const short* pcm, unsigned int samples, int rate, int decision)
+{
+    const PcConProfile* p = &g_PcConProf[PCCON_PROF_DARK];
+
+    PcConChat_Add(PCCHAT_NPC, DK_NAME, text);
+    Pc_VoiceClip_Stop(s_dkClip);
+    s_dkClip    = pcm ? Pc_VoiceClip_PlayEx(pcm, samples, rate, 0, Dk_Gain(), p->pitch) : 0;
+    s_dkHold    = s_dkClip ? 0.3f : 1.2f + 0.055f * (float)strlen(text);
+    SDL_strlcpy(s_dkLine, text, sizeof(s_dkLine));
+    s_dkLineT   = 0.0f;
+    s_dkLineDur = s_dkClip ? (float)samples / ((float)rate * p->pitch) : s_dkHold;
+    s_dkLinger  = 1.5f;
+    s_dkDecision = decision;
+    SH_DBG("[CONSCIOUS] Dark Harry says (decision %d, tts %u samples): %s", decision, pcm ? samples : 0u, text);
+    s_dk  = DK_SPEAKING;
+    s_dkT = 0.0f;
+}
+
+static void Dk_SpeakResult(PcConResult* r)
+{
+    if (r && r->ok && r->text)
+    {
+        Dk_Speak(r->text, r->pcm, r->samples, r->rate, r->decision);
+        return;
+    }
+    {
+        const char* fb = s_darkFallback[s_dkFails % 3];
+        Mem_Push(MEM_DARK, 1, fb);
+        Dk_Speak(fb, NULL, 0, 0, PCCON_DECIDE_TALK);
+    }
+}
+
+static void Dk_HandleResult(PcConResult* r)
+{
+    if (r->gen != s_dkGen || s_dk != DK_THINKING)
+    {
+        PcConNet_Free(r);
+        return;
+    }
+    if (r->ok && r->text)
+        Mem_Push(MEM_DARK, 1, r->text);
+    Dk_SpeakResult(r);
+    PcConNet_Free(r);
+}
+
+static void Dk_PlayerSaid(const char* text, int typed)
+{
+    PcConTurnOpts       o;
+    const PcConProfile* p = &g_PcConProf[PCCON_PROF_DARK];
+    char                line[600];
+    int                 need = typed ? 1 : g_PcCon.minWordsFirst;
+
+    if (s_dk == DK_THINKING || s_dk == DK_SPEAKING)
+    {
+        PcConChat_Add(PCCHAT_DIM, g_PcCon.playerName, text);
+        return;
+    }
+    if (Con_Words(text) < need)
+    {
+        snprintf(line, sizeof(line), "%s  (too short, ignored)", text);
+        PcConChat_Add(PCCHAT_DIM, g_PcCon.playerName, line);
+        return;
+    }
+    if (s_dk == DK_OFF)
+    {
+        s_dk = DK_WALK;
+        PcConNet_Start();
+    }
+    PcConChat_Add(PCCHAT_PLAYER, g_PcCon.playerName, text);
+    snprintf(line, sizeof(line), "%s says: \"%s\"", g_PcCon.playerName, text);
+    Mem_Push(MEM_DARK, 0, line);
+    Dk_HoldIf();
+
+    memset(&o, 0, sizeof(o));
+    o.shot           = g_PcCon.vision ? PcConHud_Capture(&o.shotW, &o.shotH) : NULL;
+    o.voiceId        = Pc_Conscious_DarkVoice();
+    o.tune.stability = p->stability;
+    o.tune.style     = p->style;
+    o.tune.speed     = p->speed;
+    o.judgeKind      = PCCON_JUDGE_DARK;
+    PcConNet_SubmitTurn(s_dkGen, Dk_BuildMsgs(), Dk_BuildJudge(), -1, &o);
+    SH_DBG("[CONSCIOUS] Dark Harry hears attempt %d%s", s_dkFails + 1, s_dkFails < DK_STOPS ? ", stops" : ", keeps coming");
+    s_dk  = DK_THINKING;
+    s_dkT = 0.0f;
+}
+
+/* His line is over: he either turns back into the fog, or comes on again. */
+static void Dk_LineDone(void)
+{
+    if (s_dkDecision == PCCON_DECIDE_RELEASE)
+    {
+        SH_DBG("[CONSCIOUS] Dark Harry: talked down after %d refusal(s)", s_dkFails);
+        PcConChat_Add(PCCHAT_SYSTEM, NULL, "[He stops. He turns, and walks back into the fog.]");
+        Pc_DarkHarry_Dismiss("talked down");
+        Dk_End();
+        return;
+    }
+    s_dkFails++;
+    if (s_dkFails == DK_STOPS)
+    {
+        PcConChat_Add(PCCHAT_SYSTEM, NULL, "[He is done stopping for you. He runs.]");
+        Pc_DarkHarry_Run(1);
+    }
+    Pc_DarkHarry_Hold(0);
+    s_dk  = DK_WALK;
+    s_dkT = 0.0f;
+}
+
+static void Dk_Tick(float dt, int live, int inGame)
+{
+    int talking;
+
+    if (!inGame || !Pc_DarkHarry_Active())
+    {
+        if (s_dk != DK_OFF)
+            Dk_End();
+        if (Pc_DarkHarry_PollTaken())
+            PcConChat_Add(PCCHAT_SYSTEM, NULL, "[He reached you.]");
+        return;
+    }
+    if (!Dk_On())
+    {
+        Pc_DarkHarry_Dismiss("switched off in the Conscious menu");
+        return;
+    }
+    if (s_dk == DK_OFF)
+    {
+        s_dk  = DK_WALK;
+        s_dkT = 0.0f;
+        PcConNet_Start();
+        PcConChat_Add(PCCHAT_SYSTEM, NULL, "[Something wearing your face walks out of the fog. Talk to it.]");
+    }
+    if (s_dkClip)
+        Pc_VoiceClip_SetGain(s_dkClip, Dk_Gain());
+    if (!live)
+        return;
+    s_dkT  += dt;
+    talking = PcConMic_Speaking() || s_sttPending > 0 || PcConChat_IsOpen();
+
+    switch (s_dk)
+    {
+    case DK_WALK:
+        /* His voice is what stops him: he holds still while Harry is
+         * mid-sentence, being transcribed or typing. */
+        if (talking && Dk_Owns())
+        {
+            s_dk  = DK_HEARING;
+            s_dkT = 0.0f;
+            Dk_HoldIf();
+        }
+        break;
+
+    case DK_HEARING:
+        if (talking)
+            s_dkT = 0.0f;
+        else if (s_dkT > 1.0f)
+        {
+            Pc_DarkHarry_Hold(0);
+            s_dk = DK_WALK;
+        }
+        break;
+
+    case DK_THINKING:
+        if (s_dkT > THINK_LIMIT)
+        {
+            SH_DBG("[CONSCIOUS] Dark Harry: no answer from the model in %.0fs", THINK_LIMIT);
+            s_dkGen++;
+            Dk_SpeakResult(NULL);
+        }
+        break;
+
+    case DK_SPEAKING:
+        if (s_dkHold > 0.0f)
+            s_dkHold -= dt;
+        if (s_dkHold <= 0.0f && !Pc_VoiceClip_Playing(s_dkClip))
+        {
+            s_dkClip = 0;
+            Dk_LineDone();
+        }
+        break;
+
+    default:
+        break;
+    }
+}
+
+const char* Pc_Conscious_DarkSpawn(void)
+{
+    if (!g_PcCon.enabled)
+        return "talking NPCs are off (enabled = 0 in conscious.cfg)";
+    if (!g_PcConProf[PCCON_PROF_DARK].talk)
+        return "Dark Harry is off in the Conscious menu";
+    return Pc_DarkHarry_Spawn(0);
+}
+
+const char* Pc_Conscious_DarkStop(void)
+{
+    if (!Pc_DarkHarry_Active())
+        return "he is not here";
+    Pc_DarkHarry_Dismiss("AFKEGGSTOP");
+    Dk_End();
+    PcConChat_Add(PCCHAT_SYSTEM, NULL, "[He fades back into the fog.]");
+    return NULL;
+}
+
 static void Con_PlayerSaid(const char* text, int typed)
 {
     char line[512];
@@ -1568,6 +2023,11 @@ static void Con_PlayerSaid(const char* text, int typed)
 
     if (!text || !text[0])
         return;
+    if (Dk_Owns())
+    {
+        Dk_PlayerSaid(text, typed);
+        return;
+    }
     if (s_state != CS_LISTEN && s_state != CS_HEARING && s_state != CS_RELEASED)
     {
         /* Mid-argument he can still butt in: the next line hears it. */
@@ -1609,8 +2069,16 @@ static void Con_HandleResult(PcConResult* r)
     if (r->kind == PCCON_JOB_VOICES)
     {
         if (r->ok && r->text)
+        {
             PcConMenu_Voices(r->text);
+            Dk_VoicesSeen(r->text);
+        }
         PcConNet_Free(r);
+        return;
+    }
+    if (r->kind == PCCON_JOB_TURN && (r->gen & DK_GEN_BIT))
+    {
+        Dk_HandleResult(r);
         return;
     }
     if (r->kind == PCCON_JOB_SAY)
@@ -2064,6 +2532,7 @@ static void Con_Forget(void)
     memset(s_gangAlive, 0, sizeof(s_gangAlive));
     s_gangSpared = 0;
     s_fenceDone  = 0;
+    Dk_End();
 }
 
 static void Con_Tick(float dt, int live)
@@ -2462,6 +2931,12 @@ void Pc_Conscious_Frame(void)
         s_scMic  = SDL_GetScancodeFromName(g_PcCon.keyMic);
         s_scChat = SDL_GetScancodeFromName(g_PcCon.keyChat);
         s_lastMs = now;
+        /* His default voice is whichever one on the account is called Harry. */
+        if (g_PcCon.enabled && g_PcCon.elevenKey[0] && Dk_On() && !g_PcConProf[PCCON_PROF_DARK].voice[0])
+        {
+            PcConNet_Start();
+            PcConNet_SubmitVoices(0);
+        }
     }
     if (!g_PcCon.enabled)
     {
@@ -2477,17 +2952,18 @@ void Pc_Conscious_Frame(void)
     inGame  = g_GameWork.gameState == GameState_InGame;
     s_candN = inGame ? Fld_Candidates() : 0;
     s_iconUp = inGame && s_state != CS_HOSTILE &&
-               (s_state != CS_OFF || s_candN > 0 || (PcConMic_On() && g_PcCon.monsters && !Con_InScene()));
+               (s_state != CS_OFF || s_candN > 0 || (PcConMic_On() && g_PcCon.monsters && !Con_InScene()) ||
+                (Pc_DarkHarry_Active() && Dk_On()));
 
     Pc_VoiceClip_Tick();
     Con_Input();
 
     /* Through speakers the mic hears them talking; none of that is Harry. */
-    if (s_state == CS_SPEAKING)
+    if (s_state == CS_SPEAKING || s_dk == DK_SPEAKING)
         PcConMic_Discard();
     if (PcConMic_Pump(&wav, &wavLen))
     {
-        if ((s_state != CS_OFF || s_candN > 0) && g_PcCon.stt && g_PcCon.elevenKey[0])
+        if ((s_state != CS_OFF || s_candN > 0 || Dk_Owns()) && g_PcCon.stt && g_PcCon.elevenKey[0])
         {
             s_sttPending++;
             PcConNet_Start();
@@ -2503,9 +2979,35 @@ void Pc_Conscious_Frame(void)
 
     live = g_SysWork.sysState == SysState_Gameplay && g_DeltaTime != 0;
     Con_Tick(dt, live);
+    Dk_Tick(dt, live, inGame);
 
     memset(&hud, 0, sizeof(hud));
-    if (s_line[0] && inGame)
+    if (s_dkLine[0] && inGame)
+    {
+        s32 x, y, z;
+        s_dkLineT += dt;
+        if (s_dk != DK_SPEAKING)
+            s_dkLinger -= dt;
+        if ((s_dk == DK_SPEAKING || s_dkLinger > 0.0f) && Pc_DarkHarry_Active())
+        {
+            Pc_DarkHarry_Pos(&x, &y, &z);
+            if (Pos_HeadOnScreen(x, y, z, DK_HEAD_Y, &hud.bubbleX, &hud.bubbleY))
+            {
+                hud.bubble         = 1;
+                hud.bubbleText     = s_dkLine;
+                hud.bubbleProgress = s_dkClip ? Pc_VoiceClip_Progress(s_dkClip)
+                                              : (s_dkLineDur > 0.0f ? s_dkLineT / s_dkLineDur : 1.0f);
+                if (hud.bubbleProgress > 1.0f || s_dk != DK_SPEAKING)
+                    hud.bubbleProgress = 1.0f;
+                hud.bubbleAlpha = (s_dk == DK_SPEAKING || s_dkLinger > 0.5f) ? 1.0f : s_dkLinger / 0.5f;
+            }
+        }
+        else
+        {
+            s_dkLine[0] = '\0';
+        }
+    }
+    if (s_line[0] && inGame && !hud.bubble)
     {
         s_lineT += dt;
         if (s_state != CS_SPEAKING)
@@ -2538,7 +3040,18 @@ void Pc_Conscious_Frame(void)
         hud.micKeyName  = g_PcCon.keyMic;
         hud.chatKeyName = g_PcCon.keyChat;
         SDL_strlcpy(name, Con_SpeakerName(), sizeof(name));
-        if (s_mode == MODE_FIELD && s_argue && s_argA >= 0 && s_argB >= 0)
+        if (Dk_Owns() && s_dk != DK_OFF)
+        {
+            if (s_dk == DK_HEARING)
+                snprintf(hud.status, sizeof(hud.status), s_dkFails < DK_STOPS ? "Dark Harry stops and listens..."
+                                                                              : "Dark Harry listens... and keeps coming.");
+            else if (s_dk == DK_THINKING)
+                snprintf(hud.status, sizeof(hud.status), "Dark Harry is thinking it over...");
+            else if (s_dk == DK_WALK)
+                snprintf(hud.status, sizeof(hud.status), s_dkFails < DK_STOPS ? "Dark Harry is coming. Talk to him."
+                                                                              : "Dark Harry is running at you. Talk fast.");
+        }
+        else if (s_mode == MODE_FIELD && s_argue && s_argA >= 0 && s_argB >= 0)
         {
             snprintf(hud.status, sizeof(hud.status), "The %s and the %s are arguing...", Con_SlotName(s_argA),
                      Con_SlotName(s_argB));

@@ -4,51 +4,64 @@
 
 #ifdef SH_PC_PORT
 
-/* "Dark Harry" — an easter egg that is NOT in the original game.
+/* "Dark Harry" -- NOT in the original game.
  *
- * Stand still outdoors in the fog long enough and a translucent copy of Harry
- * fades in at the edge of visibility and starts walking at you. Touch any
- * control and he is gone. Let him reach you and he kills you.
+ * A translucent copy of Harry that walks out of the fog and comes for the
+ * player, slowly, and does not stop for anything the controls can do. Reach
+ * the player and he kills them. On the silenthill-conscious branch he is a
+ * talking NPC: the console (AFKEGG) or a monster calling for help puts him in
+ * the map, and the conversation engine (src/conscious/pc_conscious.c) is what
+ * makes him stop and listen, run, or leave. AFKEGGSTOP sends him away.
  *
  * DELIBERATELY SELF-CONTAINED so it can be pulled out again. Everything lives
- * in pc_dark_harry.c; outside it there are only these, each a single line:
+ * in pc_dark_harry.c; outside it there are only these:
  *   1. Pc_DarkHarry_Update()  - game_main.c, once per frame
  *   2. Pc_DarkHarry_Draw()    - game_sys_states.c, beside the player's own draw
  *   3. g_PcCharaGhostDraw     - bodyprog_80055028.c, the two chara addPrim sites
  *   4. dark_harry* keys       - pc_config.{h,c} + config.cfg
- *   5. AFKEGG                 - pc_console_cmd.c, a debug trigger
- *   6. g_PcMouseLookTravel    - game_main.c, one line beside the only
- *                               SDL_GetRelativeMouseState gameplay calls (a
- *                               second reader there would eat the camera's
- *                               own mouse motion)
- * Removing the feature = delete this file, pc_dark_harry.c, those hooks.
+ *   5. AFKEGG / AFKEGGSTOP    - pc_console_cmd.c, through pc_conscious.c
+ *   6. the conscious engine   - pc_conscious.c drives Hold / Run / Dismiss
  *
  * It borrows two things while he is on screen and hands both back on every
  * exit: the radio's second proximity voice (Sfx_RadioStaticLoop, which rises
  * from barely audible to full as he closes) and g_cfg_brightness (the scene
  * darkens as he closes). Neither is written anywhere else in here.
  *
- * Gated on g_PcConfig.darkHarry, and additionally restricted to the maps listed
- * in DARK_HARRY_MAPS (currently map2_s00, the streets). */
+ * He knows nothing about the conversation: he is told to hold still, to run,
+ * or to go, and reports where he is. */
 
-/* Once per frame from the main loop. Does nothing at all while the feature is
- * off, out of its map, or the player is not in normal gameplay control. */
+/* Once per frame from the main loop. Takes him away the moment the player is
+ * not in normal gameplay control (a cutscene, a menu, a map change). */
 void Pc_DarkHarry_Update(void);
 
-/* Draw him, if he is here. Called with the other world draws; poses his own
- * skeleton and renders it see-through. Does nothing when he is not present. */
+/* Draw him, if he is here. Poses his own skeleton (still, walking or running)
+ * and renders it see-through. Does nothing when he is not present. */
 void Pc_DarkHarry_Draw(void);
 
-/* 1 while the apparition exists. */
+/* 1 while he exists. */
 int Pc_DarkHarry_Active(void);
 
-/* Put him there right now, ignoring the AFK clock. The AFKEGG console
- * command, for testing without standing still for five minutes. Returns NULL
- * if he is now here, otherwise why not, in words fit to print. */
-const char* Pc_DarkHarry_Spawn(void);
+/* Put him there right now. fromBehind: at the fog wall behind the player
+ * (a monster called him) rather than ahead or at the configured landmark.
+ * Returns NULL if he is now here, otherwise why not, in words fit to print. */
+const char* Pc_DarkHarry_Spawn(int fromBehind);
 
-/* Drop the apparition and restart the clock. Safe to call at any time. */
-void Pc_DarkHarry_Reset(void);
+/* Take him away, logging why. Safe to call at any time. */
+void Pc_DarkHarry_Dismiss(const char* why);
+
+/* 1 = stand still and face the player (listening); 0 = come on. */
+void Pc_DarkHarry_Hold(int hold);
+
+/* 1 = he runs from now on instead of walking. */
+void Pc_DarkHarry_Run(int run);
+
+/* Where he stands, in world units (q19_12), and how far from the player he
+ * is in metres. Both zero when he is not here. */
+void  Pc_DarkHarry_Pos(int* x, int* y, int* z);
+float Pc_DarkHarry_Dist(void);
+
+/* 1 exactly once after he reached the player and killed them. */
+int Pc_DarkHarry_PollTaken(void);
 
 #endif /* SH_PC_PORT */
 #endif /* PC_DARK_HARRY_H */

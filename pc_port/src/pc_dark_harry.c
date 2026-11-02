@@ -1,14 +1,14 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
-/* "Dark Harry" easter egg. See pc_dark_harry.h for what it is and how to
- * remove it. Nothing in here is original-game behaviour. */
+/* "Dark Harry". See pc_dark_harry.h for what it is and how to remove it.
+ * Nothing in here is original-game behaviour. */
 #include "pc_dark_harry.h"
 
 #include "game.h"
 
 #include <psyq/libgte.h>
 
-#include "bodyprog/anim.h"
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/anim.h"
 #include "bodyprog/chara/chara.h"
 #include "bodyprog/collision/collision.h"
 #include "bodyprog/items.h"
@@ -25,23 +25,23 @@
 extern void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12 timer, s32 arg4);
 extern int  g_PcCharaGhostDraw;
 
-/* Where he is allowed to appear. The fog exteriors are the point of the thing;
- * indoors there is no "edge of visibility" to fade out of. The streets, where
- * the player has had the radio for a long time. */
-static const s8 DARK_HARRY_MAPS[] = {
-    MapIdx_MAP2_S00,
-};
+/* Speeds in world units per second. The walk is far below Harry's own (1.4):
+ * the effect is noticing the shape is nearer than it was, not watching
+ * something approach. The run is a real run, short of Harry's 4.0 so the
+ * player can open a gap, but he never stops. */
+#define DARK_HARRY_WALK Q12(0.5f)
+#define DARK_HARRY_RUN  Q12(3.0f)
 
-/* Walk speed in world units per second. Far below Harry's walk: the effect is
- * noticing the shape is nearer than it was, not watching something approach. */
-#define DARK_HARRY_SPEED Q12(0.35f)
+/* Keyframes per second for each loop. The walk is slowed in step with the
+ * speed above so his feet do not slide. */
+#define DARK_HARRY_WALK_RATE Q12(11.0f)
+#define DARK_HARRY_RUN_RATE  Q12(28.0f)
+
+/* How fast he turns to face the player while he stands and listens. */
+#define DARK_HARRY_TURN_RATE Q12_ANGLE(120.0f)
 
 /* Close enough to touch. Harry's own collision radius is 0.3. */
 #define DARK_HARRY_REACH Q12(0.9f)
-
-/* Give up if he cannot reach the player (geometry between them, player on a
- * ledge) rather than trailing around for the rest of the session. */
-#define DARK_HARRY_MAX_STALK_SEC 120
 
 /* Radio attenuation the moment he appears. The scale is backwards: 0 is full
  * volume and 255 is silence, so this is "barely there", and it walks down to 0
@@ -52,24 +52,6 @@ static const s8 DARK_HARRY_MAPS[] = {
  * is meant to read as the light going out of the scene, not as a black screen
  * that looks like the game died. */
 #define DARK_HARRY_DARKEN_MIN 0.12f
-
-/* Dismissal is measured at the INPUT DEVICES, never at Harry.
- *
- * Watching his position, his body rotation and the camera yaw is what made the
- * egg nearly impossible to trigger. The game has an AFK look-around of its own
- * (PlayerState_Idle, player_control.c:5729): ten seconds of standing still and
- * Harry shifts his weight and glances about, and the camera code may re-seed
- * g_TpsCamYaw from his body. Every proxy for "the player did something" moves
- * by itself at exactly the moment the player has finally stood still long
- * enough -- so the egg dismissed itself, and the clock could never climb past
- * those ten seconds.
- *
- * Buttons, sticks and mouse travel are the causes. Position stays only as a
- * backstop for something that moves him without being the player (a console
- * command bound to a key), at a tolerance far wider than any drift. */
-#define DARK_HARRY_MOVE_TOL  Q12(1.0f) /* world units */
-#define DARK_HARRY_MOUSE_TOL 40        /* pixels of travel; a desk knock is a few */
-#define DARK_HARRY_STICK_DZ  24        /* of 128; the same deadzone the camera uses */
 
 /* He is NOT an NPC.
  *
@@ -86,16 +68,29 @@ static const s8 DARK_HARRY_MAPS[] = {
  * entirely, which suits something that is not part of the game. */
 #define DARK_HARRY_BONE_MAX 32
 
+/* His three poses, as loops out of Harry's own animation file. The keyframe
+ * ranges are the ones HARRY_BASE_ANIM_INFOS uses for the player's still, walk
+ * and run; the durations are constants here because the player's rows take
+ * theirs from the player's own move speed, which is not his. */
+enum { DH_POSE_STILL = 0, DH_POSE_WALK, DH_POSE_RUN, DH_POSE_N };
+
+static s_AnimInfo s_poses[DH_POSE_N] = {
+    { NULL, 0, false, 0, { Q12(30.0f) },           0,  1  },
+    { NULL, 0, false, 0, { DARK_HARRY_WALK_RATE }, 1,  23 },
+    { NULL, 0, false, 0, { DARK_HARRY_RUN_RATE },  26, 45 },
+};
+
 static s_Model       s_model;
 static GsCOORDINATE2 s_bones[DARK_HARRY_BONE_MAX];
 static VECTOR3       s_pos;
 static SVECTOR       s_rot;
 static int           s_present; /* 0 = not here */
 static int           s_posed;   /* bones initialised for this appearance */
+static int           s_pose;    /* DH_POSE_* the skeleton is playing */
+static int           s_hold;    /* standing and listening */
+static int           s_run;     /* running from now on */
+static int           s_taken;   /* he reached the player; read once by PollTaken */
 
-static q19_12 s_afk;       /* seconds of no input */
-static q19_12 s_stalk;     /* seconds since he appeared */
-static int    s_armed;     /* 0 until the player has had control for a frame */
 static q19_12 s_spawnDist; /* how far out he started, for the approach curve */
 static q19_12 s_dist;      /* current distance to the player */
 
@@ -104,13 +99,38 @@ static int   s_radioVoice;  /* 1 = we started the static loop */
 static int   s_brightHeld;  /* 1 = s_brightBase holds the player's own setting */
 static float s_brightBase;
 
-/* Input baseline, retaken whenever the clock resets. */
-static s32      s_baseX, s_baseZ;
-static unsigned s_baseMouse;
-
 int Pc_DarkHarry_Active(void)
 {
     return s_present;
+}
+
+void Pc_DarkHarry_Pos(int* x, int* y, int* z)
+{
+    *x = s_present ? s_pos.vx : 0;
+    *y = s_present ? s_pos.vy : 0;
+    *z = s_present ? s_pos.vz : 0;
+}
+
+float Pc_DarkHarry_Dist(void)
+{
+    return s_present ? (float)s_dist / 4096.0f : 0.0f;
+}
+
+int Pc_DarkHarry_PollTaken(void)
+{
+    int t  = s_taken;
+    s_taken = 0;
+    return t;
+}
+
+void Pc_DarkHarry_Hold(int hold)
+{
+    s_hold = hold ? 1 : 0;
+}
+
+void Pc_DarkHarry_Run(int run)
+{
+    s_run = run ? 1 : 0;
 }
 
 /* Hand back the radio and the brightness. Called from every exit so he cannot
@@ -137,58 +157,40 @@ static void DarkHarry_Despawn(void)
     DarkHarry_EffectsClear();
     s_present = 0;
     s_posed   = 0;
-    s_stalk   = Q12(0.0f);
+    s_hold    = 0;
+    s_run     = 0;
 }
 
-void Pc_DarkHarry_Reset(void)
+void Pc_DarkHarry_Dismiss(const char* why)
 {
+    if (s_present)
+        SH_DBG("[DARKHARRY] gone: %s", why ? why : "dismissed");
     DarkHarry_Despawn();
-    s_afk   = Q12(0.0f);
-    s_armed = 0;
 }
 
-/* NULL when he is allowed to be here: normal gameplay, on one of his maps,
- * player alive and actually driving. Anything scripted (cutscene, message box,
- * inventory, a door, a death) names itself instead, which keeps the clock from
- * running when the player is not standing still of their own accord. The
- * reason is what AFKEGG reports and what the log records when he vanishes;
- * this path used to drop him in total silence, which is how the bug below hid
- * behind three rounds of "he just disappears". */
+/* NULL when he is allowed to be here: normal gameplay, player alive and
+ * actually driving. Anything scripted (cutscene, message box, inventory, a
+ * door, a death) names itself instead; the reason is what AFKEGG reports and
+ * what the log records when he vanishes. */
 static const char* DarkHarry_Ineligible(void)
 {
     u32 state;
-    int i;
 
     if (!g_PcConfig.darkHarry)
-        return "dark_harry is off in the config";
+        return "dark_harry is off in config.cfg";
     if (g_GameWork.gameState != GameState_InGame)
         return "not in gameplay";
     if (g_SysWork.sysState != SysState_Gameplay)
         return "a menu or a script owns the scene";
     if (g_SavegamePtr == NULL)
         return "no savegame";
-
-    for (i = 0; i < (int)(sizeof(DARK_HARRY_MAPS) / sizeof(DARK_HARRY_MAPS[0])); i++)
-    {
-        if (g_SavegamePtr->mapIdx == DARK_HARRY_MAPS[i])
-            break;
-    }
-    if (i == (int)(sizeof(DARK_HARRY_MAPS) / sizeof(DARK_HARRY_MAPS[0])))
-        return "wrong map";
-
     if (g_SysWork.playerWork.player.health <= Q12(0.0f))
         return "the player is already dead";
 
-    /* PlayerState_Idle is the game's OWN AFK look-around, not a scripted
-     * takeover: after ten seconds of standing still Harry starts glancing
-     * around (player_control.c:5729), and he stays in that state until the
-     * player does something. Rejecting it capped this feature's clock at those
-     * same ten seconds -- the egg could never reach its own AFK time by
-     * standing still, and AFKEGG refused from the exact state the player is in
-     * when they type it. It is the best proof there is that nobody is driving.
-     *
-     * The death still works from it: the health<=0 branch at the end of
-     * Player_ReceiveDamage excludes only the death and grab states. */
+    /* PlayerState_Idle is the game's own look-around after ten seconds of
+     * standing still, not a scripted takeover. The death still works from
+     * it: the health<=0 branch at the end of Player_ReceiveDamage excludes
+     * only the death and grab states. */
     state = (u32)g_SysWork.playerWork.extra.state;
     if (state != PlayerState_None && state != PlayerState_Idle)
         return "the player is not in normal control";
@@ -196,60 +198,17 @@ static const char* DarkHarry_Ineligible(void)
     return NULL;
 }
 
-static void DarkHarry_BaselineSet(void)
+static void DarkHarry_PoseSet(int pose)
 {
-    extern unsigned g_PcMouseLookTravel;
-
-    const s_SubCharacter* pl = &g_SysWork.playerWork.player;
-
-    s_baseX     = pl->position.vx;
-    s_baseZ     = pl->position.vz;
-    s_baseMouse = g_PcMouseLookTravel;
+    if (s_pose == pose && s_posed)
+        return;
+    s_pose                  = pose;
+    s_model.anim.time       = Q12(s_poses[pose].startKeyframeIdx);
+    s_model.anim.keyframeIdx = s_poses[pose].startKeyframeIdx;
+    s_model.anim.alpha      = Q12(0.0f);
 }
 
-/* Deflection from CENTRE past the deadzone, not drift from a baseline: a stick
- * at rest never leaves the deadzone however worn it is, and a deliberate push
- * always does. 128 is centre on these u8 axes. */
-static int DarkHarry_StickPushed(u8 axis)
-{
-    s32 d = (s32)axis - 128;
-
-    return d > DARK_HARRY_STICK_DZ || d < -DARK_HARRY_STICK_DZ;
-}
-
-/* NULL = the player has not touched anything, otherwise a short name for what
- * they touched (for the dismissal log line). */
-static const char* DarkHarry_InputSeen(void)
-{
-    extern unsigned g_PcMouseLookTravel;
-
-    const s_SubCharacter*     pl = &g_SysWork.playerWork.player;
-    const s_AnalogController* an = &g_Controller0->analogController;
-    u32 btns = (u32)g_Controller0->heldBtnFlags | (u32)g_Controller0->clickedBtnFlags;
-
-    if (btns != 0)
-        return "button";
-
-    /* Look input is analog and never reaches the button flags. */
-    if (DarkHarry_StickPushed(an->leftX)  || DarkHarry_StickPushed(an->leftY) ||
-        DarkHarry_StickPushed(an->rightX) || DarkHarry_StickPushed(an->rightY))
-        return "stick";
-
-    /* Mouse look moves no stick and no button, and the camera yaw is no proxy
-     * for it -- the game writes that itself. The travel counter only ever
-     * grows on real motion, and the look code freezes it while the console has
-     * focus, so typing AFKEGG cannot dismiss him. */
-    if (g_PcMouseLookTravel - s_baseMouse > DARK_HARRY_MOUSE_TOL)
-        return "mouse";
-
-    if (ABS(pl->position.vx - s_baseX) > DARK_HARRY_MOVE_TOL ||
-        ABS(pl->position.vz - s_baseZ) > DARK_HARRY_MOVE_TOL)
-        return "move";
-
-    return NULL;
-}
-
-const char* Pc_DarkHarry_Spawn(void)
+const char* Pc_DarkHarry_Spawn(int fromBehind)
 {
     const s_SubCharacter* pl = &g_SysWork.playerWork.player;
     s_CollisionSurface    surf;
@@ -259,28 +218,27 @@ const char* Pc_DarkHarry_Spawn(void)
 
     if (s_present)
         return "he is already here";
-    /* Also covers AFKEGG, so the command can report honestly instead of
-     * placing him somewhere the next frame would take him away from. */
     why = DarkHarry_Ineligible();
     if (why != NULL)
         return why;
 
-    if (g_PcConfig.darkHarryX != 0 || g_PcConfig.darkHarryZ != 0)
+    if (!fromBehind && (g_PcConfig.darkHarryX != 0 || g_PcConfig.darkHarryZ != 0))
     {
-        /* A fixed landmark, which is the point: he belongs to a place in the
-         * map rather than to wherever the player happens to be facing. Config
-         * is in hundredths of a world unit. */
+        /* A fixed landmark: he belongs to a place in the map rather than to
+         * wherever the player happens to be facing. Config is in hundredths
+         * of a world unit. */
         posX = (q19_12)(((s64)g_PcConfig.darkHarryX * Q12(1.0f)) / 100);
         posZ = (q19_12)(((s64)g_PcConfig.darkHarryZ * Q12(1.0f)) / 100);
     }
     else
     {
-        /* No landmark configured yet: straight ahead at the fog wall, so the
-         * feature still does something. */
+        /* At the fog wall, ahead of the player, or behind them when something
+         * called him: he arrives from where they are not looking. */
         q19_12 dist = Q12(1.0f) * g_PcConfig.darkHarryDistance;
+        s32    yaw  = fromBehind ? ((pl->rotation.vy + 0x800) & 0xFFF) : pl->rotation.vy;
 
-        posX = pl->position.vx + (s32)(((s64)dist * Math_Sin(pl->rotation.vy)) >> 12);
-        posZ = pl->position.vz + (s32)(((s64)dist * Math_Cos(pl->rotation.vy)) >> 12);
+        posX = pl->position.vx + (s32)(((s64)dist * Math_Sin(yaw)) >> 12);
+        posZ = pl->position.vz + (s32)(((s64)dist * Math_Cos(yaw)) >> 12);
     }
 
     memset(&s_model, 0, sizeof(s_model));
@@ -305,18 +263,23 @@ const char* Pc_DarkHarry_Spawn(void)
 
     s_present   = 1;
     s_posed     = 0;
-    s_stalk     = Q12(0.0f);
+    s_pose      = DH_POSE_STILL;
+    s_hold      = 0;
+    s_run       = 0;
+    s_taken     = 0;
     s_dist      = SquareRoot12((s32)((((s64)dx * dx) + ((s64)dz * dz)) >> 12));
     s_spawnDist = s_dist;
+    DarkHarry_PoseSet(DH_POSE_WALK);
 
     /* A continue, taken the moment he appears, so the death he is walking
      * toward costs the player nothing but the walk back. */
     g_GameWork.autosave = g_GameWork.savegame;
 
-    SH_LOG("[DARKHARRY] appeared at (%d,%d,%d), player at (%d,%d,%d), %d units out",
+    SH_DBG("[DARKHARRY] appeared at (%d,%d,%d), player at (%d,%d,%d), %d units out%s",
            FP_FROM(s_pos.vx, Q12_SHIFT), FP_FROM(s_pos.vy, Q12_SHIFT), FP_FROM(s_pos.vz, Q12_SHIFT),
            FP_FROM(pl->position.vx, Q12_SHIFT), FP_FROM(pl->position.vy, Q12_SHIFT),
-           FP_FROM(pl->position.vz, Q12_SHIFT), FP_FROM(s_spawnDist, Q12_SHIFT));
+           FP_FROM(pl->position.vz, Q12_SHIFT), FP_FROM(s_spawnDist, Q12_SHIFT),
+           fromBehind ? ", from behind" : "");
 
     return NULL;
 }
@@ -334,9 +297,9 @@ static void DarkHarry_Take(void)
 {
     s_SubCharacter* pl = &g_SysWork.playerWork.player;
 
-    SH_LOG("[DARKHARRY] reached the player - death");
+    SH_DBG("[DARKHARRY] reached the player - death");
     DarkHarry_Despawn();
-    s_afk = Q12(0.0f);
+    s_taken = 1;
 
     /* 66 is the attack that routes to the drowning variant; anything stale in
      * here would pick the wrong death. */
@@ -374,8 +337,7 @@ static void DarkHarry_EffectsUpdate(void)
 
     q19_12 closeness = DarkHarry_Closeness();
 
-    /* Nothing to pick him up if the radio is off or not found yet, which is
-     * why he was moved to a map the player reaches it on. */
+    /* Nothing to pick him up if the radio is off or not found yet. */
     if (g_SavegamePtr->itemToggleFlags & ItemToggleFlag_RadioOn)
     {
         s32 att = DARK_HARRY_RADIO_FAINT - (s32)(((s64)DARK_HARRY_RADIO_FAINT * closeness) >> 12);
@@ -398,22 +360,44 @@ static void DarkHarry_EffectsUpdate(void)
                        (1.0f - ((float)closeness / 4096.0f) * (1.0f - DARK_HARRY_DARKEN_MIN));
 }
 
-static void DarkHarry_Approach(void)
+static void DarkHarry_FacePlayer(s32 yaw)
+{
+    q3_12 delta = Math_AngleNormalizeSigned((q3_12)yaw - s_rot.vy);
+    q3_12 step  = Q12_MULT_PRECISE(g_DeltaTime, DARK_HARRY_TURN_RATE);
+
+    if (ABS(delta) <= step)
+        s_rot.vy = (s16)(yaw & 0xFFF);
+    else
+        s_rot.vy = (s16)((s_rot.vy + (delta > 0 ? step : -step)) & 0xFFF);
+}
+
+static void DarkHarry_Move(void)
 {
     const s_SubCharacter* pl = &g_SysWork.playerWork.player;
     s_CollisionSurface    surf;
-    s32 dx   = pl->position.vx - s_pos.vx;
-    s32 dz   = pl->position.vz - s_pos.vz;
-    s32 yaw  = ratan2(dx, dz);
-    s32 step = (s32)(((s64)DARK_HARRY_SPEED * g_DeltaTime) >> 12);
+    s32 dx    = pl->position.vx - s_pos.vx;
+    s32 dz    = pl->position.vz - s_pos.vz;
+    s32 yaw   = ratan2(dx, dz);
+    s32 speed = s_run ? DARK_HARRY_RUN : DARK_HARRY_WALK;
+    s32 step  = (s32)(((s64)speed * g_DeltaTime) >> 12);
 
     s_dist = SquareRoot12((s32)((((s64)dx * dx) + ((s64)dz * dz)) >> 12));
+
+    if (s_hold)
+    {
+        DarkHarry_PoseSet(DH_POSE_STILL);
+        DarkHarry_FacePlayer(yaw);
+        DarkHarry_EffectsUpdate();
+        return;
+    }
+
     if (s_dist <= DARK_HARRY_REACH)
     {
         DarkHarry_Take();
         return;
     }
 
+    DarkHarry_PoseSet(s_run ? DH_POSE_RUN : DH_POSE_WALK);
     s_rot.vy  = (s16)(yaw & 0xFFF);
     s_pos.vx += (s32)(((s64)step * Math_Sin(yaw)) >> 12);
     s_pos.vz += (s32)(((s64)step * Math_Cos(yaw)) >> 12);
@@ -438,7 +422,7 @@ void Pc_DarkHarry_Draw(void)
          * him cannot disturb the player's own pose. */
         if ((int)hdr->boneCount > DARK_HARRY_BONE_MAX)
         {
-            SH_LOG("[DARKHARRY] skeleton needs %d bones, room for %d - not drawing",
+            SH_DBG("[DARKHARRY] skeleton needs %d bones, room for %d - not drawing",
                    (int)hdr->boneCount, DARK_HARRY_BONE_MAX);
             DarkHarry_Despawn();
             return;
@@ -447,19 +431,9 @@ void Pc_DarkHarry_Draw(void)
         s_posed = 1;
     }
 
-    /* Pose him from Harry's OWN anim table, which is exactly what
-     * Player_AnimUpdate does for the player: his idle lives in the player's
-     * bank, not in the NPC "statue" idle list (that one is for the human
-     * cutscene actors and has no Harry entry). Playback writes bones 1+, so
-     * the root placement below is still ours to do. */
-    {
-        s_AnimInfo* info = &HARRY_BASE_ANIM_INFOS[s_model.anim.status];
-
-        if (info->playbackFunc != NULL)
-            info->playbackFunc(&s_model, hdr, s_bones, info);
-        else
-            Anim_BoneUpdate(hdr, s_bones, 0, 0, Q12(0.0f));
-    }
+    /* Playback writes bones 1+, so the root placement below is still ours
+     * to do. */
+    Anim_PlaybackLoop(&s_model, hdr, s_bones, &s_poses[s_pose]);
 
     Math_RotMatrixZxyNegGte(&s_rot, &s_bones->coord);
     s_bones->coord.t[0] = Q12_TO_Q8(s_pos.vx);
@@ -477,64 +451,17 @@ void Pc_DarkHarry_Update(void)
 {
     const char* why;
 
+    if (!s_present)
+        return;
+
     why = DarkHarry_Ineligible();
     if (why != NULL)
     {
         /* Leaving gameplay at all takes him with it, so he can never be left
-         * standing in a cutscene or survive a map change. Logged only when he
-         * was actually here, so this is one line per appearance and never a
-         * per-frame probe. */
-        if (s_present)
-            SH_LOG("[DARKHARRY] gone: %s", why);
-
-        DarkHarry_Despawn();
-        s_afk   = Q12(0.0f);
-        s_armed = 0;
-        /* Keep the input baseline current so re-entering gameplay does not
-         * read the position jump as "the player moved". */
-        DarkHarry_BaselineSet();
+         * standing in a cutscene or survive a map change. */
+        Pc_DarkHarry_Dismiss(why);
         return;
     }
 
-    /* One eligible frame before the clock may start, so the frame control is
-     * handed back (door, cutscene end) is never counted as idle. */
-    if (!s_armed)
-    {
-        s_armed = 1;
-        s_afk   = Q12(0.0f);
-        DarkHarry_BaselineSet();
-        return;
-    }
-
-    why = DarkHarry_InputSeen();
-    if (why != NULL)
-    {
-        if (s_present)
-        {
-            SH_LOG("[DARKHARRY] dismissed by input (%s)", why);
-            DarkHarry_Despawn();
-        }
-        s_afk = Q12(0.0f);
-        DarkHarry_BaselineSet();
-        return;
-    }
-
-    if (!s_present)
-    {
-        s_afk += g_DeltaTime;
-        if (s_afk >= Q12(1.0f) * g_PcConfig.darkHarryAfkSec)
-            Pc_DarkHarry_Spawn();
-        return;
-    }
-
-    s_stalk += g_DeltaTime;
-    if (s_stalk >= Q12((float)DARK_HARRY_MAX_STALK_SEC))
-    {
-        SH_LOG("[DARKHARRY] gave up after %d s", DARK_HARRY_MAX_STALK_SEC);
-        DarkHarry_Despawn();
-        s_afk = Q12(0.0f);
-        return;
-    }
-
-    DarkHarry_Approach();
+    DarkHarry_Move();
 }
