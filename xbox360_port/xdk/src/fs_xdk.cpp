@@ -48,7 +48,10 @@ static int DirHasBin(const char* dir, char* binOut, int binOutSize)
 
 extern "C" int Sh360Fs_Init(void)
 {
-    static const char* const kRoots[] = { "game:\\silenthill\\", "game:\\" };
+    /* gamedata\ is where every other port keeps the disc image; silenthill\ is
+     * what the first 360 builds asked for, kept so existing installs still
+     * work. Whichever holds the .bin also gets the save and the cfg. */
+    static const char* const kRoots[] = { "game:\\gamedata\\", "game:\\silenthill\\", "game:\\" };
     unsigned i;
 
     if (s_dataRoot[0])
