@@ -131,6 +131,7 @@ void Pc_PauseMenu_Reset(void)
         SD_Call(4);
     }
     PsyX_SPUAL_SetKeyOnMasterExempt(0);
+    Nm_TextBucketMark2d(0);
     s_returnPending        = 0;
     g_PsxFreezeCaptureHold = 0;
     s_open                 = 0;
@@ -173,6 +174,8 @@ static void PauseMenu_Draw(void)
 {
     unsigned mask = PmMenu_EnabledMask(&s_menu);
     int      i;
+
+    Nm_TextBucketMark2d(1);
 
     if (s_menu.confirm.open)
     {
@@ -220,6 +223,7 @@ static void PauseMenu_Leave(PmAction act)
     s_returnPending        = 1;
     g_PsxFreezeCaptureHold = 1;
     s_open                 = 0;
+    Nm_TextBucketMark2d(0);
     SH_DBG("[PAUSE] -> %s", s_RowLabels[s_menu.sel]);
     if (act == PM_ACT_OPTION)
     {

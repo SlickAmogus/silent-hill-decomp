@@ -21,6 +21,9 @@ void Nm_TextDraw(int x, int y, int size, int color, const char* s);
  * Pc_LangMenuTextWidth(s). */
 void Nm_TextDrawVerbatim(int x, int y, int size, int color, const char* s);
 int  Nm_TextWidth(const char* s);
+/* While on, text drawn at a Pc_StringScaleSet size other than 1.0 is not
+ * filtered as world geometry. Only for menus drawn over a frozen capture. */
+void Nm_TextBucketMark2d(int on);
 void Nm_TextDrawCentered(int cx, int y, int size, int color, const char* s);
 void Nm_TextDrawRight(int rx, int y, int size, int color, const char* s);
 /* Draws `s` verbatim in x..x+maxW. Text wider than that pans to its end
