@@ -6561,6 +6561,9 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
 
             if (playerTurn != 0)
             {
+#ifdef SH_PC_PORT
+                s32 pcPrevTarget = g_Player_TargetNpcIdx;
+#endif
                 playerProps.flags &= ~PlayerFlag_Unk9;
                 player->properties.player.field_F4                 = g_Player_FlexRotationX;
 
@@ -6572,6 +6575,15 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                 {
                     func_8005CD38(&g_Player_TargetNpcIdx, &playerProps.field_122, &g_SysWork.playerCombat, Q12(1.0f / 3.0f), Q12(3.0f), playerTurn);
                 }
+#ifdef SH_PC_PORT
+                /* Once per switch attempt (the state leaves AimTargetLock on either
+                 * outcome), so a test run says whether the gate opened and what the
+                 * selector answered: -1 = no candidate on that side with a clear
+                 * line of sight, which drops the lock as retail does. */
+                SH_DBG("[AIMSWITCH] dir=%s from npc %d -> %d (status=%d kf=%d)",
+                       (playerTurn == 1) ? "right" : "left", (int)pcPrevTarget, (int)g_Player_TargetNpcIdx,
+                       (int)extra->model.anim.status, (int)extra->model.anim.keyframeIdx);
+#endif
 
                 if (g_Player_TargetNpcIdx == NO_VALUE)
                 {

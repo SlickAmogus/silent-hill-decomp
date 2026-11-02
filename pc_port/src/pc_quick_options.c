@@ -2162,6 +2162,14 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
             if (wheel && QO_IS_VALUE_ROW(rows[row].kind))
                 qo_activate(&rows[row], wheel > 0 ? +1 : -1);
         }
+        else if ((mClick || mRClick) && !s_dragging &&
+                 !(inX && py >= s_geoPanelB && py <= s_geoTitleT))
+        {
+            /* A click beside the panel turns the page, the way the page row
+             * does: left forward, right back. */
+            qo_set_page(s_page + (mClick ? 1 : -1));
+            qo_beep(Sfx_MenuMove);
+        }
     }
 
     /* A page row with no step of its own adjusts like a value: Left and a
