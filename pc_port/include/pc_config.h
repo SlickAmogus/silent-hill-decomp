@@ -11,9 +11,12 @@
  *      Advanced's (hfov 1.00, vfov 1.08) again -- they diverged at vfov 1.08.
  *   3: menu_fps_unlock default 1 -> 0 (menus count input per frame).
  *   4: allow_loose_files default 0 -> 1, mobile only (no launcher to turn it on).
- *      Desktop configs are stamped to 4 with no value change.
- *   5: fps_cap default 30 -> 60, mobile only. Desktop keeps 30. */
-#define PC_CONFIG_VERSION 5
+ *      Desktop configs are stamped forward with no value change.
+ *   5: fps_cap default 30 -> 60, mobile only. Desktop keeps 30.
+ *   6: pad_reload / pad_quick_turn default NONE -> rightshoulder / leftshoulder,
+ *      filled only where the slot was unbound. (4 and 5 live on the mobile
+ *      branches; numbering is shared so a merge never reuses a step.) */
+#define PC_CONFIG_VERSION 6
 
 /* Minimap size range, as a percentage of the built-in MM_SIZE. The top end is a
  * little larger than the stock panel; the bottom end is a bit over half of it. */
@@ -631,6 +634,13 @@ typedef struct {
     /* 1 = no crosshair while a melee weapon, or nothing, is equipped, in every
      * camera; guns keep it. (config key: crosshair_hide_melee) */
     int crosshairHideMelee;
+
+    /* Reloading a gun. 0 = only the reload button reloads (a touchscreen,
+     * which has no reload button, still reloads after a dry fire); 1 = a dry
+     * fire on an empty clip reloads, with the animation, in every camera (the
+     * default); 2 = the original game: 1, and the clip also fills from the
+     * reserve the moment the gun is raised, silently. (config key: auto_reload) */
+    int autoReload;
 } s_PcConfig;
 
 extern s_PcConfig g_PcConfig;

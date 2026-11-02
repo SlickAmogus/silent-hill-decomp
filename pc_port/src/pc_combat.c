@@ -213,6 +213,19 @@ bool PC_PlayerManualReloadRequested(void)
     return g_PcReloadRequest != 0;
 }
 
+/* Off, the reload button is the only way to reload. A touchscreen has no
+ * reload button, so touch controls keep the dry-fire reload whatever the
+ * setting. */
+int Pc_AutoReloadEnabled(void)
+{
+#if defined(__ANDROID__) || defined(SH_IOS) || defined(__EMSCRIPTEN__)
+    extern int Pc_Touch_Active(void);
+    if (Pc_Touch_Active())
+        return 1;
+#endif
+    return g_PcConfig.autoReload != 0;
+}
+
 static void Pc_ManualReloadSample(int sch)
 {
     int e1, e2, e3;

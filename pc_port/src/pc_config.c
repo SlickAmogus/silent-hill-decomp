@@ -132,6 +132,7 @@ s_PcConfig g_PcConfig = {
     .crosshairSize       = 100.0f,
     .crosshairFpsAimOnly = 0, /* FPS crosshair: 0 = always shown, 1 = only while aiming */
     .crosshairHideMelee  = 0, /* 1 = no crosshair unless a gun is equipped */
+    .autoReload          = 1, /* 0 = reload button only, 1 = after a dry fire, 2 = original (also on aim) */
     .ragdoll             = 0,
     .textSize            = 100.0f,
     .aimAssist           = 1, /* OTS/TPS free-aim aim assist (mouse body-coverage + controller auto-aim) */
@@ -257,11 +258,11 @@ s_PcConfig g_PcConfig = {
         .padL3 = "leftstick", .padR3 = "rightstick",
         .padStart = "start", .padSelect = "back",
         .keyChangeCam = "F9", .padChangeCam = "rightstick",
-        .keyReload = "R", .padReload = "NONE",
+        .keyReload = "R", .padReload = "rightshoulder",
         .keyCycleWeapons = "NONE", .padCycleWeapons = "NONE",
         .keyQuickHeal = "NONE", .padQuickHeal = "NONE",
         .keyReload2 = "NONE",
-        .keyQuickTurn = "NONE", .padQuickTurn = "NONE",
+        .keyQuickTurn = "NONE", .padQuickTurn = "leftshoulder",
         .keyRearLook = "NONE", .padRearLook = "NONE",
     },
     /* === ALTCAM scheme: any alternate/modern camera (TPS/OTS). WASD move,
@@ -282,11 +283,11 @@ s_PcConfig g_PcConfig = {
         /* Action binds default to the same as classic until the player rebinds
          * the altcam scheme (Change Camera stays F9/rightstick, reload keyboard R). */
         .keyChangeCam = "F9", .padChangeCam = "rightstick",
-        .keyReload = "R", .padReload = "NONE",
+        .keyReload = "R", .padReload = "rightshoulder",
         .keyCycleWeapons = "NONE", .padCycleWeapons = "NONE",
         .keyQuickHeal = "NONE", .padQuickHeal = "NONE",
         .keyReload2 = "NONE",
-        .keyQuickTurn = "NONE", .padQuickTurn = "NONE",
+        .keyQuickTurn = "NONE", .padQuickTurn = "leftshoulder",
         .keyRearLook = "NONE", .padRearLook = "NONE",
     },
     .keyQuickSave = "F6", .keyQuickLoad = "F8",
@@ -1181,6 +1182,13 @@ void PcConfig_Load(const char* path)
         {
             g_PcConfig.crosshairHideMelee = (atoi(value) != 0);
         }
+        else if (strcmp(key, "auto_reload") == 0)
+        {
+            int v = atoi(value);
+            if (v < 0) v = 0;
+            if (v > 2) v = 2;
+            g_PcConfig.autoReload = v;
+        }
         else if (strcmp(key, "ragdoll") == 0)
         {
             g_PcConfig.ragdoll = (atoi(value) != 0);
@@ -1730,6 +1738,35 @@ else if (strcmp(key, "enable_plugins") == 0)
             PcConfig_SaveKeyValue("fps_cap", "60");
         }
 #endif
+
+        /* v6: the controller gets Reload on the right shoulder and Quick Turn on
+         * the left by default. Only a slot still unbound is filled, so a pad
+         * bind the player chose for either action stays. (v4 and v5 are the
+         * mobile branches' steps; a desktop config just stamps past them.) */
+        if (g_PcConfig.configVersion < 6)
+        {
+            static const struct { const char* key; size_t off; const char* value; } pad[2] = {
+                { "pad_reload",     offsetof(ControlScheme, padReload),    "rightshoulder" },
+                { "pad_quick_turn", offsetof(ControlScheme, padQuickTurn), "leftshoulder"  },
+            };
+            ControlScheme* schemes[2] = { &g_PcConfig.classic, &g_PcConfig.altcam };
+            int i, s;
+
+            for (s = 0; s < 2; s++)
+            {
+                for (i = 0; i < 2; i++)
+                {
+                    char* slot = (char*)schemes[s] + pad[i].off;
+                    char  fullKey[40];
+
+                    if (slot[0] != '\0' && strcmp(slot, "NONE") != 0)
+                        continue;
+                    snprintf(slot, 24, "%s", pad[i].value);
+                    snprintf(fullKey, sizeof(fullKey), "%s%s", pad[i].key, s ? "_altcam" : "");
+                    PcConfig_SaveKeyValue(fullKey, pad[i].value);
+                }
+            }
+        }
 
         g_PcConfig.configVersion = PC_CONFIG_VERSION;
         snprintf(vbuf, sizeof(vbuf), "%d", g_PcConfig.configVersion);
