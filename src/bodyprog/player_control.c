@@ -6728,7 +6728,10 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                 {
                     case ANIM_STATUS(HarryAnim_Unk29, true):
                     case ANIM_STATUS(HarryAnim_Unk32, true):
-                        if (extra->model.anim.keyframeIdx == D_800C44F0[D_800AF220].field_6)
+                        /* Reached-or-passed on PC: the switch below completes on that
+                         * reading, so the snap has to fire on the same frames or the
+                         * body finishes the switch still turning. */
+                        if (SH_AIM_KF_REACHED(D_800C44F0[D_800AF220].field_6))
                         {
                             player->rotation.vy = temp_s1_2;
                         }
