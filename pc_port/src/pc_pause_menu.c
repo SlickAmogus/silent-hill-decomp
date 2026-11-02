@@ -6,6 +6,7 @@
 #include "bodyprog/sound/sound_system.h"
 #include "bodyprog/text/text_draw.h"
 #include "sh_log.h"
+#include "pc_config.h"
 #include "pc_mouse_cursor.h"
 #include "pc_native_menu_draw.h"
 #include "pc_pause_menu.h"
@@ -21,12 +22,24 @@ extern void PsyX_SPUAL_SetKeyOnMasterExempt(int on);
 
 #define PM_HEADER_Y  64
 #define PM_ROW_Y     96
-#define PM_ROW_PITCH 15 /* the title's MAINMENU_ROW_PITCH at PM_ROW_SCALE */
 #define PM_CONFIRM_Y 104
 #define PM_ANSWER_DY 24
 #define PM_TEXT_H    16
-/* The rows under PAUSED; the heading and the confirm prompt stay full size. */
-#define PM_ROW_SCALE Q12(0.75f)
+
+/* The rows under PAUSED draw at 75% with the title's 20 px pitch shrunk to
+ * match; the heading and the confirm prompt stay full size. The 12x16 glyphs
+ * were drawn for 320x224, and shrinking them below 480 lines of render
+ * height (or at native PSX resolution) breaks them up, so those keep the
+ * original size and spacing. */
+static s32 RowScale(void)
+{
+    return (g_PcConfig.nativeResolution || g_PcConfig.windowHeight < 480) ? Q12(1.0f) : Q12(0.75f);
+}
+
+static int RowPitch(void)
+{
+    return (RowScale() == Q12(1.0f)) ? 20 : 15;
+}
 
 static const char* const s_RowLabels[PM_ROW_COUNT] = { "CONTINUE", "QUICK_MENU", "SAVE", "LOAD", "OPTION", "EXIT" };
 static const char* const s_AnswerLabels[2]         = { "YES", "NO" };
@@ -190,9 +203,9 @@ static void PauseMenu_Draw(void)
 
     for (i = 0; i < PM_ROW_COUNT; i++)
     {
-        MarkedLabelDraw(160, PM_ROW_Y + (i * PM_ROW_PITCH),
+        MarkedLabelDraw(160, PM_ROW_Y + (i * RowPitch()),
                         (mask & (1u << i)) ? StringColorId_White : StringColorId_DarkGrey,
-                        s_RowLabels[i], i == s_menu.sel, PM_ROW_SCALE);
+                        s_RowLabels[i], i == s_menu.sel, RowScale());
     }
 }
 
@@ -300,7 +313,7 @@ void Pc_PauseMenu_Update(void)
     }
     else
     {
-        hoverRow = Pc_MouseCursor_MenuRowHover(PM_ROW_Y, PM_ROW_PITCH, PM_ROW_COUNT,
+        hoverRow = Pc_MouseCursor_MenuRowHover(PM_ROW_Y, RowPitch(), PM_ROW_COUNT,
                                                (1u << PM_ROW_COUNT) - 1u, NULL);
     }
 
