@@ -4942,7 +4942,7 @@ static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra,
              * move rounds out of the inventory while the cheat is on. A reload
              * the player asks for by hand still works. */
             if (!isHyperBlaster && reserve > 0 &&
-                (reloadReq || (fireEdge && ammo == 0 && !g_PcInfiniteAmmo)))
+                (reloadReq || (fireEdge && ammo == 0 && !g_PcInfiniteAmmo && Pc_AutoReloadEnabled())))
             {
                 /* Begin reload: play the reload anim (blend->active track) from the
                  * proven per-weapon keyframes, firing locked out. */
@@ -5008,7 +5008,7 @@ static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra,
             else if (fireEdge && ammo == 0 && !g_PcInfiniteAmmo)
             {
                 /* Dry fire. Reaching here means the reload branch above declined
-                 * it — no reserve left — so this is the genuinely empty click,
+                 * it — no reserve left, or auto_reload off — so this is the empty click,
                  * and the native path plays it (Player_CombatAnimUpdate, the
                  * else of the same ammo test). This FSM replaces that function
                  * wholesale for the alternate cameras, so without this the gun
@@ -6535,9 +6535,21 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                 playerTurn = (g_Player_IsTurningLeft != false) * 2;
             }
 
+#ifdef SH_PC_PORT
+            /* Left/Right picks the next target only while the lock-on aim anim
+             * holds its ready keyframe. PSX plays one keyframe a tick and stops
+             * exactly on field_6; at PC frame rates the hold parks a frame past
+             * it, so the exact test failed every frame and the press was thrown
+             * away: no target switching in the classic camera. Same
+             * reached-or-passed reading as SH_AIM_KF_REACHED. */
+            if ((extra->model.anim.status != ANIM_STATUS(HarryAnim_Unk29, true) || extra->model.anim.keyframeIdx < D_800C44F0[1].field_6) &&
+                (extra->model.anim.status != ANIM_STATUS(HarryAnim_Unk30, true) || extra->model.anim.keyframeIdx < D_800C44F0[2].field_6) &&
+                (extra->model.anim.status != ANIM_STATUS(HarryAnim_Unk32, true) || extra->model.anim.keyframeIdx < D_800C44F0[4].field_6))
+#else
             if ((extra->model.anim.status != ANIM_STATUS(HarryAnim_Unk29, true) || extra->model.anim.keyframeIdx != D_800C44F0[1].field_6) &&
                 (extra->model.anim.status != ANIM_STATUS(HarryAnim_Unk30, true) || extra->model.anim.keyframeIdx != D_800C44F0[2].field_6) &&
                 (extra->model.anim.status != ANIM_STATUS(HarryAnim_Unk32, true) || extra->model.anim.keyframeIdx != D_800C44F0[4].field_6))
+#endif
             {
                 playerTurn = 0;
                 player->properties.player.field_100++;
@@ -6871,7 +6883,10 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                 {
                     case ANIM_STATUS(HarryAnim_Unk29, true):
                     case ANIM_STATUS(HarryAnim_Unk32, true):
-                        if (extra->model.anim.keyframeIdx == D_800C44F0[D_800AF220].field_6)
+                        /* Reached-or-passed on PC: the switch below completes on that
+                         * reading, so the snap has to fire on the same frames or the
+                         * body finishes the switch still turning. */
+                        if (SH_AIM_KF_REACHED(D_800C44F0[D_800AF220].field_6))
                         {
                             player->rotation.vy = temp_s1_2;
                         }
@@ -7324,7 +7339,15 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
                     extra->model.controlState                = 0;
                     player->properties.player.field_100 = 0;
 
+#ifdef SH_PC_PORT
+                    /* Retail fills the clip from the reserve the moment the gun is
+                     * raised, with no animation: every aim is a free, silent
+                     * reload, which makes the reload button and the dry-fire
+                     * reload meaningless. Kept only under auto_reload = 2. */
+                    if (g_SysWork.playerCombat.totalWeaponAmmo != 0 && g_PcConfig.autoReload == 2)
+#else
                     if (g_SysWork.playerCombat.totalWeaponAmmo != 0)
+#endif
                     {
                         if (g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
                         {
@@ -7734,9 +7757,16 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
 
                 if (g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
                 {
+                    /* With the automatic reload off this falls through to the
+                     * Attack state set above, whose empty-clip branch plays the
+                     * dry click, as it does with no reserve at all. */
                     if (g_SysWork.playerCombat.currentWeaponAmmo == 0 &&
                         INV_ITEM_GROUP(g_SavegamePtr->equippedWeapon) == InvItemGroup_GunWeapons &&
-                        g_SysWork.playerCombat.totalWeaponAmmo != 0)
+                        g_SysWork.playerCombat.totalWeaponAmmo != 0
+#ifdef SH_PC_PORT
+                        && Pc_AutoReloadEnabled()
+#endif
+                        )
                     {
                         g_SysWork.playerWork.extra.upperBodyState              = PlayerUpperBodyState_Reload;
                         playerProps.flags &= ~PlayerFlag_Unk9;
