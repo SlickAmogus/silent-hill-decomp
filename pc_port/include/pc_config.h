@@ -9,7 +9,7 @@
  *   1: world_vscale default 1.0 -> 1.08 (DuckStation-match vertical FOV).
  *   2: crt_aspect_trim default 0.98 -> 1.06, so Simple's default shape equals
  *      Advanced's (hfov 1.00, vfov 1.08) again -- they diverged at vfov 1.08. */
-#define PC_CONFIG_VERSION 3
+#define PC_CONFIG_VERSION 4
 
 /* Minimap size range, as a percentage of the built-in MM_SIZE. The top end is a
  * little larger than the stock panel; the bottom end is a bit over half of it. */
@@ -577,6 +577,13 @@ typedef struct {
     /* 1 = no crosshair while a melee weapon, or nothing, is equipped, in every
      * camera; guns keep it. (config key: crosshair_hide_melee) */
     int crosshairHideMelee;
+
+    /* Reloading a gun. 0 = only the reload button reloads (a touchscreen,
+     * which has no reload button, still reloads after a dry fire); 1 = a dry
+     * fire on an empty clip reloads, with the animation, in every camera (the
+     * default); 2 = the original game: 1, and the clip also fills from the
+     * reserve the moment the gun is raised, silently. (config key: auto_reload) */
+    int autoReload;
 } s_PcConfig;
 
 extern s_PcConfig g_PcConfig;

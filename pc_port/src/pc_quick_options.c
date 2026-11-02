@@ -71,7 +71,7 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_OTSRESTX, QO_X_OTSRESTY, QO_X_OTSAIMX, QO_X_OTSAIMY,
        QO_X_DREAMSTR, QO_X_DREAMBLUR, QO_X_DPADMOVE, QO_X_CROSSHAIRSTYLE,
        QO_X_LINEGAP, QO_X_CHARALIGHT, QO_X_PPLIGHT, QO_X_HEROLIGHT, QO_X_HEROLIGHTFL, QO_X_FACEANIM,
-       QO_X_CROSSHAIRMELEE };
+       QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD };
 extern const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz);
 extern void        PcOpt_QuickExtraAdjust(int which, int dir);
 extern void        PcOpt_QuickViewReset(int mode);
@@ -185,6 +185,7 @@ static const QoRowDef s_pageControls[] = {
     { ROW_OPT,   "aim_assist",             0, NULL },
     { ROW_EXTRA, NULL, QO_X_QUICK_WEAPONS, "Quick Weapon Switching" },
     { ROW_EXTRA, NULL, QO_X_DPADMOVE,        "Disable D-pad for Movement" },
+    { ROW_EXTRA, NULL, QO_X_AUTORELOAD,      "Auto Reload" },
     { ROW_ACTION, NULL, QO_A_KEYBINDS,       "Edit Keybinds" },
     QO_NAV_ROW,
     QO_CLOSE_ROW,

@@ -4787,7 +4787,7 @@ static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra,
              * move rounds out of the inventory while the cheat is on. A reload
              * the player asks for by hand still works. */
             if (!isHyperBlaster && reserve > 0 &&
-                (reloadReq || (fireEdge && ammo == 0 && !g_PcInfiniteAmmo)))
+                (reloadReq || (fireEdge && ammo == 0 && !g_PcInfiniteAmmo && Pc_AutoReloadEnabled())))
             {
                 /* Begin reload: play the reload anim (blend->active track) from the
                  * proven per-weapon keyframes, firing locked out. */
@@ -4853,7 +4853,7 @@ static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra,
             else if (fireEdge && ammo == 0 && !g_PcInfiniteAmmo)
             {
                 /* Dry fire. Reaching here means the reload branch above declined
-                 * it — no reserve left — so this is the genuinely empty click,
+                 * it — no reserve left, or auto_reload off — so this is the empty click,
                  * and the native path plays it (Player_CombatAnimUpdate, the
                  * else of the same ammo test). This FSM replaces that function
                  * wholesale for the alternate cameras, so without this the gun
@@ -7169,7 +7169,15 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
                     extra->model.controlState                = 0;
                     player->properties.player.field_100 = 0;
 
+#ifdef SH_PC_PORT
+                    /* Retail fills the clip from the reserve the moment the gun is
+                     * raised, with no animation: every aim is a free, silent
+                     * reload, which makes the reload button and the dry-fire
+                     * reload meaningless. Kept only under auto_reload = 2. */
+                    if (g_SysWork.playerCombat.totalWeaponAmmo != 0 && g_PcConfig.autoReload == 2)
+#else
                     if (g_SysWork.playerCombat.totalWeaponAmmo != 0)
+#endif
                     {
                         if (g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
                         {
@@ -7579,9 +7587,16 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
 
                 if (g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
                 {
+                    /* With the automatic reload off this falls through to the
+                     * Attack state set above, whose empty-clip branch plays the
+                     * dry click, as it does with no reserve at all. */
                     if (g_SysWork.playerCombat.currentWeaponAmmo == 0 &&
                         INV_ITEM_GROUP(g_SavegamePtr->equippedWeapon) == InvItemGroup_GunWeapons &&
-                        g_SysWork.playerCombat.totalWeaponAmmo != 0)
+                        g_SysWork.playerCombat.totalWeaponAmmo != 0
+#ifdef SH_PC_PORT
+                        && Pc_AutoReloadEnabled()
+#endif
+                        )
                     {
                         g_SysWork.playerWork.extra.upperBodyState              = PlayerUpperBodyState_Reload;
                         playerProps.flags &= ~PlayerFlag_Unk9;
