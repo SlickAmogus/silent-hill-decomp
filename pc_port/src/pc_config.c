@@ -1614,10 +1614,11 @@ else if (strcmp(key, "enable_plugins") == 0)
             PcConfig_SaveKeyValue("menu_fps_unlock", "0");
         }
 
-        /* v4: the controller gets Reload on the right shoulder and Quick Turn on
+        /* v6: the controller gets Reload on the right shoulder and Quick Turn on
          * the left by default. Only a slot still unbound is filled, so a pad
-         * bind the player chose for either action stays. */
-        if (g_PcConfig.configVersion < 4)
+         * bind the player chose for either action stays. (v4 and v5 are the
+         * mobile branches' steps; a desktop config just stamps past them.) */
+        if (g_PcConfig.configVersion < 6)
         {
             static const struct { const char* key; size_t off; const char* value; } pad[2] = {
                 { "pad_reload",     offsetof(ControlScheme, padReload),    "rightshoulder" },

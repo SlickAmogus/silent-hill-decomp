@@ -8,8 +8,15 @@
  * and add a migration whenever you change a default that is written to config.cfg.
  *   1: world_vscale default 1.0 -> 1.08 (DuckStation-match vertical FOV).
  *   2: crt_aspect_trim default 0.98 -> 1.06, so Simple's default shape equals
- *      Advanced's (hfov 1.00, vfov 1.08) again -- they diverged at vfov 1.08. */
-#define PC_CONFIG_VERSION 4
+ *      Advanced's (hfov 1.00, vfov 1.08) again -- they diverged at vfov 1.08.
+ *   3: menu_fps_unlock default 1 -> 0 (menus count input per frame).
+ *   4: allow_loose_files default 0 -> 1, mobile only (no launcher to turn it on).
+ *      Desktop configs are stamped forward with no value change.
+ *   5: fps_cap default 30 -> 60, mobile only. Desktop keeps 30.
+ *   6: pad_reload / pad_quick_turn default NONE -> rightshoulder / leftshoulder,
+ *      filled only where the slot was unbound. (4 and 5 live on the mobile
+ *      branches; numbering is shared so a merge never reuses a step.) */
+#define PC_CONFIG_VERSION 6
 
 /* Minimap size range, as a percentage of the built-in MM_SIZE. The top end is a
  * little larger than the stock panel; the bottom end is a bit over half of it. */
