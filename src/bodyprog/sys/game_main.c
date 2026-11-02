@@ -2465,7 +2465,9 @@ void MainLoop(void) // 0x80032EE0
          * FMV_Play and fades back in afterwards. */
         {
             extern void Pc_ConsoleFmvUpdate(void);
+            extern void Pc_ConsoleGpuBenchUpdate(void);
             Pc_ConsoleFmvUpdate();
+            Pc_ConsoleGpuBenchUpdate();
         }
 
 #endif
