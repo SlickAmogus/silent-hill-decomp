@@ -67,14 +67,19 @@ static s16 Pc_OverlayQuadHalfW(void)
  * synthesises `int f()` at the call site and then rejects the real
  * definition as a conflicting type; GCC only warns. */
 void func_80057228(MATRIX* mat, s32 alpha, SVECTOR* arg2, VECTOR3* arg3);
-/* When culling is disabled, ignore fog-based draw distance clamp.
- * PSX uses fogFarDistance as a draw distance optimization (don't render
- * what fog fully hides). On PC we want everything to render and let
- * fog visually obscure it instead of culling geometry. The shader fog now
- * dissolves fully-fogged geometry to exactly the void colour (PsyCross
- * GPU_DITHERING_NO_VCOLOR fades dither/quantize with fog), so drawing past
- * the fog plane no longer leaves a shade-off band -- no distance cull needed. */
-#define FOG_FAR_DIST() (g_PcConfig.disableCulling ? 0x7FFFFFFF : g_WorldEnvWork.fog.farDistance)
+/* The fog far plane stays a draw-distance cap with culling off. The GTE
+ * depth-cue byte saturates there, and the fragment shader multiplies it by the
+ * fog strength, so at strength >= 1 every face whose NEAREST vertex is past
+ * the plane (PC_FACE_CULL_DEPTH / PC_OBJ_CULL_DEPTH) is already the void
+ * colour: dropping it changes no pixel. Lifting the cap instead drew the whole
+ * resident grid out to the ~61u hard limit fully fogged -- pure overdraw that
+ * an immediate-mode GPU pays in full (3.5 fps on an Intel HD 3000 at 960x720
+ * on the streets). The lift was for a shade-off band at the plane, which the
+ * nearest-vertex rule removed. disable_culling keeps what its name promises,
+ * the screen-edge and PVS gates below and in vw_calc.c. Below strength 1 the
+ * fog never covers, so the far geometry must draw (Pc_LongViewActive). */
+extern float g_PsyX_FogStrength;
+#define FOG_FAR_DIST() ((g_PcConfig.disableCulling && g_PsyX_FogStrength < 1.0f) ? 0x7FFFFFFF : g_WorldEnvWork.fog.farDistance)
 
 /* Per-poly far drop. The base 0x79C shifted by (shift+2) is ~61u, and it -- not
  * chunk residency, not the cull predicate -- is what actually ends the view:
