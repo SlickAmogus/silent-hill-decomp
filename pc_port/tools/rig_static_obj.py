@@ -98,20 +98,52 @@ def landmarks(ob, opts):
     leg_x = sum(abs(p[0]) for p in shin) / len(shin) if shin else 0.05 * H
     foot = band(0.0, 0.05 * H)
     toe_z = max(p[2] for p in foot) if foot else center_z + 0.1 * H
+    wrist_x = hand_x - 0.07 * H
+    elbow_x = 0.5 * (shoulder_x + wrist_x)
+    neck_y = shoulder_y + 0.07 * H
+    head_y = shoulder_y + 0.12 * H
+
+    def mean_z(sel, fallback):
+        return sum(p[2] for p in sel) / len(sel) if sel else fallback
+
+    # Each joint sits on its own segment's axis. A joint on the torso's centre
+    # line left the sleeve, which is modelled behind that line, hanging behind
+    # its pivot once swung down, and the hand, modelled ahead of it, in front:
+    # Harry's slight elbow bend became a hunch.
+    sleeve = lambda lo, hi: [p for p in pts if lo < abs(p[0]) < hi and abs(p[1] - shoulder_y) < 0.08 * H]
+    arm_z = mean_z(sleeve(shoulder_x + 0.03 * H, shoulder_x + 0.11 * H), center_z)
+    elbow_z = mean_z(sleeve(elbow_x - 0.03 * H, elbow_x + 0.03 * H), arm_z)
+    wrist_z = mean_z(sleeve(wrist_x - 0.03 * H, wrist_x + 0.01 * H), elbow_z)
+    hand_z = mean_z([p for p in pts if abs(p[0]) > wrist_x], wrist_z)
+    legs = lambda lo, hi: [p for p in pts if lo <= p[1] < hi and 0.2 * leg_x < abs(p[0]) < 3.0 * leg_x]
+    upleg_z = mean_z(legs(hips_y - 0.09 * H, hips_y), center_z)
+    knee_z = mean_z(legs(knee_y - 0.045 * H, knee_y + 0.045 * H), upleg_z)
+    ankle_z = mean_z(legs(ankle_y - 0.012 * H, ankle_y + 0.035 * H), knee_z)
+    head_z = mean_z([p for p in pts if p[1] > head_y], center_z)
+    neck_z = mean_z([p for p in pts if neck_y - 0.015 * H < p[1] < head_y and abs(p[0]) < 0.6 * shoulder_x], center_z)
     lm = {
         "H": H,
         "hand_x": hand_x,
         "shoulder_y": shoulder_y,
         "shoulder_x": shoulder_x,
-        "wrist_x": hand_x - 0.07 * H,
-        "neck_y": shoulder_y + 0.07 * H,
-        "head_y": shoulder_y + 0.12 * H,
+        "wrist_x": wrist_x,
+        "neck_y": neck_y,
+        "head_y": head_y,
         "hips_y": hips_y,
         "knee_y": knee_y,
         "ankle_y": ankle_y,
         "leg_x": leg_x,
         "center_z": center_z,
         "toe_z": toe_z,
+        "arm_z": arm_z,
+        "elbow_z": elbow_z,
+        "wrist_z": wrist_z,
+        "hand_z": hand_z,
+        "upleg_z": upleg_z,
+        "knee_z": knee_z,
+        "ankle_z": ankle_z,
+        "head_z": head_z,
+        "neck_z": neck_z,
     }
     for k in list(lm):
         if k in opts:
@@ -127,24 +159,26 @@ def build_joints(lm):
     wx = lm["wrist_x"]
     ex = 0.5 * (sx + wx)
     hy, ky, ay, lx = lm["hips_y"], lm["knee_y"], lm["ankle_y"], lm["leg_x"]
+    az, ez, wz, hz = lm["arm_z"], lm["elbow_z"], lm["wrist_z"], lm["hand_z"]
+    uz, kz, akz = lm["upleg_z"], lm["knee_z"], lm["ankle_z"]
     J = {}
-    J["Hips"] = (None, (0, hy, cz))
+    J["Hips"] = (None, (0, hy, uz))
     J["Spine"] = ("Hips", (0, hy + 0.07 * H, cz))
     J["Spine1"] = ("Spine", (0, hy + 0.14 * H, cz))
     J["Spine2"] = ("Spine1", (0, hy + 0.21 * H, cz))
-    J["Neck"] = ("Spine2", (0, lm["neck_y"], cz))
-    J["Head"] = ("Neck", (0, lm["head_y"], cz))
-    J["HeadTop_End"] = ("Head", (0, H, cz))
+    J["Neck"] = ("Spine2", (0, lm["neck_y"], lm["neck_z"]))
+    J["Head"] = ("Neck", (0, lm["head_y"], lm["head_z"]))
+    J["HeadTop_End"] = ("Head", (0, H, lm["head_z"]))
     for side, s in (("Left", 1.0), ("Right", -1.0)):
-        J[side + "Shoulder"] = ("Spine2", (s * 0.3 * sx, sy + 0.01 * H, cz))
-        J[side + "Arm"] = (side + "Shoulder", (s * sx, sy, cz))
-        J[side + "ForeArm"] = (side + "Arm", (s * ex, sy, cz))
-        J[side + "Hand"] = (side + "ForeArm", (s * wx, sy, cz))
-        J[side + "HandEnd"] = (side + "Hand", (s * lm["hand_x"], sy, cz))
-        J[side + "UpLeg"] = ("Hips", (s * lx, hy, cz))
-        J[side + "Leg"] = (side + "UpLeg", (s * lx, ky, cz))
-        J[side + "Foot"] = (side + "Leg", (s * lx, ay, cz))
-        J[side + "ToeBase"] = (side + "Foot", (s * lx, 0.3 * ay, cz + 0.6 * (lm["toe_z"] - cz)))
+        J[side + "Shoulder"] = ("Spine2", (s * 0.3 * sx, sy + 0.01 * H, 0.5 * (cz + az)))
+        J[side + "Arm"] = (side + "Shoulder", (s * sx, sy, az))
+        J[side + "ForeArm"] = (side + "Arm", (s * ex, sy, ez))
+        J[side + "Hand"] = (side + "ForeArm", (s * wx, sy, wz))
+        J[side + "HandEnd"] = (side + "Hand", (s * lm["hand_x"], sy, hz))
+        J[side + "UpLeg"] = ("Hips", (s * lx, hy, uz))
+        J[side + "Leg"] = (side + "UpLeg", (s * lx, ky, kz))
+        J[side + "Foot"] = (side + "Leg", (s * lx, ay, akz))
+        J[side + "ToeBase"] = (side + "Foot", (s * lx, 0.3 * ay, akz + 0.6 * (lm["toe_z"] - akz)))
         J[side + "Toe_End"] = (side + "ToeBase", (s * lx, 0.1 * ay, lm["toe_z"]))
     return J
 
@@ -211,10 +245,20 @@ def weight_mesh(ob, arm, J, lm):
         p = Vector(to_gltf(v.co))
         side = "Left" if p.x >= 0 else "Right"
         allowed = list(torso)
-        if p.y > lm["neck_y"] - 0.02 * H:
+        # The shoulder tops and a sailor collar reach above the neck joint:
+        # only the narrow column above it is head, or the whole yoke would
+        # turn with the head. The clavicles get no vertices: a T-pose cap
+        # held by the clavicle stays up when the sleeve swings down, and the
+        # seam between them stretched into a spike. The cap rides the chest
+        # and blends into the arm across the sleeve top instead.
+        if p.y > lm["head_y"] or (p.y > lm["neck_y"] - 0.015 * H and abs(p.x) < 0.5 * sx):
             allowed = list(head_b)
-        if abs(p.x) > 0.8 * sx and p.y > sy - 0.10 * H and p.y < sy + 0.10 * H:
-            allowed = arms[side] + ["Spine2"]
+        # Past the cap the band widens to the sleeve's full thickness: a sleeve
+        # top left to the chest there stayed up in the T-pose as a spike. The
+        # narrow band near the body keeps the collar tips with the chest.
+        if (abs(p.x) > 0.8 * sx and abs(p.y - sy) < 0.06 * H) or \
+           (abs(p.x) > sx + 0.06 * H and abs(p.y - sy) < 0.10 * H):
+            allowed = [n for n in arms[side] if not n.endswith("Shoulder")] + ["Spine2"]
         if abs(p.x) > wx + 0.005 * H:
             allowed = [side + "Hand"]
         if p.y < hy + 0.04 * H:
@@ -229,8 +273,16 @@ def weight_mesh(ob, arm, J, lm):
         cands.sort(reverse=True)
         cands = cands[:3]
         total = sum(w for w, _ in cands)
-        for w, name in cands:
-            w /= total
+        weights = [(w / total, name) for w, name in cands]
+        # Across the shoulder cap the chest share fades into the upper arm by
+        # width, not by distance: a hard edge there left the cap standing in
+        # the T-pose while the sleeve top swung down, a spike at each shoulder.
+        cap_in, cap_out = 0.8 * sx, sx + 0.06 * H
+        if cap_in <= abs(p.x) < cap_out and abs(p.y - sy) < 0.06 * H:
+            t = (abs(p.x) - cap_in) / (cap_out - cap_in)
+            t = t * t * (3.0 - 2.0 * t)
+            weights = [(t, side + "Arm"), (1.0 - t, "Spine2")]
+        for w, name in weights:
             if w > 0.02:
                 groups[name].add([v.index], w, "REPLACE")
     mod = ob.modifiers.new("Armature", "ARMATURE")
