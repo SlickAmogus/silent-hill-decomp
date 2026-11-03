@@ -148,6 +148,8 @@ s_PcConfig g_PcConfig = {
     .touchStyle          = TouchStyle_Context,
     .touchQuickSaveLoad  = 0,
     .touchLookSensitivity = 1.0f,
+    .gyroAim             = 0,
+    .gyroSensitivity     = 1.0f,
     .renderScale         = 1.0f,
     .lowEndMode          = 0,
     .oneButtonCombat      = 0, /* off: Aim holds, a separate Fire button shoots */
@@ -1261,6 +1263,18 @@ void PcConfig_Load(const char* path)
             if (v < 0.1f) v = 0.1f;
             if (v > 4.0f) v = 4.0f;
             g_PcConfig.touchLookSensitivity = v;
+        }
+        else if (strcmp(key, "gyro_aim") == 0)
+        {
+            int v = atoi(value);
+            g_PcConfig.gyroAim = (v < 0 || v > 2) ? 0 : v;
+        }
+        else if (strcmp(key, "gyro_sensitivity") == 0)
+        {
+            float v = (float)atof(value);
+            if (v < 0.1f) v = 0.1f;
+            if (v > 4.0f) v = 4.0f;
+            g_PcConfig.gyroSensitivity = v;
         }
         else if (strcmp(key, "quick_weapon_switch") == 0)
         {

@@ -716,6 +716,26 @@ static void Pc_TpsCamera_Apply(void)
             }
         }
 
+        /* Gyro aim, as a position change like the touch drag: the view turns
+         * as far as the phone does at sensitivity 1. Drained every tick so a
+         * turn made while gated off or frozen is not banked for later. Not
+         * flipped by invert_controller_y: tilting the phone up is looking up. */
+        {
+            extern int Pc_Gyro_TakeLook(float* yaw, float* pitch);
+            float      gYaw, gPitch;
+
+            if (Pc_Gyro_TakeLook(&gYaw, &gPitch) && !frozen &&
+                (g_PcConfig.gyroAim == 2 || isAiming))
+            {
+                const float toQ12 = 4096.0f / 6.2831853f;
+                const float gs    = g_PcConfig.gyroSensitivity;
+
+                g_TpsCamYaw   += (s32)(gYaw * toQ12 * gs);
+                g_TpsCamPitch += (s32)(gPitch * toQ12 * gs);
+                g_PcAimDevice  = 1;
+            }
+        }
+
         /* Sticky aim-device detection for aim-assist: mouse motion -> mouse;
          * else any stick deflection (right = look, left = move) -> controller. */
         {
