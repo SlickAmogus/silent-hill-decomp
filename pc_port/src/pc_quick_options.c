@@ -76,7 +76,8 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_DREAMSTR, QO_X_DREAMBLUR, QO_X_DPADMOVE,
        QO_X_CAMSTYLE, QO_X_OTSSIDE, QO_X_CROSSHAIRSTYLE,
        QO_X_LINEGAP, QO_X_CHARALIGHT, QO_X_PPLIGHT, QO_X_HEROLIGHT, QO_X_HEROLIGHTFL, QO_X_FACEANIM,
-       QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD };
+       QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD,
+       QO_X_GYROAIM, QO_X_GYROSENS };
 extern const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz);
 extern void        PcOpt_QuickExtraAdjust(int which, int dir);
 extern void        PcOpt_QuickViewReset(int mode);
@@ -492,14 +493,57 @@ static const QoRowDef s_pageControls[] = {
     { ROW_CLOSE, NULL, 0,                     "Close" },
 };
 
-_Static_assert(sizeof(s_pageControls) / sizeof(s_pageControls[0]) <= QO_MAX_ROWS,
-               "s_pageControls exceeds QO_MAX_ROWS; raise the ceiling or split the page");
+_Static_assert(sizeof(s_pageControls) / sizeof(s_pageControls[0]) + 2 <= QO_MAX_ROWS,
+               "s_pageControls plus the gyro rows exceeds QO_MAX_ROWS; raise the ceiling or split the page");
+
+/* The gyro steers only the alternate cameras, so its rows join the page, after
+ * the touch look speed, only while one of those is active. */
+static QoRowDef s_pageControlsGyro[QO_MAX_ROWS];
+
+static const QoRowDef* qo_controls_page(int* count)
+{
+    extern int g_DebugThirdPersonCam;
+    const int  n   = (int)(sizeof(s_pageControls) / sizeof(s_pageControls[0]));
+    const int  alt = g_DebugThirdPersonCam != 0;
+    int        i, k = 0;
+
+    {
+        static int s_lastAlt = -1;
+        if (alt != s_lastAlt)
+        {
+            s_lastAlt       = alt;
+            s_viewRowsDirty = 1;
+        }
+    }
+
+    if (!alt)
+    {
+        *count = n;
+        return s_pageControls;
+    }
+
+    for (i = 0; i < n; i++)
+    {
+        s_pageControlsGyro[k++] = s_pageControls[i];
+        if (s_pageControls[i].kind == ROW_OPT && s_pageControls[i].key != NULL &&
+            strcmp(s_pageControls[i].key, "touch_look_sensitivity") == 0)
+        {
+            const QoRowDef gyroAim  = { ROW_EXTRA, NULL, QO_X_GYROAIM,  "Gyro Aim" };
+            const QoRowDef gyroSens = { ROW_EXTRA, NULL, QO_X_GYROSENS, "Gyro Sensitivity" };
+
+            s_pageControlsGyro[k++] = gyroAim;
+            s_pageControlsGyro[k++] = gyroSens;
+        }
+    }
+    *count = k;
+    return s_pageControlsGyro;
+}
 #endif
 
 static const QoRowDef* qo_section_rows(int page, int* count)
 {
 #if defined(QO_MOBILE)
-    if (page == 5) { *count = (int)(sizeof(s_pageControls) / sizeof(s_pageControls[0])); return s_pageControls; }
+    if (page == 5) return qo_controls_page(count);
 #else
     if (page == 5) { *count = (int)(sizeof(s_page5) / sizeof(s_page5[0])); return s_page5; }
 #endif

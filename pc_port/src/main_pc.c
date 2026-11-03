@@ -387,7 +387,11 @@ static void Pc_WriteStarterConfig(const char* path)
     fprintf(f, "#   2 = always on, 0 = always off. Off still leaves the taps that skip\n");
     fprintf(f, "#   a logo or leave a pause screen, so a phone can always reach this menu.\n");
     fprintf(f, "touch_controls = %d\n", g_PcConfig.touchControls);
-    fprintf(f, "touch_look_sensitivity = %.2f\n\n", (double)g_PcConfig.touchLookSensitivity);
+    fprintf(f, "touch_look_sensitivity = %.2f\n", (double)g_PcConfig.touchLookSensitivity);
+    fprintf(f, "# gyro_aim: the phone's gyroscope steers the alternate cameras.\n");
+    fprintf(f, "#   0 = off, 1 = only while aiming, 2 = always.\n");
+    fprintf(f, "gyro_aim = %d\n", g_PcConfig.gyroAim);
+    fprintf(f, "gyro_sensitivity = %.2f\n\n", (double)g_PcConfig.gyroSensitivity);
     fprintf(f, "# --- keyboard bindings ---\n");
     fprintf(f, "# SDL key names. The log prints every key this machine produces as\n");
     fprintf(f, "#   [KEY] scancode N = 'Name'\n");

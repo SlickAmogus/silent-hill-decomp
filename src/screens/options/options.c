@@ -981,7 +981,8 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_DREAMSTR, QO_X_DREAMBLUR, QO_X_DPADMOVE,
        QO_X_CAMSTYLE, QO_X_OTSSIDE, QO_X_CROSSHAIRSTYLE,
        QO_X_LINEGAP, QO_X_CHARALIGHT, QO_X_PPLIGHT, QO_X_HEROLIGHT, QO_X_HEROLIGHTFL, QO_X_FACEANIM,
-       QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD };
+       QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD,
+       QO_X_GYROAIM, QO_X_GYROSENS };
 
 /* display_aspect = crt puts the picture on (4:3 x trim), so one framebuffer
  * pixel lands on screen this many times wider than tall at trim 1.0. It is the
@@ -1107,6 +1108,14 @@ const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz)
         return Pc_LangQuickMenu(g_PcConfig.charaFaceAnim ? "On" : "Off");
     case QO_X_CROSSHAIRMELEE:
         return Pc_LangQuickMenu(g_PcConfig.crosshairHideMelee ? "On" : "Off");
+    case QO_X_GYROAIM: {
+        static const char* const lbl[3] = { "Off", "While Aiming", "Always" };
+        int i = (g_PcConfig.gyroAim >= 0 && g_PcConfig.gyroAim < 3) ? g_PcConfig.gyroAim : 0;
+        return (i == 0) ? Pc_LangQuickMenu("Off") : Pc_LangQuick(lbl[i]);
+    }
+    case QO_X_GYROSENS:
+        snprintf(buf, bufsz, "%.1fx", (double)g_PcConfig.gyroSensitivity);
+        return buf;
     case QO_X_AUTORELOAD:
         return (g_PcConfig.autoReload == 2) ? Pc_LangQuick("Original (also when aiming)")
                                             : Pc_LangQuickMenu(g_PcConfig.autoReload ? "On" : "Off");
@@ -1647,6 +1656,30 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
         Sd_PlaySfx(Sfx_MenuMove, 0, 64);
         break;
     /* Read where a reload starts, so it applies live. */
+    /* pc_gyro.c reads both each tick, and opens or closes the sensors with
+     * the mode, so they apply live. */
+    case QO_X_GYROAIM: {
+        char buf2[8];
+
+        g_PcConfig.gyroAim = (g_PcConfig.gyroAim + dir + 3) % 3;
+        snprintf(buf2, sizeof(buf2), "%d", g_PcConfig.gyroAim);
+        PcConfig_SaveKeyValue("gyro_aim", buf2);
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        break;
+    }
+    case QO_X_GYROSENS: {
+        char  buf2[16];
+        float v = g_PcConfig.gyroSensitivity + (float)dir * 0.1f;
+
+        if (v < 0.1f) v = 0.1f;
+        if (v > 4.0f) v = 4.0f;
+        if (v == g_PcConfig.gyroSensitivity) { SD_Call(Sfx_MenuError); break; }
+        g_PcConfig.gyroSensitivity = v;
+        snprintf(buf2, sizeof(buf2), "%.2f", (double)v);
+        PcConfig_SaveKeyValue("gyro_sensitivity", buf2);
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        break;
+    }
     case QO_X_AUTORELOAD: {
         char buf2[8];
 
