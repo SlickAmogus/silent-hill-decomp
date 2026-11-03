@@ -17,6 +17,7 @@
 #include "bodyprog/sound/sfx_id_enum.h"
 #include "bodyprog/sound/sound_system.h"
 
+#include "pc_chara_select.h"
 #include "pc_cheats.h"
 #include "pc_config.h"
 #include "lang_quick.h"
@@ -199,6 +200,11 @@ static void act_shotgun(void)
 
 /* Same routing as debug key 6 / KILLALL: a huge damage.amount sends every
  * nearby enemy through its own real death path. */
+static void act_chara_menu(void)
+{
+    Pc_CharaSelect_Open();
+}
+
 static void act_kill_nearby(void)
 {
     s_SubCharacter* hr = &g_SysWork.playerWork.player;
@@ -251,7 +257,7 @@ static const CheatRow s_cheats[] = {
     { "Hunting rifle +30",    CH_ACTION,  NULL, act_rifle },
     { "Shotgun +30",          CH_ACTION,  NULL, act_shotgun },
     { "Kill nearby enemies",  CH_ACTION,  NULL, act_kill_nearby },
-    { "Play as",              CH_PLAYAS,  NULL, NULL },
+    { "Character menu",       CH_ACTION,  NULL, act_chara_menu },
     { "Free camera",          CH_FREECAM, NULL, NULL },
 };
 

@@ -9,6 +9,7 @@
 #include "lang_text.h" /* menu translations + width for recentred entries */
 #include "pc_title_style.h"
 #include "pc_ach_screen.h"
+#include "pc_chara_select.h"
 #include "pc_mouse_cursor.h"
 #include "pc_native_menu_draw.h"
 #include "pc_pause_menu_core.h"
@@ -60,7 +61,7 @@ static s32 g_MainMenuState              = 0;
 static s32 g_MainMenu_SelectedEntry     = MainMenuEntry_Start;
 #ifdef SH_PC_PORT
 /* The port adds an Exit row, always available alongside Option. */
-#define MAINMENU_BASE_ENTRY_FLAGS ((1 << MainMenuEntry_Start) | (1 << MainMenuEntry_Option) | (1 << MainMenuEntry_Exit))
+#define MAINMENU_BASE_ENTRY_FLAGS ((1 << MainMenuEntry_Start) | (1 << MainMenuEntry_Option) | (1 << MainMenuEntry_Characters) | (1 << MainMenuEntry_Exit))
 #else
 #define MAINMENU_BASE_ENTRY_FLAGS ((1 << MainMenuEntry_Start) | (1 << MainMenuEntry_Option))
 #endif
@@ -252,6 +253,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
     static s32  prevSavegameCount            = 0;
 #ifdef SH_PC_PORT
     static s32  achStep                      = 0;
+    static s32  csStep                       = 0;
     static bool achUnavailableLogged         = false;
 #endif
 #ifdef SH_PC_PORT
@@ -284,6 +286,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
     /* Neither the gameplay demo nor the intro FMV may take the screen while the
      * achievements screen is up -- the player is reading, not idle. */
     playInGameDemo = g_PcConfig.attractDemos && g_MainMenuState != MenuState_Achievements &&
+                     g_MainMenuState != MenuState_Characters &&
                      !s_ExitConfirm.open &&
                      (((g_Demo_ReproducedCount + 1) % 3) != 0);
 #else
@@ -590,6 +593,11 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                         achStep         = 0;
                         break;
 
+                    case MainMenuEntry_Characters:
+                        g_MainMenuState = MenuState_Characters;
+                        csStep          = 0;
+                        break;
+
                     /* Retail leaves the Extra slot dead (never made visible,
                      * empty handler). The port shows Exit and quits here, the
                      * same way the console QUIT command and the debug overlay
@@ -802,6 +810,42 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                     break;
             }
             break;
+
+        case MenuState_Characters:
+            switch (csStep)
+            {
+                case 0:
+                    if (ScreenFade_IsFinished())
+                    {
+                        Pc_CharaSelect_Open();
+                        ScreenFade_Start(true, true, false);
+                        csStep = 1;
+                    }
+                    break;
+
+                case 1:
+                    {
+                        NmInput in;
+
+                        NmInput_FromGame(&in);
+                        if (!Pc_CharaSelect_Update(&in))
+                        {
+                            ScreenFade_Start(true, false, false);
+                            csStep = 2;
+                        }
+                    }
+                    break;
+
+                default:
+                    if (ScreenFade_IsFinished())
+                    {
+                        Pc_CharaSelect_Close();
+                        g_MainMenuState = MenuState_Main;
+                        ScreenFade_Start(true, true, false);
+                    }
+                    break;
+            }
+            break;
 #endif
 
         case MenuState_LoadGame:
@@ -866,7 +910,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
     /* Hold the idle timer at zero while the achievements screen is up. Scrolling
      * a list is not idling, and at 1740 this loads STREAM.BIN and cuts to the
      * intro movie. */
-    if (g_MainMenuState == MenuState_Achievements || s_ExitConfirm.open)
+    if (g_MainMenuState == MenuState_Achievements || g_MainMenuState == MenuState_Characters || s_ExitConfirm.open)
     {
         g_SysWork.counters_1C[1] = 0;
     }
@@ -918,13 +962,18 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             Pc_MouseCursor_Show();
             return;
         }
+        if (g_MainMenuState == MenuState_Characters && csStep != 0)
+        {
+            Pc_CharaSelect_Draw();
+            return;
+        }
 #endif
 
         MainMenu_BackgroundDraw();
         func_8003B560();
 
 #ifdef SH_PC_PORT
-        if (g_MainMenuState < 3 || g_MainMenuState == MenuState_Achievements)
+        if (g_MainMenuState < 3 || g_MainMenuState == MenuState_Achievements || g_MainMenuState == MenuState_Characters)
 #else
         if (g_MainMenuState < 3)
 #endif
@@ -990,6 +1039,7 @@ static void MainMenu_MainTextDraw(void) // 0x8003B568
         "OPTION",
 #ifdef SH_PC_PORT
         "ACHIEVEMENTS",
+        "CHARACTERS",
         "EXIT" /* PC port: quits the game. */
 #else
         "EXTRA" /** @unused See `e_MainMenuEntry`. */

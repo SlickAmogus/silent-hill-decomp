@@ -2111,6 +2111,10 @@ void DbgOverlay_Render(void)
 
     { extern void Pc_ConfirmDialog_Draw(void); Pc_ConfirmDialog_Draw(); }
 
+    /* Character Select's turning model, composited into the native screen's
+     * preview frame. */
+    { extern void Pc_CharaPreview_Draw(void); Pc_CharaPreview_Draw(); }
+
     /* Mouse pointer above every panel. Before the early-out below, which skips
      * the rest of this function on nearly every frame. */
     { extern void Pc_MouseCursor_GlDraw(void); Pc_MouseCursor_GlDraw(); }

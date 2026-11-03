@@ -33,6 +33,8 @@
 #include "pc_dpad_icons.h"
 #include "pc_bind_input.h"
 #include "pc_bind_panel.h"
+#include "pc_chara_select.h"
+#include "pc_native_menu_draw.h"
 #include "pc_mouse_cursor.h"
 #include "pc_config.h"
 #include "lang_text.h"
@@ -1448,6 +1450,7 @@ void Pc_QuickOptions_Close(void)
      * menu's Update, so closing the menu under it left it on screen with
      * nothing able to close it. Whatever closes the menu closes it too. */
     Pc_BindPanel_Close();
+    Pc_CharaSelect_Close();
     s_phase      = QO_CLOSING;
     s_phaseStart = SDL_GetTicks();
 }
@@ -1456,7 +1459,7 @@ void Pc_QuickOptions_Toggle(void)
 {
     /* The keybind panel owns the keyboard while it is up -- F10 may be the
      * very key being bound -- so the toggle does nothing until it closes. */
-    if (Pc_BindPanel_IsOpen())
+    if (Pc_BindPanel_IsOpen() || Pc_CharaSelect_IsOpen())
         return;
     if (s_phase == QO_CLOSED || s_phase == QO_CLOSING)
         qo_open();
@@ -1674,6 +1677,18 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
     if (Pc_BindPanel_IsOpen())
     {
         Pc_BindPanel_Update();
+        return;
+    }
+    /* Character Select is a native screen drawn over the frozen world from
+     * MainLoop; it takes the pad straight from g_Controller0, which the host
+     * zeroes only after this returns. */
+    if (Pc_CharaSelect_IsOpen())
+    {
+        NmInput in;
+
+        NmInput_FromGame(&in);
+        if (!Pc_CharaSelect_Update(&in))
+            Pc_CharaSelect_Close();
         return;
     }
 
@@ -1910,8 +1925,9 @@ void Pc_QuickOptions_Draw(void)
 
     if (s_phase == QO_CLOSED)
         return;
-    /* The keybind panel stands in for this menu while it is open. */
-    if (Pc_BindPanel_IsOpen())
+    /* The keybind panel and the character screen stand in for this menu
+     * while they are open. */
+    if (Pc_BindPanel_IsOpen() || Pc_CharaSelect_IsOpen())
         return;
 
     glGetIntegerv(GL_VIEWPORT, vp);
