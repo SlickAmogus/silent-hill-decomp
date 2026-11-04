@@ -334,7 +334,7 @@ typedef struct {
     /* Phone gyroscope steering the alternate cameras (pc_gyro.c): 0 = off,
      * 1 = only while aiming, 2 = always. Config key: gyro_aim. */
     int   gyroAim;
-    float gyroSensitivity;  /* 1.0 = the view turns as far as the phone does, 0.1..4.0 (config key: gyro_sensitivity) */
+    float gyroSensitivity;  /* gyro aim: 1.0 = the view turns as far as the phone does; gyro movement: scales the tilt. 0.1..4.0 (config key: gyro_sensitivity) */
     /* Tilting the phone is a left stick, in every camera (pc_gyro.c). Never on
      * together with gyroAim: the quick menu turns the other off, and pc_gyro.c
      * drops this one if a hand-edited config has both. Config key: gyro_movement. */

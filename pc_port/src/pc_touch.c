@@ -2104,13 +2104,16 @@ void Pc_Touch_GetPad(unsigned short* word,
      * own timing for re-centring after time away from play. */
     if (Tc_Mode() == TC_MODE_GAMEPLAY)
     {
-        extern int    Pc_Gyro_MoveStick(unsigned char* x, unsigned char* y);
+        extern int    Pc_Gyro_MoveStick(unsigned char* x, unsigned char* y, int* run);
         unsigned char gx, gy;
+        int           grun;
 
-        if (Pc_Gyro_MoveStick(&gx, &gy) && s_LeftX == 128 && s_LeftY == 128)
+        if (Pc_Gyro_MoveStick(&gx, &gy, &grun) && s_LeftX == 128 && s_LeftY == 128)
         {
             if (leftX != NULL) *leftX = gx;
             if (leftY != NULL) *leftY = gy;
+            if (grun && word != NULL)
+                Tc_PressAction(word, g_GameWorkPtr->config.controllerConfig.run);
         }
     }
 }

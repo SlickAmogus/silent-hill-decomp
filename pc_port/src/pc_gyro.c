@@ -7,6 +7,9 @@
  *                   control mode reads it the way it reads any stick: tank turns
  *                   in Classic, camera-relative walking and strafing in the
  *                   alternate cameras, screen-relative under 2D controls.
+ *                   Classic also runs on a far forward tilt, and a sharp flick
+ *                   back is the quick back-jump (Run + Back) outside 2D control.
+ *  - gyro_sensitivity scales both.
  * One at a time: the quick menu turns the other off (options.c).
  *  - with either on, a fast wag breaks free of a grab (Pc_Gyro_GrabShakes).
  *
@@ -47,6 +50,11 @@ static int         s_MoveCal;
 static float       s_NeutralPitch;
 static float       s_GravUp, s_GravRight, s_GravOut;
 static Uint32      s_MoveLastMs;
+static float       s_PrevRawPitch;
+static int         s_MoveRun;    /* Classic's auto-run, latched with hysteresis */
+static int         s_MoveBack;   /* last read was tilted back past the dead zone */
+static Uint32      s_SharpMs;    /* last time the phone was pitching fast */
+static Uint32      s_HopUntilMs; /* Run held until then, for the quick back-jump */
 
 /* Below this the reading is sensor noise and resting-hand tremor, not an aim,
  * and integrating it walks the camera off on its own. */
@@ -63,6 +71,17 @@ static Uint32      s_MoveLastMs;
 /* Away from gameplay longer than this (a menu, a cutscene) and the phone has
  * likely been put down or re-gripped, so the next tilt re-centres first. */
 #define GYRO_RECAL_GAP_MS   1000
+/* Classic's auto-run, on the touch stick's own thresholds (pc_touch.c). */
+#define GYRO_RUN_ENGAGE     0.68f
+#define GYRO_RUN_RELEASE    0.50f
+/* A flick back, not a lean back: pitching at least this fast (~140 degrees a
+ * second) within GYRO_HOP_WINDOW_MS of leaving the dead zone backwards. */
+#define GYRO_HOP_RAD_S      2.5f
+#define GYRO_HOP_WINDOW_MS  200
+/* Run is held this long from that moment: past the stick crossing into "back",
+ * which is the edge the back-jump fires on, and short enough that Harry walks
+ * back after the hop instead of hopping again. */
+#define GYRO_HOP_HOLD_MS    300
 
 static void Gyro_Close(void)
 {
@@ -248,18 +267,48 @@ static float Gyro_TiltAxis(float a)
 
 /* Tilt as a left stick (0..255, 128 centre): tip the top edge away to walk
  * forward, toward you to back up, and lower an edge to go that way. Asked
- * once per pad read, only in gameplay; returns 0 for "not driving". */
-int Pc_Gyro_MoveStick(unsigned char* x, unsigned char* y)
+ * once per pad read, only in gameplay; returns 0 for "not driving". *run is
+ * set when Run should be held with it:
+ *  - Classic tank controls never run off the stick alone, so a far enough
+ *    forward tilt runs there (the other modes already run on a full stick).
+ *  - a sharp flick back is Run + Back, the quick back-jump, in every mode but
+ *    2D control, where back is just the bottom of the screen. */
+int Pc_Gyro_MoveStick(unsigned char* x, unsigned char* y, int* run)
 {
-    const Uint32 now = SDL_GetTicks();
-    float        up, right, out, pitch, roll, fwd, side;
+    extern int   g_DebugThirdPersonCam;
+    const Uint32 now  = SDL_GetTicks();
+    const float  sens = g_PcConfig.gyroSensitivity;
+    float        up, right, out, pitch, roll, fwd, side, rawPitch, wUp, wRight;
+    Uint32       dtMs;
 
     if (!g_PcConfig.gyroMove || !Gyro_Ensure() || !Gyro_Gravity(&up, &right, &out))
         return 0;
 
-    if ((now - s_MoveLastMs) > GYRO_RECAL_GAP_MS)
-        s_MoveCal = 0;
+    *run = 0;
+    dtMs = now - s_MoveLastMs;
+    if (dtMs > GYRO_RECAL_GAP_MS)
+    {
+        s_MoveCal   = 0;
+        s_MoveRun   = 0;
+        s_MoveBack  = 0;
+        s_HopUntilMs = 0;
+    }
     s_MoveLastMs = now;
+
+    /* How fast the phone is pitching: the gyro when there is one, otherwise
+     * the raw (unsmoothed) gravity angle's change. */
+    rawPitch = atan2f(out, up);
+    if (s_Gyro != NULL && Gyro_Rates(&wUp, &wRight))
+    {
+        if (fabsf(wRight) >= GYRO_HOP_RAD_S)
+            s_SharpMs = now;
+    }
+    else if (s_MoveCal && dtMs > 0 &&
+             fabsf(rawPitch - s_PrevRawPitch) * 1000.0f / (float)dtMs >= GYRO_HOP_RAD_S)
+    {
+        s_SharpMs = now;
+    }
+    s_PrevRawPitch = rawPitch;
 
     /* Hand tremor and the accelerometer's own noise, smoothed over ~4 reads. */
     if (!s_MoveCal)
@@ -286,8 +335,23 @@ int Pc_Gyro_MoveStick(unsigned char* x, unsigned char* y)
         return 0;
     }
 
-    fwd  = Gyro_TiltAxis(pitch - s_NeutralPitch);
-    side = Gyro_TiltAxis(roll);
+    /* Sensitivity scales the tilt: higher reaches a full push, and Classic's
+     * run, with less of it. */
+    fwd  = Gyro_TiltAxis((pitch - s_NeutralPitch) * sens);
+    side = Gyro_TiltAxis(roll * sens);
+
+    if (fwd < 0.0f && !s_MoveBack && !g_PcConfig.control2d &&
+        (now - s_SharpMs) < GYRO_HOP_WINDOW_MS)
+        s_HopUntilMs = now + GYRO_HOP_HOLD_MS;
+    s_MoveBack = (fwd < 0.0f);
+
+    if (g_DebugThirdPersonCam == 0 && !g_PcConfig.control2d)
+        s_MoveRun = fwd >= (s_MoveRun ? GYRO_RUN_RELEASE : GYRO_RUN_ENGAGE);
+    else
+        s_MoveRun = 0;
+
+    *run = s_MoveRun || (s_HopUntilMs != 0 && (Sint32)(s_HopUntilMs - now) > 0);
+
     if (fwd == 0.0f && side == 0.0f)
         return 0;
 

@@ -478,9 +478,10 @@ static const QoRowDef s_pageControls[] = {
     { ROW_OPT,   "control_2d",             0, NULL },  /* screen-relative movement */
     { ROW_OPT,   "touch_controls",         0, NULL },  /* Automatic / On / Off */
     { ROW_OPT,   "touch_look_sensitivity", 0, NULL },
-    /* Tilt to move, in every camera; Gyro Aim and its sensitivity join it
-     * below in the alternate cameras (qo_controls_page). */
+    /* Tilt to move, in every camera; Gyro Aim joins it in the alternate
+     * cameras (qo_controls_page). The sensitivity is shared by both. */
     { ROW_EXTRA, NULL, QO_X_GYROMOVE,         "Gyro Movement" },
+    { ROW_EXTRA, NULL, QO_X_GYROSENS,         "Gyro Sensitivity" },
     { ROW_OPT,   "one_button_combat",      0, NULL },
     /* The pad rows the Options menu's Controls page carries on a phone, for
      * anyone who has paired a controller. */
@@ -497,10 +498,10 @@ static const QoRowDef s_pageControls[] = {
     { ROW_CLOSE, NULL, 0,                     "Close" },
 };
 
-_Static_assert(sizeof(s_pageControls) / sizeof(s_pageControls[0]) + 2 <= QO_MAX_ROWS,
-               "s_pageControls plus the gyro rows exceeds QO_MAX_ROWS; raise the ceiling or split the page");
+_Static_assert(sizeof(s_pageControls) / sizeof(s_pageControls[0]) + 1 <= QO_MAX_ROWS,
+               "s_pageControls plus the Gyro Aim row exceeds QO_MAX_ROWS; raise the ceiling or split the page");
 
-/* Gyro aim steers only the alternate cameras, so its rows join the page, after
+/* Gyro aim steers only the alternate cameras, so its row joins the page, after
  * Gyro Movement, only while one of those is active. */
 static QoRowDef s_pageControlsGyro[QO_MAX_ROWS];
 
@@ -531,11 +532,9 @@ static const QoRowDef* qo_controls_page(int* count)
         s_pageControlsGyro[k++] = s_pageControls[i];
         if (s_pageControls[i].kind == ROW_EXTRA && s_pageControls[i].extra == QO_X_GYROMOVE)
         {
-            const QoRowDef gyroAim  = { ROW_EXTRA, NULL, QO_X_GYROAIM,  "Gyro Aim" };
-            const QoRowDef gyroSens = { ROW_EXTRA, NULL, QO_X_GYROSENS, "Gyro Sensitivity" };
+            const QoRowDef gyroAim = { ROW_EXTRA, NULL, QO_X_GYROAIM, "Gyro Aim" };
 
             s_pageControlsGyro[k++] = gyroAim;
-            s_pageControlsGyro[k++] = gyroSens;
         }
     }
     *count = k;
