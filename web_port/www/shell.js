@@ -82,9 +82,19 @@
 		return dbOp("readonly", function (s) { return s.get("disc"); }).catch(function () { return null; });
 	}
 
+	/* Asks the browser not to clear this site's storage (the saves, the
+	 * remembered disc) when the disk runs low. Chrome decides silently; Firefox
+	 * may show its own prompt once, so it is only asked from a click. */
+	function protectStorage() {
+		if (!navigator.storage || !navigator.storage.persist) return;
+		var p = navigator.storage.persisted ? navigator.storage.persisted() : Promise.resolve(false);
+		p.then(function (already) {
+			if (!already) return navigator.storage.persist();
+		}).catch(function () {});
+	}
+
 	function rememberDisc(file) {
-		if (navigator.storage && navigator.storage.persist)
-			navigator.storage.persist().catch(function () {});
+		protectStorage();
 		return dbOp("readwrite", function (s) {
 			return s.put({ name: file.name, size: file.size, blob: file }, "disc");
 		});
@@ -510,6 +520,7 @@
 		if (!chosen) return;
 		ui.play.disabled = true;
 		ui.file.disabled = true;
+		protectStorage();
 		/* From here the game owns the save folder; a write from these would be
 		 * overwritten by its next sync, or overwrite what it just saved. */
 		saveUi.exp.disabled = true;
@@ -796,6 +807,7 @@
 		var f = saveUi.imp.files && saveUi.imp.files[0];
 		saveUi.imp.value = "";
 		if (!f) return;
+		protectStorage();
 		var incoming;
 		f.arrayBuffer().then(function (buf) {
 			if (/\.mcd$/i.test(f.name)) {
