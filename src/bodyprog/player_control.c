@@ -3875,6 +3875,19 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
             g_Player_HeadingAngle = headingAngle1;
             func_8007FB94(player, extra, animStatus);
 
+#ifdef SH_PC_PORT
+            /* Gyro aim's shake to escape: each left/right reversal of a fast
+             * wag of the phone is one mash. 0 unless gyro_aim is on. */
+            {
+                extern int Pc_Gyro_GrabShakes(void);
+                const int  shakes = Pc_Gyro_GrabShakes();
+
+                if (player->health > Q12(0.0f))
+                {
+                    g_Player_GrabReleaseInputTimer += shakes * TIMESTEP_30_FPS;
+                }
+            }
+#endif
             if (player->health > Q12(0.0f) && (g_Player_HasMoveInput | g_Player_HasActionInput))
             {
 #ifdef SH_PC_PORT
