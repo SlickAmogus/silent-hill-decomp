@@ -26,7 +26,10 @@
 #include "pc_skin_chara.h"
 #include "sh_log.h"
 
-/* Layout in the 320x224 menu space (see pc_native_menu_draw.h). */
+/* Layout in the menu space (see pc_native_menu_draw.h): 224 rows, and
+ * -margin..320+margin columns, the margin being what the window's aspect adds
+ * beyond 4:3 (PsyX_WideMenuMargin while g_PsxWideMenu is set). The columns
+ * share the field by proportion, so the screen fills 16:9 and 21:9. */
 #define CS_HEADING_Y   12
 #define CS_RULE_Y      30
 #define CS_LIST_Y      40
@@ -34,20 +37,34 @@
 #define CS_VISIBLE     9
 #define CS_ARROW_UP_Y  34
 #define CS_ARROW_DN_Y  188
-#define CS_COL1_X0     8
-#define CS_COL1_X1     104
-#define CS_DIV1_X      110
-#define CS_COL2_X0     118
-#define CS_COL2_X1     208
-#define CS_DIV2_X      214
-#define CS_PREV_X0     220
 #define CS_PREV_Y0     34
-#define CS_PREV_X1     312
 #define CS_PREV_Y1     196
 #define CS_FOOTER_Y    204
-#define CS_BACK_X      16
 #define CS_OT_LINE     6
 #define CS_OT_SHADE    9
+
+extern int   g_PsxWideMenu;
+extern float PsyX_WideMenuMargin(void);
+
+static int s_fieldL, s_fieldR; /* this frame's field, menu columns */
+#define CS_FIELD_W    (s_fieldR - s_fieldL)
+#define CS_COL1_X0    (s_fieldL + 8)
+#define CS_DIV1_X     (s_fieldL + (CS_FIELD_W * 31) / 100)
+#define CS_COL1_X1    (CS_DIV1_X - 6)
+#define CS_COL2_X0    (CS_DIV1_X + 8)
+#define CS_DIV2_X     (s_fieldL + (CS_FIELD_W * 62) / 100)
+#define CS_COL2_X1    (CS_DIV2_X - 6)
+#define CS_PREV_X0    (CS_DIV2_X + 6)
+#define CS_PREV_X1    (s_fieldR - 8)
+#define CS_BACK_X     (s_fieldL + 16)
+
+static void cs_field_update(void)
+{
+    int m = g_PsxWideMenu ? (int)(PsyX_WideMenuMargin() + 0.5f) : 0;
+
+    s_fieldL = -m;
+    s_fieldR = 320 + m;
+}
 
 #define CS_ROW_DOWNLOAD 0
 #define CS_HIT_NONE   (-1)
@@ -409,6 +426,8 @@ void Pc_CharaSelect_Open(void)
     s_escPrev   = 1;
     s_status[0] = '\0';
     s_open      = 1;
+    g_PsxWideMenu = !g_PcConfig.nativeResolution;
+    cs_field_update();
     cs_music_start();
     SH_DBG("[CHARASEL] opened: %d swap files", s_fileCount);
 }
@@ -423,6 +442,7 @@ void Pc_CharaSelect_Close(void)
     if (!s_open)
         return;
     s_open = 0;
+    g_PsxWideMenu = 0;
     cs_music_stop();
 }
 
@@ -458,7 +478,7 @@ static int cs_hit(const NmInput* in)
 
         if (in->mouseY < y || in->mouseY >= y + CS_PITCH)
             continue;
-        if (in->mouseX >= CS_COL1_X0 - 2 && in->mouseX < CS_DIV1_X)
+        if (in->mouseX >= s_fieldL && in->mouseX < CS_DIV1_X)
             return row;
         if (row > 0 && in->mouseX >= CS_DIV1_X && in->mouseX < CS_DIV2_X)
         {
@@ -511,8 +531,10 @@ static int cs_activate(void)
     return 1;
 }
 
-int Pc_CharaSelect_Update(const NmInput* in)
+int Pc_CharaSelect_Update(const NmInput* inRaw)
 {
+    NmInput  loc;
+    const NmInput* in = &loc;
     int oldSel;
     int oldBack;
     int back;
@@ -520,6 +542,10 @@ int Pc_CharaSelect_Update(const NmInput* in)
 
     if (!s_open)
         return 0;
+    cs_field_update();
+    loc = *inRaw;
+    if (loc.mouseOk)
+        loc.mouseX = s_fieldL + (loc.mouseX * CS_FIELD_W) / 320;
     cs_music_tick();
     back    = cs_escape_pressed();
     oldSel  = s_scroll.sel;
@@ -773,14 +799,15 @@ void Pc_CharaSelect_Draw(void)
 
     if (!s_open)
         return;
+    cs_field_update();
 
-    if (g_GameWork.gameState == GameState_MainMenu)
-        Nm_BlackBackgroundDraw();
+    if (g_GameWork.gameState == GameState_InGame)
+        cs_shade(s_fieldL, 0, s_fieldR, 224);
     else
-        cs_shade(0, 0, 320, 224);
+        Nm_BlackBackgroundDraw();
 
     Nm_TextDrawCentered(160, CS_HEADING_Y, NM_TEXT_TALL, StringColorId_White, "CHARACTER_SELECT");
-    Nm_RuleDraw(CS_COL1_X0, CS_DIV2_X, CS_RULE_Y, 0);
+    Nm_RuleDraw(CS_COL1_X0, CS_PREV_X1, CS_RULE_Y, 0);
     cs_line(CS_DIV1_X, CS_RULE_Y, CS_DIV1_X, CS_ARROW_DN_Y + 6, 1);
     cs_frame(CS_PREV_X0, CS_PREV_Y0, CS_PREV_X1, CS_PREV_Y1);
 

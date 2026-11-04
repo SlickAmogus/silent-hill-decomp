@@ -18,7 +18,9 @@
 #include "pc_skin_chara.h"
 #include "sh_log.h"
 
-extern void PsyX_GetDisplayViewport(int* outX, int* outY, int* outW, int* outH);
+extern void  PsyX_GetDisplayViewport(int* outX, int* outY, int* outW, int* outH);
+extern int   g_PsxWideMenu;
+extern float PsyX_WideMenuMargin(void);
 
 #define CP_FBO_W     384
 #define CP_FBO_H     640
@@ -409,12 +411,37 @@ void Pc_CharaPreview_Draw(void)
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
     Pc_CharaSelect_PreviewRect(&rx0, &ry0, &rx1, &ry1);
     {
-        float x0 = (float)rx0 / 320.0f * 2.0f - 1.0f;
-        float x1 = (float)rx1 / 320.0f * 2.0f - 1.0f;
+        /* The menu field is -m..320+m columns by 224 rows over the picture. */
+        float m  = g_PsxWideMenu ? PsyX_WideMenuMargin() : 0.0f;
+        float fw = 320.0f + 2.0f * m;
+        float x0 = ((float)rx0 + m) / fw * 2.0f - 1.0f;
+        float x1 = ((float)rx1 + m) / fw * 2.0f - 1.0f;
         float y0 = 1.0f - (float)ry0 / 224.0f * 2.0f;
         float y1 = 1.0f - (float)ry1 / 224.0f * 2.0f;
-        float q[24] = { x0, y1, 0, 0,  x1, y1, 1, 0,  x1, y0, 1, 1,
-                        x0, y1, 0, 0,  x1, y0, 1, 1,  x0, y0, 0, 1 };
+        /* Keep the model's proportions: fit the framebuffer's aspect inside
+         * the frame, measured in window pixels. */
+        float pw = (x1 - x0) * 0.5f * (float)vp[2];
+        float ph = (y0 - y1) * 0.5f * (float)vp[3];
+        float fa = (float)CP_FBO_W / (float)CP_FBO_H;
+        float q[24];
+
+        if (pw > ph * fa)
+        {
+            float nw = ph * fa / (float)vp[2] * 2.0f, cx = 0.5f * (x0 + x1);
+            x0 = cx - 0.5f * nw;
+            x1 = cx + 0.5f * nw;
+        }
+        else if (ph > pw / fa)
+        {
+            float nh = pw / fa / (float)vp[3] * 2.0f, cy = 0.5f * (y0 + y1);
+            y1 = cy - 0.5f * nh;
+            y0 = cy + 0.5f * nh;
+        }
+        {
+            float qq[24] = { x0, y1, 0, 0,  x1, y1, 1, 0,  x1, y0, 1, 1,
+                             x0, y1, 0, 0,  x1, y0, 1, 1,  x0, y0, 0, 1 };
+            memcpy(q, qq, sizeof(q));
+        }
 
         glUseProgram(s_quadProg);
         glBindVertexArray(s_quadVao);
