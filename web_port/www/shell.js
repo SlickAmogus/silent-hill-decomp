@@ -269,9 +269,79 @@
 		setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
 	}
 
+	/* ---------------- Logs kept between sessions ----------------
+	 * The game writes its log to /tmp, which is gone with the page. A copy of
+	 * it is kept here, in a store of the launcher's own, every 30 seconds and
+	 * as the page hides; IDBFS would rewrite the whole growing file every few
+	 * seconds instead. The newest LOG_KEEP survive. */
+	var LOG_DB = "sh-online-logs", LOG_STORE = "logs", LOG_KEEP = 10;
+
+	function openLogDb() {
+		return new Promise(function (resolve, reject) {
+			var req = indexedDB.open(LOG_DB, 1);
+			req.onupgradeneeded = function () { req.result.createObjectStore(LOG_STORE); };
+			req.onsuccess = function () { resolve(req.result); };
+			req.onerror = function () { reject(req.error); };
+		});
+	}
+
+	function logList() {
+		return openLogDb().then(function (db) {
+			return new Promise(function (resolve, reject) {
+				var out = [], tx = db.transaction(LOG_STORE, "readonly");
+				tx.objectStore(LOG_STORE).openCursor().onsuccess = function (e) {
+					var c = e.target.result;
+					if (!c) return;
+					out.push({ name: String(c.primaryKey), size: c.value && c.value.data ? c.value.data.length : 0 });
+					c.continue();
+				};
+				tx.oncomplete = function () { db.close(); resolve(out.sort(function (a, b) { return a.name < b.name ? 1 : -1; })); };
+				tx.onerror = tx.onabort = function () { db.close(); reject(tx.error); };
+			});
+		});
+	}
+
+	function logGet(name) {
+		return openLogDb().then(function (db) {
+			return new Promise(function (resolve, reject) {
+				var tx = db.transaction(LOG_STORE, "readonly"), r = tx.objectStore(LOG_STORE).get(name);
+				tx.oncomplete = function () { db.close(); resolve(r.result ? r.result.data : null); };
+				tx.onerror = tx.onabort = function () { db.close(); reject(tx.error); };
+			});
+		});
+	}
+
+	function logKeep() {
+		var log = latestLog();
+		if (!log || !log.data || !log.data.length) return Promise.resolve();
+		return openLogDb().then(function (db) {
+			return new Promise(function (resolve) {
+				var tx = db.transaction(LOG_STORE, "readwrite"), st = tx.objectStore(LOG_STORE);
+				st.put({ data: new Uint8Array(log.data) }, log.name);
+				st.getAllKeys().onsuccess = function (e) {
+					var keys = (e.target.result || []).map(String).sort();
+					keys.slice(0, Math.max(0, keys.length - LOG_KEEP)).forEach(function (k) { st.delete(k); });
+				};
+				tx.oncomplete = tx.onerror = tx.onabort = function () { db.close(); resolve(); };
+			});
+		}).catch(function (e) { console.warn("[web] log keep", e); });
+	}
+
+	function logClearAll() {
+		return openLogDb().then(function (db) {
+			return new Promise(function (resolve, reject) {
+				var tx = db.transaction(LOG_STORE, "readwrite");
+				tx.objectStore(LOG_STORE).clear();
+				tx.oncomplete = function () { db.close(); resolve(); };
+				tx.onerror = tx.onabort = function () { db.close(); reject(tx.error); };
+			});
+		});
+	}
+
 	function showCrash(msg, detail) {
 		if (ui.crash.style.display === "flex") return;
 		persistNow();
+		logKeep();
 		ui.crashMsg.textContent = msg;
 		ui.crashDetail.textContent = detail || "";
 		ui.crashLog.style.display = latestLog() ? "" : "none";
@@ -596,10 +666,11 @@
 			updateFsButton();
 			ui.canvas.focus();
 			syncTimer = setInterval(function () { persistNow(); }, 4000);
+			setInterval(logKeep, 30000);
 			document.addEventListener("visibilitychange", function () {
-				if (document.visibilityState === "hidden") persistNow();
+				if (document.visibilityState === "hidden") { persistNow(); logKeep(); }
 			});
-			window.addEventListener("pagehide", function () { persistNow(); });
+			window.addEventListener("pagehide", function () { persistNow(); logKeep(); });
 			/* A reload in the middle of a copy loses what it had not reached
 			 * yet; the browser's own "leave this page?" holds it for a moment. */
 			window.addEventListener("beforeunload", function (e) {
@@ -781,6 +852,107 @@
 		saveUi.status.textContent = text;
 		saveUi.status.className = "note" + (cls ? " " + cls : "");
 	}
+
+	/* ---- Logs: the switch lives in config.cfg (enable_debug_log), read and
+	 * written straight from IDBFS's record like the saves above. ---- */
+	var logUi = { box: $("logs"), on: $("logEnable"), pick: $("logPick"), dl: $("logDownload"),
+		clear: $("logClear"), status: $("logStatus") };
+	var CFG_PATH = "/game/config.cfg";
+
+	function cfgRead() {
+		return openGameDb().then(function (db) {
+			return new Promise(function (resolve, reject) {
+				var tx = db.transaction(IDB_STORE, "readonly"), r = tx.objectStore(IDB_STORE).get(CFG_PATH);
+				tx.oncomplete = function () {
+					db.close();
+					resolve(r.result && r.result.contents ? new TextDecoder().decode(new Uint8Array(r.result.contents)) : "");
+				};
+				tx.onerror = tx.onabort = function () { db.close(); reject(tx.error); };
+			});
+		});
+	}
+
+	function cfgWrite(text) {
+		return openGameDb().then(function (db) {
+			return new Promise(function (resolve, reject) {
+				var tx = db.transaction(IDB_STORE, "readwrite"), st = tx.objectStore(IDB_STORE), now = new Date();
+				st.get("/game").onsuccess = function (e) {
+					if (!e.target.result) st.put({ timestamp: now, mode: MODE_DIR }, "/game");
+				};
+				st.put({ timestamp: now, mode: MODE_FILE, contents: new TextEncoder().encode(text) }, CFG_PATH);
+				tx.oncomplete = function () { db.close(); resolve(); };
+				tx.onerror = tx.onabort = function () { db.close(); reject(tx.error); };
+			});
+		});
+	}
+
+	function logMsg(text, cls) {
+		logUi.status.textContent = text;
+		logUi.status.className = "note" + (cls ? " " + cls : "");
+	}
+
+	function logRefresh() {
+		return logList().then(function (logs) {
+			logUi.pick.innerHTML = "";
+			logs.forEach(function (l) {
+				var o = document.createElement("option");
+				o.value = l.name;
+				o.textContent = l.name.replace(/^SilentHill_/, "").replace(/\.log$/, "") + "  (" +
+					Math.max(1, Math.round(l.size / 1024)) + " KB)";
+				logUi.pick.appendChild(o);
+			});
+			logUi.dl.disabled = logUi.clear.disabled = logUi.pick.disabled = !logs.length;
+			if (!logs.length) {
+				var o = document.createElement("option");
+				o.textContent = "No logs yet";
+				logUi.pick.appendChild(o);
+			}
+		}).catch(function (e) { console.warn("[web] logs", e); });
+	}
+
+	cfgRead().then(function (cfg) {
+		logUi.on.checked = /^\s*enable_debug_log\s*=\s*1/m.test(cfg);
+		logUi.box.classList.toggle("enabled", logUi.on.checked);
+		if (logUi.on.checked) logRefresh();
+	}).catch(function (e) { console.warn("[web] config", e); });
+
+	logUi.on.addEventListener("change", function () {
+		var on = logUi.on.checked;
+		cfgRead().then(function (cfg) {
+			var line = "enable_debug_log = " + (on ? "1" : "0");
+			cfg = /^\s*enable_debug_log\s*=.*$/m.test(cfg)
+				? cfg.replace(/^\s*enable_debug_log\s*=.*$/mg, line)
+				: cfg + (cfg && !/\n$/.test(cfg) ? "\n" : "") + line + "\n";
+			return cfgWrite(cfg);
+		}).then(function () {
+			logUi.box.classList.toggle("enabled", on);
+			logMsg(on ? "Logging is on from the next Play." : "Logging is off from the next Play.");
+			if (on) logRefresh();
+		}).catch(function (e) {
+			logUi.on.checked = !on;
+			logMsg("Could not change the setting: " + (e && e.message || e), "warn");
+		});
+	});
+
+	logUi.dl.addEventListener("click", function () {
+		var name = logUi.pick.value;
+		logGet(name).then(function (data) {
+			if (!data) { logMsg("That log is gone.", "warn"); return logRefresh(); }
+			var a = document.createElement("a");
+			a.href = URL.createObjectURL(new Blob([data], { type: "text/plain" }));
+			a.download = name;
+			a.click();
+			setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+		}).catch(function (e) { logMsg("Could not read the log: " + (e && e.message || e), "warn"); });
+	});
+
+	logUi.clear.addEventListener("click", function () {
+		if (!confirm("Delete every log kept in this browser?")) return;
+		logClearAll().then(function () {
+			logMsg("Logs cleared.");
+			return logRefresh();
+		}).catch(function (e) { logMsg("Could not clear the logs: " + (e && e.message || e), "warn"); });
+	});
 
 	function cardName(n) { return n.replace(/\.mcd$/i, "").replace(/^0+(?=\d)/, "") + ".MCD"; }
 

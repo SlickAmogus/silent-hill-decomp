@@ -130,6 +130,13 @@ body.desktop .controls { display: block; }
 .saves .actions { margin-top: 0; }
 .saves .actions > * { flex: 1 1 11rem; text-align: center; }
 .saves .note { margin-top: .6rem; }
+.saves select {
+	font: inherit; color: var(--ash); background: transparent; border: 1px solid var(--line);
+	padding: .5rem .6rem; min-width: 0;
+}
+.saves select option { background: #111; }
+.logs .logs .logs-on { display: none; }
+.logs.enabled .logs-on { display: flex; }
 </style>
 </head>
 <body>
@@ -171,6 +178,17 @@ body.desktop .controls { display: block; }
 				<input type="file" id="saveImport" accept=".zip,.mcd,application/zip" hidden>
 			</div>
 			<div class="note" id="saveStatus">Export makes a .zip of this browser's memory cards (save/0.MCD, save/8.MCD). Import takes that .zip, or a single .MCD file, which replaces the card with the same number. To bring in a PS1 or DuckStation save, convert it with the <a href="/savetool.html" target="_blank" rel="noopener">save tool</a> first.</div>
+		</div>
+
+		<div class="step saves logs" id="logs">
+			<div class="label">Logs</div>
+			<label class="row"><input type="checkbox" id="logEnable"> Write a log while playing</label>
+			<div class="actions logs-on">
+				<select id="logPick" aria-label="Log to download"></select>
+				<button type="button" id="logDownload">Download log</button>
+				<button type="button" id="logClear">Clear logs</button>
+			</div>
+			<div class="note" id="logStatus">A log of each session is kept in this browser (the newest 10) for reporting a problem. It takes effect from the next Play.</div>
 		</div>
 
 		<div class="controls">
