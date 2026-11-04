@@ -77,7 +77,7 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_CAMSTYLE, QO_X_OTSSIDE, QO_X_CROSSHAIRSTYLE,
        QO_X_LINEGAP, QO_X_CHARALIGHT, QO_X_PPLIGHT, QO_X_HEROLIGHT, QO_X_HEROLIGHTFL, QO_X_FACEANIM,
        QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD,
-       QO_X_GYROAIM, QO_X_GYROSENS };
+       QO_X_GYROAIM, QO_X_GYROSENS, QO_X_GYROMOVE };
 extern const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz);
 extern void        PcOpt_QuickExtraAdjust(int which, int dir);
 extern void        PcOpt_QuickViewReset(int mode);
@@ -477,6 +477,9 @@ static const QoRowDef s_pageControls[] = {
     { ROW_OPT,   "control_2d",             0, NULL },  /* screen-relative movement */
     { ROW_OPT,   "touch_controls",         0, NULL },  /* Automatic / On / Off */
     { ROW_OPT,   "touch_look_sensitivity", 0, NULL },
+    /* Tilt to move, in every camera; Gyro Aim and its sensitivity join it
+     * below in the alternate cameras (qo_controls_page). */
+    { ROW_EXTRA, NULL, QO_X_GYROMOVE,         "Gyro Movement" },
     { ROW_OPT,   "one_button_combat",      0, NULL },
     /* The pad rows the Options menu's Controls page carries on a phone, for
      * anyone who has paired a controller. */
@@ -496,8 +499,8 @@ static const QoRowDef s_pageControls[] = {
 _Static_assert(sizeof(s_pageControls) / sizeof(s_pageControls[0]) + 2 <= QO_MAX_ROWS,
                "s_pageControls plus the gyro rows exceeds QO_MAX_ROWS; raise the ceiling or split the page");
 
-/* The gyro steers only the alternate cameras, so its rows join the page, after
- * the touch look speed, only while one of those is active. */
+/* Gyro aim steers only the alternate cameras, so its rows join the page, after
+ * Gyro Movement, only while one of those is active. */
 static QoRowDef s_pageControlsGyro[QO_MAX_ROWS];
 
 static const QoRowDef* qo_controls_page(int* count)
@@ -525,8 +528,7 @@ static const QoRowDef* qo_controls_page(int* count)
     for (i = 0; i < n; i++)
     {
         s_pageControlsGyro[k++] = s_pageControls[i];
-        if (s_pageControls[i].kind == ROW_OPT && s_pageControls[i].key != NULL &&
-            strcmp(s_pageControls[i].key, "touch_look_sensitivity") == 0)
+        if (s_pageControls[i].kind == ROW_EXTRA && s_pageControls[i].extra == QO_X_GYROMOVE)
         {
             const QoRowDef gyroAim  = { ROW_EXTRA, NULL, QO_X_GYROAIM,  "Gyro Aim" };
             const QoRowDef gyroSens = { ROW_EXTRA, NULL, QO_X_GYROSENS, "Gyro Sensitivity" };

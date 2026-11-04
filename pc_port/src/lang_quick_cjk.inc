@@ -52,6 +52,7 @@ static const s_QuickCjk s_QuickCjkTr[] = {
     { "Delete / X: clear", "Delete / X：消去", "Delete / X：清除" },
     { "Disable D-pad for Movement", "十字キーでの移動を無効化", "禁用十字键移动" },
     { "Gyro Aim", "ジャイロエイム", "陀螺仪瞄准" },
+    { "Gyro Movement", "ジャイロ移動", "陀螺仪移动" },
     { "Gyro Sensitivity", "ジャイロ感度", "陀螺仪灵敏度" },
     { "While Aiming", "構え中のみ", "仅瞄准时" },
     { "Always", "常時", "始终" },

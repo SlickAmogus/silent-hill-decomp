@@ -34,6 +34,7 @@
 { "Effects Volume",       { "Effektlautstärke",    "Volume effets",         "Volumen de efectos",    "Volume effetti"        } },
 { "Disable D-pad for Movement", { "Steuerkreuz nicht zum Laufen", "Croix dir. sans déplacement", "Cruceta sin movimiento", "Croce direz. senza movimento" } },
 { "Gyro Aim",             { "Gyro-Zielen",         "Visée gyroscopique",    "Apuntado giroscópico",  "Mira giroscopica"      } },
+{ "Gyro Movement",        { "Gyro-Bewegung",       "Déplacement gyroscopique", "Movimiento giroscópico", "Movimento giroscopico" } },
 { "Gyro Sensitivity",     { "Gyro-Empfindlichkeit", "Sensibilité gyroscope", "Sensibilidad giroscopio", "Sensibilità giroscopio" } },
 { "While Aiming",         { "Beim Zielen",         "En visant",             "Al apuntar",            "Mirando"               } },
 { "Always",               { "Immer",               "Toujours",              "Siempre",               "Sempre"                } },
