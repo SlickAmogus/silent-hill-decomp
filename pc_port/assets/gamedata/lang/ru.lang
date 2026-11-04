@@ -1465,6 +1465,7 @@ QUICK.Kill_nearby_enemies=Убить врагов рядом
 QUICK.Play_as=Играть за
 QUICK.Free_camera=Свободная камера
 QUICK.Allow_console=Разрешить консоль
+QUICK.Enable_logging=Вести журнал
 QUICK.Collision_visualizer=Показ коллизий
 QUICK.Keyframe_viewer_(kf)=Просмотр кадров (kf)
 QUICK.Fast_forward_(Ctrl+F5)=Ускорение (Ctrl+F5)

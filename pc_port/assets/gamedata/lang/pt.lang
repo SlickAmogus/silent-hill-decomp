@@ -1422,6 +1422,7 @@ QUICK.Kill_nearby_enemies=Matar inimigos próximos
 QUICK.Play_as=Jogar como
 QUICK.Free_camera=Câmera livre
 QUICK.Allow_console=Permitir console
+QUICK.Enable_logging=Ativar registro
 QUICK.Collision_visualizer=Visualizar colisões
 QUICK.Keyframe_viewer_(kf)=Visualizar keyframes (kf)
 QUICK.Fast_forward_(Ctrl+F5)=Avanço rápido (Ctrl+F5)

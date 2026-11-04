@@ -455,10 +455,17 @@ const char* SH_LogPath(void)
     return s_logPath;
 }
 
+/* The session's log file, once created. Turning logging off (Sh_LogSetEnabled)
+ * only parks g_ShDebugLog; this handle stays open for the rest of the run, so
+ * turning it back on resumes the same file, and nothing is ever closed,
+ * truncated or deleted by toggling. Append, never "w": the name is per-run
+ * already, and nothing here may ever truncate a log. */
+static FILE* s_ShLogFile = NULL;
+
 void SH_DebugLogInit(void)
 {
     if (!g_ShDebugLog) {
-        g_ShDebugLog = fopen(SH_LogPath(), "w");
+        g_ShDebugLog = s_ShLogFile = fopen(SH_LogPath(), "a");
         if (!g_ShDebugLog) {
             /* Last resort — fall back to stdout so we don't crash on the
              * first SH_DBG. Caller (main) normally pre-opens this. */
@@ -1096,6 +1103,92 @@ static int Pc_UnfilteredPrim(int tpage, int clut)
     return Font_IsTextGlyphPrim(tpage, clut) || BootScreen_IsLogoPrim(clut);
 }
 
+/* What every log opens with, whether logging was on at boot or turned on
+ * later from the quick menu. */
+static void Sh_LogSessionHeader(void)
+{
+    {
+        /* Build identification — first thing to check in user logs.
+         * Generated fresh each build by cmake/gen_build_info.cmake. */
+        #include "sh_build_info.h"
+        SH_DBG("[SH] build " SH_BUILD_GIT_HASH " (" SH_BUILD_STAMP ")");
+    }
+    /* Say WHERE this log and the config actually are. The log is the one
+     * thing a remote user is asked to find, and when it silently lands in a
+     * private folder (no media dir on the device) the answer is invisible
+     * from both sides -- which is exactly what happened on an arcade
+     * cabinet. Now the file names its own location. */
+    SH_DBG("[SH] log:    %s", SH_LogPath());
+    SH_DBG("[SH] config: %s", s_ConfigPathUsed[0] ? s_ConfigPathUsed : "config.cfg");
+    {
+        const char* drop = Pc_UserVisibleDir();
+        SH_DBG("[SH] user-visible dir: %s", (drop != NULL) ? drop : "(none - using the app's private files dir)");
+    }
+    /* The user's actual settings, verbatim. Costs one pass over a small
+     * file at boot and removes the guesswork from every bug report. */
+    PcConfig_LogEffective("config.cfg");
+    /* One-line render-config fingerprint: these are the axes every remote
+     * corruption report gets bisected on — stop having to ask for the cfg. */
+    SH_DBG("[CONFIG] flashlight_mode=%d use_pgxp=%d resident_textures=%d global_chara_pool=%d",
+           g_PcConfig.flashlightMode, g_PcConfig.usePgxp,
+           g_PcConfig.residentTextures, g_PcConfig.globalCharaPool);
+}
+
+/* enable_debug_log at runtime (quick menu, Debug page). On creates this run's
+ * file only if there is none yet, otherwise resumes the same one; off flushes
+ * and stops writing to it. Returns 0 if the file could not be opened, leaving
+ * logging off. */
+int Sh_LogSetEnabled(int on)
+{
+    extern int g_PsyX_GpuTimerWanted;
+    int        created;
+
+    if (!on)
+    {
+        if (g_ShDebugLog)
+        {
+            SH_DBG("[SH] logging turned off");
+            fflush(g_ShDebugLog);
+        }
+        g_ShDebugLog = NULL;
+        PsyX_Log_SetStream(NULL);
+        g_PsyX_GpuTimerWanted = 0;
+        return 1;
+    }
+
+    if (g_ShDebugLog)
+        return 1;
+
+    created = (s_ShLogFile == NULL);
+    if (created)
+    {
+        SH_DebugLogInit();
+        /* Its stdout fallback is for boot, where SH_DBG must not crash; here
+         * it means the file could not be made, so logging stays off. */
+        if (s_ShLogFile == NULL)
+        {
+            g_ShDebugLog = NULL;
+            return 0;
+        }
+    }
+
+    g_ShDebugLog = s_ShLogFile;
+    PsyX_Log_SetStream(g_ShDebugLog);
+    /* The [PERF] line's GPU time: only measured when there is a log to read it. */
+    g_PsyX_GpuTimerWanted = 1;
+    if (created)
+    {
+        SH_DBG("[SH] log opened from the quick menu");
+        Sh_LogSessionHeader();
+    }
+    else
+    {
+        SH_DBG("[SH] logging turned back on");
+    }
+    fflush(g_ShDebugLog);
+    return 1;
+}
+
 int main(int argc, char* argv[])
 {
 #ifdef __ANDROID__
@@ -1293,35 +1386,11 @@ int main(int argc, char* argv[])
         SH_DebugLogInit();
         SH_DBG("[SH] main() entered (log opened post-config)");
         {
-            /* Build identification — first thing to check in user logs.
-             * Generated fresh each build by cmake/gen_build_info.cmake. */
-            #include "sh_build_info.h"
-            SH_DBG("[SH] build " SH_BUILD_GIT_HASH " (" SH_BUILD_STAMP ")");
-            {
-                /* The [PERF] line's GPU time: only measured when there is a log to read it. */
-                extern int g_PsyX_GpuTimerWanted;
-                g_PsyX_GpuTimerWanted = 1;
-            }
+            /* The [PERF] line's GPU time: only measured when there is a log to read it. */
+            extern int g_PsyX_GpuTimerWanted;
+            g_PsyX_GpuTimerWanted = 1;
         }
-        /* Say WHERE this log and the config actually are. The log is the one
-         * thing a remote user is asked to find, and when it silently lands in a
-         * private folder (no media dir on the device) the answer is invisible
-         * from both sides -- which is exactly what happened on an arcade
-         * cabinet. Now the file names its own location. */
-        SH_DBG("[SH] log:    %s", SH_LogPath());
-        SH_DBG("[SH] config: %s", s_ConfigPathUsed[0] ? s_ConfigPathUsed : "config.cfg");
-        {
-            const char* drop = Pc_UserVisibleDir();
-            SH_DBG("[SH] user-visible dir: %s", (drop != NULL) ? drop : "(none - using the app's private files dir)");
-        }
-        /* The user's actual settings, verbatim. Costs one pass over a small
-         * file at boot and removes the guesswork from every bug report. */
-        PcConfig_LogEffective("config.cfg");
-        /* One-line render-config fingerprint: these are the axes every remote
-         * corruption report gets bisected on — stop having to ask for the cfg. */
-        SH_DBG("[CONFIG] flashlight_mode=%d use_pgxp=%d resident_textures=%d global_chara_pool=%d",
-               g_PcConfig.flashlightMode, g_PcConfig.usePgxp,
-               g_PcConfig.residentTextures, g_PcConfig.globalCharaPool);
+        Sh_LogSessionHeader();
     }
 
 #if defined(__ANDROID__)

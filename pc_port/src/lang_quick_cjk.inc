@@ -18,6 +18,7 @@ static const s_QuickCjk s_QuickCjkTr[] = {
     { "Aim Y (up/down)", "照準時 Y（上下）", "瞄准 Y（上下）" },
     { "Aim Zoom", "照準ズーム", "瞄准缩放" },
     { "Allow console", "コンソールを許可", "允许控制台" },
+    { "Enable logging", "ログを記録", "启用日志" },
     { "Aspect Trim", "アスペクト補正", "画面比例修剪" },
     { "Audio", "オーディオ", "音频" },
     { "Auto", "自動", "自动" },

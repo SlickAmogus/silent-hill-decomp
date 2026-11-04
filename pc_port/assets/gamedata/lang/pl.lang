@@ -1426,6 +1426,7 @@ QUICK.Kill_nearby_enemies=Zabij pobliskich wrogów
 QUICK.Play_as=Graj jako
 QUICK.Free_camera=Wolna kamera
 QUICK.Allow_console=Zezwól na użycie konsoli
+QUICK.Enable_logging=Włącz logowanie
 QUICK.Collision_visualizer=Wizualizacja kolizji
 QUICK.Keyframe_viewer_(kf)=Przegląd. Klatek Animacji (kf)
 QUICK.Fast_forward_(Ctrl+F5)=Przewiń do przodu (Ctrl+F5)
