@@ -26,6 +26,11 @@ static int         s_Tried;   /* opening failed once this session: do not retry 
 static Uint64      s_LastTick;
 /* +1: the device's right edge (portrait +x) is up; -1: its left edge is. */
 static int         s_UpSign = 1;
+/* Shake-to-escape: left/right reversals of a fast wag, from the latest
+ * reading only, so a wag made before a grab is never banked into it. */
+static int         s_ShakeSign;
+static int         s_Shakes;
+static Uint32      s_GrabbedMs;
 
 /* Below this the reading is sensor noise and resting-hand tremor, not an aim,
  * and integrating it walks the camera off on its own. */
@@ -33,6 +38,8 @@ static int         s_UpSign = 1;
 /* Gravity has to lean this far onto one edge before the up side flips, so a
  * phone held near flat does not swap the axes back and forth. */
 #define GYRO_UP_FLIP_MS2    3.0f
+/* A deliberate wag, well past any aiming turn (~170 degrees a second). */
+#define GYRO_SHAKE_RAD_S    3.0f
 
 static void Gyro_Close(void)
 {
@@ -40,9 +47,10 @@ static void Gyro_Close(void)
         SDL_SensorClose(s_Gyro);
     if (s_Accel != NULL)
         SDL_SensorClose(s_Accel);
-    s_Gyro     = NULL;
-    s_Accel    = NULL;
-    s_LastTick = 0;
+    s_Gyro      = NULL;
+    s_Accel     = NULL;
+    s_LastTick  = 0;
+    s_ShakeSign = 0;
 }
 
 static void Gyro_Open(void)
@@ -80,8 +88,9 @@ int Pc_Gyro_TakeLook(float* yaw, float* pitch)
     float  dt;
     float  wUp, wRight;
 
-    *yaw   = 0.0f;
-    *pitch = 0.0f;
+    *yaw     = 0.0f;
+    *pitch   = 0.0f;
+    s_Shakes = 0;
 
     if (g_PcConfig.gyroAim == 0)
     {
@@ -128,6 +137,19 @@ int Pc_Gyro_TakeLook(float* yaw, float* pitch)
     wUp    = (float)s_UpSign * data[0];
     wRight = (float)(-s_UpSign) * data[1];
 
+    if (fabsf(wUp) >= GYRO_SHAKE_RAD_S)
+    {
+        const int sign = (wUp > 0.0f) ? 1 : -1;
+
+        if (s_ShakeSign != 0 && sign != s_ShakeSign)
+            s_Shakes++;
+        s_ShakeSign = sign;
+    }
+
+    /* While held, the wag is a struggle, not an aim: the view stays put. */
+    if ((SDL_GetTicks() - s_GrabbedMs) < 100)
+        return 0;
+
     if (fabsf(wUp) < GYRO_DEADZONE_RAD_S)
         wUp = 0.0f;
     if (fabsf(wRight) < GYRO_DEADZONE_RAD_S)
@@ -136,4 +158,16 @@ int Pc_Gyro_TakeLook(float* yaw, float* pitch)
     *yaw   = -wUp * dt;
     *pitch = wRight * dt;
     return (*yaw != 0.0f || *pitch != 0.0f);
+}
+
+/* Wag reversals since the last call, for the grab escape (player_control.c),
+ * which calls this only while Harry is held; that call is also what keeps
+ * Pc_Gyro_TakeLook from turning the view with the wag. */
+int Pc_Gyro_GrabShakes(void)
+{
+    const int n = s_Shakes;
+
+    s_Shakes    = 0;
+    s_GrabbedMs = SDL_GetTicks();
+    return n;
 }
