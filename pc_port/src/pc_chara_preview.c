@@ -104,7 +104,8 @@ static void cp_gl_init(void)
         "varying vec3 v_nrm;\n"
         "void main() {\n"
         "  v_uv = a_uv;\n"
-        "  v_nrm = mat3(u_mv) * a_nrm;\n"
+        /* No mat3() cast: the legacy dialect (GLSL 110 on desktop) has none. */
+        "  v_nrm = u_mv[0].xyz * a_nrm.x + u_mv[1].xyz * a_nrm.y + u_mv[2].xyz * a_nrm.z;\n"
         "  gl_Position = u_mvp * vec4(a_pos, 1.0);\n"
         "}\n";
     static const char* mesh_fs =
