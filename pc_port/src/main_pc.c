@@ -461,6 +461,60 @@ const char* SH_LogPath(void)
  * already, and nothing here may ever truncate a log. */
 static FILE* s_ShLogFile = NULL;
 
+/* The OS's low-memory warning (iOS didReceiveMemoryWarning, Android
+ * onTrimMemory/onLowMemory). SDL can deliver it on a thread that is not the
+ * game's, so the watch only raises a flag; Pc_LowMemory_Pump acts on it from
+ * the texture pump, on the game thread. */
+static SDL_atomic_t s_LowMemory;
+
+static int SDLCALL Pc_LowMemoryWatch(void* user, SDL_Event* e)
+{
+    (void)user;
+    if (e->type == SDL_APP_LOWMEMORY)
+        SDL_AtomicSet(&s_LowMemory, 1);
+#if defined(SH_IOS)
+    /* A suspended app is the first one iOS reclaims, largest first, and the
+     * game loop does not run until it is back, so the pump cannot do this.
+     * UIKit delivers the notification inside SDL's event pump, on the game
+     * thread and between frames, so freeing here is safe. The canvases are
+     * rebuilt from the pack on demand. */
+    else if (e->type == SDL_APP_DIDENTERBACKGROUND)
+    {
+        extern void TexPack_CacheFlush(void);
+        TexPack_CacheFlush();
+    }
+#endif
+    return 1;
+}
+
+/* Gives back what the texture pack holds that can be rebuilt: the whole
+ * compose cache now, and half the GL budget, which the pump's LRU then evicts
+ * down to over the next frames. Kept lowered for the rest of the session, as
+ * a second warning means the first cut was not enough. */
+void Pc_LowMemory_Pump(void)
+{
+    extern void TexPack_CacheFlush(void);
+    int oldBudget, oldCache;
+
+    if (SDL_AtomicSet(&s_LowMemory, 0) == 0)
+        return;
+
+    oldBudget = g_PcConfig.texpackBudgetMb;
+    oldCache  = g_PcConfig.texpackCacheMb;
+    TexPack_CacheFlush();
+    if (g_PcConfig.texpackCacheMb > 32)
+        g_PcConfig.texpackCacheMb /= 2;
+    if (g_PcConfig.texpackBudgetMb > 128)
+    {
+        g_PcConfig.texpackBudgetMb /= 2;
+        if (g_PcConfig.texpackBudgetCeilingMb > g_PcConfig.texpackBudgetMb)
+            g_PcConfig.texpackBudgetCeilingMb = g_PcConfig.texpackBudgetMb;
+    }
+    SH_DBG("[LOWMEM] OS low-memory warning: compose cache flushed, cache %d -> %d MB, "
+           "texture budget %d -> %d MB", oldCache, g_PcConfig.texpackCacheMb,
+           oldBudget, g_PcConfig.texpackBudgetMb);
+}
+
 void SH_DebugLogInit(void)
 {
     if (!g_ShDebugLog) {
@@ -1395,18 +1449,29 @@ int main(int argc, char* argv[])
              * OS and the game, which died with GL_OUT_OF_MEMORY after a few
              * minutes of play. Machines that small get proportional floors. */
             const int tinyRam = (ramMb <= 1536);
-            int cacheCap   = tinyRam ? (ramMb / 16) : (ramMb / 8);
+#if defined(SH_IOS)
+            /* iOS kills a foreground app outright, with no signal and no log,
+             * once its footprint passes a limit near HALF of RAM (~2 GB on a
+             * 4 GB iPhone 13), and GL textures are part of that footprint on
+             * its unified memory. The desktop 1/8 + 1/4 split put up to 1.4 GB
+             * of a 3.6 GB phone into textures alone: a texture pack plus the
+             * town was enough to be killed walking through a door. */
+            const int phoneRam = 1;
+#else
+            const int phoneRam = 0;
+#endif
+            int cacheCap   = (tinyRam || phoneRam) ? (ramMb / 16) : (ramMb / 8);
             int cacheFloor = tinyRam ? 32 : 128;
             if (cacheCap < cacheFloor) cacheCap = cacheFloor;
             if (g_PcConfig.texpackCacheMb > cacheCap)
             {
-                SH_DBG("[TEXPACK] compose cache capped %d -> %d MB (1/8 of %d MB RAM)",
+                SH_DBG("[TEXPACK] compose cache capped %d -> %d MB (%d MB RAM)",
                        g_PcConfig.texpackCacheMb, cacheCap, ramMb);
                 g_PcConfig.texpackCacheMb = cacheCap;
             }
             if (ramMb <= 8192)
             {
-                int budgetCap   = tinyRam ? (ramMb / 8) : (ramMb / 4);
+                int budgetCap   = (tinyRam || phoneRam) ? (ramMb / 8) : (ramMb / 4);
                 int budgetFloor = tinyRam ? 64 : 256;
                 if (budgetCap < budgetFloor) budgetCap = budgetFloor;
                 /* Published, not just applied: HiresOverride_ClampBudgetToVram runs
@@ -1766,6 +1831,7 @@ int main(int argc, char* argv[])
         Pc_ControlStyleInit();
     }
     SDL_AddEventWatch(Pc_TouchMouseWatch, NULL);
+    SDL_AddEventWatch(Pc_LowMemoryWatch, NULL);
 
     /* Bring the game window to the foreground on launch. SilentHillPC.exe is a
      * console-subsystem app, so Windows spawns a console window at startup that

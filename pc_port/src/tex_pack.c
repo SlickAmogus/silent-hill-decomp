@@ -973,6 +973,13 @@ static void tp_cache_evict_lru(void)
     g_tpCache[oldest] = g_tpCache[--g_tpCacheCount];
 }
 
+/* Every cached canvas freed; they are rebuilt from the pack on demand. */
+void TexPack_CacheFlush(void)
+{
+    while (g_tpCacheCount > 0)
+        tp_cache_evict_lru();
+}
+
 /* Content keys of one upload, exactly as the compose cache and pack entries
  * key on them. One implementation on purpose: a second copy of this formula
  * that drifts is a silent cache split. */
