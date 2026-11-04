@@ -541,6 +541,11 @@ void TexPackLazy_Pump(void)
      * wall-clock window after a map load however little there is to do. */
     if (g_burstFrames > 0) g_burstFrames--;
 
+    {
+        extern void Pc_LowMemory_Pump(void);
+        Pc_LowMemory_Pump();
+    }
+
     /* Advance the LRU clock every pump, including the early-out below: rows
      * must keep ageing while there is no compose work, or a quiet stretch would
      * freeze every age and make the next eviction pass see nothing as cold. */
