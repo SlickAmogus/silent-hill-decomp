@@ -1378,6 +1378,7 @@ QUICK.Bottom_Left=Inferior esquerdo
 QUICK.Bottom_Right=Inferior direito
 QUICK.Disable_D-pad_for_Movement=Desativar D-pad no Movimento
 QUICK.Gyro_Aim=Mira por Giroscópio
+QUICK.Gyro_Movement=Movimento por Giroscópio
 QUICK.Gyro_Sensitivity=Sensibilidade do Giroscópio
 QUICK.While_Aiming=Ao Mirar
 QUICK.Always=Sempre

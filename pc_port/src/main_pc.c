@@ -391,7 +391,9 @@ static void Pc_WriteStarterConfig(const char* path)
     fprintf(f, "# gyro_aim: the phone's gyroscope steers the alternate cameras.\n");
     fprintf(f, "#   0 = off, 1 = only while aiming, 2 = always.\n");
     fprintf(f, "gyro_aim = %d\n", g_PcConfig.gyroAim);
-    fprintf(f, "gyro_sensitivity = %.2f\n\n", (double)g_PcConfig.gyroSensitivity);
+    fprintf(f, "gyro_sensitivity = %.2f\n", (double)g_PcConfig.gyroSensitivity);
+    fprintf(f, "# gyro_movement: tilt the phone to move (1). Not together with gyro_aim.\n");
+    fprintf(f, "gyro_movement = %d\n\n", g_PcConfig.gyroMove);
     fprintf(f, "# --- keyboard bindings ---\n");
     fprintf(f, "# SDL key names. The log prints every key this machine produces as\n");
     fprintf(f, "#   [KEY] scancode N = 'Name'\n");

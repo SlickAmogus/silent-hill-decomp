@@ -978,7 +978,7 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_CAMSTYLE, QO_X_OTSSIDE, QO_X_CROSSHAIRSTYLE,
        QO_X_LINEGAP, QO_X_CHARALIGHT, QO_X_PPLIGHT, QO_X_HEROLIGHT, QO_X_HEROLIGHTFL, QO_X_FACEANIM,
        QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD,
-       QO_X_GYROAIM, QO_X_GYROSENS };
+       QO_X_GYROAIM, QO_X_GYROSENS, QO_X_GYROMOVE };
 
 /* display_aspect = crt puts the picture on (4:3 x trim), so one framebuffer
  * pixel lands on screen this many times wider than tall at trim 1.0. It is the
@@ -1112,6 +1112,8 @@ const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz)
     case QO_X_GYROSENS:
         snprintf(buf, bufsz, "%.1fx", (double)g_PcConfig.gyroSensitivity);
         return buf;
+    case QO_X_GYROMOVE:
+        return Pc_LangQuickMenu(g_PcConfig.gyroMove ? "On" : "Off");
     case QO_X_AUTORELOAD:
         return (g_PcConfig.autoReload == 2) ? Pc_LangQuick("Original (also when aiming)")
                                             : Pc_LangQuickMenu(g_PcConfig.autoReload ? "On" : "Off");
@@ -1660,9 +1662,26 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
         g_PcConfig.gyroAim = (g_PcConfig.gyroAim + dir + 3) % 3;
         snprintf(buf2, sizeof(buf2), "%d", g_PcConfig.gyroAim);
         PcConfig_SaveKeyValue("gyro_aim", buf2);
+        /* One gyro control at a time: tilting to walk would also turn the
+         * aim, and the aim's turns would walk. */
+        if (g_PcConfig.gyroAim != 0 && g_PcConfig.gyroMove)
+        {
+            g_PcConfig.gyroMove = 0;
+            PcConfig_SaveKeyValue("gyro_movement", "0");
+        }
         Sd_PlaySfx(Sfx_MenuMove, 0, 64);
         break;
     }
+    case QO_X_GYROMOVE:
+        g_PcConfig.gyroMove = !g_PcConfig.gyroMove;
+        PcConfig_SaveKeyValue("gyro_movement", g_PcConfig.gyroMove ? "1" : "0");
+        if (g_PcConfig.gyroMove && g_PcConfig.gyroAim != 0)
+        {
+            g_PcConfig.gyroAim = 0;
+            PcConfig_SaveKeyValue("gyro_aim", "0");
+        }
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        break;
     case QO_X_GYROSENS: {
         char  buf2[16];
         float v = g_PcConfig.gyroSensitivity + (float)dir * 0.1f;

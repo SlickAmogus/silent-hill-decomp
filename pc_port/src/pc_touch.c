@@ -2098,6 +2098,21 @@ void Pc_Touch_GetPad(unsigned short* word,
     if (rightY != NULL) *rightY = s_RightY;
     if (leftX  != NULL) *leftX  = s_LeftX;
     if (leftY  != NULL) *leftY  = s_LeftY;
+
+    /* Tilt movement drives the left stick in gameplay whenever no thumb is on
+     * the touch stick; a thumb always wins. Asked every read so it keeps its
+     * own timing for re-centring after time away from play. */
+    if (Tc_Mode() == TC_MODE_GAMEPLAY)
+    {
+        extern int    Pc_Gyro_MoveStick(unsigned char* x, unsigned char* y);
+        unsigned char gx, gy;
+
+        if (Pc_Gyro_MoveStick(&gx, &gy) && s_LeftX == 128 && s_LeftY == 128)
+        {
+            if (leftX != NULL) *leftX = gx;
+            if (leftY != NULL) *leftY = gy;
+        }
+    }
 }
 
 /* Any finger on the glass right now, whatever the game state. The FMV player

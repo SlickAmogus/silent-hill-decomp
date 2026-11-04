@@ -335,6 +335,10 @@ typedef struct {
      * 1 = only while aiming, 2 = always. Config key: gyro_aim. */
     int   gyroAim;
     float gyroSensitivity;  /* 1.0 = the view turns as far as the phone does, 0.1..4.0 (config key: gyro_sensitivity) */
+    /* Tilting the phone is a left stick, in every camera (pc_gyro.c). Never on
+     * together with gyroAim: the quick menu turns the other off, and pc_gyro.c
+     * drops this one if a hand-edited config has both. Config key: gyro_movement. */
+    int   gyroMove;
     int   oneButtonCombat;  /* 1 = Aim also fires, so combat is one thumb (config key: one_button_combat) */
     int altButtonSprint;    /* "Always use button based sprinting": 1 = walk by default, sprint ONLY while the bound run control is held — applies to alt cameras (TPS/OTS/FPS) AND 2D control under any camera; 0 = a near-full stick push also sprints (config key: altcam_button_sprint) */
     int immersiveFpsHeadTracking; /* 1 = FPS view direction follows Harry's animated head-bone rotation (idle sway/lean), mouse layered on top (config key: immersive_fps_head_tracking) */
