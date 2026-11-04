@@ -126,6 +126,10 @@ body.desktop .controls { display: block; }
 #crash .card { max-width: 34rem; }
 #crash pre { white-space: pre-wrap; font-size: .75rem; max-height: 30vh; overflow: auto; color: var(--ash-dim); }
 .actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: 1rem; }
+.saves { margin-top: 1.2rem; border-top: 1px solid var(--line); padding-top: .9rem; }
+.saves .actions { margin-top: 0; }
+.saves .actions > * { flex: 1 1 11rem; text-align: center; }
+.saves .note { margin-top: .6rem; }
 </style>
 </head>
 <body>
@@ -158,6 +162,16 @@ body.desktop .controls { display: block; }
 		<button id="play" type="button" disabled>Play</button>
 		<div id="progress"><div></div></div>
 		<div id="status"></div>
+
+		<div class="step saves">
+			<div class="label">Saved games</div>
+			<div class="actions">
+				<button type="button" id="saveExport">Export saved games</button>
+				<label class="btn" for="saveImport">Import saved games</label>
+				<input type="file" id="saveImport" accept=".zip,.mcd,application/zip" hidden>
+			</div>
+			<div class="note" id="saveStatus">Export makes a .zip of this browser's memory cards (save/0.MCD, save/8.MCD). Import takes that .zip, or a single .MCD file, which replaces the card with the same number. To bring in a PS1 or DuckStation save, convert it with the <a href="/savetool.html" target="_blank" rel="noopener">save tool</a> first.</div>
+		</div>
 
 		<div class="controls">
 			<table>

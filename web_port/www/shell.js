@@ -510,6 +510,10 @@
 		if (!chosen) return;
 		ui.play.disabled = true;
 		ui.file.disabled = true;
+		/* From here the game owns the save folder; a write from these would be
+		 * overwritten by its next sync, or overwrite what it just saved. */
+		saveUi.exp.disabled = true;
+		saveUi.imp.disabled = true;
 		if (isTouch) wantFullscreen();
 
 		var file = chosen.blob || chosen;
@@ -609,6 +613,247 @@
 	}
 
 	ui.play.addEventListener("click", start);
+
+	/* ---------------- Saved games (export / import) ---------------- */
+
+	/* The game's /game folder lives in IDBFS's own IndexedDB database, named
+	 * after the mount point, one record per path. These buttons sit on the
+	 * launcher, before the game has loaded and mounted it, so they read and
+	 * write those records directly, in the shape IDBFS stores them; the next
+	 * Play loads them like any other file. */
+	var IDB_NAME = "/game", IDB_VERSION = 21, IDB_STORE = "FILE_DATA";
+	var SAVE_DIR = "/game/gamedata/save";
+	var MODE_FILE = 33206, MODE_DIR = 16895;   /* S_IFREG|0666, S_IFDIR|0777: what FS.writeFile/mkdir give */
+	var saveUi = { exp: $("saveExport"), imp: $("saveImport"), status: $("saveStatus") };
+
+	function openGameDb() {
+		return new Promise(function (resolve, reject) {
+			var req = indexedDB.open(IDB_NAME, IDB_VERSION);
+			/* Only on a browser that has never run the game: the same store and
+			 * index IDBFS would make. */
+			req.onupgradeneeded = function () {
+				var db = req.result, store;
+				store = db.objectStoreNames.contains(IDB_STORE)
+					? req.transaction.objectStore(IDB_STORE)
+					: db.createObjectStore(IDB_STORE);
+				if (!store.indexNames.contains("timestamp"))
+					store.createIndex("timestamp", "timestamp", { unique: false });
+			};
+			req.onsuccess = function () { resolve(req.result); };
+			req.onerror = function () { reject(req.error); };
+		});
+	}
+
+	/* Every N.MCD on the save folder: [{ name, path, contents }]. */
+	function readCards() {
+		return openGameDb().then(function (db) {
+			return new Promise(function (resolve, reject) {
+				var out = [], tx = db.transaction(IDB_STORE, "readonly");
+				var range = IDBKeyRange.bound(SAVE_DIR + "/", SAVE_DIR + "/￿");
+				tx.objectStore(IDB_STORE).openCursor(range).onsuccess = function (e) {
+					var c = e.target.result;
+					if (!c) return;
+					var name = String(c.primaryKey).slice(SAVE_DIR.length + 1);
+					if (/^\d+\.mcd$/i.test(name) && c.value && c.value.contents)
+						out.push({ name: name, path: c.primaryKey, contents: new Uint8Array(c.value.contents) });
+					c.continue();
+				};
+				tx.oncomplete = function () { db.close(); resolve(out); };
+				tx.onerror = tx.onabort = function () { db.close(); reject(tx.error); };
+			});
+		});
+	}
+
+	function writeCards(cards) {
+		return openGameDb().then(function (db) {
+			return new Promise(function (resolve, reject) {
+				var tx = db.transaction(IDB_STORE, "readwrite"), store = tx.objectStore(IDB_STORE);
+				var now = new Date();
+				["/game", "/game/gamedata", SAVE_DIR].forEach(function (d) {
+					store.get(d).onsuccess = function (e) {
+						if (!e.target.result) store.put({ timestamp: now, mode: MODE_DIR }, d);
+					};
+				});
+				cards.forEach(function (c) {
+					store.put({ timestamp: now, mode: MODE_FILE, contents: c.contents }, c.path);
+				});
+				tx.oncomplete = function () { db.close(); resolve(); };
+				tx.onerror = tx.onabort = function () { db.close(); reject(tx.error); };
+			});
+		});
+	}
+
+	/* ---- Minimal zip: stored entries out, stored or deflated entries in ---- */
+
+	var crcTable = null;
+	function crc32(b) {
+		if (!crcTable) {
+			crcTable = new Uint32Array(256);
+			for (var n = 0; n < 256; n++) {
+				var c = n;
+				for (var k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+				crcTable[n] = c >>> 0;
+			}
+		}
+		var crc = 0xFFFFFFFF;
+		for (var i = 0; i < b.length; i++) crc = crcTable[(crc ^ b[i]) & 0xFF] ^ (crc >>> 8);
+		return (crc ^ 0xFFFFFFFF) >>> 0;
+	}
+
+	function makeZip(files) {
+		var d = new Date();
+		var dosTime = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1);
+		var dosDate = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+		var parts = [], central = [], off = 0, enc = new TextEncoder();
+		files.forEach(function (f) {
+			var name = enc.encode(f.name), crc = crc32(f.data), len = f.data.length;
+			var h = new DataView(new ArrayBuffer(30));
+			h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true);
+			h.setUint16(10, dosTime, true); h.setUint16(12, dosDate, true);
+			h.setUint32(14, crc, true); h.setUint32(18, len, true); h.setUint32(22, len, true);
+			h.setUint16(26, name.length, true);
+			parts.push(new Uint8Array(h.buffer), name, f.data);
+			var c = new DataView(new ArrayBuffer(46));
+			c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true);
+			c.setUint16(12, dosTime, true); c.setUint16(14, dosDate, true);
+			c.setUint32(16, crc, true); c.setUint32(20, len, true); c.setUint32(24, len, true);
+			c.setUint16(28, name.length, true); c.setUint32(42, off, true);
+			central.push(new Uint8Array(c.buffer), name);
+			off += 30 + name.length + len;
+		});
+		var cdSize = central.reduce(function (s, p) { return s + p.length; }, 0);
+		var e = new DataView(new ArrayBuffer(22));
+		e.setUint32(0, 0x06054b50, true);
+		e.setUint16(8, files.length, true); e.setUint16(10, files.length, true);
+		e.setUint32(12, cdSize, true); e.setUint32(16, off, true);
+		return new Blob(parts.concat(central, [new Uint8Array(e.buffer)]), { type: "application/zip" });
+	}
+
+	function inflateRaw(bytes) {
+		if (typeof DecompressionStream === "undefined")
+			return Promise.reject(new Error("This browser cannot open compressed .zip files. Import the .MCD files one at a time instead."));
+		var s = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+		return new Response(s).arrayBuffer().then(function (ab) { return new Uint8Array(ab); });
+	}
+
+	/* [{ name (full path inside the zip), data }] for every file entry. */
+	function readZip(buf) {
+		var b = new Uint8Array(buf), v = new DataView(buf), eocd = -1;
+		for (var i = b.length - 22; i >= Math.max(0, b.length - 22 - 65535); i--) {
+			if (v.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+		}
+		if (eocd < 0) return Promise.reject(new Error("That file is not a .zip."));
+		var count = v.getUint16(eocd + 10, true), p = v.getUint32(eocd + 16, true), dec = new TextDecoder();
+		var jobs = [];
+		for (var n = 0; n < count; n++) {
+			if (v.getUint32(p, true) !== 0x02014b50) break;
+			var method = v.getUint16(p + 10, true), csize = v.getUint32(p + 20, true);
+			var nlen = v.getUint16(p + 28, true), xlen = v.getUint16(p + 30, true), clen = v.getUint16(p + 32, true);
+			var loc = v.getUint32(p + 42, true);
+			var name = dec.decode(b.subarray(p + 46, p + 46 + nlen));
+			var start = loc + 30 + v.getUint16(loc + 26, true) + v.getUint16(loc + 28, true);
+			var raw = b.subarray(start, start + csize);
+			p += 46 + nlen + xlen + clen;
+			if (/\/$/.test(name)) continue;
+			jobs.push((function (name, method, raw) {
+				if (method === 0) return Promise.resolve({ name: name, data: raw.slice() });
+				if (method === 8) return inflateRaw(raw).then(function (d) { return { name: name, data: d }; });
+				return Promise.reject(new Error(name + " uses a compression this page cannot open."));
+			})(name, method, raw));
+		}
+		return Promise.all(jobs);
+	}
+
+	/* ---- The buttons ---- */
+
+	function saveMsg(text, cls) {
+		saveUi.status.textContent = text;
+		saveUi.status.className = "note" + (cls ? " " + cls : "");
+	}
+
+	function cardName(n) { return n.replace(/\.mcd$/i, "").replace(/^0+(?=\d)/, "") + ".MCD"; }
+
+	saveUi.exp.addEventListener("click", function () {
+		readCards().then(function (cards) {
+			if (!cards.length) { saveMsg("There are no saved games in this browser yet.", "warn"); return; }
+			var zip = makeZip(cards.map(function (c) { return { name: "save/" + c.name, data: c.contents }; }));
+			var a = document.createElement("a");
+			var d = new Date(), pad = function (x) { return (x < 10 ? "0" : "") + x; };
+			a.href = URL.createObjectURL(zip);
+			a.download = "SilentHill-saves-" + d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + ".zip";
+			document.body.appendChild(a);
+			a.click();
+			a.remove();
+			setTimeout(function () { URL.revokeObjectURL(a.href); }, 10000);
+			saveMsg("Exported " + cards.map(function (c) { return c.name; }).join(", ") + ".");
+		}).catch(function (e) {
+			console.warn("[web] save export", e);
+			saveMsg("Could not read the saved games: " + (e && e.message || e), "err");
+		});
+	});
+
+	saveUi.imp.addEventListener("change", function () {
+		var f = saveUi.imp.files && saveUi.imp.files[0];
+		saveUi.imp.value = "";
+		if (!f) return;
+		var incoming;
+		f.arrayBuffer().then(function (buf) {
+			if (/\.mcd$/i.test(f.name)) {
+				var base = f.name.split(/[\\/]/).pop();
+				if (!/^\d+\.mcd$/i.test(base))
+					throw new Error("Name the file after the card it replaces, 0.MCD or 8.MCD, then import it again.");
+				return [{ name: base, data: new Uint8Array(buf) }];
+			}
+			return readZip(buf).then(function (entries) {
+				/* Any N.MCD in the zip, at any depth: save/0.MCD as exported, or
+				 * a zip someone made of the gamedata folder or the cards alone. */
+				return entries.filter(function (e) { return /(^|\/)\d+\.mcd$/i.test(e.name); })
+					.map(function (e) { return { name: e.name.split("/").pop(), data: e.data }; });
+			});
+		}).then(function (files) {
+			if (!files.length) throw new Error("No memory card files (0.MCD, 8.MCD) were found in that .zip.");
+			incoming = files.filter(function (x) { return x.data.length > 0; }).map(function (x) {
+				var n = cardName(x.name);
+				return { name: n, path: SAVE_DIR + "/" + n, contents: x.data };
+			});
+			if (!incoming.length) throw new Error("Those memory card files are empty.");
+			return readCards();
+		}).then(function (existing) {
+			var replaced = incoming.filter(function (c) {
+				return existing.some(function (e) { return e.name.toUpperCase() === c.name.toUpperCase(); });
+			});
+			if (replaced.length && !window.confirm(
+				"This will overwrite " + replaced.map(function (c) { return c.name; }).join(" and ") +
+				" in this browser, and every save on " + (replaced.length > 1 ? "those cards" : "that card") +
+				" will be replaced. This cannot be undone. Export first if you want to keep them.\n\nAre you sure?")) {
+				saveMsg("Import cancelled. Nothing was changed.");
+				return;
+			}
+			/* A differently cased name from an older import would load instead
+			 * of the new one on a case-sensitive filesystem; the new one wins. */
+			existing.forEach(function (e) {
+				incoming.forEach(function (c) {
+					if (e.name !== c.name && e.name.toUpperCase() === c.name.toUpperCase()) c.stale = e.path;
+				});
+			});
+			return writeCards(incoming).then(function () {
+				var stale = incoming.filter(function (c) { return c.stale; });
+				if (!stale.length) return;
+				return openGameDb().then(function (db) {
+					return new Promise(function (resolve) {
+						var tx = db.transaction(IDB_STORE, "readwrite");
+						stale.forEach(function (c) { tx.objectStore(IDB_STORE).delete(c.stale); });
+						tx.oncomplete = tx.onerror = tx.onabort = function () { db.close(); resolve(); };
+					});
+				});
+			}).then(function () {
+				saveMsg("Imported " + incoming.map(function (c) { return c.name; }).join(", ") + ". They load when you press Play.");
+			});
+		}).catch(function (e) {
+			console.warn("[web] save import", e);
+			saveMsg(String(e && e.message || e), "err");
+		});
+	});
 
 	/* ---------------- Capability checks ---------------- */
 
