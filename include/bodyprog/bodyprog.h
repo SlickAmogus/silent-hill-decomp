@@ -92,9 +92,8 @@ typedef enum _MainMenuEntry
     /* PC port: the unused Extra slot becomes Achievements, then the port's Exit
      * row. Draw order is entry order, so both sit under Option. */
     MainMenuEntry_Achievements = 4,
-    MainMenuEntry_Characters   = 5,
-    MainMenuEntry_Exit         = 6,
-    MainMenuEntry_Count        = 7
+    MainMenuEntry_Exit         = 5,
+    MainMenuEntry_Count        = 6
 #else
     MainMenuEntry_Extra    = 4, /** @unused The extra options menu may have been accessible via the main menu. */
 
@@ -110,8 +109,7 @@ typedef enum _MainMenuState
     MenuState_DifficultySelector = 3,
 #ifdef SH_PC_PORT
     MenuState_NewGameStart       = 4,
-    MenuState_Achievements       = 5,
-    MenuState_Characters         = 6
+    MenuState_Achievements       = 5
 #else
     MenuState_NewGameStart       = 4
 #endif

@@ -130,7 +130,7 @@ static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System, 2 = Cont
  * which is the right behaviour for a pointer that is already there. */
 s32 g_PcOptions_HighlightSnap = 0;
 
-enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_NEXT, PCK_PREV, PCK_BACK };
+enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_CHARA };
 
 /* PC-options row origin. The heading sits at y=20 and the rows used to start at 56,
  * leaving a full empty row beneath it while the pages ran off the BOTTOM of the
@@ -204,11 +204,14 @@ static const s_PcOpt PCOPT_G[] = {
     { "VSync",          &g_PcConfig.vsync,              "vsync",                VAL_VSYNC, 2, LBL_VSYNC, NULL,                          1, PCK_VSYNC   },
     { "Texture_Filter", &g_PcConfig.psxDither,          "texture_filter",       VAL_FILT,  8, LBL_FILT,  NULL,                          1, PCK_FILTER },
     { "PGXP",           &g_PcConfig.usePgxp,            "use_pgxp",             VAL_ONOFF, 2, LBL_ONOFF, &g_PsxUsePgxp,                 1, PCK_INT    },
-    { "Antialiasing",   &g_PcConfig.msaaSamples,        "msaa",                 VAL_AA,    4, LBL_AA,    NULL,                          0, PCK_INT    },
     { "Post_Process",   &g_PcConfig.postProcess,        "post_process",         VAL_POST,  9, LBL_POST,  &g_cfg_postProcess,            1, PCK_INT    },
     { "Tone_Mapping",   &g_PcConfig.tonemap,            "tonemap",              VAL_TONE,  4, LBL_TONE,  &g_cfg_tonemap,                1, PCK_INT    },
     /* New-Game start map. Moved here from the Camera page, which had run to 12
      * rows (the practical maximum) while this page had room to spare. */
+    /* Opens the Character Select screen (pc_chara_select.c). Antialiasing
+     * moved to the System page to keep this one at 11 rows; it needs a
+     * restart either way. */
+    { "Character_Customization", NULL,                NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_CHARA  },
     { "Map",           NULL,                           "map",                  NULL,      0, NULL,      NULL,                          1, PCK_MAP    },
     { "Next_Page",      NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_NEXT   },
     { "Back",           NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_BACK   },
@@ -239,6 +242,7 @@ static const s_PcOpt PCOPT_S[] = {
      * Crosshair rows moved to the HUD page to make room, which is where the
      * quick-options overlay already groups them. */
     { "Weather_Rate",     &g_PcConfig.weatherSimHz,   "weather_sim_hz",   VAL_WHZ,   2, LBL_WHZ,   NULL, 1, PCK_INT  },
+    { "Antialiasing",     &g_PcConfig.msaaSamples,    "msaa",             VAL_AA,    4, LBL_AA,    NULL, 0, PCK_INT  },
     { "Prev_Page",        NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_PREV },
     { "Next_Page",        NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_NEXT },
     { "Back",             NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_BACK },
@@ -1264,6 +1268,8 @@ void Pc_Options_ResetToDefaults(void)
 #include <SDL.h>
 #include "pc_confirm_dialog.h"
 #include "pc_controls_screen.h"
+#include "pc_chara_select.h"
+#include "pc_native_menu_draw.h"
 
 /* Shared with the header draw: 1 while the reset dialog is up (label turns red). */
 int g_PcOptResetConfirmActive = 0;
@@ -1524,6 +1530,14 @@ void Options_PcOptionsMenu_Control(void)
                 g_GameWork.gameStateSteps[1] = 0;
                 g_GameWork.gameStateSteps[2] = 0;
                 return;
+            } else if (sel->kind == PCK_CHARA) {
+                Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+                ScreenFade_Start(true, false, false);
+                g_GameWork.gameStateSteps[0] = OptionsMenuState_EnterCharaSelect;
+                g_SysWork.counters_1C[1]     = 0;
+                g_GameWork.gameStateSteps[1] = 0;
+                g_GameWork.gameStateSteps[2] = 0;
+                return;
             }
         }
     }
@@ -1537,6 +1551,53 @@ void Options_PcOptionsMenu_Control(void)
         g_SysWork.counters_1C[1]     = 0;
         g_GameWork.gameStateSteps[1] = 0;
         g_GameWork.gameStateSteps[2] = 0;
+    }
+}
+
+/* Character Select under PC Options: the page fades out, the screen runs
+ * until it asks to close, then the page fades back in where it was. */
+static void Options_CharaSelectMenu_Control(void)
+{
+    switch (g_GameWork.gameStateSteps[0])
+    {
+        case OptionsMenuState_EnterCharaSelect:
+            if (ScreenFade_IsFinished())
+            {
+                Pc_CharaSelect_Open();
+                ScreenFade_Start(false, true, false);
+                g_GameWork.gameStateSteps[0] = OptionsMenuState_CharaSelect;
+            }
+            break;
+
+        case OptionsMenuState_CharaSelect:
+            {
+                NmInput in;
+
+                NmInput_FromGame(&in);
+                Pc_CharaSelect_Draw();
+                if (!Pc_CharaSelect_Update(&in))
+                {
+                    ScreenFade_Start(true, false, false);
+                    g_GameWork.gameStateSteps[0] = OptionsMenuState_LeaveCharaSelect;
+                }
+                g_Controller0->clickedBtnFlags   = 0;
+                g_Controller0->pulsedBtnFlags    = 0;
+                g_Controller0->pulsedGuiBtnFlags = 0;
+            }
+            break;
+
+        default:
+            Pc_CharaSelect_Draw();
+            if (ScreenFade_IsFinished())
+            {
+                Pc_CharaSelect_Close();
+                ScreenFade_Start(false, true, false);
+                g_GameWork.gameStateSteps[0] = OptionsMenuState_PcOptions;
+                g_SysWork.counters_1C[1]     = 0;
+                g_GameWork.gameStateSteps[1] = 0;
+                g_GameWork.gameStateSteps[2] = 0;
+            }
+            break;
     }
 }
 
@@ -1943,6 +2004,12 @@ void GameState_Options_Update(void) // 0x801E2D44
         case OptionsMenuState_PcOptions:
         case OptionsMenuState_LeavePcOptions:
             Options_PcOptionsMenu_Control();
+            break;
+
+        case OptionsMenuState_EnterCharaSelect:
+        case OptionsMenuState_CharaSelect:
+        case OptionsMenuState_LeaveCharaSelect:
+            Options_CharaSelectMenu_Control();
             break;
 #endif
     }
