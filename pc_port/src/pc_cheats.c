@@ -55,7 +55,7 @@ extern const char* Pc_PlayAs_Label(int idx);
 extern const char* Pc_PlayAs_Name(int idx);
 extern int         Pc_PlayAs_SetByName(const char* name, int save);
 
-enum { CH_TOGGLE = 0, CH_ACTION, CH_PLAYAS, CH_FREECAM, CH_DEBUGKEYS, CH_SPAWN, CH_MAP, CH_FPS };
+enum { CH_TOGGLE = 0, CH_ACTION, CH_PLAYAS, CH_FREECAM, CH_DEBUGKEYS, CH_SPAWN, CH_MAP, CH_FPS, CH_LOG };
 
 /* ---- big head mode ---------------------------------------------------- */
 
@@ -266,6 +266,9 @@ static const CheatRow s_debug[] = {
      * (dbg_overlay.c). It still carries the same allow_debug_controls
      * config key and the handful of dev keys behind it. */
     { "Allow console",        CH_DEBUGKEYS, NULL, NULL },
+    /* enable_debug_log, live: mostly so a phone, which has no launcher and no
+     * easy way to edit config.cfg, can produce a log for a bug report. */
+    { "Enable logging",       CH_LOG,     NULL, NULL },
     { "Collision visualizer", CH_TOGGLE,  &g_CollVisEnabled,  NULL },
     { "Keyframe viewer (kf)", CH_TOGGLE,  &g_DebugAnimKfView, NULL },
     /* Also on Ctrl+F5 / Ctrl+F1 / Ctrl+F2. The key and the row drive the same
@@ -325,6 +328,7 @@ const char* Pc_Cheats_Label(int page, int idx, char* buf, int bufsz)
         case CH_PLAYAS:    return Pc_PlayAs_Label(Pc_PlayAs_Current());
         case CH_FREECAM:   return Pc_LangQuickMenu(g_DebugCamEnabled ? "On" : "Off");
         case CH_DEBUGKEYS: return Pc_LangQuickMenu(g_PcAllowDebugControls ? "On" : "Off");
+        case CH_LOG:       return Pc_LangQuickMenu(g_ShDebugLog ? "On" : "Off");
         case CH_FPS:
         {
             static const char* const pos[5] = { "Off", "Top Left", "Top Right", "Bottom Left", "Bottom Right" };
@@ -403,6 +407,23 @@ void Pc_Cheats_Adjust(int page, int idx, int dir)
             Sd_PlaySfx(g_PcAllowDebugControls ? Sfx_MenuConfirm : Sfx_MenuCancel, 0, 64);
             SH_DBG_ECHO("[CHEAT] Allow console: %s", g_PcAllowDebugControls ? "ON" : "OFF");
             break;
+        case CH_LOG:
+        {
+            const int on = (g_ShDebugLog == NULL);
+
+            if (!Sh_LogSetEnabled(on))
+            {
+                Sd_PlaySfx(Sfx_MenuError, 0, 64);
+                SH_DBG_ECHO("Could not open %s", SH_LogPath());
+                break;
+            }
+            g_PcConfig.enableDebugLog = on;
+            PcConfig_SaveKeyValue("enable_debug_log", on ? "1" : "0");
+            Sd_PlaySfx(on ? Sfx_MenuConfirm : Sfx_MenuCancel, 0, 64);
+            if (on)
+                SH_DBG_ECHO("Logging to %s", SH_LogPath());
+            break;
+        }
         default:
             break;
     }

@@ -104,6 +104,7 @@
 { "Play as",              { "Spielen als",         "Jouer en tant que",     "Jugar como",            "Gioca come"            } },
 { "Free camera",          { "Freie Kamera",        "Caméra libre",          "Cámara libre",          "Telecamera libera"     } },
 { "Allow console",        { "Konsole erlauben",    "Autoriser la console",  "Permitir consola",      "Consenti console"      } },
+{ "Enable logging",       { "Protokoll schreiben", "Activer la journalisation", "Activar registro",   "Abilita registro"      } },
 { "Collision visualizer", { "Kollisionsanzeige",   "Afficher les collisions", "Ver colisiones",      "Mostra collisioni"     } },
 { "Keyframe viewer (kf)", { "Keyframe-Anzeige (kf)", "Visionneuse d'images clés (kf)", "Visor de fotogramas clave (kf)", "Visore fotogrammi chiave (kf)" } },
 { "Fast forward (Ctrl+F5)", { "Vorspulen (Strg+F5)", "Avance rapide (Ctrl+F5)", "Avance rápido (Ctrl+F5)", "Avanti veloce (Ctrl+F5)" } },
