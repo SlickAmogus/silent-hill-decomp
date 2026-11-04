@@ -1656,6 +1656,9 @@ int Pc_QuickOptions_ShowsMinimapRows(void)
     return 0;
 }
 
+/* Page and row of the gyro row the recalibrate hint was last shown for. */
+static int s_gyroHintRow = -1;
+
 static void qo_open(void)
 {
     if (s_phase == QO_OPENING || s_phase == QO_SHOWN)
@@ -1663,6 +1666,7 @@ static void qo_open(void)
     s_phase      = QO_OPENING;
     s_phaseStart = SDL_GetTicks();
     s_sel        = 0;
+    s_gyroHintRow = -1;
     g_PcQuickOptionsActive = 1;
 }
 
@@ -1681,6 +1685,12 @@ void Pc_QuickOptions_Close(void)
     {
         Pc_ConfirmDialog_Cancel();
         PcOpt_PgxpFogAnswer(0);
+    }
+#endif
+#if defined(QO_MOBILE)
+    {
+        extern void Pc_Gyro_Recentre(void);
+        Pc_Gyro_Recentre();
     }
 #endif
     s_phase      = QO_CLOSING;
@@ -2177,6 +2187,20 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
     {
         qo_confirm(&rows[s_sel]);
     }
+
+#if defined(QO_MOBILE)
+    /* Once per arrival on a gyro row: the fix for a drifting tilt or aim is
+     * this menu itself, which re-centres on close (Pc_Gyro_Recentre). */
+    {
+        const int onGyro = rows[s_sel].kind == ROW_EXTRA &&
+                           (rows[s_sel].extra == QO_X_GYROMOVE || rows[s_sel].extra == QO_X_GYROAIM);
+        const int id     = onGyro ? (s_page * QO_MAX_ROWS + s_sel) : -1;
+
+        if (onGyro && id != s_gyroHintRow)
+            SH_DBG_ECHO("Opening the quick menu will recalibrate the gyroscope");
+        s_gyroHintRow = id;
+    }
+#endif
 }
 
 static void qo_confirm(const QoRowDef* r)

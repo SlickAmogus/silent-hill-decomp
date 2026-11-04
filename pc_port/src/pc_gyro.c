@@ -252,6 +252,18 @@ int Pc_Gyro_GrabShakes(void)
     return shakes;
 }
 
+/* The quick menu's close: whatever the phone was doing before, movement takes
+ * its neutral from how it is held now and aim starts from a clean tick, so a
+ * player whose tilt has wandered can fix it by opening and closing the menu. */
+void Pc_Gyro_Recentre(void)
+{
+    s_MoveCal    = 0;
+    s_MoveRun    = 0;
+    s_MoveBack   = 0;
+    s_HopUntilMs = 0;
+    s_LastTick   = 0;
+}
+
 static float Gyro_TiltAxis(float a)
 {
     const float m = fabsf(a);
