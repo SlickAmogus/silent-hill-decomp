@@ -1669,6 +1669,8 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
             g_PcConfig.gyroMove = 0;
             PcConfig_SaveKeyValue("gyro_movement", "0");
         }
+        if (g_PcConfig.gyroAim != 0)
+            SH_DBG_ECHO("Opening the quick menu will recalibrate the gyroscope");
         Sd_PlaySfx(Sfx_MenuMove, 0, 64);
         break;
     }
@@ -1680,6 +1682,8 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
             g_PcConfig.gyroAim = 0;
             PcConfig_SaveKeyValue("gyro_aim", "0");
         }
+        if (g_PcConfig.gyroMove)
+            SH_DBG_ECHO("Opening the quick menu will recalibrate the gyroscope");
         Sd_PlaySfx(Sfx_MenuMove, 0, 64);
         break;
     case QO_X_GYROSENS: {
