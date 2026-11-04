@@ -50,6 +50,8 @@ extern int   g_ShDebugEchoStdout;              /* set by main_pc.c after PcConfi
 extern void (*g_ShOverlayPushLine)(const char*);  /* NULL, or DbgOverlay_PushLine  (console buffer only) */
 extern void (*g_ShOverlayToastLine)(const char*); /* NULL, or DbgOverlay_ToastLine (buffer + top-left toast) */
 void SH_DebugLogInit(void);
+int  Sh_LogSetEnabled(int on); /* runtime enable_debug_log; never closes or deletes the session file */
+const char* SH_LogPath(void);  /* this run's log file name */
 #ifdef __cplusplus
 }
 #endif
