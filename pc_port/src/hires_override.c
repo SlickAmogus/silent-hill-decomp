@@ -1189,13 +1189,22 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
          * grown-as-needed zeroed staging buffer. */
         static unsigned char* s_zeroFill = NULL;
         static int            s_zeroBytes = 0;
+        /* NVIDIA reads new storage as zeros (the comment above), so there the
+         * prefill only doubles the transfer: a 1024x1024 pack row took ~30 ms
+         * on a GTX 1650, half of it this. Decided once from GL_VENDOR. */
+        static int            s_prefill = -1;
         int                   need = w * h * 4;
-        if (need > s_zeroBytes)
+        if (s_prefill < 0)
+        {
+            const char* vendor = (const char*)glGetString(GL_VENDOR);
+            s_prefill = !(vendor != NULL && strstr(vendor, "NVIDIA") != NULL);
+        }
+        if (s_prefill && need > s_zeroBytes)
         {
             unsigned char* nz = (unsigned char*)realloc(s_zeroFill, (size_t)need);
             if (nz) { s_zeroFill = nz; memset(s_zeroFill, 0, (size_t)need); s_zeroBytes = need; }
         }
-        if (s_zeroFill != NULL && s_zeroBytes >= need)
+        if (s_prefill && s_zeroFill != NULL && s_zeroBytes >= need)
         {
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0,
                          GL_RGBA, GL_UNSIGNED_BYTE, s_zeroFill);
@@ -1204,7 +1213,7 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
         }
         else
         {
-            /* Zero buffer alloc failed — fall back to the direct upload. */
+            /* No prefill wanted, or the zero buffer could not be had. */
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0,
                          GL_RGBA, GL_UNSIGNED_BYTE, rgba);
         }
@@ -1757,6 +1766,32 @@ int HiresOverride_RegisterRGBA(const char* label,
                                            originalBitDepth, 0);
 }
 
+/* Content hash of a loose file's bytes, so a re-registration of the same file
+ * at the same key can keep the texture it already made: the paper map's
+ * 3200x4800 PNG was decoded again on every open (220-330 ms each). */
+static unsigned long long loose_hash(const unsigned char* data, unsigned int size)
+{
+    unsigned long long h = 1469598103934665603ULL ^ (unsigned long long)size;
+    unsigned int       i = 0;
+
+    for (; i + 8 <= size; i += 8)
+    {
+        unsigned long long v;
+        memcpy(&v, data + i, 8);
+        h = (h ^ v) * 1099511628211ULL;
+    }
+    for (; i < size; i++)
+        h = (h ^ data[i]) * 1099511628211ULL;
+    return h ? h : 1;
+}
+
+static int loose_cached(int vx, int vy, int vw, int vh, int cx, int cy, int bpp, unsigned long long hash)
+{
+    const HiresEntry* e = find_keyed(vx, vy, vw, vh, cx, cy, bpp);
+
+    return e != NULL && e->glTexture != 0 && e->contentHash == hash;
+}
+
 /* A loose per-row PNG/TIM overlays ONE palette row on top of the disc-decoded
  * base slot: decode row 0 of the replacement and hand it to the existing
  * per-row uploader. The replacement carries one palette, so its own row 0 is
@@ -1784,16 +1819,20 @@ int HiresOverride_RegisterLoosePngRow(const char* label,
                                       int targetClutX, int targetClutY,
                                       int originalBitDepth)
 {
-    unsigned char* rgba = NULL;
-    int w = 0, h = 0, bpp = 0, rc;
+    unsigned char*     rgba = NULL;
+    int                w = 0, h = 0, bpp = 0, rc;
+    unsigned long long hash = loose_hash(data, size);
 
+    if (loose_cached(targetVramX, targetVramY, targetVramW, targetVramH, targetClutX, targetClutY,
+                     originalBitDepth, hash))
+        return 0;
     if (decode_to_rgba(label, data, size, &rgba, &w, &h, &bpp, 0, NULL) != 0)
     {
         return -1;
     }
-    rc = HiresOverride_RegisterRGBA(label, rgba, w, h,
-                                    targetVramX, targetVramY, targetVramW, targetVramH,
-                                    targetClutX, targetClutY, originalBitDepth);
+    rc = HiresOverride_RegisterRGBAKeyed(label, rgba, w, h,
+                                         targetVramX, targetVramY, targetVramW, targetVramH,
+                                         targetClutX, targetClutY, originalBitDepth, hash);
     free(rgba);
     return rc;
 }
@@ -1834,23 +1873,37 @@ int HiresOverride_RegisterLoosePngAllRows(const char* label,
         }
     }
 
-    if (decode_to_rgba(label, data, size, &rgba, &w, &h, &bpp, 0, NULL) != 0)
     {
-        return -1;
-    }
-    if (rows < 1) rows = 1;
+        unsigned long long hash   = loose_hash(data, size);
+        int                cached = 1;
+
+        if (rows < 1) rows = 1;
+        for (r = 0; r < rows && cached; r++)
+        {
+            cached = loose_cached(targetVramX, targetVramY, targetVramW, targetVramH, targetClutX,
+                                  targetClutY + r, originalBitDepth, hash);
+            if (targetClutX < 0 || targetClutY < 0) break;
+        }
+        if (cached)
+            return 0;
+
+        if (decode_to_rgba(label, data, size, &rgba, &w, &h, &bpp, 0, NULL) != 0)
+        {
+            return -1;
+        }
     for (r = 0; r < rows; r++)
     {
         /* Register the same image at each palette row's clut cell so every
          * palette a prim selects maps to it. No CLUT (16bpp / clut < 0) means
          * one palette-less entry — register once. */
-        if (HiresOverride_RegisterRGBA(label, rgba, w, h,
-                                       targetVramX, targetVramY, targetVramW, targetVramH,
-                                       targetClutX, targetClutY + r, originalBitDepth) == 0)
+        if (HiresOverride_RegisterRGBAKeyed(label, rgba, w, h,
+                                            targetVramX, targetVramY, targetVramW, targetVramH,
+                                            targetClutX, targetClutY + r, originalBitDepth, hash) == 0)
         {
             ok++;
         }
         if (targetClutX < 0 || targetClutY < 0) break;
+    }
     }
     free(rgba);
     return (ok > 0) ? 0 : -1;
