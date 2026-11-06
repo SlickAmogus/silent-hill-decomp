@@ -28,9 +28,12 @@
          system installer, which still asks the player to confirm. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <!-- Only the disc search on Android 10 and older reads storage by path.
+         From Android 11 the search runs inside a folder the player picks in the
+         system file picker, which needs no permission at all. All-files access
+         was dropped: Play Protect flags a sideloaded app that holds it. -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
-        android:maxSdkVersion="32" />
-    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+        android:maxSdkVersion="29" />
 
     <application
         android:label="@string/app_name"
