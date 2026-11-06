@@ -1128,6 +1128,7 @@ void Event_ItemTake(e_InvItemId itemId, s32 itemCount, e_EventFlag eventFlagIdx,
 #ifdef SH_PC_PORT
     static s32 s_pcFreezeState, s_pcFreezeLower, s_pcFreezeUpper;
     static s32 s_pcFreezeStep[2], s_pcFreezeCtrl[2];
+    static s_ModelAnim s_pcFreezeAnim[2];
 
     /* Randomizer: rewrite this world pickup into a healing item, a weapon the
      * player lacks, or ammo for a gun they carry. Keyed on eventFlagIdx (which
@@ -1183,6 +1184,8 @@ void Event_ItemTake(e_InvItemId itemId, s32 itemCount, e_EventFlag eventFlagIdx,
             s_pcFreezeStep[1] = g_SysWork.playerWork.extra.model.stateStep;
             s_pcFreezeCtrl[0] = g_SysWork.playerWork.player.model.controlState;
             s_pcFreezeCtrl[1] = g_SysWork.playerWork.extra.model.controlState;
+            s_pcFreezeAnim[0] = g_SysWork.playerWork.player.model.anim;
+            s_pcFreezeAnim[1] = g_SysWork.playerWork.extra.model.anim;
 #endif
             // Freeze player and start loading item model.
             g_MapOverlayHdr.playerControlFreeze();
@@ -1256,6 +1259,15 @@ void Event_ItemTake(e_InvItemId itemId, s32 itemCount, e_EventFlag eventFlagIdx,
                 g_SysWork.playerWork.extra.model.stateStep     = s_pcFreezeStep[1];
                 g_SysWork.playerWork.player.model.controlState = s_pcFreezeCtrl[0];
                 g_SysWork.playerWork.extra.model.controlState  = s_pcFreezeCtrl[1];
+                /* The freeze's PlayerState_Unk52 starts the Idle blend-in
+                 * (Model_AnimStatusSet(Idle, false)) on any player tick it gets,
+                 * and the anim then resumed from that blend: a different pose
+                 * for the first live frames after Yes, most visible from the
+                 * alternate cameras. Resume the exact clip, time and keyframe
+                 * Harry had when the prompt opened, which is the pose the
+                 * frozen picture shows. */
+                g_SysWork.playerWork.player.model.anim = s_pcFreezeAnim[0];
+                g_SysWork.playerWork.extra.model.anim  = s_pcFreezeAnim[1];
             }
 #endif
             SysWork_StateSetNext(SysState_Gameplay);
