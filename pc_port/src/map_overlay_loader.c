@@ -10,8 +10,11 @@
 #include "dll_loader.h"
 #include "sh_log.h"
 #include <string.h>
+#include <stdlib.h>
 #ifdef SH_STATIC_MAPS
 #include "map_static_registry.h"
+#else
+#include <SDL.h>
 #endif
 
 #ifdef _WIN32
@@ -28,6 +31,32 @@ static char s_currentName[64] = { 0 };
 
 /* The compiled-in map0_s00 (always available as fallback) */
 extern s_MapOverlayHdr g_MapOverlayHeader_map0_s00;
+
+#ifndef SH_STATIC_MAPS
+/* A map module that is on disk but will not load leaves MapRegistry_Load on
+ * its stub header, which has no code behind it: the game then segfaults a few
+ * frames into the new map with the real reason buried in the log (Linux report
+ * 2026-11-03: EMFILE from the Discord socket leak, crash entering the cafe).
+ * Say why and stop. A module that is simply absent still takes the stub path,
+ * which builds without SH_BUILD_MAP_DLLS rely on. */
+static void MapOverlay_FatalLoadFailure(const char* dllPath, const char* why)
+{
+    char msg[768];
+
+    SH_LOG("[MapOverlay] FATAL: %s could not be loaded: %s", dllPath, why);
+    if (g_ShDebugLog)
+        fflush(g_ShDebugLog);
+    snprintf(msg, sizeof(msg),
+             "The map file\n  %s\ncould not be loaded:\n  %s\n\n"
+             "The game cannot continue into this area. If the error says\n"
+             "\"Too many open files\", update to the latest build. Otherwise\n"
+             "the file may be damaged: reinstall or re-extract the game.",
+             dllPath, why ? why : "(unknown error)");
+    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR,
+                             "Silent Hill - map failed to load", msg, NULL);
+    exit(1);
+}
+#endif
 
 s_MapOverlayHdr* MapOverlay_Load(e_MapIdx id)
 {
@@ -78,19 +107,26 @@ s_MapOverlayHdr* MapOverlay_Load(e_MapIdx id)
     s_currentDll = DllLoader_Open(dllPath);
     if (!s_currentDll)
     {
-        SH_DBG("[MapOverlay] Failed to load %s (%s)", dllPath, DllLoader_GetError());
+        char why[512];
+
+        snprintf(why, sizeof(why), "%s", DllLoader_GetError());
+        SH_DBG("[MapOverlay] Failed to load %s (%s)", dllPath, why);
+        if (DllLoader_FileExists(dllPath))
+            MapOverlay_FatalLoadFailure(dllPath, why);
         return NULL;
     }
 
-    /* Find the header symbol */
     header = (s_MapOverlayHdr*)DllLoader_GetSymbol(s_currentDll, symbolName);
     if (!header)
     {
-        SH_DBG("[MapOverlay] Symbol '%s' not found in %s (%s)",
-                symbolName, dllPath, DllLoader_GetError());
+        char why[512];
+
+        snprintf(why, sizeof(why), "symbol '%s' not found (%s)",
+                 symbolName, DllLoader_GetError());
+        SH_DBG("[MapOverlay] %s in %s", why, dllPath);
         DllLoader_Close(s_currentDll);
         s_currentDll = NULL;
-        return NULL;
+        MapOverlay_FatalLoadFailure(dllPath, why);
     }
 #endif
 

@@ -11,17 +11,27 @@
 
 #ifdef SH_PC_PORT
 #include "lang_text.h"
+#include "lang_ar.h"
 
 /* The difficulty is drawn at an x tuned to each ENGLISH word's width, ending
  * near x=296. Shift by the width difference so a longer translation keeps
  * that right edge instead of running off-screen; English is unchanged. */
 static s32 Results_AlignedX(s32 x, const char* us)
 {
+    /* The Arabic patches' constants are already fitted to their own words. */
+    if (Pc_ArActive())
+    {
+        return x;
+    }
     return x + Pc_LangMenuTextWidth(us) - Pc_LangMenuTextWidth(Pc_LangMenuText(us));
 }
 #define RESULTS_X(x, str) Results_AlignedX((x), (str))
+#define RES_USA(ar, def)  PC_AR_USA((ar), (def))
+#define RES_PAL(ar, def)  PC_AR_PAL((ar), (def))
 #else
 #define RESULTS_X(x, str) (x)
+#define RES_USA(ar, def)  (def)
+#define RES_PAL(ar, def)  (def)
 #endif
 
 static const s32 pad_rodata_8002B2F8 = 0;
@@ -468,6 +478,86 @@ void func_800904F4() // 0x800904F4
     }
 }
 
+#ifdef SH_PC_PORT
+/* The USA Arabic patch reorders these draws for its leftward drawer: "km" first,
+ * and the "." after the zero pads. */
+static void Results_DistanceDraw(u16 whole, u16 frac, char* dot, char* km)
+{
+    s32 rtl = Pc_ArDisc() == AR_DISC_USA_MANSOUR;
+
+    if (rtl)
+    {
+        Gfx_StringDraw(km, 5);
+    }
+    Gfx_StringDrawInt(4, whole);
+    if (!rtl)
+    {
+        Gfx_StringDraw(dot, 5);
+    }
+
+    if (frac < 0x64u)
+    {
+        Gfx_StringDrawInt(1, 0);
+    }
+
+    if (frac < 0xAu)
+    {
+        Gfx_StringDrawInt(1, 0);
+    }
+
+    if (rtl)
+    {
+        Gfx_StringDraw(dot, 5);
+    }
+    Gfx_StringDrawInt(3, frac);
+    if (!rtl)
+    {
+        Gfx_StringDraw(km, 5);
+    }
+}
+
+/* USA Arabic: total and count swapped, parens mirrored, "+N" as "N+", and the
+ * fixed ")" position dropped. The patch also swaps colour fields 5 and 6;
+ * ported as found. */
+static void Results_ItemsDraw(char* slash, char* plus)
+{
+    if (Pc_ArDisc() != AR_DISC_USA_MANSOUR)
+    {
+        Gfx_StringSetColor(D_800C48E0.field_5);
+        Gfx_StringDrawInt(3, (s32) D_800C48AC);
+        Gfx_StringDraw(slash, 5);
+        Gfx_StringDrawInt(3, 0xCC);
+        Gfx_StringSetColor(D_800C48E0.field_6);
+        Gfx_StringDraw("(", 1);
+
+        if (D_800C48B4 != 0)
+        {
+            Gfx_StringDraw(plus, 5);
+            Gfx_StringDrawInt(1, D_800C48B4);
+        }
+
+        Gfx_StringSetPosition(0x124, 0x70);
+        Gfx_StringDraw(")", 1);
+        return;
+    }
+
+    Gfx_StringSetColor(D_800C48E0.field_6);
+    Gfx_StringDrawInt(3, 0xCC);
+    Gfx_StringDraw(slash, 5);
+    Gfx_StringDrawInt(3, (s32) D_800C48AC);
+    Gfx_StringSetColor(D_800C48E0.field_5);
+    Gfx_StringDraw(")", 1);
+
+    if (D_800C48B4 != 0)
+    {
+        Gfx_StringDrawInt(1, D_800C48B4);
+        Gfx_StringDraw(plus, 5);
+    }
+
+    Gfx_StringDraw("(", 1);
+}
+#endif
+
 void Results_DisplayInfo(u32* arg0) // 0x80090664
 {
     s32      temp_s1;
@@ -519,25 +609,25 @@ void Results_DisplayInfo(u32* arg0) // 0x80090664
 
     if (g_GameWork.gameStateSteps[1] < 0x17)
     {
-        Gfx_StringSetPosition(0x64, -0x54);
+        Gfx_StringSetPosition(RES_USA(194, RES_PAL(0x68, 0x64)), -0x54);
         Gfx_StringDraw(D_8002B4C0[0], 20);
-        Gfx_StringSetPosition(0x18, -0x38);
+        Gfx_StringSetPosition(RES_USA(288, 0x18), -0x38);
         Gfx_StringDraw(D_8002B4C0[1], 20);
 
         switch (D_800C48D0)
         {
             case -1:
-                Gfx_StringSetPosition(RESULTS_X(0xFC, D_8002B4C0[2]), -0x38);
+                Gfx_StringSetPosition(RESULTS_X(RES_USA(84, RES_PAL(0xF0, 0xFC)), D_8002B4C0[2]), -0x38);
                 Gfx_StringDraw(D_8002B4C0[2], 20);
                 break;
 
             case 0:
-                Gfx_StringSetPosition(RESULTS_X(0xDE, D_8002B4C0[3]), -0x38);
+                Gfx_StringSetPosition(RESULTS_X(RES_USA(84, 0xDE), D_8002B4C0[3]), -0x38);
                 Gfx_StringDraw(D_8002B4C0[3], 20);
                 break;
 
             case 1:
-                Gfx_StringSetPosition(RESULTS_X(0xF7, D_8002B4C0[4]), -0x38);
+                Gfx_StringSetPosition(RESULTS_X(RES_USA(84, RES_PAL(0xDD, 0xF7)), D_8002B4C0[4]), -0x38);
                 Gfx_StringDraw(D_8002B4C0[4], 20);
                 break;
 
@@ -546,43 +636,46 @@ void Results_DisplayInfo(u32* arg0) // 0x80090664
         }
 
         temp_s1 = func_8009134C(D_800C48A0);
-        Gfx_StringSetPosition(0x18, 7);
+        Gfx_StringSetPosition(RES_USA(288, 0x18), 7);
         Gfx_StringDraw(D_8002B4C0[5], 20);
-        Gfx_StringSetPosition(0x11E - ((temp_s1 - 1) * 0xA), 7);
+        Gfx_StringSetPosition(RES_USA(84, 0x11E - ((temp_s1 - 1) * 0xA)), 7);
         Gfx_StringSetColor(D_800C48E0.field_2);
         Gfx_StringDrawInt(3, D_800C48A0);
         Gfx_StringSetColor(StringColorId_White);
 
         temp_s1 = func_8009134C(D_800C48D1);
-        Gfx_StringSetPosition(0x18, 0x1C);
+        Gfx_StringSetPosition(RES_USA(288, 0x18), 0x1C);
         Gfx_StringDraw(D_8002B4C0[6], 20);
-        Gfx_StringSetPosition(0x11E - ((temp_s1 - 1) * 0xA), 0x1C);
+        Gfx_StringSetPosition(RES_USA(84, 0x11E - ((temp_s1 - 1) * 0xA)), 0x1C);
         Gfx_StringSetColor(D_800C48E0.field_3);
         Gfx_StringDrawInt(3, D_800C48D1);
         Gfx_StringSetColor(StringColorId_White);
 
         temp_s1 = func_8009134C(D_800C48A2);
-        Gfx_StringSetPosition(0x18, 0x31);
+        Gfx_StringSetPosition(RES_USA(288, 0x18), 0x31);
         Gfx_StringDraw(D_8002B4C0[7], 20);
-        Gfx_StringSetPosition(0xDC - (temp_s1 * 0xA), 0x31);
+        Gfx_StringSetPosition(RES_USA(31, 0xDC - (temp_s1 * 0xA)), 0x31);
         Gfx_StringSetColor(D_800C48E0.field_4);
         Gfx_StringDrawInt(5, D_800C48A2);
-        Gfx_StringSetPosition(0xDC, 0x31);
+        Gfx_StringSetPosition(RES_USA(45, 0xDC), 0x31);
         Gfx_StringDraw(D_8002B4C0[8], 5);
-        Gfx_StringSetPosition(0xFE - (func_8009134C(D_800C48AE) * 0xA), 0x31);
+        Gfx_StringSetPosition(RES_USA(69, 0xFE - (func_8009134C(D_800C48AE) * 0xA)), 0x31);
         Gfx_StringDrawInt(2, D_800C48AE);
-        Gfx_StringSetPosition(0xFE, 0x31);
+        Gfx_StringSetPosition(RES_USA(83, 0xFE), 0x31);
         Gfx_StringDraw(D_8002B4C0[9], 5);
-        Gfx_StringSetPosition(0x120 - (func_8009134C(D_800C48AF) * 0xA), 0x31);
+        Gfx_StringSetPosition(RES_USA(107, 0x120 - (func_8009134C(D_800C48AF) * 0xA)), 0x31);
         Gfx_StringDrawInt(2, D_800C48AF);
-        Gfx_StringSetPosition(0x120, 0x31);
+        Gfx_StringSetPosition(RES_USA(121, 0x120), 0x31);
         Gfx_StringDraw(D_8002B4C0[10], 5);
         Gfx_StringSetColor(StringColorId_White);
 
         temp_s1 = func_8009134C(D_800C48A4);
-        Gfx_StringSetPosition(0x18, 0x46);
+        Gfx_StringSetPosition(RES_USA(288, 0x18), 0x46);
         Gfx_StringDraw(D_8002B4C0[13], 20);
-        Gfx_StringSetPosition(0xE5 - ((temp_s1 - 1) * 0xA), 0x46);
+        Gfx_StringSetPosition(RES_USA(84, 0xE5 - ((temp_s1 - 1) * 0xA)), 0x46);
+#ifdef SH_PC_PORT
+        Results_DistanceDraw(D_800C48A4, D_800C48A6, D_8002B4C0[11], D_8002B4C0[12]);
+#else
         Gfx_StringDrawInt(4, D_800C48A4);
         Gfx_StringDraw(D_8002B4C0[11], 5);
 
@@ -598,11 +691,15 @@ void Results_DisplayInfo(u32* arg0) // 0x80090664
 
         Gfx_StringDrawInt(3, D_800C48A6);
         Gfx_StringDraw(D_8002B4C0[12], 5);
+#endif
 
         temp_s1 = func_8009134C(D_800C48A8);
-        Gfx_StringSetPosition(0x18, 0x5B);
+        Gfx_StringSetPosition(RES_USA(288, 0x18), 0x5B);
         Gfx_StringDraw(D_8002B4C0[14], 0x14);
-        Gfx_StringSetPosition(0xE5 - ((temp_s1 - 1) * 0xA), 0x5B);
+        Gfx_StringSetPosition(RES_USA(84, 0xE5 - ((temp_s1 - 1) * 0xA)), 0x5B);
+#ifdef SH_PC_PORT
+        Results_DistanceDraw(D_800C48A8, D_800C48AA, D_8002B4C0[11], D_8002B4C0[12]);
+#else
         Gfx_StringDrawInt(4, D_800C48A8);
         Gfx_StringDraw(D_8002B4C0[11], 5);
 
@@ -618,11 +715,15 @@ void Results_DisplayInfo(u32* arg0) // 0x80090664
 
         Gfx_StringDrawInt(3, D_800C48AA);
         Gfx_StringDraw(D_8002B4C0[12], 5);
+#endif
 
         temp_s1 = func_8009134C(D_800C48AC);
-        Gfx_StringSetPosition(0x18, 0x70);
+        Gfx_StringSetPosition(RES_USA(288, 0x18), 0x70);
         Gfx_StringDraw(D_8002B4C0[15], 0x14);
-        Gfx_StringSetPosition(0xDA - ((temp_s1 - 1) * 0xA), 0x70);
+        Gfx_StringSetPosition(RES_USA(107, 0xDA - ((temp_s1 - 1) * 0xA)), 0x70);
+#ifdef SH_PC_PORT
+        Results_ItemsDraw(D_8002B4C0[16], D_8002B4C0[17]);
+#else
         Gfx_StringSetColor(D_800C48E0.field_5);
         Gfx_StringDrawInt(3, (s32) D_800C48AC);
         Gfx_StringDraw(D_8002B4C0[16], 5);
@@ -638,43 +739,44 @@ void Results_DisplayInfo(u32* arg0) // 0x80090664
 
         Gfx_StringSetPosition(0x124, 0x70);
         Gfx_StringDraw(")", 1);
+#endif
         Gfx_StringSetColor(StringColorId_White);
 
         temp_s1 = func_8009134C(D_800C48B0);
-        Gfx_StringSetPosition(0x18, -0x23);
+        Gfx_StringSetPosition(RES_USA(288, 0x18), -0x23);
         Gfx_StringDraw(D_8002B4C0[18], 20);
-        Gfx_StringSetPosition(0x11E - ((temp_s1 - 1) * 10), -0x23);
+        Gfx_StringSetPosition(RES_USA(84, 0x11E - ((temp_s1 - 1) * 10)), -0x23);
         Gfx_StringSetColor(D_800C48E0.field_1);
         Gfx_StringDrawInt(3, D_800C48B0);
         Gfx_StringSetColor(StringColorId_White);
-        Gfx_StringSetPosition(0x18, -0xE);
+        Gfx_StringSetPosition(RES_USA(288, 0x18), -0xE);
         Gfx_StringDraw(D_8002B4C0[19], 20);
         Gfx_StringSetColor(D_800C48E0.field_0);
 
         switch (D_800C48B2 & 0x1F)
         {
             case 1:
-                Gfx_StringSetPosition(0xEA, -0xE);
+                Gfx_StringSetPosition(RES_USA(84, RES_PAL(0xE0, 0xEA)), -0xE);
                 Gfx_StringDraw(D_8002B4C0[20], 10);
                 break;
 
             case 2:
-                Gfx_StringSetPosition(0xF4, -0xE);
+                Gfx_StringSetPosition(RES_USA(84, RES_PAL(0xEB, 0xF4)), -0xE);
                 Gfx_StringDraw(D_8002B4C0[21], 10);
                 break;
 
             case 4:
-                Gfx_StringSetPosition(0xF9, -0xE);
+                Gfx_StringSetPosition(RES_USA(84, RES_PAL(0xEB, 0xF9)), -0xE);
                 Gfx_StringDraw(D_8002B4C0[22], 10);
                 break;
 
             case 8:
-                Gfx_StringSetPosition(0x102, -0xE);
+                Gfx_StringSetPosition(RES_USA(84, RES_PAL(0xF6, 0x102)), -0xE);
                 Gfx_StringDraw(D_8002B4C0[23], 10);
                 break;
 
             case 16:
-                Gfx_StringSetPosition(0x100, -0xE);
+                Gfx_StringSetPosition(RES_USA(84, RES_PAL(0xFB, 0x100)), -0xE);
                 Gfx_StringDraw(D_8002B4C0[24], 10);
                 break;
 
@@ -683,50 +785,50 @@ void Results_DisplayInfo(u32* arg0) // 0x80090664
         }
 
         Gfx_StringSetColor(StringColorId_White);
-        Gfx_StringSetPosition(0x18, 0x9A);
+        Gfx_StringSetPosition(RES_USA(288, 0x18), 0x9A);
         Gfx_StringDraw(D_8002B4C0[27], 0x20);
-        Gfx_StringSetPosition(0x128 - (func_8009134C(D_800C48B8) * 10), 154);
+        Gfx_StringSetPosition(RES_USA(84, 0x128 - (func_8009134C(D_800C48B8) * 10)), 154);
         Gfx_StringSetColor(D_800C48E0.field_7);
         Gfx_StringDrawInt(4, D_800C48B8);
         Gfx_StringSetColor(StringColorId_White);
-        Gfx_StringSetPosition(0x18, 0x85);
+        Gfx_StringSetPosition(RES_USA(288, 0x18), 0x85);
         Gfx_StringDraw(D_8002B4C0[28], 0x20);
-        Gfx_StringSetPosition(0x128 - (func_8009134C(D_800C48BA) * 10), 133);
+        Gfx_StringSetPosition(RES_USA(84, 0x128 - (func_8009134C(D_800C48BA) * 10)), 133);
         Gfx_StringSetColor(D_800C48E0.field_7);
         Gfx_StringDrawInt(4, D_800C48BA);
 
         if (D_800C48BC)
         {
             Gfx_StringSetColor(StringColorId_White);
-            Gfx_StringSetPosition(0x18, 0xAF);
+            Gfx_StringSetPosition(RES_USA(288, 0x18), 0xAF);
             Gfx_StringDraw(D_8002B4C0[29], 0x20);
-            Gfx_StringSetPosition(0x48, 0xC4);
+            Gfx_StringSetPosition(RES_USA(248, 0x48), 0xC4);
             Gfx_StringDraw(D_8002B4C0[30], 0x20);
-            Gfx_StringSetPosition(0x106, 0xC4);
+            Gfx_StringSetPosition(RES_USA(84, 0x106), 0xC4);
             Gfx_StringSetColor(D_800C48E0.field_8);
             Gfx_StringDraw(g_Credits_Digits.f0, 5);
             Gfx_StringSetColor(StringColorId_White);
-            Gfx_StringSetPosition(0x48, 0xD9);
+            Gfx_StringSetPosition(RES_USA(248, 0x48), 0xD9);
             Gfx_StringDraw(D_8002B4C0[31], 0x20);
-            Gfx_StringSetPosition(0x106, 0xD9);
+            Gfx_StringSetPosition(RES_USA(84, 0x106), 0xD9);
             Gfx_StringSetColor(D_800C48E0.field_8);
             Gfx_StringDraw(g_Credits_Digits.f1, 5);
             Gfx_StringSetColor(StringColorId_White);
-            Gfx_StringSetPosition(0x48, 0xEE);
+            Gfx_StringSetPosition(RES_USA(248, 0x48), 0xEE);
             Gfx_StringDraw(D_8002B4C0[32], 0x20);
-            Gfx_StringSetPosition(0x106, 0xEE);
+            Gfx_StringSetPosition(RES_USA(84, 0x106), 0xEE);
             Gfx_StringSetColor(D_800C48E0.field_8);
             Gfx_StringDraw(g_Credits_Digits.f2, 5);
             Gfx_StringSetColor(StringColorId_White);
-            Gfx_StringSetPosition(0x48, 0x103);
+            Gfx_StringSetPosition(RES_USA(248, 0x48), 0x103);
             Gfx_StringDraw(D_8002B4C0[33], 0x20);
-            Gfx_StringSetPosition(0x106, 0x103);
+            Gfx_StringSetPosition(RES_USA(84, 0x106), 0x103);
             Gfx_StringSetColor(D_800C48E0.field_8);
             Gfx_StringDraw(g_Credits_Digits.f3, 5);
         }
 
         Gfx_StringSetColor(StringColorId_White);
-        Gfx_StringSetPosition(0x18, 0x124);
+        Gfx_StringSetPosition(RES_USA(288, 0x18), 0x124);
         Gfx_StringDraw(D_8002B4C0[25], 0x14);
 
         if (D_800C48B5 >= 0x64)
@@ -743,7 +845,7 @@ void Results_DisplayInfo(u32* arg0) // 0x80090664
 
         if (temp_v1 != 0 && temp_a0 == 0)
         {
-            Gfx_StringSetPosition(0xA0, 0xC6);
+            Gfx_StringSetPosition(RES_USA(200, 0xA0), 0xC6);
 
             g_SysWork.enableHighResGlyphs = true;
 
@@ -756,7 +858,7 @@ void Results_DisplayInfo(u32* arg0) // 0x80090664
         }
         else if (temp_v1 == 0 && temp_a0 != 0)
         {
-            Gfx_StringSetPosition(0xA0, 0x124);
+            Gfx_StringSetPosition(RES_USA(200, 0xA0), 0x124);
 
             g_SysWork.enableHighResGlyphs = false;
 
@@ -768,7 +870,7 @@ void Results_DisplayInfo(u32* arg0) // 0x80090664
         else
         {
             g_SysWork.enableHighResGlyphs = true;
-            Gfx_StringSetPosition(160, 194);
+            Gfx_StringSetPosition(RES_USA(200, 160), 194);
 
             for (i = 0; i < temp_v1; i++)
             {
@@ -776,7 +878,7 @@ void Results_DisplayInfo(u32* arg0) // 0x80090664
             }
 
             g_SysWork.enableHighResGlyphs = false;
-            Gfx_StringSetPosition(160, 300);
+            Gfx_StringSetPosition(RES_USA(200, 160), 300);
 
             for (i = 0; i < temp_a0; i++)
             {

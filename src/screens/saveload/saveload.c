@@ -13,6 +13,7 @@
 
 #ifdef SH_PC_PORT
 #include "lang_text.h" /* Pc_LangMenuText/Width - centre the drawn string, not the English one */
+#include "lang_ar.h"
 #endif
 
 #define SAVE_FLASH_TIMER_MAX 40
@@ -275,11 +276,19 @@ void SaveScreen_SlotStrAndBottomRectDraw(void) // 0x801E2EBC
     s_Line2d line;
     s32      i;
 
+#ifdef SH_PC_PORT
+    const DVECTOR SLOT_STR_POS_TABLE[] =
+    {
+        { PC_AR_PAL(43, 59), 16 },
+        { PC_AR_PAL(193, 209), 16 }
+    };
+#else
     const DVECTOR SLOT_STR_POS_TABLE[] =
     {
         { 59, 16 },
         { 209, 16 }
     };
+#endif
 
     const char* SLOT_STRS[] = {
         "SLOT1",
@@ -309,8 +318,14 @@ void SaveScreen_SelectedElementIdxUpdate(s32 slotIdx, s32 unused) // 0x801E2F90
 void SaveScreen_FileIdxDraw(s32 saveIdx, s32 slotIdx, s32 fileId, s32 entryType) // 0x801E2FCC
 {
     #define OFFSET_X             SCREEN_POSITION_X(47.0f)
+#ifdef SH_PC_PORT
+    /* USA Arabic anchors right edges (text runs leftward); PAL Arabic respaces. */
+    #define FILE_STR_MARGIN_X    PC_AR_USA(145, PC_AR_PAL(39, SCREEN_POSITION_X(10.0f)))
+    #define FILE_ID_STR_MARGIN_X PC_AR_USA(120, PC_AR_PAL(127, SCREEN_POSITION_X(10.0f) + SCREEN_POSITION_X(15.75f)))
+#else
     #define FILE_STR_MARGIN_X    SCREEN_POSITION_X(10.0f)
     #define FILE_ID_STR_MARGIN_X FILE_STR_MARGIN_X + SCREEN_POSITION_X(15.75f)
+#endif
     #define POS_Y                SCREEN_POSITION_Y(14.75f)
 
     const char* FILE_STR = "FILE";
@@ -396,10 +411,35 @@ void SaveScreen_SaveLocationDraw(s_SaveScreenElement* saveEntry, s32 saveIdx, s3
          * is what gets drawn. Measure the string that will actually be drawn —
          * identical arithmetic on a US disc, and correctly centred once a
          * translation, or the disc's own Japanese, is in play. */
-        Gfx_StringSetPosition(((slotIdx * OFFSET_X) + MARGIN_X) -
-                                  (Pc_LangMenuTextWidth(
-                                       Pc_LangMenuText(g_Savegame_SaveLocationNames[nameIdx])) / 2),
-                              (selectedSaveIdx * OFFSET_Y) + MARGIN_Y);
+        /* The Arabic discs' text was laid out for their patches' width tables.
+         * USA's patch also anchors the right edge (+w/2) and strides slots by
+         * 170, not 150; ported as the patch has it. */
+        static const u8 AR_USA_X_OFFSETS[] = {
+            36, 25, 27, 27, 27, 51, 35, 32, 26, 29, 42, 61, 58,
+            29, 26, 51, 28, 27, 23, 24, 26, 32, 41, 55, 62
+        };
+        static const u8 AR_PAL_X_OFFSETS[] = {
+            104, 29, 67, 54, 91, 55, 61, 61, 53, 81, 84, 71, 92,
+            60, 63, 87, 119, 47, 57, 45, 37, 104, 102, 90, 102
+        };
+
+        if (Pc_ArDisc() == AR_DISC_USA_MANSOUR && nameIdx < (s32)ARRAY_SIZE(AR_USA_X_OFFSETS))
+        {
+            Gfx_StringSetPosition(((slotIdx * 170) + MARGIN_X) + (AR_USA_X_OFFSETS[nameIdx] / 2),
+                                  (selectedSaveIdx * OFFSET_Y) + MARGIN_Y);
+        }
+        else if (Pc_ArDisc() == AR_DISC_PAL_AHMED && nameIdx < (s32)ARRAY_SIZE(AR_PAL_X_OFFSETS))
+        {
+            Gfx_StringSetPosition(((slotIdx * OFFSET_X) + MARGIN_X) - (AR_PAL_X_OFFSETS[nameIdx] / 2),
+                                  (selectedSaveIdx * OFFSET_Y) + MARGIN_Y);
+        }
+        else
+        {
+            Gfx_StringSetPosition(((slotIdx * OFFSET_X) + MARGIN_X) -
+                                      (Pc_LangMenuTextWidth(
+                                           Pc_LangMenuText(g_Savegame_SaveLocationNames[nameIdx])) / 2),
+                                  (selectedSaveIdx * OFFSET_Y) + MARGIN_Y);
+        }
 #else
         Gfx_StringSetPosition(((slotIdx * OFFSET_X) + MARGIN_X) - (X_OFFSETS[nameIdx] / 2),
                               (selectedSaveIdx * OFFSET_Y) + MARGIN_Y);
@@ -591,20 +631,36 @@ void SaveScreen_SavesSlotDraw(s_SaveScreenElement* saveEntry, s32 saveIdx, s32 s
         case SavegameEntryType_UnformattedMemCard:
         case SavegameEntryType_CorruptedMemCard:
         case SavegameEntryType_LoadMemCard:
+#ifdef SH_PC_PORT
+            Gfx_StringSetPosition((slotIdx * SLOT_COLUMN_OFFSET) + PC_AR_USA(147, 22), 82);
+#else
             Gfx_StringSetPosition((slotIdx * SLOT_COLUMN_OFFSET) + 22, 82);
+#endif
             break;
 
         case SavegameEntryType_NoDataInMemCard:
         case SavegameEntryType_Unk6:
+#ifdef SH_PC_PORT
+            Gfx_StringSetPosition((slotIdx * SLOT_COLUMN_OFFSET) + PC_AR_USA(282, PC_AR_PAL(34, 38)), 90);
+#else
             Gfx_StringSetPosition((slotIdx * SLOT_COLUMN_OFFSET) + 38, 90);
+#endif
             break;
 
         case SavegameEntryType_OutOfBlocks:
+#ifdef SH_PC_PORT
+            Gfx_StringSetPosition((slotIdx * SLOT_COLUMN_OFFSET) + PC_AR_USA(288, 32), 90);
+#else
             Gfx_StringSetPosition((slotIdx * SLOT_COLUMN_OFFSET) + 32, 90);
+#endif
             break;
 
         default:
+#ifdef SH_PC_PORT
+            Gfx_StringSetPosition((slotIdx * SLOT_COLUMN_OFFSET) + PC_AR_USA(130, PC_AR_PAL(7, 6)), (D_801E7518[slotIdx] * 20) + 53);
+#else
             Gfx_StringSetPosition((slotIdx * SLOT_COLUMN_OFFSET) + 6, (D_801E7518[slotIdx] * 20) + 53);
+#endif
             break;
     }
     Gfx_StringDraw(DIALOG_STRS[entryType], 50);
@@ -768,8 +824,19 @@ void SaveScreen_MemCardStateDraw(s32 g_SaveScreen_SaveScreenState, s32 memCardSt
 #ifdef SH_PC_PORT
             /* Same as the save-name centring above: X_OFFSETS measures the
              * ENGLISH dialog, so measure what is actually drawn instead. */
-            Gfx_StringSetPosition(160 - (Pc_LangMenuTextWidth(
-                                             Pc_LangMenuText(DIALOG_STRS[strIdx])) / 2), 186);
+            /* Arabic: the patches' message widths; USA anchors the right edge. */
+            {
+                static const s16 AR_USA_X_OFFSETS[] = { 0, 105, 66, 60, 99, 64, 54, 77, 89, 68, 60, 74 };
+                static const s16 AR_PAL_X_OFFSETS[] = { 0, 260, 114, 96, 206, 140, 146, 270, 210, 136, 130, 88 };
+
+                if (Pc_ArDisc() == AR_DISC_USA_MANSOUR && strIdx < (s32)ARRAY_SIZE(AR_USA_X_OFFSETS))
+                    Gfx_StringSetPosition(160 + (AR_USA_X_OFFSETS[strIdx] >> 1), 186);
+                else if (Pc_ArDisc() == AR_DISC_PAL_AHMED && strIdx < (s32)ARRAY_SIZE(AR_PAL_X_OFFSETS))
+                    Gfx_StringSetPosition(160 - (AR_PAL_X_OFFSETS[strIdx] >> 1), 186);
+                else
+                    Gfx_StringSetPosition(160 - (Pc_LangMenuTextWidth(
+                                                     Pc_LangMenuText(DIALOG_STRS[strIdx])) / 2), 186);
+            }
 #else
             Gfx_StringSetPosition(160 - (X_OFFSETS[strIdx] >> 1), 186);
 #endif
@@ -817,13 +884,25 @@ void SaveScreen_WriteOptionsStepDraw(s32 stringIdx, bool optionSelected) // 0x80
 #ifdef SH_PC_PORT
             /* Same as the save-name centring above: X_OFFSETS measures the
              * ENGLISH dialog, so measure what is actually drawn instead. */
-            Gfx_StringSetPosition(160 - (Pc_LangMenuTextWidth(
-                                             Pc_LangMenuText(DIALOG_STRS[stringIdx])) / 2), 178);
+            /* USA Arabic: the patch's widths, right-edge anchored. */
+            {
+                static const u8 AR_USA_X_OFFSETS[] = { 92, 109 };
+
+                if (Pc_ArDisc() == AR_DISC_USA_MANSOUR && stringIdx < (s32)ARRAY_SIZE(AR_USA_X_OFFSETS))
+                    Gfx_StringSetPosition(160 + (AR_USA_X_OFFSETS[stringIdx] / 2), 178);
+                else
+                    Gfx_StringSetPosition(160 - (Pc_LangMenuTextWidth(
+                                                     Pc_LangMenuText(DIALOG_STRS[stringIdx])) / 2), 178);
+            }
 #else
             Gfx_StringSetPosition(160 - (X_OFFSETS[stringIdx] / 2), 178);
 #endif
             Gfx_StringDraw(DIALOG_STRS[stringIdx], DEFAULT_MAP_MESSAGE_LENGTH);
+#ifdef SH_PC_PORT
+            Gfx_StringSetPosition(PC_AR_USA(216, 104), 196);
+#else
             Gfx_StringSetPosition(104, 196);
+#endif
             Gfx_StringDraw("\x07Yes__________No", DEFAULT_MAP_MESSAGE_LENGTH);
 
             poly = (POLY_F4*)GsOUT_PACKET_P;
@@ -841,6 +920,17 @@ void SaveScreen_WriteOptionsStepDraw(s32 stringIdx, bool optionSelected) // 0x80
                 setRGB0(poly, color, color, 32);
             }
 
+#ifdef SH_PC_PORT
+            /* The USA Arabic patch re-fits both boxes to its own "Yes ... No" line. */
+            if (Pc_ArDisc() == AR_DISC_USA_MANSOUR)
+            {
+                if (optionSelected)
+                    setXY4(poly, -54, 83, -54, 99, -34, 83, -34, 99);
+                else
+                    setXY4(poly, 32, 83, 32, 99, 52, 83, 52, 99);
+            }
+            else
+#endif
             if (optionSelected)
             {
                 // Player has "YES" selected.
@@ -965,6 +1055,57 @@ void SaveScreen_SlotBorder(void) // 0x801E4010
         }
     };
 
+#ifdef SH_PC_PORT
+    /* The PAL Arabic patch widens the top gap for its "SLOTn" label and nudges
+     * the bottom edge 1 px. */
+    static const s_Line2d AR_PAL_BORDER_LINES[BORDER_LINE_COUNT][BORDER_PIXEL_WIDTH] = {
+        {
+            { { -122, -88 }, { -146, -88 } },
+            { { -122, -87 }, { -146, -87 } }
+        },
+        {
+            { { -25, -88 }, { -2, -88 } },
+            { { -25, -87 }, { -2, -87 } }
+        },
+        {
+            { { -146, -88 }, { -146, 42 } },
+            { { -145, -87 }, { -145, 41 } }
+        },
+        {
+            { { -2, -88 }, { -2, 42 } },
+            { { -3, -87 }, { -3, 41 } }
+        },
+        {
+            { { -146, 42 }, { -1, 42 } },
+            { { -145, 41 }, { -2, 41 } }
+        }
+    };
+    static const s_Quad2d AR_PAL_BORDER_GLOW_QUADS[BORDER_LINE_COUNT][BORDER_PIXEL_WIDTH] = {
+        {
+            { { -122, -88 }, { -122, -92 }, { -146, -88 }, { -150, -92 } },
+            { { -122, -87 }, { -122, -83 }, { -146, -87 }, { -142, -83 } }
+        },
+        {
+            { { -25, -88 }, { -25, -92 }, { -2, -88 }, { 2,  -92 } },
+            { { -25, -87 }, { -25, -83 }, { -2, -87 }, { -6, -83 } }
+        },
+        {
+            { { -146, -88 }, { -150, -92 }, { -146, 42 }, { -150, 46 } },
+            { { -145, -87 }, { -141, -83 }, { -145, 41 }, { -141, 37 } }
+        },
+        {
+            { { -2, -88 }, { 2,  -92 }, { -2, 42 }, {  2, 46 } },
+            { { -3, -87 }, { -7, -83 }, { -3, 41 }, { -7, 37 } }
+        },
+        {
+            { { -146, 42 }, { -150, 46 }, { -2, 42 }, {  2, 46 } },
+            { { -145, 41 }, { -141, 37 }, { -3, 41 }, { -7, 37 } }
+        }
+    };
+    const s_Line2d (*borderLines)[BORDER_PIXEL_WIDTH] = PC_AR_PAL(AR_PAL_BORDER_LINES, BORDER_LINES);
+    const s_Quad2d (*glowQuads)[BORDER_PIXEL_WIDTH]   = PC_AR_PAL(AR_PAL_BORDER_GLOW_QUADS, BORDER_GLOW_QUADS);
+#endif
+
     ot = &g_OrderingTable2[g_ActiveBufferIdx];
 
     // Draw green border around slot.
@@ -977,9 +1118,15 @@ void SaveScreen_SlotBorder(void) // 0x801E4010
 
             setRGB0(borderLine, Q8_COLOR(0.0f), Q8_COLOR(1.0f), Q8_COLOR(0.0f));
 
+#ifdef SH_PC_PORT
+            setXY2(borderLine,
+                   borderLines[j][i].vertex0.vx + (g_SelectedSaveSlotIdx * SLOT_COLUMN_OFFSET), borderLines[j][i].vertex0.vy,
+                   borderLines[j][i].vertex1.vx + (g_SelectedSaveSlotIdx * SLOT_COLUMN_OFFSET), borderLines[j][i].vertex1.vy);
+#else
             setXY2(borderLine,
                    BORDER_LINES[j][i].vertex0.vx + (g_SelectedSaveSlotIdx * SLOT_COLUMN_OFFSET), BORDER_LINES[j][i].vertex0.vy,
                    BORDER_LINES[j][i].vertex1.vx + (g_SelectedSaveSlotIdx * SLOT_COLUMN_OFFSET), BORDER_LINES[j][i].vertex1.vy);
+#endif
 
             addPrim((u8*)ot->org + LAYER_28, borderLine);
             GsOUT_PACKET_P = (u8*)borderLine + sizeof(LINE_F2);
@@ -1000,11 +1147,19 @@ void SaveScreen_SlotBorder(void) // 0x801E4010
             setRGB2(glowPoly, Q8_COLOR(0.0f), Q8_COLOR(0.5f), Q8_COLOR(0.0f));
             setRGB3(glowPoly, Q8_COLOR(0.0f), Q8_COLOR(0.0f), Q8_COLOR(0.0f));
 
+#ifdef SH_PC_PORT
+            setXY4(glowPoly,
+                   glowQuads[j][i].vertex0.vx + (g_SelectedSaveSlotIdx * SLOT_COLUMN_OFFSET), glowQuads[j][i].vertex0.vy,
+                   glowQuads[j][i].vertex1.vx + (g_SelectedSaveSlotIdx * SLOT_COLUMN_OFFSET), glowQuads[j][i].vertex1.vy,
+                   glowQuads[j][i].vertex2.vx + (g_SelectedSaveSlotIdx * SLOT_COLUMN_OFFSET), glowQuads[j][i].vertex2.vy,
+                   glowQuads[j][i].vertex3.vx + (g_SelectedSaveSlotIdx * SLOT_COLUMN_OFFSET), glowQuads[j][i].vertex3.vy);
+#else
             setXY4(glowPoly,
                    BORDER_GLOW_QUADS[j][i].vertex0.vx + (g_SelectedSaveSlotIdx * SLOT_COLUMN_OFFSET), BORDER_GLOW_QUADS[j][i].vertex0.vy,
                    BORDER_GLOW_QUADS[j][i].vertex1.vx + (g_SelectedSaveSlotIdx * SLOT_COLUMN_OFFSET), BORDER_GLOW_QUADS[j][i].vertex1.vy,
                    BORDER_GLOW_QUADS[j][i].vertex2.vx + (g_SelectedSaveSlotIdx * SLOT_COLUMN_OFFSET), BORDER_GLOW_QUADS[j][i].vertex2.vy,
                    BORDER_GLOW_QUADS[j][i].vertex3.vx + (g_SelectedSaveSlotIdx * SLOT_COLUMN_OFFSET), BORDER_GLOW_QUADS[j][i].vertex3.vy);
+#endif
 
             addPrim((u8*)ot->org + LAYER_28, glowPoly);
             GsOUT_PACKET_P = (u8*)glowPoly + sizeof(POLY_G4);
@@ -1656,7 +1811,11 @@ void SaveScreen_ElementInfoDraw(s32 slotIdx, s32 selectedSaveIdx) // 0x801E5E18
     if (g_MemCard_ActiveMemCardSlotSaves[selectedSaveIdx].type == SavegameEntryType_NewFile)
     {
         Gfx_StringSetColor(StringColorId_White);
+#ifdef SH_PC_PORT
+        Gfx_StringSetPosition(PC_AR_USA(254, PC_AR_PAL(67, 66)), 178);
+#else
         Gfx_StringSetPosition(66, 178);
+#endif
         Gfx_StringDraw("You_need_1_free_block\n__to_create_a_new_file.", 0x32);
     }
     else if (g_MemCard_ActiveMemCardSlotSaves[selectedSaveIdx].type == SavegameEntryType_Save)
@@ -1688,6 +1847,29 @@ void SaveScreen_ElementInfoDraw(s32 slotIdx, s32 selectedSaveIdx) // 0x801E5E18
         sec  = timeInSec % 60;
 
         Gfx_StringSetColor(StringColorId_White);
+#ifdef SH_PC_PORT
+        /* Arabic patches: USA mirrors the block (right-edge anchors); PAL's
+         * longer "Save"/"Time" words get bigger glyph budgets and the Save
+         * number moves past them. */
+        Gfx_StringSetPosition(PC_AR_USA(280, 40), 178);
+        Gfx_StringDraw("Data", 5);
+
+        digitCount = saveDataIdx < 10;
+
+        Gfx_StringSetPosition(digitCount * 5 + PC_AR_USA(228, 92), 178);
+        Gfx_StringDrawInt(2, saveDataIdx);
+
+        Gfx_StringSetPosition(PC_AR_USA(280, 40), 196);
+        Gfx_StringDraw("Save", PC_AR_PAL(9, 5));
+
+        digitCount = saveId < 10;
+
+        Gfx_StringSetPosition(digitCount * 5 + PC_AR_USA(228, PC_AR_PAL(136, 92)), 196);
+        Gfx_StringDrawInt(2, saveId);
+
+        Gfx_StringSetPosition(PC_AR_USA(180, 128), 178);
+        Gfx_StringDraw("Time", PC_AR_PAL(6, 5));
+#else
         Gfx_StringSetPosition(40, 178);
         Gfx_StringDraw("Data", 5);
 
@@ -1706,6 +1888,7 @@ void SaveScreen_ElementInfoDraw(s32 slotIdx, s32 selectedSaveIdx) // 0x801E5E18
 
         Gfx_StringSetPosition(128, 178);
         Gfx_StringDraw("Time", 5);
+#endif
 
         digitCount = 0;
         if (hours < 100)
@@ -1720,6 +1903,40 @@ void SaveScreen_ElementInfoDraw(s32 slotIdx, s32 selectedSaveIdx) // 0x801E5E18
             }
         }
 
+#ifdef SH_PC_PORT
+        /* The USA Arabic patch pins the time fields and draws each ":" before
+         * its number, since the text runs leftward. */
+        if (Pc_ArDisc() == AR_DISC_USA_MANSOUR)
+        {
+            Gfx_StringSetPosition(70, 178);
+            Gfx_StringDraw("_:_", 3);
+            Gfx_StringDrawInt(3, hours);
+
+            Gfx_StringSetPosition(105, 178);
+            Gfx_StringDraw("_:_", 3);
+            Gfx_StringDrawInt(2, mins);
+
+            Gfx_StringSetPosition(125, 178);
+            Gfx_StringDrawInt(2, sec);
+        }
+        else
+        {
+            Gfx_StringSetPosition((digitCount * 10) + PC_AR_PAL(182, 176), 178);
+            Gfx_StringDrawInt(3, hours);
+            Gfx_StringDraw("_:_", 3);
+
+            digitCount = mins < 10;
+
+            Gfx_StringSetPosition((digitCount * 10) + PC_AR_PAL(226, 220), 178);
+            Gfx_StringDrawInt(2, mins);
+            Gfx_StringDraw("_:_", 3);
+
+            digitCount = sec < 10;
+
+            Gfx_StringSetPosition((digitCount * 10) + PC_AR_PAL(260, 254), 178);
+            Gfx_StringDrawInt(2, sec);
+        }
+#else
         Gfx_StringSetPosition((digitCount * 10) + 176, 178);
         Gfx_StringDrawInt(3, hours);
         Gfx_StringDraw("_:_", 3);
@@ -1734,6 +1951,7 @@ void SaveScreen_ElementInfoDraw(s32 slotIdx, s32 selectedSaveIdx) // 0x801E5E18
 
         Gfx_StringSetPosition((digitCount * 10) + 254, 178);
         Gfx_StringDrawInt(2, sec);
+#endif
 
         if (!(hyperBlasterBeamColor & 0x18)) // Checks if the player have no special hyper blaster beam color unlocked.
         {

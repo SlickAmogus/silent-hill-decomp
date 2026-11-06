@@ -509,7 +509,7 @@ typedef struct {
      * lisa, cybil, kaufmann, dahlia. Swaps the player's rendered model while
      * keeping Harry's animations/gameplay; also cycled in-game with - / = while
      * the keyframe viewer is on, or the console PLAYAS command. */
-    char playerCharacter[16];
+    char playerCharacter[48];
 
     /* Raise the pitch of Harry's OWN VOICE sound effects — his hurt cries,
      * death screams, landing grunt and low-HP breathing — while playing as one

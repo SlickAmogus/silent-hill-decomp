@@ -27,4 +27,7 @@ int DllLoader_ListPlugins(char paths[][260], int maxCount);
 
 const char* DllLoader_GetError(void);
 
+/* Nonzero if the file is present on disk, without opening it. */
+int DllLoader_FileExists(const char* path);
+
 #endif /* DLL_LOADER_H */

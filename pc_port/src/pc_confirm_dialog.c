@@ -273,9 +273,11 @@ static GLuint cd_bake(const char* text, float px, int* outW, int* outH)
     int   asc, desc, gap, W, H, i, pad = 1, prev = 0;
     unsigned char *cov, *rgba, *scratch;
     GLuint tex;
+    char   visual[1024];
 
     if (!s_fontOk || !text || !text[0] || px < 4.0f)
         return 0;
+    text = Pc_LangVisual(text, visual, (int)sizeof(visual));
 
     scale = stbtt_ScaleForPixelHeight(&s_font, px);
     stbtt_GetFontVMetrics(&s_font, &asc, &desc, &gap);
@@ -422,8 +424,17 @@ int Pc_ConfirmDialog_Update(int left, int right, int confirm, int cancel)
 
     if (cancel) { cd_close(); return PC_CONFIRM_NO; }
 
-    if (left)  s_sel = 0;
-    if (right) s_sel = 1;
+    /* Yes sits on the reading side's start, so in RTL it is the right button. */
+    if (Pc_LangQuickScript() == LANG_QUICK_SCRIPT_ARABIC)
+    {
+        if (left)  s_sel = 1;
+        if (right) s_sel = 0;
+    }
+    else
+    {
+        if (left)  s_sel = 0;
+        if (right) s_sel = 1;
+    }
 
     /* Mouse: hover selects a button, left-click activates it. */
     mMoved = Pc_MouseCursor_Moved();
@@ -567,6 +578,12 @@ void Pc_ConfirmDialog_Draw(void)
     btnT   = btnB + btnH;
     btnL[0] = (vpW - (2.0f * btnW + btnGap)) * 0.5f;
     btnL[1] = btnL[0] + btnW + btnGap;
+    if (Pc_LangQuickScript() == LANG_QUICK_SCRIPT_ARABIC)
+    {
+        float t = btnL[0];
+        btnL[0] = btnL[1];
+        btnL[1] = t;
+    }
 
     /* Publish geometry for Update's mouse hit-test. */
     s_vpW = vpW; s_vpH = vpH;

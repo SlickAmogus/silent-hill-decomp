@@ -18,6 +18,7 @@
 #include "font_region.h"      /* g_FontLayout, Font_SetGlyphWidths (fan-patch kerning) */
 #include "lang_pack.h"        /* PC-side language packs (gamedata/lang) */
 #include "lang_ru.h"          /* Russian fan-patch detection + menu text */
+#include "lang_ar.h"          /* Arabic fan-patch detection, RTL drawing, disc UI text */
 #include "pc_kanji.h"         /* Pc_KanjiSetChinese (NTSC-J glyph set) */
 #include "lang_jpn.h"         /* NTSC-J menu text from the disc overlays */
 #include "main/fsqueue.h"     /* Fs_QueueStartReadTim, FS_BUFFER_1 */
@@ -1050,6 +1051,17 @@ static void LangInitBody(void)
      * Font_ResetLayout for the switch-away-and-back fold-up it caused). */
     Font_ResetLayout();
 
+    /* An Arabic disc is its own language: both patches overwrite the ENGLISH
+     * script (US text on the USA disc, the English VIN set and ITEM_ENG on PAL)
+     * and repaint every Latin cell, so any other id would install German or a
+     * pack over it and draw that through Arabic glyphs. Decided before the
+     * saved code resolves below, because on PAL that resolution redirects the
+     * file table to the chosen language's VIN set. Session only, like the
+     * Russian rule further down: the saved choice survives for the next disc. */
+    Pc_ArInit();
+    if (Pc_ArActive())
+        g_PcConfig.language = 0;
+
     /* First run: turn the saved code into this disc's id. The parser could not
      * -- it runs before the region is known and before the pack registry can
      * be read -- so until now a saved language only survived a reboot on the
@@ -1067,6 +1079,8 @@ static void LangInitBody(void)
              * so a PAL disc set to a disc language kept the English map
              * overlays and death hints -- the items alone came out translated.
              * No-op off PAL. */
+            if (Pc_ArActive())
+                g_PcConfig.language = 0;
             Fs_ApplyLanguageRedirects();
 
             /* An NTSC-J disc picks its three own languages by jpLanguage, not
@@ -1595,7 +1609,7 @@ int Pc_LangMenuRowActive(void)
      * disc patch carries). Not on a Russian patch though — its font has no
      * Latin letters, so every other language on the row is unreadable and the
      * menus are already Russian; the slot goes back to retail's Auto Load. */
-    if (Pc_RuActive())
+    if (Pc_RuActive() || Pc_ArActive())
     {
         return 0;
     }

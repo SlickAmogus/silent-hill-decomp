@@ -2632,8 +2632,11 @@ static PcSkinChara* Skin_Entry(const char* name, const char* file, const char* b
     PcSkinChara* ch = NULL;
     int i;
 
+    /* One file per target character: the fit (scale, anchors, rest swing) is
+     * computed against `def`, so the same glb standing in for two characters
+     * needs two entries. */
     for (i = 0; i < s_charaCount && ch == NULL; i++)
-        if (strcmp(s_chara[i].file, file) == 0)
+        if (strcmp(s_chara[i].file, file) == 0 && s_chara[i].def == def)
             ch = &s_chara[i];
     for (i = 0; ch == NULL && i < s_missingCount; i++)
         if (strcmp(s_missing[i], file) == 0)
@@ -2705,6 +2708,42 @@ void Pc_SkinChara_SetHeroFile(const char* file)
     snprintf(s_heroFile, sizeof(s_heroFile), "%s", file != NULL ? file : "");
 }
 
+/* Character Select's per-character choice, keyed by the stock model's name
+ * (SIBYL, LISA...): a file base in gamedata/load/CHARA, "-" for the stock
+ * model even when NAME.glb is installed, or empty for the old automatic rule
+ * (NAME.glb if present). Harry's own choice goes through Play As instead. */
+static struct { char name[16]; char file[48]; } s_charaFile[32];
+static int s_charaFileCount;
+
+void Pc_SkinChara_SetCharaFile(const char* name, const char* file)
+{
+    int i;
+
+    if (name == NULL || !name[0])
+        return;
+    for (i = 0; i < s_charaFileCount; i++)
+        if (strcmp(s_charaFile[i].name, name) == 0)
+            break;
+    if (i == s_charaFileCount)
+    {
+        if (i >= (int)(sizeof(s_charaFile) / sizeof(s_charaFile[0])))
+            return;
+        s_charaFileCount++;
+        snprintf(s_charaFile[i].name, sizeof(s_charaFile[i].name), "%s", name);
+    }
+    snprintf(s_charaFile[i].file, sizeof(s_charaFile[i].file), "%s", file != NULL ? file : "");
+}
+
+const char* Pc_SkinChara_CharaFile(const char* name)
+{
+    int i;
+
+    for (i = 0; i < s_charaFileCount; i++)
+        if (strcmp(s_charaFile[i].name, name) == 0)
+            return s_charaFile[i].file;
+    return "";
+}
+
 void* Pc_SkinChara_Begin(s_Skeleton* skel, const void* boneCoords)
 {
     const s_ModelHeader* hdr;
@@ -2740,8 +2779,12 @@ void* Pc_SkinChara_Begin(s_Skeleton* skel, const void* boneCoords)
     if (g_PcConfig.allowLooseFiles)
     {
         /* A play-as Harry swap loads its own file; one that is gone or broken
-         * falls back to HERO.glb, then to the stock model. */
-        if (strcmp(name, "HERO") == 0 && s_heroFile[0] != '\0')
+         * falls back to HERO.glb, then to the stock model. Every other
+         * character takes Character Select's choice the same way. */
+        const char* pick = (strcmp(name, "HERO") == 0) ? s_heroFile : Pc_SkinChara_CharaFile(name);
+        int stock = strcmp(pick, "-") == 0;
+
+        if (pick[0] != '\0' && !stock)
         {
             char dir[96], *slash;
             snprintf(dir, sizeof(dir), "%s", base);
@@ -2749,15 +2792,15 @@ void* Pc_SkinChara_Begin(s_Skeleton* skel, const void* boneCoords)
             if (slash != NULL)
             {
                 *slash = '\0';
-                snprintf(path, sizeof(path), "%s/%s", dir, s_heroFile);
-                ch = Skin_Entry(name, s_heroFile, path, def);
+                snprintf(path, sizeof(path), "%s/%s", dir, pick);
+                ch = Skin_Entry(name, pick, path, def);
                 if (ch != NULL && ch->state != 1)
                     ch = NULL;
             }
         }
-        if (ch == NULL)
+        if (ch == NULL && !stock)
             ch = Skin_Entry(name, name, base, def);
-        if ((ch == NULL || ch->state != 1) && def->alt != NULL)
+        if ((ch == NULL || ch->state != 1) && !stock && def->alt != NULL)
         {
             char altBase[96], *slash;
             snprintf(altBase, sizeof(altBase), "%s", base);
@@ -3825,4 +3868,151 @@ void Pc_SkinChara_ApplyLighting(u32 handle, unsigned int program)
         glBindTexture(GL_TEXTURE_2D, mat->otexture);
         glActiveTexture(GL_TEXTURE0);
     }
+}
+
+/* ---- Character Select preview -------------------------------------- */
+
+/* The model `file` fitted to the character whose stock model is `name`:
+ * loaded through the same entry the game would use, so the preview shows the
+ * scale and rest fit the character will get. NULL when it cannot load. */
+void* Pc_SkinChara_PreviewLoad(const char* name, const char* file)
+{
+    const PcSkinRestDef* def = NULL;
+    PcSkinChara*         ch;
+    char                 base[128];
+    int                  i;
+
+    if (name == NULL || file == NULL || !file[0])
+        return NULL;
+    for (i = 0; i < (int)(sizeof(s_restDefs) / sizeof(s_restDefs[0])); i++)
+        if (strcmp(name, s_restDefs[i].name) == 0)
+            def = &s_restDefs[i];
+    if (def == NULL)
+        return NULL;
+    snprintf(base, sizeof(base), "gamedata/load/CHARA/%s", file);
+    ch = Skin_Entry(name, file, base, def);
+    return (ch != NULL && ch->state == 1) ? ch : NULL;
+}
+
+static float* s_prevStream;
+static int    s_prevStreamCap;
+static void*  s_prevStreamFor;
+static float  s_prevBounds[6];
+
+/* Poses `chp` on its target's rest table (the standing pose the game fits it
+ * to) and writes one flat triangle stream in game space, 8 floats per corner:
+ * x y z, outward normal, u v. The stream is the loader's and stays valid until
+ * the next call with another model. Materials come back as ranges into it.
+ * bounds = min x y z, max x y z. Returns the material count, 0 when nothing
+ * can be drawn. */
+int Pc_SkinChara_PreviewMesh(void* chp, const float** stream, int* cornerCount,
+                             PcSkinPreviewMat* mats, int maxMats, float bounds[6])
+{
+    PcSkinChara* ch = (PcSkinChara*)chp;
+    int          b, v, m, k, need = 0, n = 0, outMats = 0;
+    float*       o;
+
+    if (ch == NULL || ch->state != 1 || ch->vertCount == 0)
+        return 0;
+    for (m = 0; m < ch->matCount; m++)
+        need += ch->mats[m].triCount * 3;
+    if (need == 0)
+        return 0;
+    if (s_prevStreamFor == chp && s_prevStream != NULL)
+    {
+        /* Posed once per model: the stream is static, the viewer turns it. */
+        *stream      = s_prevStream;
+        *cornerCount = s_prevStreamCap;
+        for (m = 0; m < ch->matCount && outMats < maxMats; m++)
+        {
+            mats[outMats].texture = Skin_MapTexture(ch, m, SKIN_MAP_BASE);
+            mats[outMats].first   = n;
+            mats[outMats].count   = ch->mats[m].triCount * 3;
+            n += mats[outMats].count;
+            outMats++;
+        }
+        for (k = 0; k < 6; k++) bounds[k] = s_prevBounds[k];
+        return outMats;
+    }
+
+    for (b = 0; b < PC_SKIN_BONES; b++)
+    {
+        for (k = 0; k < 9; k++) ch->rv[b][k] = ch->def->rest[b].R[k] / 4096.0f;
+        for (k = 0; k < 3; k++) ch->tv[b][k] = (float)ch->def->rest[b].T[k];
+    }
+    for (v = 0; v < ch->vertCount; v++)
+    {
+        const PcSkinVert* sv = &ch->verts[v];
+        float p[3] = { 0, 0, 0 }, ws = 0;
+        int q;
+
+        for (q = 0; q < sv->n; q++)
+        {
+            float oo[3];
+            M3_MulV(ch->rv[sv->bone[q]], sv->l[q], oo);
+            for (k = 0; k < 3; k++) p[k] += sv->w[q] * (oo[k] + ch->tv[sv->bone[q]][k]);
+            ws += sv->w[q];
+        }
+        for (k = 0; k < 3; k++) ch->pos[v * 3 + k] = ws > 0 ? p[k] / ws : 0;
+    }
+
+    if (need > s_prevStreamCap || s_prevStream == NULL)
+    {
+        float* grown = (float*)realloc(s_prevStream, (size_t)need * 8 * sizeof(float));
+        if (grown == NULL)
+            return 0;
+        s_prevStream = grown;
+    }
+    s_prevStreamCap = need;
+    s_prevStreamFor = chp;
+    o = s_prevStream;
+    for (k = 0; k < 3; k++) { s_prevBounds[k] = 1e9f; s_prevBounds[3 + k] = -1e9f; }
+    for (m = 0; m < ch->matCount; m++)
+    {
+        const PcSkinMat* mat = &ch->mats[m];
+        int t;
+
+        if (outMats < maxMats)
+        {
+            mats[outMats].texture = Skin_MapTexture(ch, m, SKIN_MAP_BASE);
+            mats[outMats].first   = n;
+            mats[outMats].count   = mat->triCount * 3;
+            outMats++;
+        }
+        for (t = 0; t < mat->triCount; t++)
+        {
+            int c;
+            for (c = 0; c < 3; c++)
+            {
+                u32               vi = mat->tris[t].v[c];
+                const PcSkinVert* sv = &ch->verts[vi];
+                float             nl[3], nw[3];
+
+                nl[0] = (float)sv->gteNormal.vx;
+                nl[1] = (float)sv->gteNormal.vy;
+                nl[2] = (float)sv->gteNormal.vz;
+                M3_MulV(ch->rv[sv->dom], nl, nw);
+                o[0] = ch->pos[vi * 3];
+                o[1] = ch->pos[vi * 3 + 1];
+                o[2] = ch->pos[vi * 3 + 2];
+                /* The ILM convention points normals inward. */
+                o[3] = -nw[0];
+                o[4] = -nw[1];
+                o[5] = -nw[2];
+                o[6] = mat->tris[t].uv[c][0];
+                o[7] = mat->tris[t].uv[c][1];
+                for (k = 0; k < 3; k++)
+                {
+                    if (o[k] < s_prevBounds[k])     s_prevBounds[k]     = o[k];
+                    if (o[k] > s_prevBounds[3 + k]) s_prevBounds[3 + k] = o[k];
+                }
+                o += 8;
+                n++;
+            }
+        }
+    }
+    *stream      = s_prevStream;
+    *cornerCount = n;
+    for (k = 0; k < 6; k++) bounds[k] = s_prevBounds[k];
+    return outMats;
 }
