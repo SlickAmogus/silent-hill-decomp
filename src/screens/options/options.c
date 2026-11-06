@@ -1122,6 +1122,16 @@ const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz)
         return buf;
     case QO_X_GYROMOVE:
         return Pc_LangQuickMenu(g_PcConfig.gyroMove ? "On" : "Off");
+    /* One row, two settings: first person and the third-person cameras each
+     * keep their own, and the row edits the one for the camera in use. */
+    case QO_X_FLASHAIM: {
+        extern int g_PcFpsCam;
+        int        on = g_PcFpsCam ? g_PcConfig.flashlightFollowAimFps : g_PcConfig.flashlightFollowAim;
+
+        snprintf(buf, bufsz, "%s  %s", Pc_LangQuickMenu(on ? "On" : "Off"),
+                 Pc_LangQuick(g_PcFpsCam ? "(first person)" : "(third person)"));
+        return buf;
+    }
     case QO_X_AUTORELOAD:
         return (g_PcConfig.autoReload == 2) ? Pc_LangQuick("Original (also when aiming)")
                                             : Pc_LangQuickMenu(g_PcConfig.autoReload ? "On" : "Off");
@@ -1137,8 +1147,6 @@ const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz)
         if (!g_PcConfig.crosshair) {
             snprintf(buf, bufsz, "%s  %s", Pc_LangQuick(QO_CROSSHAIR_LBL[st]),
                      Pc_LangQuick("(off)"));
-    case QO_X_FLASHAIM:
-        return Pc_LangQuickMenu(g_PcConfig.flashlightFollowAim ? "On" : "Off");
             return buf;
         }
         return Pc_LangQuick(QO_CROSSHAIR_LBL[st]);
@@ -1663,6 +1671,23 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
         PcConfig_SaveKeyValue("crosshair_hide_melee", g_PcConfig.crosshairHideMelee ? "1" : "0");
         Sd_PlaySfx(Sfx_MenuMove, 0, 64);
         break;
+    /* func_800554C4 reads it each time the light is set up, so it applies live. */
+    case QO_X_FLASHAIM: {
+        extern int g_PcFpsCam;
+
+        if (g_PcFpsCam)
+        {
+            g_PcConfig.flashlightFollowAimFps = !g_PcConfig.flashlightFollowAimFps;
+            PcConfig_SaveKeyValue("flashlight_follow_aim_fps", g_PcConfig.flashlightFollowAimFps ? "1" : "0");
+        }
+        else
+        {
+            g_PcConfig.flashlightFollowAim = !g_PcConfig.flashlightFollowAim;
+            PcConfig_SaveKeyValue("flashlight_follow_aim", g_PcConfig.flashlightFollowAim ? "1" : "0");
+        }
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        break;
+    }
     /* Read where a reload starts, so it applies live. */
     /* pc_gyro.c reads both each tick, and opens or closes the sensors with
      * the mode, so they apply live. */
@@ -1735,12 +1760,6 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
     case QO_X_TPSRESTX: PcOpt_FpsHeadStep(&g_PcConfig.tpsRestX, NULL, "tps_rest_x",  dir * 128); break;
     case QO_X_TPSRESTY: PcOpt_FpsHeadStep(&g_PcConfig.tpsRestY, NULL, "tps_rest_y", -dir * 128); break;
     case QO_X_TPSAIMX:  PcOpt_FpsHeadStep(&g_PcConfig.tpsAimX,  NULL, "tps_aim_x",   dir * 128); break;
-    /* func_800554C4 reads it each time the light is set up, so it applies live. */
-    case QO_X_FLASHAIM:
-        g_PcConfig.flashlightFollowAim = !g_PcConfig.flashlightFollowAim;
-        PcConfig_SaveKeyValue("flashlight_follow_aim", g_PcConfig.flashlightFollowAim ? "1" : "0");
-        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
-        break;
     case QO_X_TPSAIMY:  PcOpt_FpsHeadStep(&g_PcConfig.tpsAimY,  NULL, "tps_aim_y",  -dir * 128); break;
     case QO_X_OTSRESTX: PcOpt_FpsHeadStep(&g_PcConfig.otsRestX, NULL, "ots_rest_x",  dir * 128); break;
     case QO_X_OTSRESTY: PcOpt_FpsHeadStep(&g_PcConfig.otsRestY, NULL, "ots_rest_y", -dir * 128); break;
