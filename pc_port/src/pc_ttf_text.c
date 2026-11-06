@@ -20,6 +20,8 @@
 #include "stb_truetype.h"
 
 #include "lang_ar.h"
+#include "lang_pack.h"
+#include "lang_ru.h"
 #include "pc_ttf_text.h"
 #include "sh_log.h"
 
@@ -75,7 +77,10 @@ static GLint  s_locTex, s_locColor;
 
 int Pc_TtfText_Needed(void)
 {
-    return Pc_ArActive();
+    /* Arabic discs repaint every Latin cell; the Russian discs and the
+     * Cyrillic pack repaint the Latin capitals, which every title uses. */
+    return Pc_ArActive() || Pc_RuActive() ||
+           (Pc_LangPackActive() && Pc_LangPackFont() == LANG_PACK_FONT_CYRILLIC);
 }
 
 static void tt_fonts_init(void)

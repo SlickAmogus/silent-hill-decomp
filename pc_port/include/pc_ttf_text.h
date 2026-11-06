@@ -3,7 +3,8 @@
  * pc_ttf_text.h -- TrueType lines placed in native-menu coordinates.
  *
  * Native menus draw with the disc's FONT16, which on the Arabic discs holds
- * Arabic forms in every Latin cell. Text that arrives at run time in English
+ * Arabic forms in every Latin cell (and on the Russian discs and the Cyrillic
+ * pack, Cyrillic in the Latin capitals). Text that arrives at run time in English
  * (RetroAchievements titles and descriptions) has no translation to fall back
  * on, so it is drawn with a TrueType face instead, over the menu, at the place
  * the game-font line would have gone.
@@ -15,7 +16,7 @@
 extern "C" {
 #endif
 
-/* The mounted disc's FONT16 cannot draw Latin. */
+/* The active FONT16 atlas cannot draw Latin text. */
 int Pc_TtfText_Needed(void);
 
 /* Queue one line for this frame. x/y and maxW are native-menu units (320x224,
