@@ -282,6 +282,25 @@ void GameState_InGame_Update(void) // 0x80038BD4
 
     D_800A9A0C = ScreenFade_IsFinished() && Fs_QueueChunksLoad();
 
+#ifdef SH_PC_PORT
+    /* The world is projected live from here on this frame (world objects,
+     * Harry, the NPCs, then Gfx_InGameDraw). MainLoop sets the GTE anchor and
+     * the take-screen flag AFTER the state update, so on the first live frame
+     * after a pickup prompt both still held the item screen's values from the
+     * frozen frame before: Harry and the NPCs were projected 8 rows up (only
+     * the world chunks re-assert the anchor, in Gfx_InGameDraw), and the
+     * per-poly screen-edge cull solved its width with the take screen's pixel
+     * aspect, dropping the outermost polys -- the dark strips at the sides.
+     * Both are put back before anything live is projected. */
+    if (!(g_SysWork.bgmStatusFlags & BgmStatusFlag_Pause))
+    {
+        extern int g_PsxItemTakeActive;
+        extern s32 Pc_WorldAnchorOfy(void);
+        g_PsxItemTakeActive = 0;
+        SetGeomOffset(0, Pc_WorldAnchorOfy());
+    }
+#endif
+
     if (!(g_SysWork.bgmStatusFlags & BgmStatusFlag_Pause) && g_MapOverlayHdr.updateWorldObjects != NULL)
     {
         g_MapOverlayHdr.updateWorldObjects();

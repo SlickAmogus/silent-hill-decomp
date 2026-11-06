@@ -658,7 +658,11 @@ static void Pc_TpsCamera_Apply(void)
          * accumulator (below) so the view doesn't jump when the console closes. */
         extern int g_PcConsoleInputActive;
         extern int g_PcQuickOptionsActive;
-        int frozen = g_PcConsoleInputActive || g_PcQuickOptionsActive;
+        /* A presented freeze-frame (pickup prompt, map message, pause) is a
+         * frozen view too: turning the camera under it moved the world the
+         * player then came back to. */
+        extern int g_PsxPresentLastFrame;
+        int frozen = g_PcConsoleInputActive || g_PcQuickOptionsActive || g_PsxPresentLastFrame;
 
         SDL_GetRelativeMouseState(&mdx, &mdy);
         if (frozen) { mdx = 0; mdy = 0; }
