@@ -980,9 +980,11 @@ static GLuint qo_bake_once(const char* text, float px, int* outW, int* outH, int
     int   asc, desc, gap, W, H, i, pad = 1, prev = 0, stride;
     unsigned char *cov, *rgba, *scratch;
     GLuint tex;
+    char   visual[1024];
 
     if (!s_fontOk || !text || !text[0] || px < 4.0f)
         return 0;
+    text = Pc_LangVisual(text, visual, (int)sizeof(visual));
 
     scale = stbtt_ScaleForPixelHeight(&s_font, px);
     stbtt_GetFontVMetrics(&s_font, &asc, &desc, &gap);
@@ -1867,10 +1869,13 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
             if (mMoved) s_sel = row;
             if (mClick)
             {
+                float mid = (s_geoPanelL + s_geoPanelR) * 0.5f;
+
                 s_sel = row;
-                if (qo_row_is_list(&rows[row]) && mpx > (s_geoPanelL + s_geoPanelR) * 0.5f)
+                if (qo_row_is_list(&rows[row]) &&
+                    (Pc_LangQuickScript() == LANG_QUICK_SCRIPT_ARABIC ? mpx < mid : mpx > mid))
                 {
-                    /* Right half of a list row: open the dropdown on the value. */
+                    /* The value half of a list row (left in RTL): open the dropdown on the value. */
                     s_ddRow    = row;
                     s_ddSel    = Pc_Cheats_ListGet(rows[row].cpage, rows[row].extra);
                     s_ddScroll = s_ddSel - QO_DD_VISIBLE / 2;
@@ -1964,6 +1969,7 @@ void Pc_QuickOptions_Draw(void)
     int   nRows;
     const QoRowDef* rows = qo_page_rows(s_page, &nRows);
     int   px, i;
+    const int rtl = (Pc_LangQuickScript() == LANG_QUICK_SCRIPT_ARABIC);
 
     GLint  prevProg = 0, prevVao = 0, prevBuf = 0, prevTex = 0, prevUnit = GL_TEXTURE0, prevAlign = 4;
     GLint  prevSrcRgb = GL_ONE, prevDstRgb = GL_ZERO, prevSrcA = GL_ONE, prevDstA = GL_ZERO;
@@ -2250,7 +2256,7 @@ void Pc_QuickOptions_Draw(void)
         float rowTop = listT - (float)i * rowPitch;
         float rowMid = rowTop - rowH * 0.5f;
         float tH, tY;
-        char  txt[64];
+        char  txt[160]; /* Arabic labels run past 64 bytes; a cut there splits a UTF-8 letter */
 
         if (i == s_sel)
             qo_quad(s_texWhite, NX(panelL + 4.0f), NY(rowTop), NX(panelR - 4.0f), NY(rowTop - rowH),
@@ -2273,14 +2279,15 @@ void Pc_QuickOptions_Draw(void)
             }
             if (s_texLabel[i])
             {
+                float lx = rtl ? panelR - pad - (float)s_labelW[i] : panelL + pad;
                 tH = (float)s_labelH[i]; tY = rowMid + tH * 0.5f;
-                qo_quad(s_texLabel[i], NX(panelL + pad), NY(tY), NX(panelL + pad + s_labelW[i]), NY(tY - tH),
+                qo_quad(s_texLabel[i], NX(lx), NY(tY), NX(lx + s_labelW[i]), NY(tY - tH),
                         0.92f, 0.92f, 0.95f, dim);
             }
             if (s_texValue[i])
             {
                 float vg = (i == s_sel) ? 1.0f : 0.85f;
-                float vr = panelR - pad - (float)s_valueW[i];
+                float vr = rtl ? panelL + pad : panelR - pad - (float)s_valueW[i];
                 tH = (float)s_valueH[i]; tY = rowMid + tH * 0.5f;
                 qo_quad(s_texValue[i], NX(vr), NY(tY), NX(vr + s_valueW[i]), NY(tY - tH),
                         vg, vg * 0.85f, vg * 0.45f, dim);
@@ -2290,12 +2297,21 @@ void Pc_QuickOptions_Draw(void)
         {
             /* [R] Previous  /  Next [L]    (previous page  /  next page),
              * centred as one line, each piece on the row's middle. */
-            const int order[] = { s_navPadIcons ? QO_NAV_PAD_L : QO_NAV_ICON_R, QO_NAV_PREV, QO_NAV_SLASH,
-                                  QO_NAV_NEXT, s_navPadIcons ? QO_NAV_PAD_R : QO_NAV_ICON_L, QO_NAV_DEST };
-            const float gap[] = { 0.30f, 0.45f, 0.45f, 0.30f, 0.90f, 0.0f };
+            const int ltrOrder[] = { s_navPadIcons ? QO_NAV_PAD_L : QO_NAV_ICON_R, QO_NAV_PREV, QO_NAV_SLASH,
+                                     QO_NAV_NEXT, s_navPadIcons ? QO_NAV_PAD_R : QO_NAV_ICON_L, QO_NAV_DEST };
+            const float ltrGap[] = { 0.30f, 0.45f, 0.45f, 0.30f, 0.90f, 0.0f };
+            int   order[6];
+            float gap[6];
             float total = 0.0f, x;
             int   k;
 
+            /* RTL reads the same row from the right edge, so the pieces go in
+             * reverse with each gap still between the same two pieces. */
+            for (k = 0; k < 6; k++)
+            {
+                order[k] = rtl ? ltrOrder[5 - k] : ltrOrder[k];
+                gap[k]   = rtl ? (k < 5 ? ltrGap[4 - k] : 0.0f) : ltrGap[k];
+            }
             for (k = 0; k < 6; k++)
                 total += (float)s_navW[order[k]] + gap[k] * (float)s_navPx;
             x = panelL + (panelW - total) * 0.5f;
@@ -2400,8 +2416,8 @@ void Pc_QuickOptions_Draw(void)
             }
             s_ddTexKey = key;
         }
-        float ddL = panelL + panelW * 0.5f;
-        float ddR = panelR - 4.0f;
+        float ddL = rtl ? panelL + 4.0f : panelL + panelW * 0.5f;
+        float ddR = rtl ? panelL + panelW * 0.5f : panelR - 4.0f;
         float ddTop = listT - (float)(s_ddRow + 1) * rowPitch + rowPitch * 0.08f;
         float ddH = rowH;
         int   k;
@@ -2426,7 +2442,8 @@ void Pc_QuickOptions_Draw(void)
             if (s_ddTex[e])
             {
                 float ty = et - (ddH - (float)s_ddH[e]) * 0.5f;
-                qo_quad(s_ddTex[e], NX(ddL + 10.0f), NY(ty), NX(ddL + 10.0f + s_ddW[e]), NY(ty - s_ddH[e]),
+                float tx = rtl ? ddR - 10.0f - (float)s_ddW[e] : ddL + 10.0f;
+                qo_quad(s_ddTex[e], NX(tx), NY(ty), NX(tx + s_ddW[e]), NY(ty - s_ddH[e]),
                         e == s_ddSel ? 1.0f : 0.85f, 0.9f, 0.9f, dim);
             }
         }
