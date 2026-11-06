@@ -12,6 +12,7 @@
 #include "pc_kanji.h"      /* NTSC-J SJIS glyph atlas. */
 #include "main/fileinfo.h" /* g_GameRegion */
 #include "pc_config.h"     /* g_PcConfig.textSize */
+#include "lang_ar.h"       /* Arabic discs: the USA patch draws right to left. */
 
 #include <string.h>
 
@@ -50,6 +51,11 @@ static s32         s_MsgAnchorY;
 /* Gfx_StringDraw size (Pc_StringScaleSet): Q12 factor applied about the
  * string's start position. 1.0 leaves every glyph on the original path. */
 static s32 s_PcStringScale = Q12(1.0f);
+
+s32 Pc_StringScaleGet(void)
+{
+    return s_PcStringScale;
+}
 
 void Pc_StringScaleSet(s32 scale)
 {
@@ -276,6 +282,12 @@ void Gfx_StringSetPosition(s32 x, s32 y) // 0x8004A87C
 }
 
 #ifdef SH_PC_PORT
+/* Map-message line starts. Retail centres a line by starting half its width
+ * LEFT of centre and drawing rightward; the USA Arabic patch starts half its
+ * width RIGHT of centre and draws leftward, and its ~T margin is +120. */
+#define PC_MSG_START(width) (Pc_ArRtl() ? ((width) >> 1) : -((width) >> 1))
+#define PC_MSG_TAB_X        (Pc_ArRtl() ? 120 : -120)
+
 /* String space, as g_StringPosition; empty when x1 <= x0. */
 static s32 s_PcClipX0;
 static s32 s_PcClipX1;
@@ -377,6 +389,8 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
     s32       cutR;
     s32       posX0;
     s32       posY0;
+    bool      rtl;
+    GsOT*     otMark;
 #endif
 
     // Create local argument copies.
@@ -389,6 +403,15 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
     strCpy  = str;
 #endif
     sizeCpy = strLength;
+#ifdef SH_PC_PORT
+    /* Call sites pass a glyph budget sized for their English literal (5 for
+     * the save screen's Data/Save/Time, 10 for inventory labels). An Arabic
+     * translation is its own complete string and longer: draw it to its NUL. */
+    if (Pc_ArActive() && strCpy != (u8*)str)
+    {
+        sizeCpy = 0x7FFF;
+    }
+#endif
 
     packet = NULL;
     result = false;
@@ -403,6 +426,15 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
 
     glyphColor = STRING_COLORS[g_StringColorId];
     ot         = &g_OtTags0[g_ActiveBufferIdx][g_Strings2dLayerIdx];
+#ifdef SH_PC_PORT
+    /* The USA Arabic patch rewrote this drawer to walk leftward from the start
+     * position (each glyph steps back by its advance, then draws), dropped the
+     * `!`/`&` cell remaps (those cells are letters there) and the wide space,
+     * and queues its four combining marks one OT slot later so they land on
+     * the letter instead of under it. */
+    rtl    = Pc_ArRtl();
+    otMark = &g_OtTags0[g_ActiveBufferIdx][g_Strings2dLayerIdx + 1];
+#endif
 
     if (!g_SysWork.enableHighResGlyphs)
     {
@@ -417,6 +449,12 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
         // TODO: Try refactoring into switch.
 
         // Convert literal `!` and `&` into `char`s mappable to representative atlas glyphs.
+#ifdef SH_PC_PORT
+        if (rtl)
+        {
+        }
+        else
+#endif
         if (charCode == '!')
         {
             charCode = '\\';
@@ -429,10 +467,18 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
         // Space.
         if (charCode == '_')
         {
+#ifdef SH_PC_PORT
+            posX += rtl ? -FONT_12X16_SPACE_SIZE : FONT_12X16_SPACE_SIZE;
+#else
             posX += FONT_12X16_SPACE_SIZE;
+#endif
         }
         // Wide space.
+#ifdef SH_PC_PORT
+        else if (charCode == '\v' && !rtl)
+#else
         else if (charCode == '\v')
+#endif
         {
             posX += WIDE_SPACE_SIZE;
         }
@@ -530,14 +576,20 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
 
             for (emitIdx = 0; emitIdx < emitCount; emitIdx++)
             {
-                s32 row;
-                s32 vTop;
-                u32 page;
-                s32 drawY;
+                s32   row;
+                s32   vTop;
+                u32   page;
+                s32   drawY;
+                GsOT* otGlyph = (rtl && Pc_ArRtlMark(charCode)) ? otMark : ot;
 
                 glyphIdx   = emits[emitIdx].cell;
                 glyphWidth = emits[emitIdx].advance;
                 drawY      = posY + emits[emitIdx].dy;
+                if (rtl)
+                {
+                    posX      -= glyphWidth;
+                    glyphWidth = 0;
+                }
                 row        = glyphIdx / FONT_12X16_ATLAS_COLUMN_COUNT;
                 vTop       = g_FontLayout->vBase + ((row % g_FontLayout->rowsPerPage) * FONT_12X16_GLYPH_SIZE_Y);
                 page       = g_FontLayout->tpageBase + (row / g_FontLayout->rowsPerPage);
@@ -552,7 +604,7 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
                 // Draw glyph sprite.
                 if (s_PcStringScale != Q12(1.0f))
                 {
-                    Pc_ScaledGlyphQuad(ot, &packet, posX0, posY0, s_PcStringScale, posX, drawY, (u32)u0, (u32)vTop,
+                    Pc_ScaledGlyphQuad(otGlyph, &packet, posX0, posY0, s_PcStringScale, posX, drawY, (u32)u0, (u32)vTop,
                                        (u32)g_FontLayout->packedClut, page, glyphColor);
                 }
                 else if (g_SysWork.enableHighResGlyphs)
@@ -573,7 +625,7 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
                     *((u16*)&glyphPoly->u3) = (u16)(u0 + FONT_12X16_GLYPH_SIZE_X + ((vTop + 15) << 8)); // `u3`, `v3`.
                     Pc_GlyphClipPoly(glyphPoly, cutL, cutR);
 
-                    addPrim(ot, glyphPoly);
+                    addPrim(otGlyph, glyphPoly);
                     GsOUT_PACKET_P = (u8*)glyphPoly + sizeof(POLY_FT4);
                 }
                 else
@@ -583,7 +635,7 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
                     glyphSprt              = (SPRT*)packet;
                     *((u32*)&glyphSprt->w) = 0x10000C;
 
-                    addPrimFast(ot, glyphSprt, 4);
+                    addPrimFast(otGlyph, glyphSprt, 4);
                     *((u32*)&glyphSprt->r0)   = glyphColor;
                     *((u32*)(&glyphSprt->x0)) = posXCpy + (drawY << 16);
                     *((u32*)&glyphSprt->u0)   = u0 + (vTop << 8) + (g_FontLayout->packedClut << 16); // `u0`, `v0`, `clut`.
@@ -593,7 +645,7 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
 
                     tPage = (DR_TPAGE*)packet;
                     setDrawTPage(tPage, 0, 1, page);
-                    addPrim(ot, tPage);
+                    addPrim(otGlyph, tPage);
 
                     packet += sizeof(DR_TPAGE);
                 }
@@ -887,6 +939,8 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
     char*     pcPageBase;
     bool      pcTerminated;
     bool      pcBudgetMax;
+    bool      rtl;
+    GsOT*     otMark;
 #endif
 
     packet = NULL;
@@ -921,7 +975,14 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
 
     ot                  = (GsOT*)&g_OtTags0[g_ActiveBufferIdx][6];
     color               = STRING_COLORS[g_StringColorId];
+#ifdef SH_PC_PORT
+    /* See Gfx_StringDraw: same right-to-left rewrite in the USA Arabic patch. */
+    rtl                 = Pc_ArRtl();
+    otMark              = (GsOT*)&g_OtTags0[g_ActiveBufferIdx][7];
+    g_StringPosition.vx = PC_MSG_START(g_MapMsg_Widths[0]);
+#else
     g_StringPosition.vx = -(g_MapMsg_Widths[0] >> 1);
+#endif
 
     if (!g_SysWork.enableHighResGlyphs)
     {
@@ -977,7 +1038,11 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
         }
     }
 
+#ifdef SH_PC_PORT
+    g_StringPosition.vx = PC_MSG_START(longestLineWidth);
+#else
     g_StringPosition.vx = -(longestLineWidth >> 1);
+#endif
     g_StringPositionX1  = g_StringPosition.vx;
     glyphPosX           = g_StringPositionX1;
     glyphPosY           = g_StringPosition.vy;
@@ -990,12 +1055,12 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
     {
         if (result == MapMsgCode_AlignCenter)
         {
-            glyphPosX = -(g_MapMsg_Widths[0] >> 1);
+            glyphPosX = PC_MSG_START(g_MapMsg_Widths[0]);
         }
         else if (result == MapMsgCode_SetByT)
         {
-            g_StringPositionX1 = -120;
-            glyphPosX          = -120;
+            g_StringPositionX1 = PC_MSG_TAB_X;
+            glyphPosX          = PC_MSG_TAB_X;
         }
     }
 
@@ -1018,6 +1083,12 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
 #else
         charCode = *mapMsg;
 #endif
+#ifdef SH_PC_PORT
+        if (rtl)
+        {
+        }
+        else
+#endif
         if (charCode == '!')
         {
             charCode = '\\';
@@ -1032,7 +1103,11 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
         {
             // Space.
             case '_':
+#ifdef SH_PC_PORT
+                glyphPosX += rtl ? -FONT_12X16_SPACE_SIZE : FONT_12X16_SPACE_SIZE;
+#else
                 glyphPosX += FONT_12X16_SPACE_SIZE;
+#endif
                 mapMsg++;
                 break;
 
@@ -1057,7 +1132,11 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
                         switch (result)
                         {
                             case MapMsgCode_AlignCenter:
+#ifdef SH_PC_PORT
+                                glyphPosX = PC_MSG_START(g_MapMsg_Widths[lineIdx]);
+#else
                                 glyphPosX = -(g_MapMsg_Widths[lineIdx] >> 1);
+#endif
                                 break;
 
                             case MapMsgCode_SetByT:
@@ -1065,7 +1144,11 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
                                 break;
 
                             default:
+#ifdef SH_PC_PORT
+                                glyphPosX = PC_MSG_START(longestLineWidth);
+#else
                                 glyphPosX = -(longestLineWidth >> 1);
+#endif
                                 break;
                         }
 
@@ -1127,13 +1210,22 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
 
                     case MAP_MSG_CODE_MIDDLE:
                         result    = MapMsgCode_AlignCenter;
+#ifdef SH_PC_PORT
+                        glyphPosX = PC_MSG_START(g_MapMsg_Widths[lineIdx]);
+#else
                         glyphPosX = -(g_MapMsg_Widths[lineIdx] >> 1);
+#endif
                         break;
 
                     case MAP_MSG_CODE_TAB:
                         result             = MapMsgCode_SetByT;
+#ifdef SH_PC_PORT
+                        g_StringPositionX1 = PC_MSG_TAB_X;
+                        glyphPosX          = PC_MSG_TAB_X;
+#else
                         g_StringPositionX1 = -120;
                         glyphPosX          = -120;
+#endif
                         break;
 
                     case MAP_MSG_CODE_COLOR:
@@ -1288,14 +1380,20 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
 
                 for (emitIdx = 0; emitIdx < emitCount; emitIdx++)
                 {
-                    s32 row;
-                    s32 vTop;
-                    u32 page;
-                    s32 drawY;
+                    s32   row;
+                    s32   vTop;
+                    u32   page;
+                    s32   drawY;
+                    GsOT* otGlyph = (rtl && Pc_ArRtlMark((u32)charCode)) ? otMark : ot;
 
                     idx       = emits[emitIdx].cell;
                     charWidth = emits[emitIdx].advance;
                     drawY     = glyphPosY + emits[emitIdx].dy;
+                    if (rtl)
+                    {
+                        glyphPosX -= charWidth;
+                        charWidth  = 0;
+                    }
                     row       = idx / FONT_12X16_ATLAS_COLUMN_COUNT;
                     vTop      = g_FontLayout->vBase + ((row % g_FontLayout->rowsPerPage) * FONT_12X16_GLYPH_SIZE_Y);
                     page      = g_FontLayout->tpageBase + (row / g_FontLayout->rowsPerPage);
@@ -1303,7 +1401,7 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
 
                     if (s_MsgScale != Q12(1.0f))
                     {
-                        Pc_MsgGlyphQuad(ot, &packet, glyphPosX, drawY, (u32)temp_a0, (u32)vTop,
+                        Pc_MsgGlyphQuad(otGlyph, &packet, glyphPosX, drawY, (u32)temp_a0, (u32)vTop,
                                         (u32)g_FontLayout->packedClut, page, color);
                     }
                     else if (g_SysWork.enableHighResGlyphs)
@@ -1323,7 +1421,7 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
                         *((u16*)&glyphPoly->u2) = (u16)(temp_a0 + FONT_12X16_GLYPH_SIZE_X + (vTop << 8));        // `u2`, `v2`.
                         *((u16*)&glyphPoly->u3) = (u16)(temp_a0 + FONT_12X16_GLYPH_SIZE_X + ((vTop + 15) << 8)); // `u3`, `v3`.
 
-                        addPrim(ot, glyphPoly);
+                        addPrim(otGlyph, glyphPoly);
                         GsOUT_PACKET_P = (PACKET*)glyphPoly + sizeof(POLY_FT4);
                     }
                     else
@@ -1333,7 +1431,7 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
                         glyphSprt              = (SPRT*)packet;
                         *((u32*)&glyphSprt->w) = 0x10000C;
 
-                        addPrimFast(ot, glyphSprt, 4);
+                        addPrimFast(otGlyph, glyphSprt, 4);
                         *((u32*)&glyphSprt->r0)   = color;
                         *((u32*)(&glyphSprt->x0)) = temp_a0_2 + (drawY << 16);
                         *((u32*)&glyphSprt->u0)   = temp_a0 + (vTop << 8) + (g_FontLayout->packedClut << 16); // `u0`, `v0`, `clut`.
@@ -1342,7 +1440,7 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
 
                         tPage = (DR_TPAGE*)packet;
                         setDrawTPage(tPage, 0, 1, page);
-                        addPrim(ot, tPage);
+                        addPrim(otGlyph, tPage);
 
                         packet += sizeof(DR_TPAGE);
                     }
@@ -1583,6 +1681,64 @@ void Gfx_StringDrawInt(s32 widthMin, s32 val) // 0x8004B9F8
     s32   isNegative;
     s32   i;
     char* str;
+
+#ifdef SH_PC_PORT
+    /* The USA Arabic patch's version: the drawer walks leftward, so the digits
+     * are written least-significant first from the buffer start and every pad
+     * step goes the other way. */
+    if (Pc_ArRtl())
+    {
+        char* buf = (char*)PSX_SCRATCH_ADDR(0x21);
+
+        if (widthMin > 0)
+        {
+            for (i = 0; i < (widthMin - 1); i++)
+            {
+                g_MapMsg_GlyphSprite.x -= GLYPH_SIZE_X;
+            }
+        }
+
+        str = buf - 1;
+
+        if (val < 0)
+        {
+            isNegative = true;
+            val        = -val;
+        }
+        else
+        {
+            isNegative = false;
+        }
+
+        while (val >= ATLAS_COLUMN_COUNT)
+        {
+            quotient = val / ATLAS_COLUMN_COUNT;
+            *++str   = (val - (quotient * ATLAS_COLUMN_COUNT)) + '0';
+
+            if (widthMin > 0)
+            {
+                g_MapMsg_GlyphSprite.x += GLYPH_SIZE_X;
+            }
+
+            val = quotient;
+        }
+
+        *++str = val + '0';
+
+        if (isNegative)
+        {
+            *++str                  = '-';
+            g_MapMsg_GlyphSprite.x += GLYPH_SIZE_X;
+        }
+
+        str[1] = 0;
+        /* Already in drawer order: the menu lookup must not reorder it again. */
+        g_PcLangMenuVerbatim = 1;
+        Gfx_StringDraw(buf, 5);
+        g_PcLangMenuVerbatim = 0;
+        return;
+    }
+#endif
 
     if (widthMin > 0)
     {

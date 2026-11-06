@@ -554,6 +554,7 @@ const char* g_ItemDescriptions[] = {
 #ifdef SH_PC_PORT
 #include "lang_text.h" /* PAL localized item text (NULL = use the US string) */
 #include "lang_jpn.h"  /* NTSC-J inventory labels */
+#include "lang_ar.h"
 #include "main/fileinfo.h" /* g_GameRegion */
 
 static const char* s_ItemName(u8 id) {
@@ -579,13 +580,20 @@ static const char* s_ItemDesc(u8 id) {
  * the translation is than the English it replaces. */
 static s32 Inventory_LangGrow(const char* en)
 {
-    s32 grow = Pc_LangMenuTextWidth(Pc_LangMenuText(en)) - Pc_LangMenuTextWidth(en);
+    s32 grow;
+
+    /* The USA Arabic patch lays this screen out right to left with its own
+     * constants; growing LTR positions would only push them the wrong way. */
+    if (Pc_ArDisc() == AR_DISC_USA_MANSOUR)
+        return 0;
+
+    grow = Pc_LangMenuTextWidth(Pc_LangMenuText(en)) - Pc_LangMenuTextWidth(en);
     return grow > 0 ? grow : 0;
 }
 
 static s32 Inventory_ItemNameX(void)
 {
-    return 68 + Inventory_LangGrow("Name:");
+    return PC_AR_USA(263, 68 + Inventory_LangGrow("Name:"));
 }
 
 /* Tags after the item name (Stock:, ==On==, ...) keep the English right edge
@@ -602,6 +610,12 @@ static s32 Inventory_NameRowTagPosition(s32 x, const char* tag, u8 itemId)
     s32         gap    = tagX - (Inventory_ItemNameX() + Pc_LangMenuTextWidth(Pc_LangMenuText(s_ItemName(itemId))));
     s32         y      = (gap < 0 && gap < gapEn) ? 216 : 200;
 
+    /* Its overlap test assumes LTR; the USA Arabic patch keeps the tag on the name row. */
+    if (Pc_ArDisc() == AR_DISC_USA_MANSOUR)
+    {
+        tagX = x;
+        y    = 200;
+    }
     Gfx_StringSetPosition(tagX, y);
     return y;
 }
@@ -1214,6 +1228,10 @@ void Gfx_ItemScreens_DrawInit(u32* selectedItemId) // 0x8004F764
         "No.",
         "Name:"
     };
+#ifdef SH_PC_PORT
+    static const s16 LABEL_STR_X_AR_PAL[6] = { 123, 141, 27, 236, 229, 38 };
+    static const s16 LABEL_STR_X_AR_USA[8] = { 172, 176, 84, 274, 269, 74, 304, 304 };
+#endif
 
     Gfx_StringSetColor(StringColorId_White);
 
@@ -1235,7 +1253,13 @@ void Gfx_ItemScreens_DrawInit(u32* selectedItemId) // 0x8004F764
                 if (tr != NULL)
                     label = tr;
             }
-            if (i < 6)
+            /* Both Arabic patches rewrote this table for their own text (the
+             * USA one as right edges, No./Name: included). */
+            if (Pc_ArDisc() == AR_DISC_USA_MANSOUR)
+                x = LABEL_STR_X_AR_USA[i];
+            else if (i < 6 && Pc_ArDisc() == AR_DISC_PAL_AHMED)
+                x = LABEL_STR_X_AR_PAL[i];
+            else if (i < 6)
                 x += (Pc_LangMenuTextWidth(LABEL_STRS[i]) - Pc_LangMenuTextWidth(Pc_LangMenuText(label))) / 2;
             Gfx_StringSetPosition(x, LABEL_STR_POS_TABLE[i].vy);
             Gfx_StringDraw(label, 10);
@@ -2110,6 +2134,10 @@ void Gfx_Inventory_ItemDescriptionDraw(s32* selectedItemId) // 0x8005192C
         "Fuel:"
     };
 
+#ifdef SH_PC_PORT
+    stringPos.vx = PC_AR_USA(112, 208);
+#endif
+
     switch (*selectedItemId)
     {
         case 0:
@@ -2142,7 +2170,9 @@ void Gfx_Inventory_ItemDescriptionDraw(s32* selectedItemId) // 0x8005192C
             if (i == idx)
             {
 #ifdef SH_PC_PORT
-                Gfx_StringSetPosition(((idx + 1 >= 10) ? 45 : 55) + Inventory_LangGrow("No."), 184);
+                Gfx_StringSetPosition(PC_AR_USA((idx + 1 >= 10) ? 275 : 265,
+                                                ((idx + 1 >= 10) ? 45 : 55) + Inventory_LangGrow("No.")),
+                                      184);
 #else
                 if (idx + 1 >= 10)
                 {
@@ -2166,7 +2196,7 @@ void Gfx_Inventory_ItemDescriptionDraw(s32* selectedItemId) // 0x8005192C
 #ifdef SH_PC_PORT
         /* Centred over the gun like retail's English, label and count together. */
         stockGrow = Inventory_LangGrow(D_80027F94[0]);
-        Gfx_StringSetPosition(122 - stockGrow / 2, 30);
+        Gfx_StringSetPosition(PC_AR_USA(198, 122 - stockGrow / 2), 30);
 #else
         Gfx_StringSetPosition(122, 30);
 #endif
@@ -2177,7 +2207,9 @@ void Gfx_Inventory_ItemDescriptionDraw(s32* selectedItemId) // 0x8005192C
             if (g_Inventory_EquippedItem == g_SavegamePtr->items[i].id_0)
             {
 #ifdef SH_PC_PORT
-                Gfx_StringSetPosition(((g_SavegamePtr->items[i].count_1 >= 10) ? 178 : 188) + stockGrow - stockGrow / 2, 30);
+                Gfx_StringSetPosition(PC_AR_USA((g_SavegamePtr->items[i].count_1 >= 10) ? 142 : 132,
+                                                ((g_SavegamePtr->items[i].count_1 >= 10) ? 178 : 188) + stockGrow - stockGrow / 2),
+                                      30);
 #else
                 if (g_SavegamePtr->items[i].count_1 >= 10)
                 {
@@ -2287,8 +2319,10 @@ void Gfx_Inventory_ItemDescriptionDraw(s32* selectedItemId) // 0x8005192C
             if (g_SavegamePtr->items[idx].id_0 != (u8)InvItemId_Empty)
             {
 #ifdef SH_PC_PORT
-                Gfx_StringSetPosition((g_SavegamePtr->items[idx].count_1 >= 100) ? 260 :
-                                      (g_SavegamePtr->items[idx].count_1 >= 10)  ? 270 : 280,
+                Gfx_StringSetPosition(PC_AR_USA((g_SavegamePtr->items[idx].count_1 >= 100) ? 60 :
+                                                (g_SavegamePtr->items[idx].count_1 >= 10)  ? 50 : 40,
+                                                (g_SavegamePtr->items[idx].count_1 >= 100) ? 260 :
+                                                (g_SavegamePtr->items[idx].count_1 >= 10)  ? 270 : 280),
                                       stockY);
 #else
                 if (g_SavegamePtr->items[idx].count_1 >= 100)
@@ -2336,7 +2370,11 @@ void Gfx_Inventory_ItemDescriptionDraw(s32* selectedItemId) // 0x8005192C
                 g_Inventory_ItemNameTimer = 0;
             }
 
+#ifdef SH_PC_PORT
+            Gfx_StringSetPosition(PC_AR_USA(298, 30), 232);
+#else
             Gfx_StringSetPosition(30, 232);
+#endif
 
             if (Gfx_StringDraw(s_ItemDesc(g_SavegamePtr->items[idx].id_0), g_Inventory_DescriptionRollTimer) == true)
             {
@@ -2350,7 +2388,11 @@ void Gfx_Inventory_ItemDescriptionDraw(s32* selectedItemId) // 0x8005192C
         case 4:
             Gfx_StringSetPosition(Inventory_ItemNameX(), 200);
             Gfx_StringDraw(s_ItemName(g_SavegamePtr->items[idx].id_0), 100);
+#ifdef SH_PC_PORT
+            Gfx_StringSetPosition(PC_AR_USA(298, 30), 232);
+#else
             Gfx_StringSetPosition(30, 232);
+#endif
 
             switch (g_SysWork.sysStateSteps[1])
             {

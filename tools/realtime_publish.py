@@ -70,15 +70,19 @@ ZIP_ONLY = {LAUNCHER_NAME}
 
 RELEASE_NOTES = """Automatic builds of every push, for players who want changes as soon as they land instead of waiting for a release. This page always has just the newest build of each platform; older ones are under [Realtime history]({history_url}).
 
-**Most players should use the normal releases.** These builds are not tested before they go up.
+These builds are not always tested before being pushed, but any issues will be fixed quickly! If you run into a problem, please use an older build linked above.
 
 **Newest Windows build: {version}** (`{commit}`, {date} UTC)
 - Windows: [{zip_name}]({zip_url}): unzip into a folder and run `SilentHillPC_Launcher.exe` or `SilentHillPC.exe`. Put your `Silent Hill (USA).bin` in `gamedata/`.
 - Linux: `SHPC-linux-x64.tar.gz` · macOS: `SHPC-macos-arm64.zip` (newest `pc-port` builds)
 - iOS: `SilentHill-ios-unsigned.ipa` (newest `ios-port` build; sideload with Sideloadly or AltStore, which sign it for your device). To get every new build as an update, add this source in AltStore or SideStore: `https://github.com/{repo}/releases/download/realtime/altstore-source.json`
 - Android: `SilentHill-android.apk` (newest `android-port` build; installs over the released APK)
+- Web: https://sh1pc.com/play/
 
-To follow these builds from the launcher instead: **Build Settings → Realtime updates**. It installs only the files that changed, and you can roll back to any of the last {keep} Windows builds from the same menu. `CHANGELOG_REALTIME.md` lists what changed."""
+To follow these builds from the launcher instead: **Build Settings → Realtime updates**. It installs only the files that changed, and you can roll back to any of the last {keep} Windows builds from the same menu. `CHANGELOG_REALTIME.md` lists what changed.
+
+## For online, please use the builds here: 
+https://github.com/SlickAmogus/silenthill-online/releases/tag/realtime"""
 
 HISTORY_NOTES = """Older automatic builds. The newest build of each platform is on [Realtime builds]({realtime_url}).
 

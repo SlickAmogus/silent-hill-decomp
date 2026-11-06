@@ -8,6 +8,7 @@
 #include "stb_truetype.h"
 
 #include "game.h"
+#include "lang_ar.h"
 #include "lang_pack.h"
 #include "lang_ru.h"
 #include "lang_text.h"
@@ -36,11 +37,23 @@ typedef struct {
  * languages have no pack at all -- so their overlay text is compiled in. */
 #include "lang_quick_cjk.inc"
 
-enum { QL_ENGLISH = 0, QL_RUSSIAN, QL_PACK, QL_PAL, QL_JA, QL_ZH };
+typedef struct {
+    const char* en;
+    const char* ar;
+} s_QuickAr;
+
+/* An Arabic disc's FONT16 cells are its own pre-shaped forms, not Unicode, so
+ * the overlays get compiled-in UTF-8 like CJK. */
+#include "lang_quick_ar.inc"
+
+enum { QL_ENGLISH = 0, QL_RUSSIAN, QL_PACK, QL_PAL, QL_JA, QL_ZH, QL_AR };
 
 /* The script the language is written in, whether or not a face can draw it. */
 static int QuickScriptWanted(void)
 {
+    /* Ahead of the pack, as in Pc_LangMenuText: the disc's font has no Latin. */
+    if (Pc_ArActive())
+        return LANG_QUICK_SCRIPT_ARABIC;
     if (Pc_RuActive())
         return LANG_QUICK_SCRIPT_LATIN;
     if (Pc_LangPackActive())
@@ -111,9 +124,27 @@ static const char* const s_FacesZh[] = {
     CJK_ANDROID_FACES,
 };
 
+/* stb_truetype cannot shape, so Pc_LangVisual writes Presentation Forms-B and
+ * the face must map those codepoints in its cmap; most Arabic system faces do.
+ * gamedata/font/arabic.ttf is for systems that have none (mobile, web). */
+static const char* const s_FacesAr[] = {
+    "gamedata/font/arabic.ttf",
+    "C:/Windows/Fonts/segoeui.ttf",
+    "C:/Windows/Fonts/tahoma.ttf",
+    "C:/Windows/Fonts/arial.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",               /* Debian, Ubuntu */
+    "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf",             /* Fedora */
+    "/usr/share/fonts/TTF/DejaVuSans.ttf",                           /* Arch */
+    "/system/fonts/NotoNaskhArabic-Regular.ttf",                     /* Android */
+    "/Library/Fonts/Arial Unicode.ttf",
+    "/System/Library/Fonts/Supplemental/Tahoma.ttf",
+    "/System/Library/Fonts/Supplemental/Arial.ttf",
+};
+
 /* Does this file really draw the script? A file that exists but lacks the
- * glyphs would turn every label into empty boxes. */
-static int FaceDrawsScript(const char* path, int probe)
+ * glyphs would turn every label into empty boxes. needLatin: the bake draws a
+ * whole line in one face, and Arabic lines carry Latin key names (Esc, PgUp). */
+static int FaceDrawsScript(const char* path, int probe, int needLatin)
 {
     FILE*          f = fopen(path, "rb");
     long           n;
@@ -129,7 +160,8 @@ static int FaceDrawsScript(const char* path, int probe)
     data = (n > 0 && n < (128L << 20)) ? (unsigned char*)malloc((size_t)n) : NULL;
     if (data != NULL && fread(data, 1, (size_t)n, f) == (size_t)n &&
         stbtt_InitFont(&info, data, stbtt_GetFontOffsetForIndex(data, 0)) &&
-        stbtt_FindGlyphIndex(&info, probe) != 0)
+        stbtt_FindGlyphIndex(&info, probe) != 0 &&
+        (!needLatin || stbtt_FindGlyphIndex(&info, 'E') != 0))
     {
         ok = 1;
     }
@@ -138,13 +170,13 @@ static int FaceDrawsScript(const char* path, int probe)
     return ok;
 }
 
-static const char* FaceFromList(const char* const* list, int count, int probe)
+static const char* FaceFromList(const char* const* list, int count, int probe, int needLatin)
 {
     int i;
 
     for (i = 0; i < count; i++)
     {
-        if (list[i] != NULL && FaceDrawsScript(list[i], probe))
+        if (list[i] != NULL && FaceDrawsScript(list[i], probe, needLatin))
             return list[i];
     }
     return NULL;
@@ -152,19 +184,36 @@ static const char* FaceFromList(const char* const* list, int count, int probe)
 
 /* The first face that really draws the script. Read once per script per run;
  * NULL if none. */
-static const char* CjkFace(int script)
+static const char* ScriptFace(int script)
 {
-    static const char* s_Found[3];
-    static int         s_Probed[3];
-    const char* const* list = (script == LANG_QUICK_SCRIPT_CHINESE) ? s_FacesZh : s_FacesJa;
-    int                count = (script == LANG_QUICK_SCRIPT_CHINESE)
-                                   ? (int)(sizeof(s_FacesZh) / sizeof(s_FacesZh[0]))
-                                   : (int)(sizeof(s_FacesJa) / sizeof(s_FacesJa[0]));
-    /* hiragana A; and the simplified form of "set" (U+8BBE), absent from Japanese faces */
-    int                probe = (script == LANG_QUICK_SCRIPT_CHINESE) ? 0x8BBE : 0x3042;
+    static const char* const names[4] = { "Latin", "Japanese", "Chinese", "Arabic" };
+    static const char* s_Found[4];
+    static int         s_Probed[4];
+    const char* const* list;
+    int                count;
+    int                probe;
+    int                needLatin = (script == LANG_QUICK_SCRIPT_ARABIC);
 
-    if (script != LANG_QUICK_SCRIPT_JAPANESE && script != LANG_QUICK_SCRIPT_CHINESE)
-        return NULL;
+    switch (script)
+    {
+        case LANG_QUICK_SCRIPT_JAPANESE:
+            list  = s_FacesJa;
+            count = (int)(sizeof(s_FacesJa) / sizeof(s_FacesJa[0]));
+            probe = 0x3042; /* hiragana A */
+            break;
+        case LANG_QUICK_SCRIPT_CHINESE:
+            list  = s_FacesZh;
+            count = (int)(sizeof(s_FacesZh) / sizeof(s_FacesZh[0]));
+            probe = 0x8BBE; /* simplified "set", absent from Japanese faces */
+            break;
+        case LANG_QUICK_SCRIPT_ARABIC:
+            list  = s_FacesAr;
+            count = (int)(sizeof(s_FacesAr) / sizeof(s_FacesAr[0]));
+            probe = 0xFEFB; /* lam-alef: a face with Arabic but no Forms-B lacks it */
+            break;
+        default:
+            return NULL;
+    }
     if (s_Probed[script])
         return s_Found[script];
     s_Probed[script] = 1;
@@ -172,11 +221,13 @@ static const char* CjkFace(int script)
     /* The player's own file first, wherever they are: gamedata/font/cjk.* is
      * how a system with no CJK face, or a player who prefers another, supplies
      * one. These three are also at the head of the lists below, so the second
-     * pass retries them -- three failed fopen()s, once per run. */
+     * pass retries them -- three failed fopen()s, once per run. Arabic's own
+     * file already heads its list. */
+    if (script != LANG_QUICK_SCRIPT_ARABIC)
     {
         static const char* const userFaces[] = { CJK_USER_FACES };
 
-        s_Found[script] = FaceFromList(userFaces, (int)(sizeof(userFaces) / sizeof(userFaces[0])), probe);
+        s_Found[script] = FaceFromList(userFaces, (int)(sizeof(userFaces) / sizeof(userFaces[0])), probe, 0);
     }
 
 #ifdef SH_IOS
@@ -184,8 +235,9 @@ static const char* CjkFace(int script)
      * /System/Library/Fonts have moved between releases and a face can be
      * downloaded on demand -- so CoreText is asked for the file instead. Every
      * remaining entry in the lists below is a Windows, macOS, Linux or Android
-     * path, so there is nothing after this to fall through to. */
-    if (s_Found[script] == NULL)
+     * path, so there is nothing after this to fall through to. Arabic ships
+     * its own face in the bundle (gamedata/font/arabic.ttf). */
+    if (s_Found[script] == NULL && script != LANG_QUICK_SCRIPT_ARABIC)
     {
         extern const char* const* Ios_CjkFontPaths(int script);
         const char* const*        iosFaces = Ios_CjkFontPaths(script);
@@ -194,30 +246,29 @@ static const char* CjkFace(int script)
         while (iosFaces != NULL && n < 8 && iosFaces[n] != NULL)
             n++;
         if (n > 0)
-            s_Found[script] = FaceFromList(iosFaces, n, probe);
+            s_Found[script] = FaceFromList(iosFaces, n, probe, 0);
     }
 #endif
 
     if (s_Found[script] == NULL)
-        s_Found[script] = FaceFromList(list, count, probe);
+        s_Found[script] = FaceFromList(list, count, probe, needLatin);
 
     if (s_Found[script] != NULL)
-        SH_LOG("[LANG] overlay font for %s: %s",
-               script == LANG_QUICK_SCRIPT_CHINESE ? "Chinese" : "Japanese", s_Found[script]);
+        SH_LOG("[LANG] overlay font for %s: %s", names[script], s_Found[script]);
     else
-        SH_WARN("[LANG] no %s font found on this system (or gamedata/font/cjk.ttc) - "
+        SH_WARN("[LANG] no %s font found on this system (or gamedata/font/%s) - "
                 "the quick menu and its panels stay in English",
-                script == LANG_QUICK_SCRIPT_CHINESE ? "Chinese" : "Japanese");
+                names[script], script == LANG_QUICK_SCRIPT_ARABIC ? "arabic.ttf" : "cjk.ttc");
     return s_Found[script];
 }
 
-/* The script the overlays will actually draw: a CJK language without a face
- * that can show it is drawn in English, never as boxes. */
+/* The script the overlays will actually draw: a CJK or Arabic language
+ * without a face that can show it is drawn in English, never as boxes. */
 int Pc_LangQuickScript(void)
 {
     int script = QuickScriptWanted();
 
-    return (script != LANG_QUICK_SCRIPT_LATIN && CjkFace(script) == NULL)
+    return (script != LANG_QUICK_SCRIPT_LATIN && ScriptFace(script) == NULL)
                ? LANG_QUICK_SCRIPT_LATIN
                : script;
 }
@@ -231,12 +282,12 @@ int Pc_LangQuickFontPaths(const char** out, int max)
         "C:/Windows/Fonts/arial.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
     };
-    const char* cjk = CjkFace(Pc_LangQuickScript());
-    int         n   = 0;
+    const char* face = ScriptFace(Pc_LangQuickScript());
+    int         n    = 0;
     int         i;
 
-    if (cjk != NULL && n < max)
-        out[n++] = cjk;
+    if (face != NULL && n < max)
+        out[n++] = face;
     for (i = 0; i < (int)(sizeof(latin) / sizeof(latin[0])) && n < max; i++)
         out[n++] = latin[i];
     return n;
@@ -250,6 +301,18 @@ static const char* CjkLookup(const s_QuickCjk* tbl, int count, const char* key, 
     {
         if (tbl[i].en[0] == key[0] && strcmp(tbl[i].en, key) == 0)
             return zh ? tbl[i].zh : tbl[i].ja;
+    }
+    return NULL;
+}
+
+static const char* ArLookup(const s_QuickAr* tbl, int count, const char* key)
+{
+    int i;
+
+    for (i = 0; i < count; i++)
+    {
+        if (tbl[i].en[0] == key[0] && strcmp(tbl[i].en, key) == 0)
+            return tbl[i].ar;
     }
     return NULL;
 }
@@ -268,6 +331,8 @@ static int QuickLang(void)
             return (Pc_LangQuickScript() == LANG_QUICK_SCRIPT_JAPANESE) ? QL_JA : QL_ENGLISH;
         case LANG_QUICK_SCRIPT_CHINESE:
             return (Pc_LangQuickScript() == LANG_QUICK_SCRIPT_CHINESE) ? QL_ZH : QL_ENGLISH;
+        case LANG_QUICK_SCRIPT_ARABIC:
+            return (Pc_LangQuickScript() == LANG_QUICK_SCRIPT_ARABIC) ? QL_AR : QL_ENGLISH;
         default:
             break;
     }
@@ -406,6 +471,13 @@ const char* Pc_LangQuickMenu(const char* us)
                 return cjk;
             break;
         }
+        case QL_AR:
+        {
+            const char* ar = ArLookup(s_MenuArTr, (int)(sizeof(s_MenuArTr) / sizeof(s_MenuArTr[0])), us);
+            if (ar != NULL)
+                return ar;
+            break;
+        }
         default:         break;
     }
     return FromMenu(tr ? tr : us, tr ? latin1 : 0);
@@ -482,6 +554,12 @@ const char* Pc_LangQuick(const char* en)
         {
             const char* tr = CjkLookup(s_QuickCjkTr, (int)(sizeof(s_QuickCjkTr) / sizeof(s_QuickCjkTr[0])),
                                        en, QuickLang() == QL_ZH);
+
+            return (tr != NULL) ? tr : en;
+        }
+        case QL_AR:
+        {
+            const char* tr = ArLookup(s_QuickArTr, (int)(sizeof(s_QuickArTr) / sizeof(s_QuickArTr[0])), en);
 
             return (tr != NULL) ? tr : en;
         }

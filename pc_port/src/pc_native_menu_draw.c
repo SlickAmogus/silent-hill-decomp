@@ -11,8 +11,10 @@
 #include "bodyprog/text/text_draw.h"
 #include "screens/options.h"
 #include "lang_text.h"
+#include "lang_ar.h"
 #include "pc_mouse_cursor.h"
 #include "pc_native_menu_draw.h"
+#include "pc_ttf_text.h"
 
 #define NM_OT_ARROW 10 /* LAYER_40 in options.c */
 #define NM_OT_SHADE 9  /* LAYER_36 in options.c */
@@ -45,6 +47,16 @@ static GsOT_TAG* nm_ot(int tag)
 void Nm_TextDraw(int x, int y, int size, int color, const char* s)
 {
     Gfx_StringSetColor(color);
+
+    /* The USA Arabic disc's drawer walks leftward from its start, so start at
+     * the right edge: callers lay pieces out left to right by width, and each
+     * piece then covers the same span it does on every other disc. */
+    if (Pc_ArRtl() && x != NO_VALUE)
+    {
+        int w = Pc_LangMenuTextWidth(g_PcLangMenuVerbatim ? s : Pc_LangMenuText(s));
+
+        x += (w * Pc_StringScaleGet()) >> 12;
+    }
 
     if (nm_interlaced() && size == NM_TEXT_TALL)
     {
@@ -96,6 +108,49 @@ void Nm_TextDrawVerbatim(int x, int y, int size, int color, const char* s)
 int Nm_TextWidth(const char* s)
 {
     return Pc_LangMenuTextWidth(Pc_LangMenuText(s));
+}
+
+/* The USA Arabic drawer walks leftward, so a string starts at its right edge. */
+static int nm_latin_wanted(const char* s)
+{
+    return Pc_TtfText_Needed() && Pc_LangMenuText(s) == s;
+}
+
+static void nm_latin_spaces(const char* s, char* out, size_t outSize)
+{
+    size_t i;
+
+    for (i = 0; s[i] != '\0' && i + 1 < outSize; i++)
+        out[i] = (s[i] == '_') ? ' ' : s[i];
+    out[i] = '\0';
+}
+
+int Nm_TextWidthLatin(const char* s, int size)
+{
+    char buf[NM_LINE_MAX * 4];
+
+    if (!nm_latin_wanted(s))
+        return Nm_TextWidth(s);
+    nm_latin_spaces(s, buf, sizeof(buf));
+    return Pc_TtfText_Width(buf, size == NM_TEXT_TALL);
+}
+
+int Nm_TextDrawLatin(int x, int y, int size, int color, const char* s, int maxW, int pan)
+{
+    char buf[NM_LINE_MAX * 4];
+    int  w;
+
+    if (!nm_latin_wanted(s))
+    {
+        if (maxW > 0)
+            return Nm_TextDrawMarquee(x, y, size, color, s, maxW, pan);
+        Nm_TextDraw(x, y, size, color, s);
+        return Nm_TextWidth(s);
+    }
+    nm_latin_spaces(s, buf, sizeof(buf));
+    w = Pc_TtfText_Width(buf, size == NM_TEXT_TALL);
+    Pc_TtfText_Queue(x, y, size == NM_TEXT_TALL, color, buf, maxW);
+    return (maxW > 0 && w > maxW) ? maxW : w;
 }
 
 void Nm_TextDrawCentered(int cx, int y, int size, int color, const char* s)

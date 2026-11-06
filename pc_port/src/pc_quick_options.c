@@ -746,8 +746,10 @@ static int            s_fontsScript = -1; /* Pc_LangQuickScript the face was pic
 static GLuint s_texTitle, s_texHint, s_texHint2;
 /* The touch reset button: a ring and an R, drawn only while touch drives the
  * menu; s_resetBtn is its centre and radius in viewport px for Update. */
-static GLuint s_texResetRing, s_texResetR;
-static int    s_resetRingW, s_resetRingH, s_resetRW, s_resetRH;
+static GLuint s_texResetRing, s_texResetR, s_texResetHint;
+static int    s_resetRingW, s_resetRingH, s_resetRW, s_resetRH, s_resetHintW, s_resetHintH;
+/* The open Yes/No is the reset, not the fog row's PGXP question. */
+static int    s_qoConfirmReset;
 static float  s_resetBtn[3];
 static int    s_hintResetMode = -1;
 static int    s_titleW, s_titleH, s_hintW, s_hintH, s_hint2W, s_hint2H;
@@ -1313,6 +1315,25 @@ static void qo_fonts_init(void)
 
 /* Rasterize one line of ASCII to a white-coverage RGBA texture, trimmed to
  * the ink so right-alignment and centring use the real text width. */
+/* Arabic mirrors the panel (labels right, values and dropdown left) -- but not
+ * while touch drives it: the stepper column, its tap halves and the list rows'
+ * fire/cycle halves are laid out for the right-hand side, and moving them is a
+ * different control, not a mirror. Touch keeps that layout with Arabic text. */
+static int qo_rtl(void)
+{
+    if (Pc_LangQuickScript() != LANG_QUICK_SCRIPT_ARABIC)
+        return 0;
+#if defined(QO_MOBILE)
+    return 0;
+#else
+#if defined(QO_TOUCH_UI)
+    if (qo_touch_ui())
+        return 0;
+#endif
+    return 1;
+#endif
+}
+
 static GLuint qo_bake_once(const char* text, float px, int* outW, int* outH, int* outInk)
 {
     const char* p;
@@ -1320,9 +1341,11 @@ static GLuint qo_bake_once(const char* text, float px, int* outW, int* outH, int
     int   asc, desc, gap, W, H, i, pad = 1, prev = 0, stride;
     unsigned char *cov, *rgba, *scratch;
     GLuint tex;
+    char   visual[1024];
 
     if (!s_fontOk || !text || !text[0] || px < 4.0f)
         return 0;
+    text = Pc_LangVisual(text, visual, (int)sizeof(visual));
 
     scale = stbtt_ScaleForPixelHeight(&s_font, px);
     stbtt_GetFontVMetrics(&s_font, &asc, &desc, &gap);
@@ -2308,7 +2331,9 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
                 }
                 else
 #endif
-                if (qo_row_is_pill(&rows[row]) && mpx > (s_geoPanelL + s_geoPanelR) * 0.5f)
+                if (qo_row_is_pill(&rows[row]) &&
+                    (qo_rtl() ? mpx < (s_geoPanelL + s_geoPanelR) * 0.5f
+                              : mpx > (s_geoPanelL + s_geoPanelR) * 0.5f))
                 {
                     /* Right half of a list row: open the dropdown on the value. */
                     s_ddRow    = row;
@@ -2804,7 +2829,7 @@ void Pc_QuickOptions_Draw(void)
         float rowTop = listT - (float)i * rowPitch;
         float rowMid = rowTop - rowH * 0.5f;
         float tH, tY;
-        char  txt[64];
+        char  txt[160]; /* Arabic labels run past 64 bytes; a cut there splits a UTF-8 letter */
 
         if (i == s_sel)
             qo_quad(s_texWhite, NX(panelL + 4.0f), NY(rowTop), NX(panelR - 4.0f), NY(rowTop - rowH),
@@ -2850,7 +2875,8 @@ void Pc_QuickOptions_Draw(void)
                 tH = (float)s_labelH[i]; tY = rowMid + tH * 0.5f;
                 if (qo_row_is_pill(r))
                 {
-                    float bl = panelL + pad - 6.0f, br = panelL + pad + (float)s_labelW[i] + 6.0f;
+                    float bx = qo_rtl() ? panelR - pad - (float)s_labelW[i] : panelL + pad;
+                    float bl = bx - 6.0f, br = bx + (float)s_labelW[i] + 6.0f;
                     float bt = rowTop - rowH * 0.08f, bb = rowTop - rowH * 0.92f;
                     float sel = (i == s_sel) ? 1.0f : 0.6f;
                     qo_quad(s_texWhite, NX(bl), NY(bt), NX(br), NY(bb), 0.47f, 0.11f, 0.08f, 0.55f * sel * dim);
@@ -2859,13 +2885,17 @@ void Pc_QuickOptions_Draw(void)
                     qo_quad(s_texWhite, NX(bl), NY(bt), NX(bl + 1.0f), NY(bb), 1.0f, 0.93f, 0.86f, 0.35f * dim);
                     qo_quad(s_texWhite, NX(br - 1.0f), NY(bt), NX(br), NY(bb), 1.0f, 0.93f, 0.86f, 0.35f * dim);
                 }
-                qo_quad(s_texLabel[i], NX(panelL + pad), NY(tY), NX(panelL + pad + s_labelW[i]), NY(tY - tH),
-                        0.92f, 0.92f, 0.95f, dim);
+                {
+                    float lx = qo_rtl() ? panelR - pad - (float)s_labelW[i] : panelL + pad;
+
+                    qo_quad(s_texLabel[i], NX(lx), NY(tY), NX(lx + s_labelW[i]), NY(tY - tH),
+                            0.92f, 0.92f, 0.95f, dim);
+                }
             }
             if (s_texValue[i])
             {
                 float vg = (i == s_sel) ? 1.0f : 0.85f;
-                float vr = panelR - pad - (float)s_valueW[i];
+                float vr = qo_rtl() ? panelL + pad : panelR - pad - (float)s_valueW[i];
 #if defined(QO_MOBILE)
                 /* Right-aligned against the + rather than the panel edge, so
                  * the mark sits beside the number instead of on top of it. */
@@ -2990,8 +3020,8 @@ void Pc_QuickOptions_Draw(void)
             }
             s_ddTexKey = key;
         }
-        float ddL = panelL + panelW * 0.5f;
-        float ddR = panelR - 4.0f;
+        float ddL = qo_rtl() ? panelL + 4.0f : panelL + panelW * 0.5f;
+        float ddR = qo_rtl() ? panelL + panelW * 0.5f : panelR - 4.0f;
         float ddTop = listT - (float)(s_ddRow + 1) * rowPitch + rowPitch * 0.08f;
         float ddH = rowH;
         int   k;
@@ -3016,7 +3046,9 @@ void Pc_QuickOptions_Draw(void)
             if (s_ddTex[e])
             {
                 float ty = et - (ddH - (float)s_ddH[e]) * 0.5f;
-                qo_quad(s_ddTex[e], NX(ddL + 10.0f), NY(ty), NX(ddL + 10.0f + s_ddW[e]), NY(ty - s_ddH[e]),
+                float tx = qo_rtl() ? ddR - 10.0f - (float)s_ddW[e] : ddL + 10.0f;
+
+                qo_quad(s_ddTex[e], NX(tx), NY(ty), NX(tx + s_ddW[e]), NY(ty - s_ddH[e]),
                         e == s_ddSel ? 1.0f : 0.85f, 0.9f, 0.9f, dim);
             }
         }

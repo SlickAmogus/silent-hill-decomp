@@ -151,6 +151,18 @@ that match nothing, such as hair or skirt bones, follow their parent.
 4. Import the FBX into Blender. Check that each piece moves with its bones by rotating a
    few bones in Pose mode, then undo.
 
+**Not rigged, low-poly, T-pose:** `tools/rig_static_obj.py` builds the skeleton and
+weights from the mesh itself, without Mixamo. It wants a Y-up OBJ facing +Z, standing on
+the ground, arms out level, and writes the finished `.glb`:
+
+```
+blender --background --python tools/rig_static_obj.py -- model.obj HERO_Name.glb render=previews
+```
+
+It prints the joint heights it measured. If a joint lands wrong, pass it on the command
+line in OBJ units, for example `hips_y=21 knee_y=11`. The textures are converted to PNG on
+the way. There are no finger bones, so the hand closes the same way as for Master Chief.
+
 **Rigged with other bone names:** usually works as is (see the second table above).
 If the log says `no Hips joint` or `no joint drives game bone N`, rename the bones it
 missed to the Mixamo names. In Blender, select the armature and rename the bones in the

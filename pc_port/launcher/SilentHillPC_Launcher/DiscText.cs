@@ -381,6 +381,51 @@ namespace SilentHillPC_Launcher
             return known;
         }
 
+        /// <summary>An Arabic fan translation the game recognises (lang_ar.c).</summary>
+        public class ArabicPatch
+        {
+            public string Region; // "PAL" or "NTSC"
+            public string Group;
+        }
+
+        // FONT16.TIM FNV-1a hashes, the same keys as pc_port/src/lang_ar.c.
+        private static readonly Dictionary<uint, ArabicPatch> s_ArabicByFont = new Dictionary<uint, ArabicPatch> {
+            { 0x5D67A2B1u, new ArabicPatch { Region = "NTSC", Group = "Mansour (ETRD)" } },
+            { 0xF4A11673u, new ArabicPatch { Region = "PAL",  Group = "Ahmed Khaled, M2D, r.h.h (Obeid), RITO" } },
+        };
+
+        private static readonly Dictionary<string, ArabicPatch> s_arByDisc = new Dictionary<string, ArabicPatch>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>The Arabic patch this image carries, or null (one read per image, remembered).</summary>
+        public static ArabicPatch GetArabicPatch(string binPath)
+        {
+            ArabicPatch found;
+            if (binPath == null) return null;
+            if (s_arByDisc.TryGetValue(binPath, out found)) return found;
+            found = null;
+            try
+            {
+                string err;
+                var files = BinExtractor.ReadFileTable(binPath, out err);
+                if (files != null)
+                {
+                    foreach (var f in files)
+                    {
+                        if (!string.Equals(f.FullPath, "1ST/FONT16.TIM", StringComparison.OrdinalIgnoreCase)) continue;
+                        byte[] data = BinExtractor.ReadDiscFile(binPath, f);
+                        if (data == null) break;
+                        uint h = 2166136261u;
+                        for (int i = 0; i < data.Length; i++) { h ^= data[i]; h *= 16777619u; }
+                        s_ArabicByFont.TryGetValue(h, out found);
+                        break;
+                    }
+                }
+            }
+            catch { }
+            s_arByDisc[binPath] = found;
+            return found;
+        }
+
         /// <summary>FNV-1a of the disc's FONT16.TIM against the known Russian repaints.</summary>
         private static RuCharsets.Charset? DetectRussian(string binPath, Dictionary<string, BinExtractor.DiscFile> byPath)
         {

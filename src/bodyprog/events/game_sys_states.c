@@ -28,6 +28,7 @@ extern s_WorldEnvWork g_WorldEnvWork;
 #include "pc_pick.h"
 #include "pc_dark_harry.h"
 #include "pc_pause_menu.h"
+#include "lang_ar.h"
 #endif
 #include "bodyprog/events/radio.h"
 #include "bodyprog/demo.h"
@@ -1639,7 +1640,11 @@ void SysState_GameOver_Update(void) // 0x8003A52C
             SysWork_StateStepIncrement(0);
 
         case 3:
+#ifdef SH_PC_PORT
+            Gfx_StringSetPosition(PC_AR_USA(190, SCREEN_POSITION_X(32.5f)), SCREEN_POSITION_Y(43.5f));
+#else
             Gfx_StringSetPosition(SCREEN_POSITION_X(32.5f), SCREEN_POSITION_Y(43.5f));
+#endif
             Gfx_StringDraw("\aGAME_OVER", DEFAULT_MAP_MESSAGE_LENGTH);
 #ifdef SH_PC_PORT
             /* field_28 counts RENDERED frames against a 30fps-authored hold
@@ -1667,7 +1672,11 @@ void SysState_GameOver_Update(void) // 0x8003A52C
             break;
 
         case 4:
+#ifdef SH_PC_PORT
+            Gfx_StringSetPosition(PC_AR_USA(190, SCREEN_POSITION_X(32.5f)), SCREEN_POSITION_Y(43.5f));
+#else
             Gfx_StringSetPosition(SCREEN_POSITION_X(32.5f), SCREEN_POSITION_Y(43.5f));
+#endif
             Gfx_StringDraw("\aGAME_OVER", DEFAULT_MAP_MESSAGE_LENGTH);
             SysWork_StateStepIncrementAfterFade(2, true, 0, Q12(2.0f), false);
             break;

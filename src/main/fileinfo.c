@@ -370,6 +370,14 @@ void Fs_ApplyLanguageRedirects(void)
         return;
     }
 
+    /* The PAL Arabic patch writes over the English set; every other set on that
+     * disc is still the retail German/French/Spanish/Italian. */
+    {
+        extern int Pc_ArActive(void);
+        if (Pc_ArActive())
+            lang = 0;
+    }
+
     /* Rebuilt from scratch on every pass so a live language switch can never
      * leave the previous language's disc name behind on an entry this pass
      * fails to match. */
