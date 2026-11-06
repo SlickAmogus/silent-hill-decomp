@@ -360,6 +360,7 @@ struct LauncherView: View {
             }
 
             Section("Graphics") {
+                OptionPicker(title: "Renderer", selection: model.value("renderer", "gl"), options: Self.renderers)
                 OptionPicker(title: "Texture filtering", selection: model.value("texture_filter", "0"), options: [
                     ("Off (PSX)", "0"), ("Bilinear", "1"), ("Trilinear", "2"),
                     ("Anisotropic 2x", "3"), ("Anisotropic 4x", "4"), ("Anisotropic 8x", "5"), ("Anisotropic 16x", "6"),
@@ -440,6 +441,16 @@ struct LauncherView: View {
             model.addDisc(url)
         }
     }
+
+    /// Metal runs through ANGLE, which make_app.sh bundles only when pc_port/angle/
+    /// holds the dylibs. Offer it when it can actually be honoured; the game falls
+    /// back to OpenGL (and says so in the log) if the files go missing later.
+    private static let renderers: [Option] = {
+        let egl = Bundle.main.bundleURL.appendingPathComponent("Contents/Frameworks/libEGL.dylib").path
+        var list: [Option] = [("OpenGL", "gl")]
+        if FileManager.default.fileExists(atPath: egl) { list.append(("Metal (via ANGLE)", "metal")) }
+        return list
+    }()
 
     private static let resolutions: [Option] = {
         var res = ["640x480", "1024x768", "1280x720", "1280x960", "1600x1200", "1920x1080", "2560x1440", "3840x2160"]

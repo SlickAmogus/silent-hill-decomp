@@ -1,9 +1,10 @@
-# Render backends (OpenGL / Direct3D 11 / Vulkan)
+# Render backends (OpenGL / Direct3D 11 / Vulkan / Metal)
 
 The port has always drawn through one OpenGL path. It still does — but that path
 can now run against an **OpenGL ES 3.0** context supplied by
 [ANGLE](https://github.com/google/angle), which translates it to **Direct3D 11**
-or **Vulkan** underneath. One renderer, several devices.
+or **Vulkan** underneath on Windows, and to **Metal** on macOS. One renderer,
+several devices.
 
 Native OpenGL remains the default and is completely untouched by any of this.
 Selecting it runs exactly the code that shipped before.
@@ -19,10 +20,11 @@ renderer = vulkan    # Vulkan via ANGLE
 renderer = gles      # OpenGL ES 3.0 from the native driver
 renderer = warp      # Direct3D 11 WARP — Microsoft's CPU rasterizer
 renderer = software  # SwiftShader — ANGLE's CPU rasterizer, no GPU at all
+renderer = metal     # Metal via ANGLE (macOS)
 ```
 
 `dx11`, `directx11`, `dx12`, `d3d12`, `dx9`, `d3d9`, `vk`, `opengl`,
-`swiftshader` and `cpu` are accepted as aliases. ANGLE has no D3D12 backend and
+`swiftshader`, `cpu` and `mtl` are accepted as aliases. ANGLE has no D3D12 backend and
 has removed its D3D9 one, so `d3d12` and `d3d9` both resolve to `d3d11`.
 
 Anything unrecognised falls back to `gl`. A typo cannot stop the game booting.
@@ -43,10 +45,97 @@ driver at all.
 It is **not** primarily a performance feature. Translation costs something;
 whether that is offset by a better driver path varies by machine.
 
+## macOS: Metal
+
+Apple deprecated OpenGL in 2018 and has not updated it since; on macOS 26 the
+GL-on-Metal layer already needed a workaround to present a frame at all
+(`GR_SwapWindow` rebinds framebuffer 0 before the swap). `renderer = metal`
+runs the same ES 3.0 path the Windows translated backends use, against ANGLE's
+Metal backend — the one Chrome and Safari draw WebGL with on Macs.
+
+What is different from the Windows bootstrap, all in `PsyX_backend.cpp` and
+`GR_InitialiseGLContext`:
+
+- The dylibs are `dlopen`ed from `SDL_GetBasePath` (the executable's
+  directory for a plain build, `Contents/Resources/` in the app bundle), then
+  from the bundle's `Contents/Frameworks/`. `libEGL` finds `libGLESv2` relative
+  to its own location, so the pair must sit in the same directory.
+- The window is created with `SDL_WINDOW_METAL`, and the `CAMetalLayer` of an
+  SDL Metal view (`SDL_Metal_CreateView` + `SDL_Metal_GetLayer`) is the EGL
+  native window. ANGLE sizes its drawable from the layer and follows resizes,
+  fullscreen and borderless included.
+- The native display handle is `EGL_DEFAULT_DISPLAY`; the `-1` the Windows
+  code passes is a legacy ANGLE-on-Windows value that macOS rejects.
+- `PsyX_Angle_GetProcAddress` only accepts `dlsym` results whose image is
+  `libGLESv2` itself. On macOS `dlsym` also searches a module's dependencies,
+  and ANGLE's `libGLESv2` reaches Apple's `OpenGL.framework` through Cocoa, so
+  without that check every desktop-only entry point (`glClearDepth` first)
+  resolves to Apple GL with no context behind it and the first frame crashes.
+  With it, `g_grCaps` reports exactly what it does under ANGLE on Windows.
+
+Native OpenGL stays the default on macOS. The launcher offers Metal only when
+the app bundle actually contains the dylibs.
+
+Measured on an M5 Max at 1280x720 windowed, vsync off, in map4: native GL
+22.7 ms/frame against 25–28 ms on Metal, i.e. Metal costs roughly 10–20 % on
+a frame that is CPU-bound either way. Output is identical: the title screen
+matches the GL build pixel for pixel, and a full play session (overlays,
+cursor, flashlight, map transitions, saves) produced no renderer warnings.
+
+### Getting the dylibs on macOS
+
+Needed: `libEGL.dylib` and `libGLESv2.dylib`, arm64, built with
+`angle_enable_metal=true`. Put them in `pc_port/angle/`; CMake copies them
+beside the executable and `make_app.sh` into `Contents/Frameworks/`.
+
+- **Build them** (about fifteen minutes, mostly the 12 GB fetch; needs Xcode
+  plus its Metal Toolchain component, `xcodebuild -downloadComponent
+  MetalToolchain`, because ANGLE precompiles its internal Metal shaders):
+
+  ```sh
+  git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
+  export PATH="$PWD/depot_tools:$PATH"
+  mkdir angle && cd angle && fetch --no-history angle   # checks out into this directory
+  gn gen out/MacMetal --args='is_debug=false is_component_build=false angle_enable_metal=true angle_enable_gl=false angle_enable_vulkan=false angle_enable_swiftshader=false angle_enable_null=false angle_build_tests=false target_os="mac" target_cpu="arm64" mac_deployment_target="13.0" symbol_level=0'
+  autoninja -C out/MacMetal libEGL libGLESv2
+  ```
+
+  The backend is selected explicitly by `PsyX_Angle_Create`, so the other
+  `angle_enable_*=false` flags only make the build smaller and faster; a
+  Chromium build with everything enabled works the same. Last built and tested
+  from ANGLE `9addc2983b90`.
+- **Or borrow them.** Every Electron app on the Mac ships Chromium's ANGLE in
+  `Contents/Frameworks/Electron Framework.framework/Versions/A/Libraries/`
+  (VS Code and Discord, for instance), and the Metal backend is compiled into
+  those. Fine for trying it; build your own for anything you distribute.
+
+Verify a build with `strings -a libGLESv2.dylib | grep EGL_ANGLE_platform_angle_metal`.
+
+### Known differences on Metal
+
+The [translated-backend table below](#known-differences-on-a-translated-backend)
+applies as on Windows; the Metal-specific notes:
+
+| Feature | Status |
+|---|---|
+| MSAA | **Off**, like the other ES backends. Note that native GL on macOS also reports `requested 4x, got 0x` in windowed and borderless modes, so there is nothing to lose. |
+| Retina | Both backends render at window points, not pixels (`SDL_WINDOW_ALLOW_HIGHDPI` is not set). Parity, not a Metal limitation. |
+| Debug wireframe | Still unavailable; ANGLE's Metal backend does expose `GL_ANGLE_polygon_mode` if anyone wants it back. |
+
+### Headless screenshots, for comparing backends
+
+`PSYX_AUTOSHOT="<frame>[:<path>]"` saves that presented frame (what the window
+shows, after the present blit, overlays included) as an upright 24-bit BMP;
+`every:<n>:<path>` saves every n-th frame with the frame number appended;
+`PSYX_AUTOQUIT="<frame>"` calls `exit(0)` once that frame has been presented,
+so the log ends there without the usual shutdown lines. Ctrl+F12 uses the same
+capture.
+
 ## Installing ANGLE
 
 The translated backends need ANGLE's runtime beside the executable. It is not
 vendored — it is ~15 MB of third-party binary with its own release cadence.
+(macOS: see the Metal section above; the rest of this section is Windows.)
 
 Drop the DLLs into `pc_port/angle/` and CMake deploys the whole directory next
 to the exe on build. Or just copy them beside a released `SilentHillPC.exe`.
@@ -118,7 +207,8 @@ exists**, because that choice changes how the window is created.
 
 For translated backends PsyCross creates the EGL display, surface and context
 **itself** (`PsyX_Angle_Create`, PsyX_backend.cpp), against the `HWND` from
-SDL's window, and SDL is left owning only the window.
+SDL's window (the `CAMetalLayer` of an SDL Metal view on macOS), and SDL is
+left owning only the window.
 
 That is deliberate and was not the first design. SDL2 can load ANGLE on its own
 — but it creates the display with plain `eglGetDisplay`, and on that path
@@ -154,6 +244,9 @@ GL call site: ~500 in `PsyX_render.cpp` and ~500 more across `pc_port/src`
 (`dbg_overlay.c` alone has 171), plus translating every shader to HLSL/SPIR-V.
 That is months of work and a large regression risk against a port that currently
 looks right.
+
+The macOS Metal backend is the same bet, made again: about 170 lines in
+PsyCross on top of this mechanism, against months for a native one.
 
 If it is ever wanted, the seam already exists: `GR_*` in `PsyX_render.h` is the
 complete renderer interface, `g_grCaps` already describes capability differences
