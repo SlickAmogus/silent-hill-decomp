@@ -1804,6 +1804,29 @@ void Pc_Options_ResetToDefaults(void)
         for (i = 0; i < count; i++)
             PcOpt_ResetEntry(&tbl[i]);
     }
+    {
+        extern const s_PcConfig* PcConfig_Defaults(void);
+        extern void              Pc_ControlStyleSet(int style);
+        const s_PcConfig*        d = PcConfig_Defaults();
+
+        /* Camera mode is chosen by the Change Camera bind and the quick menu,
+         * not a table row; Pc_ControlStyleSet swaps the binds and saves it. */
+        g_PcConfig.controlStyle = d->controlStyle;
+        Pc_ControlStyleSet(d->controlStyle);
+        /* The phone gyro rows live only in the quick menu, outside the tables. */
+        {
+            char buf[16];
+
+            g_PcConfig.gyroAim         = d->gyroAim;
+            g_PcConfig.gyroSensitivity = d->gyroSensitivity;
+            g_PcConfig.gyroMove        = d->gyroMove;
+            snprintf(buf, sizeof(buf), "%d", g_PcConfig.gyroAim);
+            PcConfig_SaveKeyValue("gyro_aim", buf);
+            snprintf(buf, sizeof(buf), "%.2f", (double)g_PcConfig.gyroSensitivity);
+            PcConfig_SaveKeyValue("gyro_sensitivity", buf);
+            PcConfig_SaveKeyValue("gyro_movement", g_PcConfig.gyroMove ? "1" : "0");
+        }
+    }
     SH_DBG_ECHO("Settings reset to defaults (resolution and window mode kept).");
 }
 
