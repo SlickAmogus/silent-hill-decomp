@@ -270,7 +270,8 @@ typedef struct {
     float flashlightSize;       /* per-pixel flashlight cone coverage multiplier, 0..3 (config key: flashlight_size) */
     float flashlightIntensityFps; /* per-pixel flashlight brightness in FPS mode, 0..3 (config key: flashlight_intensity_fps) */
     float flashlightSizeFps;      /* per-pixel flashlight coverage in FPS mode, 0..3 (config key: flashlight_size_fps) */
-    int   flashlightFollowAim;    /* the beam follows the camera: FPS fully, TPS/OTS fully while aiming and by pitch only otherwise (config key: flashlight_follow_aim, console FLASHLIGHTAIM, F10 row) */
+    int   flashlightFollowAimFps; /* FPS: the beam follows the view (config key: flashlight_follow_aim_fps, F10 row while in first person) */
+    int   flashlightFollowAim;    /* TPS/OTS: the beam follows the camera fully while aiming and by pitch only otherwise (config key: flashlight_follow_aim, console FLASHLIGHTAIM, F10 row) */
     float postProcessIntensity; /* post-process effect mix, 0..1 (config key: post_process_intensity) */
     float tonemapIntensity;     /* tone-map mix, 0..1 (config key: tonemap_intensity) */
     /* Image adjustments applied to the final frame every time (independent of the

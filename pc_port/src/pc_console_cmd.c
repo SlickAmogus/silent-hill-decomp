@@ -2019,15 +2019,19 @@ void Pc_ConsoleExec(const char* line)
         if (arg[0]) g_pgxpWeldWRatio = (float)atof(arg);
         cprintf("PGXP weld depth ratio: %.3f", g_pgxpWeldWRatio);
     } else if (strcmp(cmd, "FLASHLIGHTAIM") == 0) {
-        /* Off: the game's own beam, Harry's torso direction (from the eye in
-         * first person). On: it follows the view in first person, and in
-         * Thirdperson / Over-the-Shoulder the aim while a weapon is readied,
-         * otherwise only the camera's pitch. */
-        if (arg[0] == '1')      g_PcConfig.flashlightFollowAim = 1;
-        else if (arg[0] == '0') g_PcConfig.flashlightFollowAim = 0;
-        else                    g_PcConfig.flashlightFollowAim = !g_PcConfig.flashlightFollowAim;
-        PcConfig_SaveKeyValue("flashlight_follow_aim", g_PcConfig.flashlightFollowAim ? "1" : "0");
-        cprintf("flashlight follows the aim/view: %s", g_PcConfig.flashlightFollowAim ? "ON" : "OFF");
+        /* Acts on the camera in use: first person (flashlight_follow_aim_fps,
+         * the beam follows the view) or Thirdperson / Over-the-Shoulder
+         * (flashlight_follow_aim, the aim while a weapon is readied, otherwise
+         * only the camera's pitch). Off keeps Harry's torso direction. */
+        extern int  g_PcFpsCam;
+        int*        v   = g_PcFpsCam ? &g_PcConfig.flashlightFollowAimFps : &g_PcConfig.flashlightFollowAim;
+        const char* key = g_PcFpsCam ? "flashlight_follow_aim_fps" : "flashlight_follow_aim";
+
+        if (arg[0] == '1')      *v = 1;
+        else if (arg[0] == '0') *v = 0;
+        else                    *v = !*v;
+        PcConfig_SaveKeyValue(key, *v ? "1" : "0");
+        cprintf("flashlight follows the %s: %s", g_PcFpsCam ? "first-person view" : "third-person aim", *v ? "ON" : "OFF");
     } else if (strcmp(cmd, "WEATHERHZ") == 0) {
         if (arg[0]) g_PcConfig.weatherSimHz = (atoi(arg) == 30) ? 30 : 60;
         cprintf("Weather (rain/snow) simulation: %d Hz%s", g_PcConfig.weatherSimHz,

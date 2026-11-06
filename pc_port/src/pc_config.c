@@ -100,6 +100,7 @@ s_PcConfig g_PcConfig = {
     .flashlightIntensityFps = 2.10f, /* FPS-mode brightness (head-mounted) */
     .flashlightSizeFps      = 1.30f, /* FPS-mode coverage (tighter than third-person) */
     .flashlightFollowAim    = 0,
+    .flashlightFollowAimFps = 1,
     .postProcessIntensity = 1.0f, /* post-process effect mix, 0..1 */
     .tonemapIntensity     = 1.0f, /* tone-map mix, 0..1 */
     .brightness           = 1.0f, /* output image brightness; 1.0 = neutral */
@@ -912,6 +913,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "flashlight_follow_aim") == 0)
         {
             g_PcConfig.flashlightFollowAim = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "flashlight_follow_aim_fps") == 0)
+        {
+            g_PcConfig.flashlightFollowAimFps = (atoi(value) != 0);
         }
         else if (strcmp(key, "flashlight_size_fps") == 0)
         {
