@@ -76,6 +76,7 @@
 [CmdletBinding()]
 param(
     [string]$BuildDir   = "$PSScriptRoot\..\pc_port\build",
+    [string]$MingwBin   = "C:\msys64\mingw64\bin",
     [string]$Repo       = "SlickAmogus/silent-hill-pc-nightly",
     [ValidateSet("", "zip", "loose")]
     [string]$Mode       = "",
@@ -141,6 +142,43 @@ function Get-ShippedAssets {
             Source  = $_.FullName
         }
     })
+}
+
+# Runtime DLLs beside the exe, chosen the way the CI stage step chooses them:
+# whatever the exe and the map DLLs import, recursively, taken from the MinGW
+# prefix that built them. Never a *.dll glob of the build folder -- that is a
+# working folder, and it also holds DLLs that must NOT ship: user-supplied GPL
+# ffmpeg (avcodec-*, loaded at runtime, not redistributable) and the launcher's
+# extracted UnRAR.dll. ANGLE is loaded at runtime too, so no import walk finds
+# it; it ships from its own source folder, pc_port/angle/, json companions
+# included (its Vulkan backend needs vk_swiftshader_icd.json), when present.
+$angleDir = Join-Path $PSScriptRoot "..\pc_port\angle"
+function Get-ShippedRuntimeFiles {
+    $objdump = Join-Path $MingwBin "objdump.exe"
+    if (-not (Test-Path $objdump)) { throw "objdump not found at $objdump (pass -MingwBin)." }
+
+    $out   = [ordered]@{}
+    $queue = New-Object System.Collections.Queue
+    $queue.Enqueue($exe)
+    Get-ChildItem $maps -Filter "*.dll" | ForEach-Object { $queue.Enqueue($_.FullName) }
+    while ($queue.Count -gt 0) {
+        $pe = $queue.Dequeue()
+        foreach ($line in (& $objdump -p $pe)) {
+            if ($line -notmatch '^\s*DLL Name:\s*(\S+)') { continue }
+            $name = $Matches[1]
+            $src  = Join-Path $MingwBin $name
+            if ($out.Contains($name.ToLower()) -or -not (Test-Path $src)) { continue }
+            $out[$name.ToLower()] = [pscustomobject]@{ RelPath = $name; Source = $src }
+            $queue.Enqueue($src)
+        }
+    }
+
+    if (Test-Path $angleDir) {
+        Get-ChildItem $angleDir -File | Where-Object { $_.Extension -in '.dll', '.json' } | ForEach-Object {
+            $out[$_.Name.ToLower()] = [pscustomobject]@{ RelPath = $_.Name; Source = $_.FullName }
+        }
+    }
+    return @($out.Values)
 }
 
 # Find the newest run of $Workflow on $Branch that was triggered by the exact
@@ -794,9 +832,8 @@ if ($isZip) {
         if (Test-Path $changelogPath) { Copy-Item $changelogPath (Join-Path $stage "CHANGELOG.md") -Force }
         if (Test-Path $cfgTemplate)   { Copy-Item $cfgTemplate   (Join-Path $stage "config.cfg")   -Force }
 
-        # Runtime DLLs next to the exe (MinGW runtime, SDL2, OpenAL, libjpeg).
-        Get-ChildItem $BuildDir -Filter "*.dll" | ForEach-Object {
-            Copy-Item $_.FullName (Join-Path $stage $_.Name) -Force
+        foreach ($r in Get-ShippedRuntimeFiles) {
+            Copy-Item $r.Source (Join-Path $stage $r.RelPath) -Force
         }
 
         # Map overlay DLLs.
@@ -988,8 +1025,10 @@ Get-ChildItem $maps -Filter "*.dll" | ForEach-Object {
     $localFiles[$rel] = Get-Sha256 $_.FullName
 }
 
-Get-ChildItem $BuildDir -Filter "*.dll" | ForEach-Object {
-    $localFiles[$_.Name] = Get-Sha256 $_.FullName
+$runtimeSources = @{}
+foreach ($r in Get-ShippedRuntimeFiles) {
+    $localFiles[$r.RelPath]     = Get-Sha256 $r.Source
+    $runtimeSources[$r.RelPath] = $r.Source
 }
 
 if (Test-Path $changelogPath) {
@@ -1100,6 +1139,7 @@ foreach ($path in $changed) {
            elseif ($path -eq "CHANGELOG.md") { $changelogPath }
            elseif ($path -eq "SilentHillPC_Launcher.exe") { $launcherExe }
            elseif ($assetSources.ContainsKey($path)) { $assetSources[$path] }
+           elseif ($runtimeSources.ContainsKey($path)) { $runtimeSources[$path] }
            else { Join-Path $BuildDir $path }
     $assetName = $path -replace '/', '__'
     $dst = Join-Path $stagingDir $assetName
