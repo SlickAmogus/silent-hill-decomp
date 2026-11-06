@@ -18,6 +18,7 @@
 #ifdef SH_PC_PORT
 #include <ctype.h>
 #include "pc_config.h"
+#include "main/fileinfo.h" /* g_GameRegion: PAL Brightness */
 #include "pc_pause_menu.h"
 #endif
 
@@ -2477,6 +2478,17 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
             if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.enter)
             {
                 Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+#ifdef SH_PC_PORT
+                /* PAL never loads this picture (its options overlay loads only
+                 * OPTION2.TIM): the PAL layout puts the item CLUTs at
+                 * (896..943,480..495), inside the in-game rect, and the
+                 * inventory uploads them once per session, so every item
+                 * model came back blank after Brightness. */
+                if (g_GameRegion == Region_EUR)
+                {
+                }
+                else
+#endif
                 if (g_GameWork.gameStatePrev == GameState_MainMenu)
                 {
                     Fs_QueueStartReadTim(FILE_TIM_OP_BRT_E_TIM, IMAGE_BUFFER_3, &g_BrightnessScreenImg0);
@@ -4035,6 +4047,14 @@ void Options_BrightnessMenu_Control(void) // 0x801E6018
     }
 
     // Draw graphics.
+#ifdef SH_PC_PORT
+    /* PAL draws the options background here; its Brightness picture is never loaded. */
+    if (g_GameRegion == Region_EUR)
+    {
+        Screen_BackgroundImgDraw(&g_ItemInspectionImg);
+    }
+    else
+#endif
     if (g_GameWork.gameStatePrev == GameState_MainMenu)
     {
         Screen_BackgroundImgDraw(&g_BrightnessScreenImg0);
