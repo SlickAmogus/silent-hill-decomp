@@ -16,6 +16,12 @@
 #include "pc_rando.h"
 
 extern int g_PsxPresentLastFrame;
+/* Set when the pause resumes the game; MainLoop swallows all pad input until
+ * every button that could have resumed it is released. A mouse click on
+ * CONTINUE also reaches the pad as the bound button a frame later (the
+ * keyboard/mouse-to-pad emulation lags), where it would act in the world:
+ * pick up, open, examine whatever Harry faced. */
+int g_PcPauseSwallowInput = 0;
 extern int g_PsxFreezeCaptureHold;
 extern int g_PcFreezeReleasePending;
 extern void PsyX_SPUAL_SetKeyOnMasterExempt(int on);
@@ -347,6 +353,7 @@ void Pc_PauseMenu_Update(void)
              * SysState_GamePaused_Update set this tick. Hand the
              * release to MainLoop, which waits for a tick that drew. */
             g_PcFreezeReleasePending = 1;
+            g_PcPauseSwallowInput    = 1;
             Pc_PauseMenu_Reset();
             s_quickMenuPending = (act == PM_ACT_QUICK_MENU);
             SH_DBG("[PAUSE] resume%s", s_quickMenuPending ? " -> quick menu" : "");

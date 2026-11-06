@@ -2581,6 +2581,29 @@ void MainLoop(void) // 0x80032EE0
             }
         }
 
+        {
+            extern int g_PcPauseSwallowInput;
+            if (g_PcPauseSwallowInput) {
+                const s_ControllerConfig* cc = &g_GameWorkPtr->config.controllerConfig;
+                const u32 resumeBits = cc->enter | cc->action | cc->cancel | cc->pause | ControllerFlag_Start;
+                int mouseDown = (SDL_GetMouseState(NULL, NULL) &
+                                 (SDL_BUTTON(SDL_BUTTON_LEFT) | SDL_BUTTON(SDL_BUTTON_RIGHT))) != 0;
+                extern unsigned int Pc_MouseCursor_BoundPadBits(void);
+                /* At least two frames: the emulated pad still carries the
+                 * click the frame after the SDL button is up. */
+                if (g_PcPauseSwallowInput++ > 2 && !mouseDown &&
+                    !(g_Controller0->heldBtnFlags & (resumeBits | Pc_MouseCursor_BoundPadBits()))) {
+                    g_PcPauseSwallowInput = 0;
+                } else {
+                    g_Controller0->heldBtnFlags      = 0;
+                    g_Controller0->clickedBtnFlags   = 0;
+                    g_Controller0->releasedBtnFlags  = 0;
+                    g_Controller0->pulsedBtnFlags    = 0;
+                    g_Controller0->pulsedGuiBtnFlags = 0;
+                }
+            }
+        }
+
         /* Quick Save (F6) / Quick Load (F8) — always on, not debug-gated. */
         {
             extern void Pc_QuickSaveLoadUpdate(void);
