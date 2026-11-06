@@ -75,6 +75,8 @@
 { "Crosshair_Size",   "حجم_العلامة" },
 { "Text_Size",        "حجم_النص" },
 { "[R]_Reset",        "استعادة" },
+{ "Press_R_to_reset", "اضغط_مفتاح_آر_للاستعادة" },
+{ "Press_triggers_to_reset", "اضغط_الزنادين_للاستعادة" },
 { "PP_Flashlight",    "إضاءة_دقيقة" },
 { "PP_Shadows",       "ظلال_دقيقة" },
 

@@ -52,6 +52,11 @@ static s32         s_MsgAnchorY;
  * string's start position. 1.0 leaves every glyph on the original path. */
 static s32 s_PcStringScale = Q12(1.0f);
 
+s32 Pc_StringScaleGet(void)
+{
+    return s_PcStringScale;
+}
+
 void Pc_StringScaleSet(s32 scale)
 {
     s_PcStringScale = scale;
@@ -1718,7 +1723,10 @@ void Gfx_StringDrawInt(s32 widthMin, s32 val) // 0x8004B9F8
         }
 
         str[1] = 0;
+        /* Already in drawer order: the menu lookup must not reorder it again. */
+        g_PcLangMenuVerbatim = 1;
         Gfx_StringDraw(buf, 5);
+        g_PcLangMenuVerbatim = 0;
         return;
     }
 #endif

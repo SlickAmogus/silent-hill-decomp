@@ -47,6 +47,16 @@ void Nm_TextDraw(int x, int y, int size, int color, const char* s)
 {
     Gfx_StringSetColor(color);
 
+    /* The USA Arabic disc's drawer walks leftward from its start, so start at
+     * the right edge: callers lay pieces out left to right by width, and each
+     * piece then covers the same span it does on every other disc. */
+    if (Pc_ArRtl() && x != NO_VALUE)
+    {
+        int w = Pc_LangMenuTextWidth(g_PcLangMenuVerbatim ? s : Pc_LangMenuText(s));
+
+        x += (w * Pc_StringScaleGet()) >> 12;
+    }
+
     if (nm_interlaced() && size == NM_TEXT_TALL)
     {
         g_SysWork.enableHighResGlyphs = true;
@@ -102,21 +112,11 @@ int Nm_TextWidth(const char* s)
 /* The USA Arabic drawer walks leftward, so a string starts at its right edge. */
 void Nm_TextDrawCentered(int cx, int y, int size, int color, const char* s)
 {
-    if (Pc_ArRtl())
-    {
-        Nm_TextDraw(cx + (Nm_TextWidth(s) / 2), y, size, color, s);
-        return;
-    }
     Nm_TextDraw(cx - (Nm_TextWidth(s) / 2), y, size, color, s);
 }
 
 void Nm_TextDrawRight(int rx, int y, int size, int color, const char* s)
 {
-    if (Pc_ArRtl())
-    {
-        Nm_TextDraw(rx, y, size, color, s);
-        return;
-    }
     Nm_TextDraw(rx - Nm_TextWidth(s), y, size, color, s);
 }
 

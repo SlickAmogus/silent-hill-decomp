@@ -7,6 +7,7 @@
 #include "sh_log.h"
 #include "main/fileinfo.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -323,6 +324,84 @@ int Pc_ArRtlMark(unsigned int charCode)
     return charCode == 0x27 || charCode == 0x2A || charCode == 0x3B || charCode == 0x3E;
 }
 
+/* Strings the port formats at run time from numbers alone ("26/66", a
+ * resolution, "100%"): no table holds them, and the disc atlases have no 'x'
+ * or '%' cell (those bytes are Arabic letters there). The USA drawer walks
+ * right to left, so the whole run is reversed to read left to right on
+ * screen; every character here is direction-neutral, so that is all it takes.
+ * Anything with a letter is left alone. Ring of buffers: callers use the
+ * result at once (draw or measure), never keep it. */
+static const char* ArNumericText(const char* s)
+{
+    static char  ring[16][64];
+    static int   next;
+    char         tmp[64];
+    char*        out;
+    int          n = 0;
+    int          digits = 0;
+    const char*  p;
+    int          i;
+    int          area, scene;
+    char         mapId[16];
+
+    /* The New Game start map (PC Options) shows its id, "map0_s00": the
+     * letters have no cells, the numbers do. */
+    if (sscanf(s, "map%d_s%d", &area, &scene) == 2)
+    {
+        snprintf(mapId, sizeof(mapId), "%d-%02d", area, scene);
+        s = mapId;
+    }
+
+    for (p = s; *p != '\0'; p++)
+    {
+        char c = *p;
+
+        if (c >= '0' && c <= '9')
+            digits++;
+        else if (!(c == '/' || c == ':' || c == '.' || c == '_' || c == ' ' || c == '-' || c == '+' ||
+                   c == '%' || c == 'x' || c == '(' || c == ')' || (unsigned char)c < 0x08))
+            return NULL;
+    }
+    if (digits == 0)
+        return NULL;
+
+    for (p = s; *p != '\0' && n < (int)sizeof(tmp) - 3; p++)
+    {
+        if (*p == '%')
+            continue;
+        if (*p == 'x')
+        {
+            tmp[n++] = '_';
+            tmp[n++] = '-';
+            tmp[n++] = '_';
+            continue;
+        }
+        tmp[n++] = *p;
+    }
+
+    out  = ring[next];
+    next = (next + 1) % 16;
+    if (Pc_ArRtl())
+    {
+        int lead = 0;
+
+        /* Colour codes stay in front; only the visible run turns around. */
+        while (lead < n && (unsigned char)tmp[lead] < 0x08)
+        {
+            out[lead] = tmp[lead];
+            lead++;
+        }
+        for (i = lead; i < n; i++)
+            out[i] = tmp[n - 1 - (i - lead)];
+    }
+    else
+    {
+        memcpy(out, tmp, (size_t)n);
+    }
+    out[n] = '\0';
+    return out;
+}
+
 const char* Pc_ArMenuText(const char* us)
 {
     int i;
@@ -337,10 +416,10 @@ const char* Pc_ArMenuText(const char* us)
     }
     for (i = 0; i < AR_MENU_COUNT; i++)
     {
-        if (s_ArMenuTr[i] != NULL && strcmp(s_ArMenus[i].us, us) == 0)
+        if (s_ArMenuTr[i] != NULL && ArKeyEqual(s_ArMenus[i].us, us))
             return s_ArMenuTr[i];
     }
-    return NULL;
+    return ArNumericText(us);
 }
 
 const char* Pc_ArDiscRegionName(void)

@@ -147,6 +147,7 @@ void Pc_MapMsgPageAdvance(void);
  * about each string's start position. Measure them with the unscaled width
  * times the scale. Set it back to Q12(1.0f) when done. */
 void Pc_StringScaleSet(s32 scale);
+s32  Pc_StringScaleGet(void);
 #endif
 
 void func_8004B658(void);

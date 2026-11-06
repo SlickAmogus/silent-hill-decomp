@@ -998,7 +998,6 @@ static void MainMenu_MainTextDraw(void) // 0x8003B568
     };
     static const u8 STR_OFFSETS_X[] = { 29, 50, 32, 39, 33 }; // @unused Element at index 4. See `g_MainMenu_VisibleEntryFlags`.
 #ifdef SH_PC_PORT
-    static const u8 STR_OFFSETS_X_AR_USA[] = { 178, 181, 178, 189, 179 };
 #endif
 
     s32 i;
@@ -1037,14 +1036,16 @@ static void MainMenu_MainTextDraw(void) // 0x8003B568
                                        Pc_LangMenuTextWidth(Pc_LangMenuText("["))) >> 1);
             s32         posX = COLUMN_POS_X - offX;
 
-            /* The USA Arabic patch reads its table as absolute right edges; the
-             * port's rows have none, so anchor them right of centre instead.
-             * The PAL patch's offsets pair with its own column origin, not this
-             * one (they drew its rows off centre), and its drawer is the stock
-             * left-to-right one, so the measured centre above is exact there. */
-            if (Pc_ArDisc() == AR_DISC_USA_MANSOUR)
+            /* Both Arabic patches' offset tables pair with their own column
+             * origins (the PAL one drew its rows left of centre, the USA one a
+             * few pixels right of the port's own rows), so every row is centred
+             * from its measured width. The USA drawer walks leftward from the
+             * start through the leading marker, then the label. */
+            if (Pc_ArRtl())
             {
-                posX = (id < MainMenuEntry_Achievements) ? STR_OFFSETS_X_AR_USA[id] : (COLUMN_POS_X + offX);
+                posX = COLUMN_POS_X + (Pc_LangMenuTextWidth(tr) >> 1) +
+                       ((id == g_MainMenu_SelectedEntry) ? Pc_LangMenuTextWidth(Pc_LangMenuText("["))
+                                                          : FONT_12X16_SPACE_SIZE);
             }
             Gfx_StringSetPosition(posX, rowY + (slot * MAINMENU_ROW_PITCH));
         }
@@ -1122,7 +1123,6 @@ static void MainMenu_DifficultyTextDraw(s32 idx) // 0x8003B678
     };
     static const u8 STR_OFFSETS_X[] = { 28, 43, 30 };
 #ifdef SH_PC_PORT
-    static const u8 STR_OFFSETS_X_AR_USA[] = { 179, 180, 179 };
 #endif
 
     s32 i;
@@ -1137,7 +1137,14 @@ static void MainMenu_DifficultyTextDraw(s32 idx) // 0x8003B678
                                    ? STR_OFFSETS_X[i]
                                    : ((Pc_LangMenuTextWidth(tr) +
                                        Pc_LangMenuTextWidth(Pc_LangMenuText("["))) >> 1);
-            s32         posX = PC_AR_USA(STR_OFFSETS_X_AR_USA[i], COLUMN_POS_X - offX);
+            s32         posX = COLUMN_POS_X - offX;
+
+            /* As MainMenu_MainTextDraw: measured, from the right on the USA disc. */
+            if (Pc_ArRtl())
+            {
+                posX = COLUMN_POS_X + (Pc_LangMenuTextWidth(tr) >> 1) +
+                       ((i == idx) ? Pc_LangMenuTextWidth(Pc_LangMenuText("[")) : FONT_12X16_SPACE_SIZE);
+            }
             Gfx_StringSetPosition(posX, COLUMN_POS_Y + (i * STR_OFFSET_Y));
         }
 #else

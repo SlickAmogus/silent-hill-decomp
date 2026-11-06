@@ -18,6 +18,7 @@
 #include "pc_native_menu_draw.h"
 #include "pc_retroachievements.h"
 #include "pc_ttf_text.h"
+#include "lang_ar.h"
 #include "sh_log.h"
 
 static int ach_line_draw(int x, int y, int tall, int color, char* clean, int maxW, int pan);
@@ -459,6 +460,30 @@ static void ach_counter_draw(void)
     int  wc;
     int  wp;
     int  x;
+
+    /* Arabic reads right to left: count, points, then the word, from the right
+     * edge. A single "(%u/%u_%s)" line would put the encoded word inside a run
+     * of digits, which no one order draws correctly on both discs. */
+    if (Pc_ArActive())
+    {
+        const char* word = "points";
+        int         wn;
+        int         ww;
+
+        snprintf(count, sizeof(count), "%d/%d", s_list.unlocked, s_list.count);
+        snprintf(points, sizeof(points), "%u/%u", s_list.pts, s_list.ptsTotal);
+        wc = Nm_TextWidth(count);
+        wn = Nm_TextWidth(points);
+        ww = Nm_TextWidth(word);
+        x  = 320 - ACH_BACK_X - wc;
+        Nm_TextDraw(x, ACH_FOOTER_Y, NM_TEXT_TALL, StringColorId_White, count);
+        x -= 10 + wn;
+        Nm_TextDraw(x, ACH_FOOTER_Y, NM_TEXT_TALL, StringColorId_Gold, points);
+        x -= FONT_12X16_SPACE_SIZE + ww;
+        if (x >= ach_back_right() + 12)
+            Nm_TextDraw(x, ACH_FOOTER_Y, NM_TEXT_TALL, StringColorId_Gold, word);
+        return;
+    }
 
     snprintf(count, sizeof(count), "%d/%d_", s_list.unlocked, s_list.count);
     snprintf(points, sizeof(points), "(%u/%u_%s)", s_list.pts, s_list.ptsTotal, Pc_LangMenuText("points"));
