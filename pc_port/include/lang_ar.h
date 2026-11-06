@@ -39,6 +39,14 @@ int Pc_ArRtlMark(unsigned int charCode);
 /* Arabic for a compiled UI literal, in the disc's own glyph encoding, or NULL. */
 const char* Pc_ArMenuText(const char* us);
 
+/* Shape logical-order UTF-8 Arabic into that disc's FONT16 bytes; returns the
+ * length written (NUL-terminated, truncated to outCap). */
+int Pc_ArEncode(const char* utf8, int disc, char* out, int outCap);
+
+/* Layout constants the patches rewrote: `ar` on that disc, `def` otherwise. */
+#define PC_AR_USA(ar, def) (Pc_ArDisc() == AR_DISC_USA_MANSOUR ? (ar) : (def))
+#define PC_AR_PAL(ar, def) (Pc_ArDisc() == AR_DISC_PAL_AHMED ? (ar) : (def))
+
 /* "USA" / "PAL" and the translators, for logs and the launcher. */
 const char* Pc_ArDiscRegionName(void);
 const char* Pc_ArDiscGroupName(void);

@@ -53,6 +53,21 @@ static char*       s_ArDiscPool;
 
 typedef struct
 {
+    const char* us;
+    const char* ar; /* logical-order UTF-8 */
+} s_ArMenu;
+
+static const s_ArMenu s_ArMenus[] = {
+#include "lang_ar_menu.inc"
+};
+
+#define AR_MENU_COUNT ((int)(sizeof(s_ArMenus) / sizeof(s_ArMenus[0])))
+
+static const char* s_ArMenuTr[AR_MENU_COUNT];
+static char*       s_ArMenuPool;
+
+typedef struct
+{
     unsigned int fontHash; /* FNV-1a of the disc's whole FONT16.TIM */
     e_ArDisc     disc;
     const char*  region;
@@ -201,6 +216,31 @@ static void ArLoadDiscText(void)
     SH_LOG("[LANG-AR] %d UI strings read from the disc", loaded);
 }
 
+/* The port's own rows, spelled in this disc's cells. A shaped string is never
+ * longer than its UTF-8 (2 bytes per letter in, at most 2 cells out). */
+static void ArEncodeMenus(void)
+{
+    unsigned int bytes = 0;
+    char*        out;
+    int          i;
+
+    for (i = 0; i < AR_MENU_COUNT; i++)
+        bytes += (unsigned int)strlen(s_ArMenus[i].ar) + 1;
+
+    s_ArMenuPool = (char*)malloc(bytes);
+    if (s_ArMenuPool == NULL)
+        return;
+
+    out = s_ArMenuPool;
+    for (i = 0; i < AR_MENU_COUNT; i++)
+    {
+        int cap = (int)strlen(s_ArMenus[i].ar) + 1;
+
+        s_ArMenuTr[i] = out;
+        out += Pc_ArEncode(s_ArMenus[i].ar, (int)s_Active->disc, out, cap) + 1;
+    }
+}
+
 /* Equal as UI text: PAL literals indent continuation lines with tabs and use a
  * real space where the USA build writes '_'; the drawer treats both alike. */
 static int ArKeyEqual(const char* a, const char* b)
@@ -230,6 +270,9 @@ void Pc_ArInit(void)
     s_Active = NULL;
     free(s_ArDiscPool);
     s_ArDiscPool = NULL;
+    free(s_ArMenuPool);
+    s_ArMenuPool = NULL;
+    memset((void*)s_ArMenuTr, 0, sizeof(s_ArMenuTr));
     memset((void*)s_ArDiscTr, 0, sizeof(s_ArDiscTr));
 
     size = (unsigned int)g_FileTable[FILE_1ST_FONT16_TIM].blockCount << 8;
@@ -257,6 +300,7 @@ void Pc_ArInit(void)
 
     SH_LOG("[LANG-AR] Arabic %s disc detected (%s), FONT16 %08X", s_Active->region, s_Active->group, hash);
     ArLoadDiscText();
+    ArEncodeMenus();
 }
 
 int Pc_ArDisc(void)
@@ -290,6 +334,11 @@ const char* Pc_ArMenuText(const char* us)
     {
         if (s_ArDiscTr[i] != NULL && ArKeyEqual(s_ArDiscTexts[i].us, us))
             return s_ArDiscTr[i];
+    }
+    for (i = 0; i < AR_MENU_COUNT; i++)
+    {
+        if (s_ArMenuTr[i] != NULL && strcmp(s_ArMenus[i].us, us) == 0)
+            return s_ArMenuTr[i];
     }
     return NULL;
 }
