@@ -1616,6 +1616,9 @@ void WorldGfx_CharaModelProcessLoad(s_CharaModel* model) // 0x8003D9C8
  * Pc_Pick_CharaPreDraw and consumed by this draw, so a draw with no preceding
  * set -- the save/load screen Harry -- cannot inherit the last one. */
 s32 g_PcCharaDrawScale = Q12(1.0f);
+
+void Pc_FlashlightPlayerBegin(void);
+void Pc_FlashlightPlayerEnd(void);
 #endif
 
 void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12 timer, s32 arg4) // 0x8003DA9C
@@ -1639,9 +1642,11 @@ void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12
          * further below), so it needs its own no-cast flag — otherwise his gun/
          * pipe/flashlight throws a flashlight shadow even though his body doesn't. */
         { extern int g_PsyX_NoShadowCast; g_PsyX_NoShadowCast = 1; }
+        Pc_FlashlightPlayerBegin();
 #endif
         WorldGfx_HeldItemDraw();
 #ifdef SH_PC_PORT
+        Pc_FlashlightPlayerEnd();
         { extern int g_PsyX_NoShadowCast; g_PsyX_NoShadowCast = 0; }
 #endif
     }
@@ -1743,6 +1748,19 @@ void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12
      * per-pixel light) it duly disappears, while every Modern/shadow mode kept it
      * lit and standing there forever. Rides the view-space FIFO per vertex. */
     { extern float g_PsyX_CharaFade; g_PsyX_CharaFade = (float)timer / 4096.0f; }
+    /* The player's own body (Play As and skinned replacements included) is
+     * flagged +2 so the cone shader can keep the beam off the parts of him
+     * behind his own flashlight, and takes no cone at all while the beam is
+     * redirected (follow-aim / first person): it leaves his chest, so a tilted
+     * beam would light his head or legs from inches away. The per-vertex light
+     * goes back to the game's own for the same reason (Pc_FlashlightPlayerBegin). */
+    if (boneCoords == g_SysWork.playerBoneCoords)
+    {
+        extern float g_PsyX_CharaFade;
+        extern int   g_PcFlashlightDirOverridden;
+        g_PsyX_CharaFade = (g_PcFlashlightDirOverridden ? 1.0f : g_PsyX_CharaFade) + 2.0f;
+        Pc_FlashlightPlayerBegin();
+    }
     /* [CHARAPRIM]: the draw chain below (func_80057090 -> func_8005AC50) only ever
      * sees a model header, never a chara, so the probe's subject is stamped here —
      * the one place both are in scope. */
@@ -1760,6 +1778,7 @@ void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12
     { extern int g_PcHideHarryFpsBody; g_PcHideHarryFpsBody = 0; }
     { extern int g_PsyX_NoShadowCast; g_PsyX_NoShadowCast = 0; }
     { extern float g_PsyX_CharaFade; g_PsyX_CharaFade = 0.0f; }
+    Pc_FlashlightPlayerEnd();
 #endif
 
     if (timer != Q12(0.0f))

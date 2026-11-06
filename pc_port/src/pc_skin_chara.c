@@ -3596,6 +3596,12 @@ void Pc_SkinChara_End(void* chara, void* otp, int shift, int hideHead)
         return;
     Skin_Ragdoll(ch);
     beam = 1.0f - ch->beamPct / 100.0f;
+    /* The player's +2 self-beam flag, as func_8003DA9C sets for the stock body. */
+    if (ch->isPlayer)
+    {
+        extern int g_PcFlashlightDirOverridden;
+        beam = (g_PcFlashlightDirOverridden ? 1.0f : beam) + 2.0f;
+    }
     PsyX_GetDrawEnvOffset(&offX, &offY);
     for (v = 0; v < ch->vertCount; v++)
     {

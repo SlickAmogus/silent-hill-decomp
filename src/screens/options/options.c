@@ -991,7 +991,7 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_DREAMSTR, QO_X_DREAMBLUR, QO_X_DPADMOVE,
        QO_X_CAMSTYLE, QO_X_OTSSIDE, QO_X_CROSSHAIRSTYLE,
        QO_X_LINEGAP, QO_X_CHARALIGHT, QO_X_PPLIGHT, QO_X_HEROLIGHT, QO_X_HEROLIGHTFL, QO_X_FACEANIM,
-       QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD };
+       QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD, QO_X_FLASHAIM };
 
 /* display_aspect = crt puts the picture on (4:3 x trim), so one framebuffer
  * pixel lands on screen this many times wider than tall at trim 1.0. It is the
@@ -1132,6 +1132,8 @@ const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz)
         if (!g_PcConfig.crosshair) {
             snprintf(buf, bufsz, "%s  %s", Pc_LangQuick(QO_CROSSHAIR_LBL[st]),
                      Pc_LangQuick("(off)"));
+    case QO_X_FLASHAIM:
+        return Pc_LangQuickMenu(g_PcConfig.flashlightFollowAim ? "On" : "Off");
             return buf;
         }
         return Pc_LangQuick(QO_CROSSHAIR_LBL[st]);
@@ -1683,6 +1685,12 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
     case QO_X_TPSRESTX: PcOpt_FpsHeadStep(&g_PcConfig.tpsRestX, NULL, "tps_rest_x",  dir * 128); break;
     case QO_X_TPSRESTY: PcOpt_FpsHeadStep(&g_PcConfig.tpsRestY, NULL, "tps_rest_y", -dir * 128); break;
     case QO_X_TPSAIMX:  PcOpt_FpsHeadStep(&g_PcConfig.tpsAimX,  NULL, "tps_aim_x",   dir * 128); break;
+    /* func_800554C4 reads it each time the light is set up, so it applies live. */
+    case QO_X_FLASHAIM:
+        g_PcConfig.flashlightFollowAim = !g_PcConfig.flashlightFollowAim;
+        PcConfig_SaveKeyValue("flashlight_follow_aim", g_PcConfig.flashlightFollowAim ? "1" : "0");
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        break;
     case QO_X_TPSAIMY:  PcOpt_FpsHeadStep(&g_PcConfig.tpsAimY,  NULL, "tps_aim_y",  -dir * 128); break;
     case QO_X_OTSRESTX: PcOpt_FpsHeadStep(&g_PcConfig.otsRestX, NULL, "ots_rest_x",  dir * 128); break;
     case QO_X_OTSRESTY: PcOpt_FpsHeadStep(&g_PcConfig.otsRestY, NULL, "ots_rest_y", -dir * 128); break;
