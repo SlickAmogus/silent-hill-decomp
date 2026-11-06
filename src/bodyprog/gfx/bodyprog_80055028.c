@@ -1060,14 +1060,14 @@ void func_800554C4(s32 arg0, s16 arg1, GsCOORDINATE2* coord0, GsCOORDINATE2* coo
         s_PcFlStockPos    = g_WorldEnvWork.field_60;
         g_PcFlashlightDirOverridden = 0;
         s_PcFlOverridden = 0;
-        /* flashlight_follow_aim off: the eye stays the origin, so the beam still
+        /* flashlight_follow_aim_fps off: the eye stays the origin, so the beam still
          * starts where the player sees from, but it points along Harry's torso as
          * the game aims it instead of turning with the view. The two fields are
          * independent inputs to every consumer below (cone, per-vertex light,
          * flare), so the origin can move without the direction. */
         if (fpsViewActive && g_SysWork.field_2388.isFlashlightOn_15)
         {
-            if (g_PcConfig.flashlightFollowAim)
+            if (g_PcConfig.flashlightFollowAimFps)
             {
                 g_WorldEnvWork.field_58.vx = g_PcFpsViewFwd.vx;
                 g_WorldEnvWork.field_58.vy = g_PcFpsViewFwd.vy;
