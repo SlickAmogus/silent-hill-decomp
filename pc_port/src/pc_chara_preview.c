@@ -385,7 +385,7 @@ void Pc_CharaPreview_Draw(void)
     /* The desktop 3.3 context may not export the float form; the default
      * clear depth is 1.0 either way. A GLES build links glClearDepthf
      * directly and has no glad pointer to test (libgs_stub.c, same split). */
-#if defined(RENDERER_OGLES) || defined(__EMSCRIPTEN__)
+#if defined(RENDERER_OGLES) || defined(__EMSCRIPTEN__) || defined(__ANDROID__) || defined(SH_IOS)
     glClearDepthf(1.0f);
 #else
     if (glad_glClearDepthf != NULL)
