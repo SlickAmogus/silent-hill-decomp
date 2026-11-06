@@ -2086,6 +2086,10 @@ void DbgOverlay_Render(void)
      * textures, with its own state save/restore), so it lives here rather than
      * inside the shared panel state block below — and above the early-out, or
      * it would never run during normal gameplay. */
+    /* Run-time English on native menus over a disc font with no Latin cells
+     * (pc_ttf_text.c); before the toast so a popup stays on top of it. */
+    { extern void Pc_TtfText_Draw(void); Pc_TtfText_Draw(); }
+
     { extern void Pc_RaToast_Draw(void); Pc_RaToast_Draw(); }
 
     /* Free camera controls panel, same self-contained-GL arrangement. */
