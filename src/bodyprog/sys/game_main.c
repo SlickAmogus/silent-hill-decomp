@@ -3851,7 +3851,13 @@ void MainLoop(void) // 0x80032EE0
         {
             extern int g_PsxItemTakeActive;
             extern int g_PcPickupItemActive;
-            g_PsxItemTakeActive = g_PcPickupItemActive;
+            /* Only while the world itself is frozen behind the item. On the
+             * boundary frame after Yes the flag is still up but the world is
+             * drawn live, and the take screen's ortho (no vertical crop, its
+             * own PAR) then framed the live world: a one-frame jump of the
+             * characters and thin bars at the sides. Same gate as the item
+             * pass's GTE offset below. */
+            g_PsxItemTakeActive = g_PcPickupItemActive && !g_PcWorldDrawnThisFrame;
         }
 
         /* Fixed-angle camera shots frame the top of the scene clipped vs PSX (e.g. a
