@@ -1,10 +1,6 @@
 package com.silenthill.port;
 
-import android.app.PendingIntent;
 import android.content.Context;
-import android.content.Intent;
-import android.content.pm.PackageInstaller;
-import android.os.Build;
 import android.util.Log;
 
 import org.json.JSONArray;
@@ -171,90 +167,6 @@ final class AppUpdate {
             if (c != null) c.disconnect();
         }
         return null;
-    }
-
-    // ------------------------------------------------------------------------
-    // Download and install
-
-    interface Progress {
-        void onProgress(long done, long total);
-    }
-
-    /** Downloads the APK into the app's cache. Null on failure. */
-    static File download(Context ctx, Offer o, Progress p) {
-        File dest = new File(ctx.getCacheDir(), "update.apk");
-        HttpURLConnection c = null;
-
-        try {
-            c = open(o.url, 15000);
-            if (c.getResponseCode() != 200) {
-                Log.w(TAG, "update: download answered " + c.getResponseCode());
-                return null;
-            }
-            long total = c.getContentLength() > 0 ? c.getContentLength() : o.size;
-            long done  = 0;
-            byte[] buf = new byte[64 * 1024];
-
-            try (InputStream in = c.getInputStream(); OutputStream out = new FileOutputStream(dest)) {
-                int n;
-                while ((n = in.read(buf)) > 0) {
-                    out.write(buf, 0, n);
-                    done += n;
-                    p.onProgress(done, total);
-                }
-            }
-            if (total > 0 && done != total) {
-                Log.w(TAG, "update: download stopped at " + done + " of " + total);
-                return null;
-            }
-            return dest;
-        } catch (IOException e) {
-            Log.w(TAG, "update: download failed: " + e);
-            return null;
-        } finally {
-            if (c != null) c.disconnect();
-        }
-    }
-
-    /**
-     * Hands the APK to the system installer. Android asks the player to confirm
-     * (and, the first time, to allow installs from this app); the outcome comes
-     * back as ACTION_STATUS to the receiver SetupActivity registers.
-     *
-     * PackageInstaller rather than an ACTION_VIEW of the file: that needs a
-     * FileProvider, and this way the install is the same on every API level the
-     * app supports.
-     */
-    static boolean install(Context ctx, File apk) {
-        PackageInstaller pi = ctx.getPackageManager().getPackageInstaller();
-        PackageInstaller.SessionParams params =
-            new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
-        params.setAppPackageName(ctx.getPackageName());
-
-        try {
-            int id = pi.createSession(params);
-            try (PackageInstaller.Session s = pi.openSession(id)) {
-                try (InputStream in = new FileInputStream(apk);
-                     OutputStream out = s.openWrite("base.apk", 0, apk.length())) {
-                    byte[] buf = new byte[64 * 1024];
-                    int n;
-                    while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
-                    s.fsync(out);
-                }
-
-                Intent status = new Intent(ACTION_STATUS).setPackage(ctx.getPackageName());
-                /* MUTABLE: the installer fills in the result extras, and from
-                 * Android 12 a PendingIntent must say which it is. */
-                int flags = PendingIntent.FLAG_UPDATE_CURRENT;
-                if (Build.VERSION.SDK_INT >= 31) flags |= PendingIntent.FLAG_MUTABLE;
-                PendingIntent pend = PendingIntent.getBroadcast(ctx, id, status, flags);
-                s.commit(pend.getIntentSender());
-            }
-            return true;
-        } catch (Exception e) {
-            Log.w(TAG, "update: install failed to start: " + e);
-            return false;
-        }
     }
 
     // ------------------------------------------------------------------------

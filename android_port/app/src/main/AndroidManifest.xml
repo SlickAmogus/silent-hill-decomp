@@ -24,10 +24,6 @@
          sign-in that silently does nothing. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- The in-app update (AppUpdate): installs the realtime APK through the
-         system installer, which still asks the player to confirm. -->
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-
     <!-- Only the disc search on Android 10 and older reads storage by path.
          From Android 11 the search runs inside a folder the player picks in the
          system file picker, which needs no permission at all. All-files access
