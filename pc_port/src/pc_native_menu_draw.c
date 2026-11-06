@@ -11,6 +11,7 @@
 #include "bodyprog/text/text_draw.h"
 #include "screens/options.h"
 #include "lang_text.h"
+#include "lang_ar.h"
 #include "pc_mouse_cursor.h"
 #include "pc_native_menu_draw.h"
 
@@ -98,13 +99,24 @@ int Nm_TextWidth(const char* s)
     return Pc_LangMenuTextWidth(Pc_LangMenuText(s));
 }
 
+/* The USA Arabic drawer walks leftward, so a string starts at its right edge. */
 void Nm_TextDrawCentered(int cx, int y, int size, int color, const char* s)
 {
+    if (Pc_ArRtl())
+    {
+        Nm_TextDraw(cx + (Nm_TextWidth(s) / 2), y, size, color, s);
+        return;
+    }
     Nm_TextDraw(cx - (Nm_TextWidth(s) / 2), y, size, color, s);
 }
 
 void Nm_TextDrawRight(int rx, int y, int size, int color, const char* s)
 {
+    if (Pc_ArRtl())
+    {
+        Nm_TextDraw(rx, y, size, color, s);
+        return;
+    }
     Nm_TextDraw(rx - Nm_TextWidth(s), y, size, color, s);
 }
 
