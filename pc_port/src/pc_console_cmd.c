@@ -2018,6 +2018,14 @@ void Pc_ConsoleExec(const char* line)
         extern float g_pgxpWeldWRatio;
         if (arg[0]) g_pgxpWeldWRatio = (float)atof(arg);
         cprintf("PGXP weld depth ratio: %.3f", g_pgxpWeldWRatio);
+    } else if (strcmp(cmd, "FLASHLIGHTAIM") == 0) {
+        /* Thirdperson / Over-the-Shoulder: the flashlight follows the camera's
+         * aim like the first-person one, or keeps Harry's torso direction. */
+        if (arg[0] == '1')      g_PcConfig.flashlightFollowAim = 1;
+        else if (arg[0] == '0') g_PcConfig.flashlightFollowAim = 0;
+        else                    g_PcConfig.flashlightFollowAim = !g_PcConfig.flashlightFollowAim;
+        PcConfig_SaveKeyValue("flashlight_follow_aim", g_PcConfig.flashlightFollowAim ? "1" : "0");
+        cprintf("flashlight follows the aim in thirdperson/OTS: %s", g_PcConfig.flashlightFollowAim ? "ON" : "OFF");
     } else if (strcmp(cmd, "WEATHERHZ") == 0) {
         if (arg[0]) g_PcConfig.weatherSimHz = (atoi(arg) == 30) ? 30 : 60;
         cprintf("Weather (rain/snow) simulation: %d Hz%s", g_PcConfig.weatherSimHz,
