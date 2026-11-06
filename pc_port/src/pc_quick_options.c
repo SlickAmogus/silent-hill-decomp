@@ -2807,19 +2807,28 @@ void Pc_QuickOptions_Draw(void)
         }
         if (!s_texResetRing)
         {
-            enum { RING_SRC = 64 };
-            static unsigned char ring[RING_SRC * RING_SRC];
+            /* A ring drawn straight at its on-screen size, white with a faint
+             * fill so the R reads over any row behind it. */
+            unsigned char* rgba = (unsigned char*)malloc((size_t)d * d * 4);
             int x, y;
 
-            for (y = 0; y < RING_SRC; y++)
-                for (x = 0; x < RING_SRC; x++)
-                {
-                    float fx = (float)x + 0.5f - RING_SRC * 0.5f, fy = (float)y + 0.5f - RING_SRC * 0.5f;
-                    float dist = sqrtf(fx * fx + fy * fy);
-                    ring[y * RING_SRC + x] = (dist <= RING_SRC * 0.5f - 1.0f && dist >= RING_SRC * 0.5f - 6.0f) ? 255
-                                           : (dist < RING_SRC * 0.5f - 6.0f ? 70 : 0);
-                }
-            s_texResetRing = qo_bake_icon(ring, RING_SRC, d, &s_resetRingW, &s_resetRingH);
+            if (rgba != NULL)
+            {
+                for (y = 0; y < d; y++)
+                    for (x = 0; x < d; x++)
+                    {
+                        float fx = (float)x + 0.5f - d * 0.5f, fy = (float)y + 0.5f - d * 0.5f;
+                        float dist = sqrtf(fx * fx + fy * fy), outer = d * 0.5f - 0.5f, w = d * 0.09f + 1.0f;
+                        float a = (dist > outer + 0.5f) ? 0.0f
+                                : (dist >= outer - w) ? fminf(1.0f, outer + 0.5f - dist) : 0.28f;
+                        unsigned char* px = &rgba[(y * d + x) * 4];
+                        px[0] = px[1] = px[2] = 255;
+                        px[3] = (unsigned char)(a * 255.0f);
+                    }
+                s_texResetRing = qo_upload_rgba(rgba, d, d, 0);
+                s_resetRingW = s_resetRingH = d;
+                free(rgba);
+            }
             s_texResetR    = qo_bake("R", r * 1.1f, &s_resetRW, &s_resetRH);
         }
         qo_quad(s_texResetRing, NX(cx - r), NY(cy + r), NX(cx + r), NY(cy - r), 0.92f, 0.92f, 0.95f, dim);
