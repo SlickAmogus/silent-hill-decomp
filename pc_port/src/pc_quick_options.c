@@ -217,7 +217,6 @@ static const QoRowDef s_page1[] = {
      * does not get one, that page keeps its slack for the next HUD setting. */
     { ROW_EXTRA, NULL, QO_X_CROSSHAIRSTYLE,  "Crosshair Style" },
     { ROW_EXTRA, NULL, QO_X_CROSSHAIRMELEE,  "Hide Crosshair for Melee" },
-    { ROW_OPT,   "text_size",            0, NULL },
     { ROW_OPT,   "low_health_glow",      0, NULL },
 /* Not on mobile: it would not do anything. PsyX_SPUAL_SetOutputMode is an
  * empty stub on the software backend and GetOutputMode always answers
@@ -2992,14 +2991,6 @@ void Pc_QuickOptions_Draw(void)
         s_resetBtn[0] = cx;
         s_resetBtn[1] = cy;
         s_resetBtn[2] = r;
-        if (!s_texResetHint || s_hintResetMode != PC_INPUT_TOUCH)
-        {
-            qo_retire(s_texResetHint);
-            s_texResetHint  = qo_bake(Pc_LangQuick(Pc_ResetSettings_Hint()), r * 0.8f, &s_resetHintW, &s_resetHintH);
-            s_hintResetMode = PC_INPUT_TOUCH;
-        }
-        qo_quad(s_texResetHint, NX(cx - r * 1.4f - s_resetHintW), NY(cy + s_resetHintH * 0.5f),
-                NX(cx - r * 1.4f), NY(cy - s_resetHintH * 0.5f), 0.8f, 0.8f, 0.85f, dim);
     }
 
     /* Dropdown list over the value column of its row, on top of the rows. */
