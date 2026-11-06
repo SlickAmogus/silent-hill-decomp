@@ -86,7 +86,7 @@ void func_80057228(MATRIX* mat, s32 alpha, SVECTOR* arg2, VECTOR3* arg3);
  * the screen-edge and PVS gates below and in vw_calc.c. Below strength 1 the
  * fog never covers, so the far geometry must draw (Pc_LongViewActive). */
 extern float g_PsyX_FogStrength;
-#define FOG_FAR_DIST() (g_PcConfig.disableCulling ? Pc_WorldVisCap(g_WorldEnvWork.fog.farDistance) : g_WorldEnvWork.fog.farDistance)
+#define FOG_FAR_DIST() ((g_PcConfig.disableCulling && g_PsyX_FogStrength < 1.0f) ? 0x7FFFFFFF : g_WorldEnvWork.fog.farDistance)
 
 /* Per-poly far drop. The base 0x79C shifted by (shift+2) is ~61u, and it -- not
  * chunk residency, not the cull predicate -- is what actually ends the view:
@@ -173,7 +173,7 @@ static s32 s_pcOtTagBase = 0;
 #define SH_WHOLEMAP_FARCAP(cap)                                                 \
     do {                                                                        \
         if (Pc_WholeMapDrawActive())                                            \
-            (cap) = Pc_WorldVisCap(cap);                                        \
+            (cap) = 0x7FFFFFFF;                                                 \
     } while (0)
 /* STRICT `< 0`, not `<= 0`: wrapped far depths (>=128u) are always negative
  * (SZ3 saturates at 0xFFFF before a second s16 wrap), while a poly fully
