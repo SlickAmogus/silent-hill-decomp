@@ -843,6 +843,11 @@ bool func_80071620(u32 animStatus, s_SubCharacter* player, s32 keyframeIdx, e_Sf
     }
 }
 
+#ifdef SH_PC_PORT
+/* Free-aim camera-ray pitch (90 = level), written by Player_CombatUpdate. */
+static q3_12 g_PcFreeAimPitch = Q12_ANGLE(90.0f);
+#endif
+
 void Player_Update(s_SubCharacter* player, s_AnmHeader* anmHdr, GsCOORDINATE2* coords) // 0x800717D0
 {
     s_PlayerExtra* extra;
@@ -993,9 +998,15 @@ void Player_Update(s_SubCharacter* player, s_AnmHeader* anmHdr, GsCOORDINATE2* c
                 Anim_BoneUpdate(anmHdr, coords, _holdKf, _holdKf, Q12(0.0f));
             }
 
-            s32 _aimPitch = playerProps.field_122 - Q12_ANGLE(90.0f);
+            /* g_PcFreeAimPitch, not field_122: with nothing locked on, the aim
+             * states reset field_122 to level every frame before this runs, and
+             * the camera-ray pitch only lands in it later in the frame, so the
+             * lean read level and Harry never tilted. */
+            s32 _aimPitch = g_PcFreeAimPitch - Q12_ANGLE(90.0f);
             _aimPitch = CLAMP(_aimPitch, -Q12_ANGLE(56.25f), Q12_ANGLE(56.25f)); /* = FLEX_ROT_X_RANGE */
-            func_80044F14(&coords[HarryBone_Torso], Q12_ANGLE(0.0f), _aimPitch >> 1, Q12_ANGLE(0.0f));
+            /* Three quarters of the aim pitch: half read as Harry barely moving
+             * while the camera looked well up or down. */
+            func_80044F14(&coords[HarryBone_Torso], Q12_ANGLE(0.0f), (_aimPitch * 3) >> 2, Q12_ANGLE(0.0f));
             coords[HarryBone_Torso].flg = 0;
         }
 
@@ -11427,6 +11438,7 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
                 if (_pitch > Q12_ANGLE(146.25f)) _pitch = Q12_ANGLE(146.25f);
                 unkAngle              = _pitch;
                 playerProps.field_122 = _pitch;
+                g_PcFreeAimPitch      = _pitch;
                 (void)g_TpsCamPitch;
                 D_800C4554 = NO_VALUE;
                 D_800C4556 = NO_VALUE;
