@@ -2012,10 +2012,10 @@ void DbgOverlay_Update(void)
         int    curBS, anyEn, changed, n;
 
         /* In FPS mode, [ / ] tune the separate FPS flashlight set (dimmer/tighter). */
-        en[0] = (g_PsyX_UsePerPixelFlashlight != 0); vp[0] = g_PcFpsCam ? &g_PsyX_FlashlightIntensityFps : &g_PsyX_FlashlightIntensity; vmax[0] = 3.0f; vkey[0] = g_PcFpsCam ? "flashlight_intensity_fps" : "flashlight_intensity"; vlbl[0] = g_PcFpsCam ? "flashlight (fps)" : "flashlight";
+        en[0] = (g_PsyX_UsePerPixelFlashlight != 0); vp[0] = g_PcFpsCam ? &g_PsyX_FlashlightIntensityFps : &g_PsyX_FlashlightIntensity; vmax[0] = 6.0f; vkey[0] = g_PcFpsCam ? "flashlight_intensity_fps" : "flashlight_intensity"; vlbl[0] = g_PcFpsCam ? "flashlight (fps)" : "flashlight";
         en[1] = (g_cfg_postProcess != 0);            vp[1] = &g_cfg_postProcessIntensity; vmax[1] = 1.0f; vkey[1] = "post_process_intensity"; vlbl[1] = "post-process";
         en[2] = (g_cfg_tonemap != 0);                vp[2] = &g_cfg_tonemapIntensity;     vmax[2] = 1.0f; vkey[2] = "tonemap_intensity";      vlbl[2] = "tonemap";
-        en[3] = (g_PsyX_UsePerPixelFlashlight != 0); vp[3] = g_PcFpsCam ? &g_PsyX_FlashlightSizeFps : &g_PsyX_FlashlightSize; vmax[3] = 3.0f; vkey[3] = g_PcFpsCam ? "flashlight_size_fps" : "flashlight_size"; vlbl[3] = g_PcFpsCam ? "flashlight size (fps)" : "flashlight size";
+        en[3] = (g_PsyX_UsePerPixelFlashlight != 0); vp[3] = g_PcFpsCam ? &g_PsyX_FlashlightSizeFps : &g_PsyX_FlashlightSize; vmax[3] = 5.0f; vkey[3] = g_PcFpsCam ? "flashlight_size_fps" : "flashlight_size"; vlbl[3] = g_PcFpsCam ? "flashlight size (fps)" : "flashlight size";
 
         /* Keys are user-bindable (launcher: Keyboard Controls). Defaults [ / ] /
          * \ ; resolved from config each frame so a rebind takes effect live. A
