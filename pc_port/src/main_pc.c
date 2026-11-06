@@ -2187,6 +2187,7 @@ int main(int argc, char* argv[])
     /* Play-as character (config player_character): retargets Harry's
      * CHARA_FILE_INFOS row before the boot-time WorldGfx_HarryCharaLoad. */
     { extern void Pc_PlayAs_Init(void); Pc_PlayAs_Init(); }
+    { extern void Pc_CharaSelect_Init(void); Pc_CharaSelect_Init(); }
 
     CdInit();
 

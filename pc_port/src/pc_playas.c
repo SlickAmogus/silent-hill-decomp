@@ -232,6 +232,20 @@ const char* Pc_PlayAs_Name(int idx)
     return s_playable[idx].name;
 }
 
+const char* Pc_PlayAs_File(int idx)
+{
+    if (idx < 0 || idx >= PLAYAS_COUNT)
+        return NULL;
+    return s_playable[idx].skinFile;
+}
+
+int Pc_PlayAs_CharaId(int idx)
+{
+    if (idx < 0 || idx >= PLAYAS_COUNT)
+        return Chara_Harry;
+    return s_playable[idx].charaId;
+}
+
 int Pc_PlayAs_SkinCharaId(void)
 {
     return PlayAs_Cur()->charaId;

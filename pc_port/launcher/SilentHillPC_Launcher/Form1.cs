@@ -220,6 +220,12 @@ public partial class Form1 : Form
     /// translated, the codes are not.
     private readonly List<string> _gameLangCodes = new List<string>();
 
+    /// The Arabic discs ARE their language: the game ignores the setting on
+    /// them, so the row shows what will be played and the saved choice is kept
+    /// for the next disc. Null while the row is the user's.
+    private DiscText.ArabicPatch _gameLangLockedBy;
+    private int _gameLangIdxBeforeLock;
+
     /* The "Native (PSX)" resolution entry: config native_resolution = 1, with
      * width/height kept as the WINDOW size the game scales its own modes into. */
     private string _nativeResText;
@@ -233,6 +239,8 @@ public partial class Form1 : Form
     /// The dropdown's current code -- the user's intent, saved or not.
     private string CurrentGameLanguageCode()
     {
+        if (_gameLangLockedBy != null)
+            return config.Get("language", "auto");
         int i = comboGameLang.SelectedIndex;
         return (i >= 0 && i < _gameLangCodes.Count) ? _gameLangCodes[i] : config.Get("language", "auto");
     }
@@ -241,6 +249,8 @@ public partial class Form1 : Form
     {
         comboGameLang.Items.Clear();
         _gameLangCodes.Clear();
+        _gameLangLockedBy     = null;
+        comboGameLang.Enabled = true;
 
         void Add(string name, string code)
         {
@@ -544,6 +554,12 @@ public partial class Form1 : Form
     /// shows what the game's own rules would pick. Unsupported serials
     /// (NTSC-J first prints etc.) disable Play with a highlight.
     /// </summary>
+    private const string DiscTip =
+        "Disc image to boot. Discs are detected by serial, so filenames don't matter.\n" +
+        "Auto picks USA, then PAL, then NTSC-J. PAL carries EN/DE/FR/ES/IT text.\n" +
+        "[modified] marks fan translations and patched discs; also pick the matching\n" +
+        "Language in the title screen options (or set language = es in config.cfg).";
+
     private void UpdateDiscUi()
     {
         var disc = SelectedDisc();
@@ -556,6 +572,11 @@ public partial class Form1 : Form
         // Compact strings — the status label is a single 13px line.
         string text = $"{disc.Serial} {disc.Region}";
 
+        var arabic = disc.Supported ? DiscText.GetArabicPatch(disc.Path) : null;
+        LockGameLanguage(arabic);
+        if (arabic == null)
+            _tip?.SetToolTip(lblDisc, Loc.T(DiscTip));
+
         if (!disc.Supported)
         {
             lblDisc.ForeColor = Color.Firebrick;
@@ -566,7 +587,15 @@ public partial class Form1 : Form
             return;
         }
 
-        if (disc.Modified)
+        if (arabic != null)
+        {
+            string line = $"{disc.Serial} — " + Loc.T("Arabic") + $" · {arabic.Region} · {arabic.Group}";
+            lblDisc.ForeColor = Color.SeaGreen;
+            lblDisc.Text      = line;
+            _tip?.SetToolTip(lblDisc, Loc.T("Arabic fan translation") + $" ({arabic.Region})\n" +
+                                      Loc.T("Translated by") + $" {arabic.Group}");
+        }
+        else if (disc.Modified)
         {
             // Fan translation / patched image: the game reads its text and
             // voices straight off the disc.
@@ -579,6 +608,40 @@ public partial class Form1 : Form
             lblDisc.Text      = $"{disc.Serial} — {RegionDisplayName(disc.Region)}";
         }
         btnPlay.Enabled = true;
+    }
+
+    /// Grey the Game Language row to "Arabic" while an Arabic disc is selected,
+    /// and give the user's own choice back when another disc is.
+    private void LockGameLanguage(DiscText.ArabicPatch arabic)
+    {
+        if (arabic == null)
+        {
+            if (_gameLangLockedBy == null)
+                return;
+            int last = comboGameLang.Items.Count - 1;
+            comboGameLang.Items.RemoveAt(last);
+            _gameLangCodes.RemoveAt(last);
+            comboGameLang.SelectedIndex = _gameLangIdxBeforeLock;
+            comboGameLang.Enabled       = true;
+            _gameLangLockedBy           = null;
+            return;
+        }
+
+        if (_gameLangLockedBy != null)
+        {
+            if (_gameLangLockedBy == arabic)
+                return;
+            comboGameLang.Items[comboGameLang.Items.Count - 1] = Loc.T("Arabic") + $" ({arabic.Region})";
+            _gameLangLockedBy = arabic;
+            return;
+        }
+
+        _gameLangIdxBeforeLock = comboGameLang.SelectedIndex < 0 ? 0 : comboGameLang.SelectedIndex;
+        comboGameLang.Items.Add(Loc.T("Arabic") + $" ({arabic.Region})");
+        _gameLangCodes.Add(null);
+        comboGameLang.SelectedIndex = comboGameLang.Items.Count - 1;
+        comboGameLang.Enabled       = false;
+        _gameLangLockedBy           = arabic;
     }
 
     private void comboDisc_SelectedIndexChanged(object sender, EventArgs e)
@@ -803,14 +866,9 @@ public partial class Form1 : Form
         Set(refreshLabel,        pillarboxTip);
         Set(comboPillarbox,      pillarboxTip);
 
-        const string discTip =
-            "Disc image to boot. Discs are detected by serial, so filenames don't matter.\n" +
-            "Auto picks USA, then PAL, then NTSC-J. PAL carries EN/DE/FR/ES/IT text.\n" +
-            "[modified] marks fan translations and patched discs; also pick the matching\n" +
-            "Language in the title screen options (or set language = es in config.cfg).";
-        Set(regionLabel, discTip);
-        Set(comboDisc,   discTip);
-        Set(lblDisc,     discTip);
+        Set(regionLabel, DiscTip);
+        Set(comboDisc,   DiscTip);
+        Set(lblDisc,     DiscTip);
 
         const string levelTip =
             "Map a New Game starts on (default map0_s00, the intro alley).\n" +
@@ -1196,6 +1254,7 @@ public partial class Form1 : Form
             // whatever happens to be first, which is what the game does too.
             comboGameLang.SelectedIndex = at >= 0 ? at : 0;
         }
+        UpdateDiscUi();
 
         // Main-menu style. "auto" is the disc's own, which is what every
         // existing config says and what the game defaults to, so it stays the
@@ -1587,7 +1646,8 @@ public partial class Form1 : Form
 
         // By INDEX into the parallel code list, for the same reason as below:
         // the visible names are translated, the codes are not.
-        if (comboGameLang.SelectedIndex >= 0 &&
+        if (_gameLangLockedBy == null &&
+            comboGameLang.SelectedIndex >= 0 &&
             comboGameLang.SelectedIndex < _gameLangCodes.Count)
             config.Set("language", _gameLangCodes[comboGameLang.SelectedIndex]);
 

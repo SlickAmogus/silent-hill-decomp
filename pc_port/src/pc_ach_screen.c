@@ -17,7 +17,11 @@
 #include "pc_ach_screen.h"
 #include "pc_native_menu_draw.h"
 #include "pc_retroachievements.h"
+#include "pc_ttf_text.h"
+#include "lang_ar.h"
 #include "sh_log.h"
+
+static int ach_line_draw(int x, int y, int tall, int color, char* clean, int maxW, int pan);
 
 #define ACH_VISIBLE        5
 #define ACH_HEADING_Y      12
@@ -543,6 +547,30 @@ static void ach_counter_draw(void)
     int  wp;
     int  x;
 
+    /* Arabic reads right to left: count, points, then the word, from the right
+     * edge. A single "(%u/%u_%s)" line would put the encoded word inside a run
+     * of digits, which no one order draws correctly on both discs. */
+    if (Pc_ArActive())
+    {
+        const char* word = "points";
+        int         wn;
+        int         ww;
+
+        snprintf(count, sizeof(count), "%d/%d", s_list.unlocked, s_list.count);
+        snprintf(points, sizeof(points), "%u/%u", s_list.pts, s_list.ptsTotal);
+        wc = Nm_TextWidth(count);
+        wn = Nm_TextWidth(points);
+        ww = Nm_TextWidth(word);
+        x  = 320 - ACH_BACK_X - wc;
+        Nm_TextDraw(x, ACH_FOOTER_Y, NM_TEXT_TALL, StringColorId_White, count);
+        x -= 10 + wn;
+        Nm_TextDraw(x, ACH_FOOTER_Y, NM_TEXT_TALL, StringColorId_Gold, points);
+        x -= FONT_12X16_SPACE_SIZE + ww;
+        if (x >= ach_back_right() + 12)
+            Nm_TextDraw(x, ACH_FOOTER_Y, NM_TEXT_TALL, StringColorId_Gold, word);
+        return;
+    }
+
     snprintf(count, sizeof(count), "%d/%d_", s_list.unlocked, s_list.count);
     snprintf(points, sizeof(points), "(%u/%u_%s)", s_list.pts, s_list.ptsTotal, Pc_LangMenuText("points"));
     wc = Pc_LangMenuTextWidth(count);
@@ -573,14 +601,14 @@ static void ach_list_draw(void)
         ach_badge_draw(a->badge, ACH_BADGE_X, y - 1, ACH_BADGE_SIZE, !a->unlocked);
 
         Nm_SanitizeGlyphs(a->title, clean, sizeof(clean), 1);
-        w = Nm_TextDrawMarquee(ACH_TEXT_X, y, NM_TEXT_TALL, sel ? StringColorId_Gold : color, clean, ACH_TEXT_W, sel);
+        w = ach_line_draw(ACH_TEXT_X, y, NM_TEXT_TALL, sel ? StringColorId_Gold : color, clean, ACH_TEXT_W, sel);
         if (sel)
         {
             Nm_HighlightDraw(ACH_BADGE_X - 1, ACH_TEXT_X + w + 4, y + ACH_UNDERLINE_DY);
         }
 
         Nm_SanitizeGlyphs(a->desc, clean, sizeof(clean), 0);
-        Nm_TextDrawMarquee(ACH_TEXT_X, y + ACH_DESC_DY, NM_TEXT_SMALL, color, clean, ACH_TEXT_W, sel);
+        ach_line_draw(ACH_TEXT_X, y + ACH_DESC_DY, NM_TEXT_SMALL, color, clean, ACH_TEXT_W, sel);
     }
 
     if (s_list.count > ACH_VISIBLE)
@@ -591,6 +619,41 @@ static void ach_list_draw(void)
 
     ach_back_draw(s_onBack);
     ach_counter_draw();
+}
+
+/* Server text is English, and on a disc whose FONT16 has no Latin cells the
+ * game font would draw it as unrelated glyphs. Such lines go through a
+ * TrueType face instead (pc_ttf_text.c), sanitised and wrapped the same way. */
+static void ach_spaces(char* s)
+{
+    for (; *s; s++)
+    {
+        if (*s == '_')
+            *s = ' ';
+    }
+}
+
+static int ach_ttf_small_width(const char* s)
+{
+    char buf[NM_LINE_MAX * 4];
+
+    snprintf(buf, sizeof(buf), "%s", s);
+    ach_spaces(buf);
+    return Pc_TtfText_Width(buf, 0);
+}
+
+/* Draws one server line; returns the drawn width like Nm_TextDrawMarquee. */
+static int ach_line_draw(int x, int y, int tall, int color, char* clean, int maxW, int pan)
+{
+    int w;
+
+    if (!Pc_TtfText_Needed())
+        return Nm_TextDrawMarquee(x, y, tall, color, clean, maxW, pan);
+
+    ach_spaces(clean);
+    w = Pc_TtfText_Width(clean, tall == NM_TEXT_TALL);
+    Pc_TtfText_Queue(x, y, tall == NM_TEXT_TALL, color, clean, maxW);
+    return w < maxW ? w : maxW;
 }
 
 static void ach_single_draw(void)
@@ -609,10 +672,18 @@ static void ach_single_draw(void)
     ach_badge_draw(a->badge, 160 - (ACH_SV_BADGE_SIZE / 2), ACH_SV_BADGE_Y, ACH_SV_BADGE_SIZE, !a->unlocked);
 
     Nm_SanitizeGlyphs(a->title, clean, sizeof(clean), 1);
-    w = Pc_LangMenuTextWidth(clean);
+    if (Pc_TtfText_Needed())
+    {
+        ach_spaces(clean);
+        w = Pc_TtfText_Width(clean, 1);
+    }
+    else
+    {
+        w = Pc_LangMenuTextWidth(clean);
+    }
     if (w > ACH_SV_RULE_X1 - ACH_SV_RULE_X0)
         w = ACH_SV_RULE_X1 - ACH_SV_RULE_X0;
-    Nm_TextDrawMarquee(160 - (w / 2), ACH_SV_TITLE_Y, NM_TEXT_TALL, StringColorId_Gold, clean, w, 1);
+    ach_line_draw(160 - (w / 2), ACH_SV_TITLE_Y, NM_TEXT_TALL, StringColorId_Gold, clean, w, 1);
     Nm_RuleDraw(ACH_SV_RULE_X0, ACH_SV_RULE_X1, ACH_SV_RULE1_Y, 1);
 
     if (a->unlocked)
@@ -651,9 +722,17 @@ static void ach_single_draw(void)
     Nm_RuleDraw(ACH_SV_RULE_X0, ACH_SV_RULE_X1, ACH_SV_RULE2_Y, 1);
 
     Nm_SanitizeGlyphs(a->desc, clean, sizeof(clean), 0);
-    n = Nm_WrapLines(clean, lines, ACH_SV_DESC_WRAP, ACH_SV_DESC_W, Pc_LangMenuTextWidth);
+    n = Nm_WrapLines(clean, lines, ACH_SV_DESC_WRAP, ACH_SV_DESC_W,
+                     Pc_TtfText_Needed() ? ach_ttf_small_width : Pc_LangMenuTextWidth);
     for (i = 0; i < n && i < ACH_SV_DESC_LINES - 1; i++)
     {
+        if (Pc_TtfText_Needed())
+        {
+            ach_spaces(lines[i]);
+            Pc_TtfText_Queue(ACH_SV_RULE_X0, ACH_SV_DESC_Y + (i * ACH_SV_DESC_PITCH), 0,
+                             StringColorId_White, lines[i], ACH_SV_DESC_W);
+            continue;
+        }
         Nm_TextDrawVerbatim(ACH_SV_RULE_X0, ACH_SV_DESC_Y + (i * ACH_SV_DESC_PITCH), NM_TEXT_SMALL,
                             StringColorId_White, lines[i]);
     }
@@ -665,8 +744,8 @@ static void ach_single_draw(void)
             size_t len = strlen(rest);
             snprintf(rest + len, sizeof(rest) - len, "_%s", lines[i]);
         }
-        Nm_TextDrawMarquee(ACH_SV_RULE_X0, ACH_SV_DESC_Y + ((ACH_SV_DESC_LINES - 1) * ACH_SV_DESC_PITCH),
-                           NM_TEXT_SMALL, StringColorId_White, rest, ACH_SV_DESC_W, 1);
+        ach_line_draw(ACH_SV_RULE_X0, ACH_SV_DESC_Y + ((ACH_SV_DESC_LINES - 1) * ACH_SV_DESC_PITCH),
+                      NM_TEXT_SMALL, StringColorId_White, rest, ACH_SV_DESC_W, 1);
     }
 
     ach_back_draw(1);

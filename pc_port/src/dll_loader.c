@@ -139,3 +139,13 @@ const char* DllLoader_GetError(void)
 }
 
 #endif
+
+#include <sys/stat.h>
+
+/* stat, not fopen: it needs no descriptor, so it still answers when the load
+ * failed because the descriptor table was exhausted. */
+int DllLoader_FileExists(const char* path)
+{
+    struct stat st;
+    return path != NULL && stat(path, &st) == 0;
+}

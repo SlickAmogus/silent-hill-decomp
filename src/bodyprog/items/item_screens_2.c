@@ -17,6 +17,7 @@
 #ifdef SH_PC_PORT
 #include "pc_inventory_mouse.h"
 #include "pc_mouse_cursor.h"
+#include "lang_ar.h"
 #endif
 
 static const s32 pad_rodata_80025EAC = 0;
@@ -527,10 +528,18 @@ void Gfx_Results_Save(void) // 0x8004D1A0
 #if VERSION_REGION_IS(NTSC)
     g_SysWork.enableHighResGlyphs = true;
 
+#ifdef SH_PC_PORT
+    Gfx_StringSetPosition(PC_AR_USA(197, PC_AR_PAL(87, 90)), 92);
+#else
     Gfx_StringSetPosition(90, 92);
+#endif
     Gfx_StringDraw("\x07Is_it_OK_to_save?", DEFAULT_MAP_MESSAGE_LENGTH);
 
+#ifdef SH_PC_PORT
+    Gfx_StringSetPosition(PC_AR_USA(213, PC_AR_PAL(101, 94)), 122);
+#else
     Gfx_StringSetPosition(94, 122);
+#endif
     Gfx_StringDraw("\x07Yes_____________No", DEFAULT_MAP_MESSAGE_LENGTH);
 
     g_SysWork.enableHighResGlyphs = false;
@@ -565,19 +574,31 @@ void Gfx_Results_Save(void) // 0x8004D1A0
     }
 #endif
 
+#ifdef SH_PC_PORT
+    Gfx_StringSetPosition(PC_AR_USA(190, PC_AR_PAL(83, 82)), 200);
+#else
     Gfx_StringSetPosition(82, 200);
+#endif
     Gfx_StringDraw("NEXT_GAME_MODE", 15);
 
     switch (g_Inventory_GameDifficulty)
     {
         case GameDifficulty_Easy:
+#ifdef SH_PC_PORT
+            Gfx_StringSetPosition(PC_AR_USA(172, 123), 240);
+#else
             Gfx_StringSetPosition(123, 240);
+#endif
             Gfx_StringDraw("NORMAL", 10);
             break;
 
         case GameDifficulty_Normal:
         case GameDifficulty_Hard:
+#ifdef SH_PC_PORT
+            Gfx_StringSetPosition(PC_AR_USA(171, PC_AR_PAL(124, 136)), 240);
+#else
             Gfx_StringSetPosition(136, 240);
+#endif
             Gfx_StringDraw("HARD", 10);
             break;
 
@@ -1306,6 +1327,11 @@ void Inventory_ItemUse(s32 inventoryItemIdx) // 0x8004E6D4
     #undef playerExtra
 }
 
+#ifdef SH_PC_PORT
+#define CMD_STR_X PC_AR_USA(295, 222)
+#else
+#define CMD_STR_X 222
+#endif
 void Gfx_Inventory_CmdOptionsDraw(void) // 0x8004E864
 {
     s32      i;
@@ -1354,57 +1380,57 @@ void Gfx_Inventory_CmdOptionsDraw(void) // 0x8004E864
             if (!g_SysWork.field_2388.isFlashlightUnavailable_16 ||
                 g_SavegamePtr->items[idx].id_0 != InvItemId_Flashlight)
             {
-                Gfx_StringSetPosition(222, -42);
+                Gfx_StringSetPosition(CMD_STR_X, -42);
                 Gfx_StringDraw(STRS[5], 10);
-                Gfx_StringSetPosition(222, -26);
+                Gfx_StringSetPosition(CMD_STR_X, -26);
                 Gfx_StringDraw(STRS[6], 10);
             }
             break;
 
         case InvCmdId_UseHealth:
         case InvCmdId_Use:
-            Gfx_StringSetPosition(222, -34);
+            Gfx_StringSetPosition(CMD_STR_X, -34);
             Gfx_StringDraw(STRS[0], 10);
             break;
 
         case InvCmdId_Equip:
-            Gfx_StringSetPosition(222, -34);
+            Gfx_StringSetPosition(CMD_STR_X, -34);
             Gfx_StringDraw(STRS[1], 10);
             break;
 
         case InvCmdId_Unequip:
-            Gfx_StringSetPosition(222, -34);
+            Gfx_StringSetPosition(CMD_STR_X, -34);
             Gfx_StringDraw(STRS[2], 10);
             break;
 
         case InvCmdId_Reload:
-            Gfx_StringSetPosition(222, -34);
+            Gfx_StringSetPosition(CMD_STR_X, -34);
             Gfx_StringDraw(STRS[3], 10);
             break;
 
         case InvCmdId_UseLook:
-            Gfx_StringSetPosition(222, -42);
+            Gfx_StringSetPosition(CMD_STR_X, -42);
             Gfx_StringDraw(STRS[0], 10);
-            Gfx_StringSetPosition(222, -26);
+            Gfx_StringSetPosition(CMD_STR_X, -26);
             Gfx_StringDraw(STRS[7], 10);
             break;
 
         case InvCmdId_EquipReload:
-            Gfx_StringSetPosition(222, -42);
+            Gfx_StringSetPosition(CMD_STR_X, -42);
             Gfx_StringDraw(STRS[1], 10);
-            Gfx_StringSetPosition(222, -26);
+            Gfx_StringSetPosition(CMD_STR_X, -26);
             Gfx_StringDraw(STRS[3], 10);
             break;
 
         case InvCmdId_UnequipReload:
-            Gfx_StringSetPosition(222, -42);
+            Gfx_StringSetPosition(CMD_STR_X, -42);
             Gfx_StringDraw(STRS[2], 10);
-            Gfx_StringSetPosition(222, -26);
+            Gfx_StringSetPosition(CMD_STR_X, -26);
             Gfx_StringDraw(STRS[3], 10);
             break;
 
         case InvCmdId_Look:
-            Gfx_StringSetPosition(222, -34);
+            Gfx_StringSetPosition(CMD_STR_X, -34);
             Gfx_StringDraw(STRS[7], 10);
             break;
 
@@ -1464,6 +1490,7 @@ void Gfx_Inventory_CmdOptionsDraw(void) // 0x8004E864
         }
     }
 }
+#undef CMD_STR_X
 
 void Gfx_Inventory_ScrollArrowsDraw(s32* invSelectionId) // 0x8004EC7C
 {
@@ -1915,7 +1942,11 @@ void Gfx_Inventory_UnavailableMapText(s32 strIdx) // 0x8004F57C
         "I_don't_have_the_map\n\t\tfor_this_place."
     };
 
+#ifdef SH_PC_PORT
+    Gfx_StringSetPosition(PC_AR_USA(298, 30), 232);
+#else
     Gfx_StringSetPosition(30, 232);
+#endif
     Gfx_StringSetColor(StringColorId_White);
     Gfx_StringDraw(STRS[strIdx], DEFAULT_MAP_MESSAGE_LENGTH);
 #endif

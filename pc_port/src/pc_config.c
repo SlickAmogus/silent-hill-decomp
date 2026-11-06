@@ -1582,6 +1582,11 @@ else if (strcmp(key, "enable_plugins") == 0)
                 g_PcConfig.mapName[sizeof(g_PcConfig.mapName) - 1] = '\0';
             }
         }
+        else if (strncmp(key, "chara_model_", 12) == 0)
+        {
+            extern void Pc_CharaSelect_ConfigKey(const char* name, const char* value);
+            Pc_CharaSelect_ConfigKey(key + 12, value);
+        }
         else if (strncmp(key, "launcher_", 9) == 0)
         {
             /* Launcher-managed keys (launcher_repo_url / _branch / _build) live in
