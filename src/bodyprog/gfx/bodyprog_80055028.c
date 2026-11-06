@@ -1000,6 +1000,7 @@ void func_800554C4(s32 arg0, s16 arg1, GsCOORDINATE2* coord0, GsCOORDINATE2* coo
         extern VECTOR3 g_PcFpsEyePos;
         extern VECTOR3 g_PcFlashlightShadowWorld;
         extern int     Pc_ScriptOwnsScene(void);
+        extern int     g_DebugThirdPersonCam;
         /* Only aim the flashlight from the FPS eye when the FPS camera is
          * ACTUALLY the view — i.e. NOT while a script/cutscene owns the scene.
          * Pc_ScriptOwnsScene() is the same predicate that stands the FPS camera
@@ -1022,6 +1023,18 @@ void func_800554C4(s32 arg0, s16 arg1, GsCOORDINATE2* coord0, GsCOORDINATE2* coo
             g_WorldEnvWork.field_58.vy = g_PcFpsViewFwd.vy;
             g_WorldEnvWork.field_58.vz = g_PcFpsViewFwd.vz;
             g_WorldEnvWork.field_60    = g_PcFpsEyePos;
+        }
+        /* Thirdperson / Over-the-Shoulder: the beam turns with the camera's aim
+         * as it does in first person, but stays at Harry's chest; only the
+         * direction changes. Same scripted-scene and torso-light gates. */
+        else if (g_PcConfig.flashlightFollowAim && g_DebugThirdPersonCam && !g_PcFpsCam &&
+                 !Pc_ScriptOwnsScene() && g_SysWork.field_2388.isFlashlightOn_15 &&
+                 coord1 == &g_SysWork.playerBoneCoords[HarryBone_Torso])
+        {
+            extern VECTOR3 g_PcAltCamViewFwd;
+            g_WorldEnvWork.field_58.vx = g_PcAltCamViewFwd.vx;
+            g_WorldEnvWork.field_58.vy = g_PcAltCamViewFwd.vy;
+            g_WorldEnvWork.field_58.vz = g_PcAltCamViewFwd.vz;
         }
     }
 #endif

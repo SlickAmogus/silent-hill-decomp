@@ -213,6 +213,7 @@ VECTOR3 g_TpsCamFwd = { 0, 0, Q12(1.0f) };
  * between his arms. Captured via the L cam-pos log key or the numpad tuner. */
 extern int g_PcFpsCam;
 VECTOR3 g_PcFpsOffset = { -29, -6836, 919 }; /* FPS eye BASELINE in Harry's BODY frame (all weapons); vx=right, vy=up(neg), vz=forward. Head-follow sway rides on top. */
+VECTOR3 g_PcAltCamViewFwd = { 0, 0, 4096 }; /* TPS/OTS view-forward, WORLD space Q12, for the flashlight_follow_aim beam */
 VECTOR3 g_PcFpsViewFwd = { 0, 0, 4096 };     /* FPS view-forward, WORLD space Q12; published each FPS frame for the head-mounted flashlight */
 VECTOR3 g_PcFpsEyePos  = { 0, 0, 0 };        /* FPS eye WORLD pos (Q19.12); flashlight origin in FPS */
 VECTOR3 g_PcFlashlightShadowWorld = { 0, 0, 0 }; /* physical flashlight WORLD pos (Q19.12), captured before the FPS eye-override; drives the shadow-map light so FPS shadows match third person */
@@ -1041,6 +1042,9 @@ static void Pc_TpsCamera_Apply(void)
             tpLookAt.vx = tpCamPos.vx + (s32)((s64)TP_LOOKAT_DIST * fwdX >> 12);
             tpLookAt.vy = anchorY     + (s32)((s64)TP_LOOKAT_DIST * fwdY >> 12);
             tpLookAt.vz = tpCamPos.vz + (s32)((s64)TP_LOOKAT_DIST * fwdZ >> 12);
+            g_PcAltCamViewFwd.vx = fwdX;
+            g_PcAltCamViewFwd.vy = fwdY;
+            g_PcAltCamViewFwd.vz = fwdZ;
         }
         #undef TP_LOOKAT_DIST
 
