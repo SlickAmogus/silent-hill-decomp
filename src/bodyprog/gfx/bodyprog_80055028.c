@@ -928,6 +928,45 @@ s32 func_80055490(SVECTOR* arg0) // 0x80055490
     return g_WorldEnvWork.field_54;
 }
 
+#ifdef SH_PC_PORT
+/* The light the game itself set up this frame, before the port's first-person
+ * and follow-aim overrides (func_800554C4). */
+static SVECTOR s_PcFlStockDir;
+static VECTOR3 s_PcFlStockPos;
+int            g_PcFlashlightDirOverridden = 0;
+static int     s_PcFlOverridden = 0;
+
+static SVECTOR s_PcFlSavedDir;
+static VECTOR3 s_PcFlSavedPos;
+static int     s_PcFlSwapped = 0;
+
+/* Around the player's own draw (skeleton, skinned replacement, held item) the
+ * flashlight goes back to the game's light. The beam leaves his chest, so a
+ * redirected one pitched up or down sweeps across his head or legs from inches
+ * away -- the per-vertex spot term saturates there -- and the first-person eye
+ * origin sits inside his head. The game's own light lights him as on the PSX,
+ * chest glow included; the world keeps the redirected beam. */
+void Pc_FlashlightPlayerBegin(void)
+{
+    if (s_PcFlSwapped || !s_PcFlOverridden)
+        return;
+    s_PcFlSavedDir = g_WorldEnvWork.field_58;
+    s_PcFlSavedPos = g_WorldEnvWork.field_60;
+    g_WorldEnvWork.field_58 = s_PcFlStockDir;
+    g_WorldEnvWork.field_60 = s_PcFlStockPos;
+    s_PcFlSwapped = 1;
+}
+
+void Pc_FlashlightPlayerEnd(void)
+{
+    if (!s_PcFlSwapped)
+        return;
+    g_WorldEnvWork.field_58 = s_PcFlSavedDir;
+    g_WorldEnvWork.field_60 = s_PcFlSavedPos;
+    s_PcFlSwapped = 0;
+}
+#endif
+
 void func_800554C4(s32 arg0, s16 arg1, GsCOORDINATE2* coord0, GsCOORDINATE2* coord1, SVECTOR* rot, q19_12 x, q19_12 y, q19_12 z, s_WaterZone* waterZones) // 0x800554C4
 {
     MATRIX   mat;
@@ -1017,24 +1056,80 @@ void func_800554C4(s32 arg0, s16 arg1, GsCOORDINATE2* coord0, GsCOORDINATE2* coo
          * with the eye. The shadow map uses this (not the eye) so FPS shadows land
          * where third person shows them; in TPS it just mirrors field_60. */
         g_PcFlashlightShadowWorld = g_WorldEnvWork.field_60;
+        s_PcFlStockDir    = g_WorldEnvWork.field_58;
+        s_PcFlStockPos    = g_WorldEnvWork.field_60;
+        g_PcFlashlightDirOverridden = 0;
+        s_PcFlOverridden = 0;
+        /* flashlight_follow_aim off: the eye stays the origin, so the beam still
+         * starts where the player sees from, but it points along Harry's torso as
+         * the game aims it instead of turning with the view. The two fields are
+         * independent inputs to every consumer below (cone, per-vertex light,
+         * flare), so the origin can move without the direction. */
         if (fpsViewActive && g_SysWork.field_2388.isFlashlightOn_15)
         {
-            g_WorldEnvWork.field_58.vx = g_PcFpsViewFwd.vx;
-            g_WorldEnvWork.field_58.vy = g_PcFpsViewFwd.vy;
-            g_WorldEnvWork.field_58.vz = g_PcFpsViewFwd.vz;
-            g_WorldEnvWork.field_60    = g_PcFpsEyePos;
+            if (g_PcConfig.flashlightFollowAim)
+            {
+                g_WorldEnvWork.field_58.vx = g_PcFpsViewFwd.vx;
+                g_WorldEnvWork.field_58.vy = g_PcFpsViewFwd.vy;
+                g_WorldEnvWork.field_58.vz = g_PcFpsViewFwd.vz;
+                g_PcFlashlightDirOverridden = 1;
+            }
+            g_WorldEnvWork.field_60 = g_PcFpsEyePos;
+            s_PcFlOverridden = 1;
         }
-        /* Thirdperson / Over-the-Shoulder: the beam turns with the camera's aim
-         * as it does in first person, but stays at Harry's chest; only the
-         * direction changes. Same scripted-scene and torso-light gates. */
+        /* Thirdperson / Over-the-Shoulder: the beam stays at Harry's chest. While
+         * a weapon is readied it follows the camera's aim; otherwise it keeps the
+         * yaw the game gives it (Harry's facing) and takes only the camera's
+         * pitch, so it still tilts up and down but faces the camera whenever
+         * Harry does -- following the yaw too hid the lens flare and threw the
+         * beam back across his own body in 2D controls. Same scripted-scene and
+         * torso-light gates as first person. */
         else if (g_PcConfig.flashlightFollowAim && g_DebugThirdPersonCam && !g_PcFpsCam &&
                  !Pc_ScriptOwnsScene() && g_SysWork.field_2388.isFlashlightOn_15 &&
                  coord1 == &g_SysWork.playerBoneCoords[HarryBone_Torso])
         {
             extern VECTOR3 g_PcAltCamViewFwd;
-            g_WorldEnvWork.field_58.vx = g_PcAltCamViewFwd.vx;
-            g_WorldEnvWork.field_58.vy = g_PcAltCamViewFwd.vy;
-            g_WorldEnvWork.field_58.vz = g_PcAltCamViewFwd.vz;
+            extern u16     g_Player_IsAiming;
+
+            if (g_SysWork.playerCombat.isAiming || g_Player_IsAiming)
+            {
+                g_WorldEnvWork.field_58.vx = g_PcAltCamViewFwd.vx;
+                g_WorldEnvWork.field_58.vy = g_PcAltCamViewFwd.vy;
+                g_WorldEnvWork.field_58.vz = g_PcAltCamViewFwd.vz;
+            }
+            else
+            {
+                float cy = (float)g_PcAltCamViewFwd.vy / 4096.0f;
+                float hx = (float)g_WorldEnvWork.field_58.vx;
+                float hz = (float)g_WorldEnvWork.field_58.vz;
+                float hl = sqrtf(hx * hx + hz * hz);
+                float len = sqrtf(hx * hx + hz * hz +
+                                  (float)g_WorldEnvWork.field_58.vy * (float)g_WorldEnvWork.field_58.vy);
+                float h;
+
+                /* The direction's length is the beam's strength in the per-vertex
+                 * light (func_80057228 scales by it), so only its angle changes. */
+                if (len < 64.0f)
+                    len = 4096.0f;
+                /* A beam pointing straight up or down has no yaw of its own. */
+                if (hl < 64.0f)
+                {
+                    hx = (float)g_PcAltCamViewFwd.vx;
+                    hz = (float)g_PcAltCamViewFwd.vz;
+                    hl = sqrtf(hx * hx + hz * hz);
+                }
+                if (cy > 1.0f) cy = 1.0f;
+                if (cy < -1.0f) cy = -1.0f;
+                h = sqrtf(1.0f - cy * cy) * len;
+                if (hl > 0.0f)
+                {
+                    g_WorldEnvWork.field_58.vx = (s16)(hx / hl * h);
+                    g_WorldEnvWork.field_58.vz = (s16)(hz / hl * h);
+                    g_WorldEnvWork.field_58.vy = (s16)(cy * len);
+                }
+            }
+            g_PcFlashlightDirOverridden = 1;
+            s_PcFlOverridden = 1;
         }
     }
 #endif

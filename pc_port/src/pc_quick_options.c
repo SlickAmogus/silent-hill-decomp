@@ -75,7 +75,7 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_OTSRESTX, QO_X_OTSRESTY, QO_X_OTSAIMX, QO_X_OTSAIMY,
        QO_X_DREAMSTR, QO_X_DREAMBLUR, QO_X_DPADMOVE, QO_X_CROSSHAIRSTYLE,
        QO_X_LINEGAP, QO_X_CHARALIGHT, QO_X_PPLIGHT, QO_X_HEROLIGHT, QO_X_HEROLIGHTFL, QO_X_FACEANIM,
-       QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD };
+       QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD, QO_X_FLASHAIM };
 extern const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz);
 extern void        PcOpt_QuickExtraAdjust(int which, int dir);
 extern void        PcOpt_QuickViewReset(int mode);
@@ -138,7 +138,8 @@ static const QoRowDef s_pageGfx2[] = {
     { ROW_OPT,   "flashlight_mode",      0, NULL },
     { ROW_OPT,   "flashlight_intensity", 0, NULL },
     { ROW_OPT,   "flashlight_size",      0, NULL },
-    { ROW_EXTRA, NULL, QO_X_SHADOW,         "Shadow Resolution" },
+    { ROW_EXTRA, NULL, QO_X_FLASHAIM,       "Flashlight Follows Aim" },
+    { ROW_EXTRA, NULL, QO_X_SHADOW,        "Shadow Resolution" },
     { ROW_EXTRA, NULL, QO_X_DREAMBLUR,      "Dream Blur" },  /* not in the PC Options table: that page is full */
     { ROW_EXTRA, NULL, QO_X_DREAMSTR,       "Dream Blur Strength" },
     { ROW_EXTRA, NULL, QO_X_CHARALIGHT,     "Addon Character Lighting" },
@@ -161,7 +162,6 @@ static const QoRowDef s_pageHud[] = {
      * does not get one, that page keeps its slack for the next HUD setting. */
     { ROW_EXTRA, NULL, QO_X_CROSSHAIRSTYLE,  "Crosshair Style" },
     { ROW_EXTRA, NULL, QO_X_CROSSHAIRMELEE,  "Hide Crosshair for Melee" },
-    { ROW_OPT,   "text_size",            0, NULL },
     { ROW_OPT,   "low_health_glow",      0, NULL },
     QO_NAV_ROW,
     QO_CLOSE_ROW,
