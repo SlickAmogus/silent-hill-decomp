@@ -56,7 +56,7 @@ extern int PsyX_PGXP_QuadBackface(const void* a, const void* b, const void* c, c
 /* Emit far-distance cap (:32 PC form). Same rule as FOG_FAR_DIST there: the
  * plane is only lifted below fog strength 1, where fog never covers it. */
 extern float g_PsyX_FogStrength;
-#define WIDE_FOG_FAR_DIST() ((g_PcConfig.disableCulling && g_PsyX_FogStrength < 1.0f) ? 0x7FFFFFFF : g_WorldEnvWork.fog.farDistance)
+#define WIDE_FOG_FAR_DIST() (g_PcConfig.disableCulling ? Pc_WorldVisCap(g_WorldEnvWork.fog.farDistance) : g_WorldEnvWork.fog.farDistance)
 /* Fog maps cull on the NEAREST vertex, not the average, so the drawn part of a
  * model always ends beyond full fog (see PC_FACE_CULL_DEPTH in bodyprog_80055028.c). */
 #define WIDE_FOG_CULL_DEPTH(avgz, minz) \

@@ -78,7 +78,7 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_DREAMSTR, QO_X_DREAMBLUR, QO_X_DPADMOVE,
        QO_X_CAMSTYLE, QO_X_OTSSIDE, QO_X_CROSSHAIRSTYLE,
        QO_X_LINEGAP, QO_X_CHARALIGHT, QO_X_PPLIGHT, QO_X_HEROLIGHT, QO_X_HEROLIGHTFL, QO_X_FACEANIM,
-       QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD };
+       QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD, QO_X_WORLDVIS };
 extern const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz);
 extern void        PcOpt_QuickExtraAdjust(int which, int dir);
 extern void        PcOpt_QuickViewReset(int mode);
@@ -204,8 +204,9 @@ static const QoRowDef s_page0[] = {
     { ROW_OPT,   "post_process",         0, NULL },
     { ROW_OPT,   "tonemap",              0, NULL },
     { ROW_OPT,   "fog_strength",         0, NULL },
+    { ROW_EXTRA, NULL, QO_X_WORLDVIS,       "World Visibility" },  /* fog below 1.0 only */
     { ROW_OPT,   "bullet_decals",        0, NULL },
-    { ROW_EXTRA, NULL, QO_X_FACEANIM,       "Character Face Animation" },
+    { ROW_EXTRA, NULL, QO_X_FACEANIM,       "Character Face Animation (WIP)" },
     /* Frame cap, beside Weather_Rate for the same reason the Options menu puts
      * them together: both decide how fast the world ticks. */
     { ROW_OPT,   "fps_cap",              0, NULL },  /* FPS_Limit */
