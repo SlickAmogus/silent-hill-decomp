@@ -383,9 +383,14 @@ void Pc_CharaPreview_Draw(void)
     glDepthFunc(GL_LEQUAL);
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
     /* The desktop 3.3 context may not export the float form; the default
-     * clear depth is 1.0 either way. */
+     * clear depth is 1.0 either way. A GLES build links glClearDepthf
+     * directly and has no glad pointer to test (libgs_stub.c, same split). */
+#if defined(RENDERER_OGLES) || defined(__EMSCRIPTEN__) || defined(__ANDROID__) || defined(SH_IOS)
+    glClearDepthf(1.0f);
+#else
     if (glad_glClearDepthf != NULL)
         glClearDepthf(1.0f);
+#endif
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glUseProgram(s_meshProg);
     glUniformMatrix4fv(s_locMvp, 1, GL_FALSE, mvp);

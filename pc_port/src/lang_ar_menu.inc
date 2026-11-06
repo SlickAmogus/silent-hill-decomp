@@ -31,6 +31,9 @@
 
 /* --- PC Options pages --- */
 { "PC_Options",       "خيارات_الحاسوب" },
+{ "Web_Options",      "خيارات_الويب" },
+{ "Android_Options",  "خيارات_أندرويد" },
+{ "iOS_Options",      "خيارات_آي_أو_إس" },
 { "Resolution",       "الدقة" },
 { "Window_Mode",      "وضع_النافذة" },
 { "VSync",            "المزامنة_العمودية" },
