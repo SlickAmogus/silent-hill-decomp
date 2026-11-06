@@ -95,7 +95,7 @@ s_PcConfig g_PcConfig = {
     .perPixelFlashlight = 0, /* DERIVED from flashlightMode */
     .flashlightShadows  = 1, /* per-pixel flashlight casts real-time shadows (on by default; only visible when perPixelFlashlight is on) */
     .fogStrength          = 1.10f, /* PSX-matched density; lower reveals more of the widened draw distance */
-    .flashlightIntensity  = 1.20f, /* per-pixel flashlight cone brightness scale, 0..3 */
+    .flashlightIntensity  = 1.20f, /* per-pixel flashlight cone brightness scale, 0..6 */
     .flashlightSize       = 3.00f, /* per-pixel flashlight cone coverage multiplier */
     .flashlightIntensityFps = 2.10f, /* FPS-mode brightness (head-mounted) */
     .flashlightSizeFps      = 1.30f, /* FPS-mode coverage (tighter than third-person) */
@@ -892,21 +892,21 @@ void PcConfig_Load(const char* path)
         {
             float v = (float)atof(value);
             if (v < 0.0f) v = 0.0f;
-            if (v > 3.0f) v = 3.0f;
+            if (v > 6.0f) v = 6.0f;
             g_PcConfig.flashlightIntensity = v;
         }
         else if (strcmp(key, "flashlight_size") == 0)
         {
             float v = (float)atof(value);
             if (v < 0.0f) v = 0.0f;
-            if (v > 3.0f) v = 3.0f;
+            if (v > 5.0f) v = 5.0f;
             g_PcConfig.flashlightSize = v;
         }
         else if (strcmp(key, "flashlight_intensity_fps") == 0)
         {
             float v = (float)atof(value);
             if (v < 0.0f) v = 0.0f;
-            if (v > 3.0f) v = 3.0f;
+            if (v > 6.0f) v = 6.0f;
             g_PcConfig.flashlightIntensityFps = v;
         }
         else if (strcmp(key, "flashlight_follow_aim") == 0)
@@ -917,7 +917,7 @@ void PcConfig_Load(const char* path)
         {
             float v = (float)atof(value);
             if (v < 0.0f) v = 0.0f;
-            if (v > 3.0f) v = 3.0f;
+            if (v > 5.0f) v = 5.0f;
             g_PcConfig.flashlightSizeFps = v;
         }
         else if (strcmp(key, "xa_volume") == 0)

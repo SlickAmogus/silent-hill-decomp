@@ -2581,12 +2581,12 @@ void Pc_ConsoleExec(const char* line)
             char buf[16];
             float v = (float)atof(arg);
             if (v < 0.0f) v = 0.0f;
-            if (v > 3.0f) v = 3.0f;
+            if (v > 6.0f) v = 6.0f;
             *pv = v;
             snprintf(buf, sizeof(buf), "%.2f", v);
             PcConfig_SaveKeyValue(pkey, buf);
         }
-        cprintf("flashlight intensity%s: %.2f (0..3)", g_PcFpsCam ? " (fps)" : "", *pv);
+        cprintf("flashlight intensity%s: %.2f (0..6)", g_PcFpsCam ? " (fps)" : "", *pv);
     } else if (strcmp(cmd, "POSTINTENSITY") == 0 || strcmp(cmd, "POSTINT") == 0) {
         extern float g_cfg_postProcessIntensity;
         if (arg[0] != '\0') {
