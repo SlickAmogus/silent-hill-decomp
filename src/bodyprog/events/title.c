@@ -999,7 +999,6 @@ static void MainMenu_MainTextDraw(void) // 0x8003B568
     static const u8 STR_OFFSETS_X[] = { 29, 50, 32, 39, 33 }; // @unused Element at index 4. See `g_MainMenu_VisibleEntryFlags`.
 #ifdef SH_PC_PORT
     static const u8 STR_OFFSETS_X_AR_USA[] = { 178, 181, 178, 189, 179 };
-    static const u8 STR_OFFSETS_X_AR_PAL[] = { 41, 58, 43, 50, 33 };
 #endif
 
     s32 i;
@@ -1039,14 +1038,13 @@ static void MainMenu_MainTextDraw(void) // 0x8003B568
             s32         posX = COLUMN_POS_X - offX;
 
             /* The USA Arabic patch reads its table as absolute right edges; the
-             * port's rows have none, so anchor them right of centre instead. */
+             * port's rows have none, so anchor them right of centre instead.
+             * The PAL patch's offsets pair with its own column origin, not this
+             * one (they drew its rows off centre), and its drawer is the stock
+             * left-to-right one, so the measured centre above is exact there. */
             if (Pc_ArDisc() == AR_DISC_USA_MANSOUR)
             {
                 posX = (id < MainMenuEntry_Achievements) ? STR_OFFSETS_X_AR_USA[id] : (COLUMN_POS_X + offX);
-            }
-            else if (Pc_ArDisc() == AR_DISC_PAL_AHMED && id < MainMenuEntry_Achievements)
-            {
-                posX = COLUMN_POS_X - STR_OFFSETS_X_AR_PAL[id];
             }
             Gfx_StringSetPosition(posX, rowY + (slot * MAINMENU_ROW_PITCH));
         }
@@ -1125,7 +1123,6 @@ static void MainMenu_DifficultyTextDraw(s32 idx) // 0x8003B678
     static const u8 STR_OFFSETS_X[] = { 28, 43, 30 };
 #ifdef SH_PC_PORT
     static const u8 STR_OFFSETS_X_AR_USA[] = { 179, 180, 179 };
-    static const u8 STR_OFFSETS_X_AR_PAL[] = { 34, 43, 44 };
 #endif
 
     s32 i;
@@ -1140,8 +1137,7 @@ static void MainMenu_DifficultyTextDraw(s32 idx) // 0x8003B678
                                    ? STR_OFFSETS_X[i]
                                    : ((Pc_LangMenuTextWidth(tr) +
                                        Pc_LangMenuTextWidth(Pc_LangMenuText("["))) >> 1);
-            s32         posX = PC_AR_USA(STR_OFFSETS_X_AR_USA[i],
-                                         COLUMN_POS_X - PC_AR_PAL(STR_OFFSETS_X_AR_PAL[i], offX));
+            s32         posX = PC_AR_USA(STR_OFFSETS_X_AR_USA[i], COLUMN_POS_X - offX);
             Gfx_StringSetPosition(posX, COLUMN_POS_Y + (i * STR_OFFSET_Y));
         }
 #else
