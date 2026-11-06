@@ -1265,6 +1265,7 @@ void Pc_Options_ResetToDefaults(void)
 #include <SDL.h>
 #include "pc_confirm_dialog.h"
 #include "pc_controls_screen.h"
+#include "pc_reset_settings.h"
 #include "pc_chara_select.h"
 #include "pc_native_menu_draw.h"
 
@@ -1293,10 +1294,12 @@ static int PcOpt_ResetConfirm_Run(void)
     int left, right, confirm, cancel, res;
 
     g_PcOptResetConfirmActive = Pc_ConfirmDialog_IsOpen();
+    Pc_ResetSettings_Track();
 
     if (!g_PcOptResetConfirmActive) {
-        if (PcOpt_KeyEdge(SDL_SCANCODE_R)) {
-            Pc_ConfirmDialog_Open("RESET SETTINGS", "Reset all PC options to their defaults?");
+        /* R, both triggers, or the touch overlay's circled R. */
+        if (Pc_ResetSettings_RequestEdge()) {
+            Pc_ConfirmDialog_Open("RESET SETTINGS", "Reset all settings to their defaults?");
             g_PcOptResetConfirmActive = 1;
             Sd_PlaySfx(Sfx_MenuMove, 0, 64);
             return 1;
@@ -1619,10 +1622,21 @@ static void Options_PcOptionsMenu_EntryStringsDraw(void)
      * confirm dialog is up. Underscores render as spaces: "[R] Reset". */
     {
         extern int g_PcOptResetConfirmActive;
+        /* Names the input in use (R, the triggers, or the touch button, which
+         * is labelled R), small enough to sit beside the heading. */
+        char hint[48], *c;
+        int  w;
+
+        snprintf(hint, sizeof(hint), "%s", Pc_ResetSettings_Hint());
+        for (c = hint; *c; c++)
+            if (*c == ' ') *c = '_';
+        w = (Pc_LangMenuTextWidth(hint) * 3) / 5;
         Gfx_StringSetColor(g_PcOptResetConfirmActive ? StringColorId_Red : StringColorId_White);
-        Gfx_StringSetPosition(232, strPos.vy);
+        Pc_StringScaleSet(Q12(0.6f));
+        Gfx_StringSetPosition(320 - 8 - w, strPos.vy + 4);
         Gfx_Strings2dLayerIdxSet(8);
-        Gfx_StringDraw("[R]_Reset", DEFAULT_MAP_MESSAGE_LENGTH);
+        Gfx_StringDraw(hint, DEFAULT_MAP_MESSAGE_LENGTH);
+        Pc_StringScaleSet(Q12(1.0f));
         Gfx_StringSetColor(StringColorId_White);
     }
 #endif

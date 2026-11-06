@@ -27,6 +27,7 @@
 #include "stb_truetype.h"
 
 #include "pc_confirm_dialog.h"
+#include "pc_reset_settings.h"
 #include "pc_mouse_cursor.h"
 #include "lang_quick.h"
 #include "sh_log.h"
@@ -371,6 +372,13 @@ int Pc_ConfirmDialog_IsOpen(void)
     return s_phase != CD_CLOSED;
 }
 
+/* A tap can land on Yes before the player has read the question (the tap
+ * that opened it, or a hurried second one), so on touch the buttons take no
+ * input for this long after the dialog opens. */
+#define CD_TOUCH_GUARD_MS 1000
+static Uint32 s_openTicks;
+static int    s_hintMode = -1;
+
 void Pc_ConfirmDialog_Open(const char* title, const char* message)
 {
     if (s_phase == CD_OPENING || s_phase == CD_SHOWN)
@@ -382,6 +390,7 @@ void Pc_ConfirmDialog_Open(const char* title, const char* message)
     s_phaseStart = SDL_GetTicks();
     s_sel        = 1; /* "No" is the safe default */
     s_geoValid   = 0;
+    s_openTicks  = s_phaseStart;
 }
 
 static void cd_close(void)
@@ -406,6 +415,9 @@ int Pc_ConfirmDialog_Update(int left, int right, int confirm, int cancel)
     float mx, my;
 
     if (s_phase != CD_SHOWN) /* ignore input while animating in/out */
+        return PC_CONFIRM_NONE;
+    if (Pc_ResetSettings_InputMode() == PC_INPUT_TOUCH &&
+        SDL_GetTicks() - s_openTicks < CD_TOUCH_GUARD_MS)
         return PC_CONFIRM_NONE;
 
     if (cancel) { cd_close(); return PC_CONFIRM_NO; }
@@ -521,11 +533,20 @@ void Pc_ConfirmDialog_Draw(void)
     if (!s_texMsg)   s_texMsg   = cd_bake(s_message, (float)px,                    &s_msgW,   &s_msgH);
     if (!s_texYes)   s_texYes   = cd_bake(Pc_LangQuick("Yes"), (float)px,                    &s_yesW,   &s_yesH);
     if (!s_texNo)    s_texNo    = cd_bake(Pc_LangQuick("No"), (float)px,                    &s_noW,    &s_noH);
+    if (s_texHint && s_hintMode != (Pc_ResetSettings_InputMode() == PC_INPUT_TOUCH))
+    {
+        cd_retire(s_texHint);
+        s_texHint = 0;
+    }
     if (!s_texHint)
     {
         char hint[384];
-        snprintf(hint, sizeof(hint), "%s   %s   %s", Pc_LangQuick("Left/Right select"),
-                 Pc_LangQuick("[OK] confirm"), Pc_LangQuick("[Cancel] back"));
+        s_hintMode = (Pc_ResetSettings_InputMode() == PC_INPUT_TOUCH);
+        if (s_hintMode)
+            snprintf(hint, sizeof(hint), "%s", Pc_LangQuick("Tap Yes or No"));
+        else
+            snprintf(hint, sizeof(hint), "%s   %s   %s", Pc_LangQuick("Left/Right select"),
+                     Pc_LangQuick("[OK] confirm"), Pc_LangQuick("[Cancel] back"));
         s_texHint = cd_bake(hint, (float)(int)(hintH * 0.60f), &s_hintW, &s_hintH);
     }
 
