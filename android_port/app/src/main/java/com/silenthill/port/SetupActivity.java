@@ -1063,8 +1063,9 @@ public class SetupActivity extends Activity {
     /**
      * The browser downloads and hands the APK to the system installer. Doing it
      * in-app needs REQUEST_INSTALL_PACKAGES, which together with network access
-     * is what Play Protect flags in a sideloaded app. The game still starts, so
-     * a player who backs out of the download loses nothing.
+     * is what Play Protect flags in a sideloaded app. The browser is left in
+     * front: starting the game straight after covered it within a frame, so the
+     * download looked like it never began. The next launch plays as usual.
      */
     private void openUpdateInBrowser(AppUpdate.Offer offer) {
         try {
@@ -1073,8 +1074,12 @@ public class SetupActivity extends Activity {
             Log.w(TAG, "update: no browser for " + offer.url + ": " + e);
             Toast.makeText(this, "No browser is available to download the update.",
                            Toast.LENGTH_LONG).show();
+            continueLaunch();
+            return;
         }
-        continueLaunch();
+        Toast.makeText(this, "Downloading the update in your browser. Tap the download "
+                     + "when it finishes to install it.", Toast.LENGTH_LONG).show();
+        finish();
     }
 
     private void continueLaunch() {
