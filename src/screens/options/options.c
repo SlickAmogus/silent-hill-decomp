@@ -1754,6 +1754,16 @@ void Pc_Options_ResetToDefaults(void)
         for (i = 0; i < count; i++)
             PcOpt_ResetEntry(&tbl[i]);
     }
+    {
+        extern const s_PcConfig* PcConfig_Defaults(void);
+        extern void              Pc_ControlStyleSet(int style);
+        const s_PcConfig*        d = PcConfig_Defaults();
+
+        /* Camera mode is chosen by the Change Camera bind and the quick menu,
+         * not a table row; Pc_ControlStyleSet swaps the binds and saves it. */
+        g_PcConfig.controlStyle = d->controlStyle;
+        Pc_ControlStyleSet(d->controlStyle);
+    }
     SH_DBG_ECHO("Settings reset to defaults (resolution and window mode kept).");
 }
 
