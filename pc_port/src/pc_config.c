@@ -82,7 +82,6 @@ s_PcConfig g_PcConfig = {
     .bulletDecals = 0, /* 1=bullet-hole decals at player gunshot impacts (gamedata/decal.png); off by default */
     .gamepadIcons = GLYPH_SET_AUTO,
     .globalCharaPool = 1, /* 1=all chara assets resident PC-side + chara_global.dll AI backfill (SPAWN anything anywhere) */
-    .worldVisibilityPct = 100,
     .wholeMapExteriors = 2, /* auto: whole town drawn while fog_strength < 1.0, the only time it can be seen */
     .usePgxp        = 0, /* 0=affine textures (PSX look), 1=PGXP perspective correct (WIP) */
     .itemDepthProbe = 0, /* 1=one-shot [ITEMDEPTH] depth dump per item-screen entry (diagnostic) */
@@ -628,11 +627,6 @@ void PcConfig_Load(const char* path)
             if (f < 0.0f) f = 0.0f;
             if (f > 2.0f) f = 2.0f;
             g_PcConfig.fogStrength = f;
-        }
-        else if (strcmp(key, "world_visibility_pct") == 0)
-        {
-            int pct = atoi(value);
-            g_PcConfig.worldVisibilityPct = (pct < 0) ? 0 : ((pct > 100) ? 100 : pct);
         }
         else if (strcmp(key, "draw_distance_pct") == 0)
         {
