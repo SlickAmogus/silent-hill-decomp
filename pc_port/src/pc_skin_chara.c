@@ -2828,7 +2828,7 @@ void* Pc_SkinChara_Begin(s_Skeleton* skel, const void* boneCoords)
         return NULL;
     memset(ch->have, 0, sizeof(ch->have));
     memset(ch->lit, 0, sizeof(ch->lit));
-    ch->isPlayer = (lm == g_WorldGfxWork.harryModel.lmHdr);
+    ch->isPlayer = (lm == g_WorldGfxWork.harryModel.lmHdr || boneCoords == (const void*)g_SysWork.playerBoneCoords);
     return ch;
 }
 
