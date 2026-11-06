@@ -38,6 +38,8 @@
 #include "pc_config.h"
 #include "lang_text.h"
 #include "pc_cheats.h"
+#include "pc_confirm_dialog.h"
+#include "pc_reset_settings.h"
 #include "control_style.h"
 #include "lang_quick.h"
 #include "sh_log.h"
@@ -754,6 +756,14 @@ static int    s_titleW, s_titleH, s_hintW, s_hintH;
 static GLuint s_texDec, s_texInc;
 static int    s_decW, s_decH, s_incW, s_incH;
 #endif
+/* The touch reset button: a ring and an R, drawn only while touch drives the
+ * menu; s_resetBtn is its centre and radius in viewport px for Update.
+ * s_qoConfirmReset says the open Yes/No is the reset, not the fog row's. */
+static GLuint s_texResetRing, s_texResetR, s_texResetHint;
+static int    s_resetRingW, s_resetRingH, s_resetRW, s_resetRH, s_resetHintW, s_resetHintH;
+static float  s_resetBtn[3];
+static int    s_hintResetMode = -1;
+static int    s_qoConfirmReset;
 static GLuint s_texLabel[QO_MAX_ROWS];
 static int    s_labelW[QO_MAX_ROWS], s_labelH[QO_MAX_ROWS];
 static GLuint s_texValue[QO_MAX_ROWS];
@@ -1447,6 +1457,9 @@ static void qo_free_text(void)
     qo_retire(s_texDec); s_texDec = 0;
     qo_retire(s_texInc); s_texInc = 0;
 #endif
+    qo_retire(s_texResetRing); s_texResetRing = 0;
+    qo_retire(s_texResetR);    s_texResetR    = 0;
+    qo_retire(s_texResetHint); s_texResetHint = 0;
     for (i = 0; i < QO_MAX_ROWS; i++)
     {
         qo_retire(s_texLabel[i]); s_texLabel[i] = 0;
@@ -1686,9 +1699,14 @@ void Pc_QuickOptions_Close(void)
     if (Pc_ConfirmDialog_IsOpen())
     {
         Pc_ConfirmDialog_Cancel();
-        PcOpt_PgxpFogAnswer(0);
+        if (!s_qoConfirmReset)
+            PcOpt_PgxpFogAnswer(0);
     }
 #endif
+#if !defined(QO_MOBILE)
+    Pc_ConfirmDialog_Cancel();
+#endif
+    s_qoConfirmReset = 0;
     s_phase      = QO_CLOSING;
     s_phaseStart = SDL_GetTicks();
 }
@@ -1866,6 +1884,45 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
     if (s_phase != QO_SHOWN) /* ignore input while animating in/out */
         return;
 
+    /* Reset all settings: R, both triggers, or the touch button, then the same
+     * Yes/No as PC Options. The dialog reads the pointer itself. */
+    Pc_ResetSettings_Track();
+    if (s_qoConfirmReset && Pc_ConfirmDialog_IsOpen())
+    {
+        extern void Pc_Options_ResetToDefaults(void);
+        int res = Pc_ConfirmDialog_Update(left, right, confirm, close);
+        if (res == PC_CONFIRM_YES)
+        {
+            qo_beep(Sfx_MenuConfirm);
+            Pc_Options_ResetToDefaults();
+        }
+        else if (res == PC_CONFIRM_NO)
+            qo_beep(Sfx_MenuCancel);
+        if (res != PC_CONFIRM_NONE)
+            s_qoConfirmReset = 0;
+        return;
+    }
+    if (!Pc_ConfirmDialog_IsOpen())
+    {
+        int   tapped = 0;
+        float tx, ty;
+
+        if (Pc_ResetSettings_InputMode() == PC_INPUT_TOUCH && s_resetBtn[2] > 0.0f &&
+            Pc_MouseCursor_LeftClicked() && Pc_MouseCursor_ViewportPos(&tx, &ty))
+        {
+            float dx = tx * s_vpW - s_resetBtn[0], dy = (1.0f - ty) * s_vpH - s_resetBtn[1];
+            tapped = dx * dx + dy * dy <= s_resetBtn[2] * s_resetBtn[2] * 1.6f;
+        }
+        if (tapped)
+            Pc_ResetSettings_TouchRequest();
+        if (Pc_ResetSettings_RequestEdge())
+        {
+            qo_beep(Sfx_MenuMove);
+            s_qoConfirmReset = 1;
+            Pc_ConfirmDialog_Open("RESET SETTINGS", "Reset all settings to their defaults?");
+            return;
+        }
+    }
 #if defined(QO_MOBILE)
     /* The fog row's PGXP offer (see PcOpt_PgxpFogCheck). The dialog reads the
      * pointer itself; this menu sits still underneath until it is answered. */
@@ -2491,6 +2548,10 @@ void Pc_QuickOptions_Draw(void)
             s_texTitle = qo_bake(titleBuf, (float)(int)(titleH * 0.46f), &s_titleW, &s_titleH);
         }
     }
+    if (s_texHint && s_hintResetMode != Pc_ResetSettings_InputMode())
+    {
+        qo_retire(s_texHint); s_texHint = 0;
+    }
 #if defined(QO_TOUCH_UI)
     if (qo_touch_ui())
     {
@@ -2512,9 +2573,13 @@ void Pc_QuickOptions_Draw(void)
         BindInput_KeyLabel(g_PcConfig.keyQuickOptions[0] ? g_PcConfig.keyQuickOptions : "F10", key, sizeof(key));
         snprintf(hint, sizeof(hint), "%s    %s    %s", Pc_LangQuick("Up/Down select"),
                  Pc_LangQuick("Left/Right adjust"), Pc_LangQuick("Q/E or PgUp/PgDn page"));
-        snprintf(hint2, sizeof(hint2), "%s    %s    %s", Pc_LangQuick("Drag the title to move"),
+        s_hintResetMode = Pc_ResetSettings_InputMode();
+        snprintf(hint2, sizeof(hint2), "%s    %s    %s    %s", Pc_LangQuick("Drag the title to move"),
                  Pc_LangQuickFill("{key} or Esc close", "{key}", key),
                  Pc_LangQuick("* needs restart"));
+        s_hintResetMode = Pc_ResetSettings_InputMode();
+        snprintf(hint + strlen(hint), sizeof(hint) - strlen(hint), "    %s",
+                 Pc_LangQuick(Pc_ResetSettings_Hint()));
         s_texHint = qo_bake(hint, (float)hpx, &s_hintW, &s_hintH);
         if (s_texHint && s_hintW > avail && s_hintW > 0 && avail > 0.0f)
         {
@@ -2722,6 +2787,55 @@ void Pc_QuickOptions_Draw(void)
         float hx = panelL + (panelW - (float)s_hintW) * 0.5f;
         float hy = panelB + hintH * 0.72f;
         qo_quad(s_texHint, NX(hx), NY(hy), NX(hx + s_hintW), NY(hy - s_hintH), 0.7f, 0.7f, 0.75f, dim);
+    }
+
+    s_resetBtn[2] = 0.0f;
+    if (Pc_ResetSettings_InputMode() == PC_INPUT_TOUCH)
+    {
+        /* In the title band's right end: a tap there is never a drag, since a
+         * tap opens the dialog before the drag code runs. */
+        float r  = titleH * 0.36f;
+        float cx = panelR - titleH * 0.6f, cy = panelT - titleH * 0.5f;
+        int   d  = (int)(r * 2.0f);
+
+        if (d < 8) d = 8;
+        if (s_texResetRing && s_resetRingW != d)
+        {
+            qo_retire(s_texResetRing); s_texResetRing = 0;
+            qo_retire(s_texResetR);    s_texResetR    = 0;
+            qo_retire(s_texResetHint); s_texResetHint = 0;
+        }
+        if (!s_texResetRing)
+        {
+            enum { RING_SRC = 64 };
+            static unsigned char ring[RING_SRC * RING_SRC];
+            int x, y;
+
+            for (y = 0; y < RING_SRC; y++)
+                for (x = 0; x < RING_SRC; x++)
+                {
+                    float fx = (float)x + 0.5f - RING_SRC * 0.5f, fy = (float)y + 0.5f - RING_SRC * 0.5f;
+                    float dist = sqrtf(fx * fx + fy * fy);
+                    ring[y * RING_SRC + x] = (dist <= RING_SRC * 0.5f - 1.0f && dist >= RING_SRC * 0.5f - 6.0f) ? 255
+                                           : (dist < RING_SRC * 0.5f - 6.0f ? 70 : 0);
+                }
+            s_texResetRing = qo_bake_icon(ring, RING_SRC, d, &s_resetRingW, &s_resetRingH);
+            s_texResetR    = qo_bake("R", r * 1.1f, &s_resetRW, &s_resetRH);
+        }
+        qo_quad(s_texResetRing, NX(cx - r), NY(cy + r), NX(cx + r), NY(cy - r), 0.92f, 0.92f, 0.95f, dim);
+        qo_quad(s_texResetR, NX(cx - s_resetRW * 0.5f), NY(cy + s_resetRH * 0.5f),
+                NX(cx + s_resetRW * 0.5f), NY(cy - s_resetRH * 0.5f), 0.92f, 0.92f, 0.95f, dim);
+        s_resetBtn[0] = cx;
+        s_resetBtn[1] = cy;
+        s_resetBtn[2] = r;
+        if (!s_texResetHint || s_hintResetMode != PC_INPUT_TOUCH)
+        {
+            qo_retire(s_texResetHint);
+            s_texResetHint  = qo_bake(Pc_LangQuick(Pc_ResetSettings_Hint()), r * 0.8f, &s_resetHintW, &s_resetHintH);
+            s_hintResetMode = PC_INPUT_TOUCH;
+        }
+        qo_quad(s_texResetHint, NX(cx - r * 1.4f - s_resetHintW), NY(cy + s_resetHintH * 0.5f),
+                NX(cx - r * 1.4f), NY(cy - s_resetHintH * 0.5f), 0.8f, 0.8f, 0.85f, dim);
     }
 
     /* Dropdown list over the value column of its row, on top of the rows. */

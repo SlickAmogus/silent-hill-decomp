@@ -1754,6 +1754,7 @@ void Pc_Options_ResetToDefaults(void)
 #include <SDL.h>
 #include "pc_confirm_dialog.h"
 #include "pc_controls_screen.h"
+#include "pc_reset_settings.h"
 
 /* Shared with the header draw: 1 while the reset dialog is up (label turns red). */
 int g_PcOptResetConfirmActive = 0;
@@ -1803,11 +1804,13 @@ static int PcOpt_ResetConfirm_Run(void)
     int left, right, confirm, cancel, res;
 
     g_PcOptResetConfirmActive = Pc_ConfirmDialog_IsOpen();
+    Pc_ResetSettings_Track();
 
     if (!g_PcOptResetConfirmActive) {
-        if (PcOpt_KeyEdge(SDL_SCANCODE_R)) {
+        /* R, both triggers, or the touch overlay's circled R. */
+        if (Pc_ResetSettings_RequestEdge()) {
             s_confirmAction = PCOPT_CONFIRM_RESET;
-            Pc_ConfirmDialog_Open("RESET SETTINGS", "Reset all PC options to their defaults?");
+            Pc_ConfirmDialog_Open("RESET SETTINGS", "Reset all settings to their defaults?");
             g_PcOptResetConfirmActive = 1;
             Sd_PlaySfx(Sfx_MenuMove, 0, 64);
             return 1;
@@ -2193,22 +2196,27 @@ static void Options_PcOptionsMenu_EntryStringsDraw(void)
     Gfx_Strings2dLayerIdxSet(8);
     Gfx_StringDraw(HEADING, DEFAULT_MAP_MESSAGE_LENGTH);
 
-/* Neither mobile target: there is no keyboard to press R on, so the hint would
- * advertise something unreachable. iOS has the Reset_Settings row on the
- * Graphics page instead, which goes further -- it restores the config.cfg out
- * of the signed bundle rather than resetting the values held in memory. */
-#if defined(SH_PC_PORT) && !defined(SH_IOS) && !defined(__ANDROID__)
+#ifdef SH_PC_PORT
     /* Reset hint, top-right by the heading (same layer). Highlighted while the
-     * confirm dialog is up. Underscores render as spaces: "[R] Reset".
-     *
-     * Hidden on both mobile targets for the same reason: there is no keyboard
-     * to press R on, so it advertises something the player cannot do. */
+     * confirm dialog is up. On the touch targets "R" is the overlay's circled-R
+     * button, so the hint is reachable there too. */
     {
         extern int g_PcOptResetConfirmActive;
+        /* Names the input in use (R, the triggers, or the touch button, which
+         * is labelled R), small enough to sit beside the heading. */
+        char hint[48], *c;
+        int  w;
+
+        snprintf(hint, sizeof(hint), "%s", Pc_ResetSettings_Hint());
+        for (c = hint; *c; c++)
+            if (*c == ' ') *c = '_';
+        w = (Pc_LangMenuTextWidth(hint) * 3) / 5;
         Gfx_StringSetColor(g_PcOptResetConfirmActive ? StringColorId_Red : StringColorId_White);
-        Gfx_StringSetPosition(232, strPos.vy);
+        Pc_StringScaleSet(Q12(0.6f));
+        Gfx_StringSetPosition(320 - 8 - w, strPos.vy + 4);
         Gfx_Strings2dLayerIdxSet(8);
-        Gfx_StringDraw("[R]_Reset", DEFAULT_MAP_MESSAGE_LENGTH);
+        Gfx_StringDraw(hint, DEFAULT_MAP_MESSAGE_LENGTH);
+        Pc_StringScaleSet(Q12(1.0f));
         Gfx_StringSetColor(StringColorId_White);
     }
 #endif
