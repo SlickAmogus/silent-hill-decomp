@@ -4,7 +4,6 @@
 #include <stdlib.h>
 #include <SDL_timer.h>
 #include "pc_config.h"
-#include <math.h>
 #include "bodyprog/gfx/world.h"
 #include "sh_log.h"
 #include "hires_override.h"
@@ -2149,25 +2148,10 @@ int Pc_WholeMapEnabled(void)
      * Nothing far off is lit enough to see, and drawing the whole town there
      * still costs as much as in daylight. */
     if (g_PcConfig.wholeMapExteriors == 2)
-        return g_PsyX_FogStrength < 1.0f && g_PcConfig.worldVisibilityPct > 0 &&
+        return g_PsyX_FogStrength < 1.0f &&
                (g_WorldEnvWork.fog.color.r >= 40 || g_WorldEnvWork.fog.color.g >= 40 ||
                 g_WorldEnvWork.fog.color.b >= 40);
     return g_PcConfig.wholeMapExteriors != 0;
-}
-
-int Pc_WorldVisCap(int stock)
-{
-    extern float g_PsyX_FogStrength;
-    int          pct = g_PcConfig.worldVisibilityPct;
-    double       cap;
-
-    if (g_PsyX_FogStrength >= 1.0f || pct <= 0 || stock <= 0)
-        return stock;
-    if (pct >= 100)
-        return 0x7FFFFFFF;
-    /* Geometric, so each step reads as about the same change on screen. */
-    cap = (double)stock * pow(2.0, 5.0 * (double)pct / 100.0);
-    return (cap >= 2147483647.0) ? 0x7FFFFFFF : (int)cap;
 }
 
 int Pc_WholeMapDrawActive(void)
