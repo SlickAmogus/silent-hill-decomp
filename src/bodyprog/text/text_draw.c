@@ -403,6 +403,15 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
     strCpy  = str;
 #endif
     sizeCpy = strLength;
+#ifdef SH_PC_PORT
+    /* Call sites pass a glyph budget sized for their English literal (5 for
+     * the save screen's Data/Save/Time, 10 for inventory labels). An Arabic
+     * translation is its own complete string and longer: draw it to its NUL. */
+    if (Pc_ArActive() && strCpy != (u8*)str)
+    {
+        sizeCpy = 0x7FFF;
+    }
+#endif
 
     packet = NULL;
     result = false;

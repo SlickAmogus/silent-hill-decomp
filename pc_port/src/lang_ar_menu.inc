@@ -168,6 +168,11 @@
 { "Quick_Save",       "حفظ_سريع" },
 { "Quick_Load",       "تحميل_سريع" },
 
+/* --- Character select --- */
+{ "CHARACTER_SELECT", "اختيار_الشخصية" },
+{ "DOWNLOAD_MORE...", "تحميل_المزيد..." },
+{ "NO_PREVIEW",       "لا_معاينة" },
+
 /* --- Pause menu and confirm prompts --- */
 { "SAVE",             "حفظ" },
 { "QUICK_MENU",       "قائمة_سريعة" },

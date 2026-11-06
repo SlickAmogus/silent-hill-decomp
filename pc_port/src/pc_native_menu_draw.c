@@ -14,6 +14,7 @@
 #include "lang_ar.h"
 #include "pc_mouse_cursor.h"
 #include "pc_native_menu_draw.h"
+#include "pc_ttf_text.h"
 
 #define NM_OT_ARROW 10 /* LAYER_40 in options.c */
 #define NM_OT_SHADE 9  /* LAYER_36 in options.c */
@@ -110,6 +111,48 @@ int Nm_TextWidth(const char* s)
 }
 
 /* The USA Arabic drawer walks leftward, so a string starts at its right edge. */
+static int nm_latin_wanted(const char* s)
+{
+    return Pc_TtfText_Needed() && Pc_LangMenuText(s) == s;
+}
+
+static void nm_latin_spaces(const char* s, char* out, size_t outSize)
+{
+    size_t i;
+
+    for (i = 0; s[i] != '\0' && i + 1 < outSize; i++)
+        out[i] = (s[i] == '_') ? ' ' : s[i];
+    out[i] = '\0';
+}
+
+int Nm_TextWidthLatin(const char* s, int size)
+{
+    char buf[NM_LINE_MAX * 4];
+
+    if (!nm_latin_wanted(s))
+        return Nm_TextWidth(s);
+    nm_latin_spaces(s, buf, sizeof(buf));
+    return Pc_TtfText_Width(buf, size == NM_TEXT_TALL);
+}
+
+int Nm_TextDrawLatin(int x, int y, int size, int color, const char* s, int maxW, int pan)
+{
+    char buf[NM_LINE_MAX * 4];
+    int  w;
+
+    if (!nm_latin_wanted(s))
+    {
+        if (maxW > 0)
+            return Nm_TextDrawMarquee(x, y, size, color, s, maxW, pan);
+        Nm_TextDraw(x, y, size, color, s);
+        return Nm_TextWidth(s);
+    }
+    nm_latin_spaces(s, buf, sizeof(buf));
+    w = Pc_TtfText_Width(buf, size == NM_TEXT_TALL);
+    Pc_TtfText_Queue(x, y, size == NM_TEXT_TALL, color, buf, maxW);
+    return (maxW > 0 && w > maxW) ? maxW : w;
+}
+
 void Nm_TextDrawCentered(int cx, int y, int size, int color, const char* s)
 {
     Nm_TextDraw(cx - (Nm_TextWidth(s) / 2), y, size, color, s);

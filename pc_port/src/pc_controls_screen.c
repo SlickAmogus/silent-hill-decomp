@@ -528,7 +528,7 @@ int Pc_ControlsScreen_Update(void)
  * only one that pans. */
 static void cs_fit_draw(int x, int y, int color, const char* key, int maxW)
 {
-    Nm_TextDrawMarquee(x, y, NM_TEXT_TALL, color, Pc_LangMenuText(key), maxW, color == StringColorId_Gold);
+    Nm_TextDrawLatin(x, y, NM_TEXT_TALL, color, key, maxW, color == StringColorId_Gold);
 }
 
 static void cs_glyph_draw(int glyph, int dark, int x, int y, int rgb)
@@ -623,7 +623,7 @@ static void cs_key_draw(const char* v, int col, int y, int color)
     {
         cs_glyph_cell_draw(glyph, s_colX[col], y, color);
         if (suffix != NULL)
-            Nm_TextDraw(s_colX[col] + INPUT_GLYPH_PX + 1, y, NM_TEXT_TALL, color, suffix);
+            Nm_TextDrawLatin(s_colX[col] + INPUT_GLYPH_PX + 1, y, NM_TEXT_TALL, color, suffix, 0, 0);
         return;
     }
     BindCore_DisplayKey(label, name, sizeof(name));

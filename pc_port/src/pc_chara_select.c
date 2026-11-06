@@ -728,7 +728,7 @@ static void cs_rows_draw(void)
             const char*    value = "";
 
             Nm_SanitizeGlyphs(c->label, clean, sizeof(clean), 1);
-            w = Nm_TextDrawMarquee(CS_COL1_X0, y, NM_TEXT_TALL, color, clean, CS_COL1_X1 - CS_COL1_X0, sel);
+            w = Nm_TextDrawLatin(CS_COL1_X0, y, NM_TEXT_TALL, color, clean, CS_COL1_X1 - CS_COL1_X0, sel);
             if (sel)
                 Nm_HighlightDraw(CS_COL1_X0 - 1, CS_COL1_X0 + w + 4, y + 14);
 
@@ -773,16 +773,16 @@ static void cs_rows_draw(void)
             if (sel)
             {
                 int maxW = CS_COL2_X1 - CS_COL2_X0 - 20;
-                int tw   = Pc_LangMenuTextWidth(clean);
+                int tw   = Nm_TextWidthLatin(clean, NM_TEXT_TALL);
                 int x    = CS_COL2_X0 + 10 + ((maxW - (tw < maxW ? tw : maxW)) / 2);
 
-                w = Nm_TextDrawMarquee(x, y, NM_TEXT_TALL, StringColorId_Gold, clean, maxW, 1);
+                w = Nm_TextDrawLatin(x, y, NM_TEXT_TALL, StringColorId_Gold, clean, maxW, 1);
                 if (s_modelCount > 1)
                     Nm_ValueArrowsDraw(x, x + w, y);
             }
             else
-                Nm_TextDrawMarquee(CS_COL2_X0, y, NM_TEXT_TALL, StringColorId_LightGrey, clean,
-                                   CS_COL2_X1 - CS_COL2_X0, 0);
+                Nm_TextDrawLatin(CS_COL2_X0, y, NM_TEXT_TALL, StringColorId_LightGrey, clean,
+                                 CS_COL2_X1 - CS_COL2_X0, 0);
         }
     }
 
@@ -825,8 +825,8 @@ void Pc_CharaSelect_Draw(void)
     if (s_status[0] != '\0' && SDL_GetTicks() < s_statusUntil)
     {
         Nm_SanitizeGlyphs(s_status, clean, sizeof(clean), 1);
-        Nm_TextDrawMarquee(cs_back_right() + 12, CS_FOOTER_Y, NM_TEXT_TALL, StringColorId_LightGrey, clean,
-                           CS_PREV_X1 - cs_back_right() - 12, 1);
+        Nm_TextDrawLatin(cs_back_right() + 12, CS_FOOTER_Y, NM_TEXT_TALL, StringColorId_LightGrey, clean,
+                         CS_PREV_X1 - cs_back_right() - 12, 1);
     }
     Pc_MouseCursor_Show();
 }

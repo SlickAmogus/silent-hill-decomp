@@ -32,6 +32,12 @@ void Nm_TextDrawRight(int rx, int y, int size, int color, const char* s);
  * otherwise. Every pan restarts from its left end when the highlight moves.
  * Returns the width drawn, at most maxW. */
 int  Nm_TextDrawMarquee(int x, int y, int size, int color, const char* s, int maxW, int pan);
+/* Untranslated run-time text (key names, file and character names, status
+ * lines): a TrueType face when the active font has no Latin cells
+ * (pc_ttf_text.c), the game font otherwise. maxW <= 0 = no limit. Returns
+ * the drawn width. */
+int  Nm_TextDrawLatin(int x, int y, int size, int color, const char* s, int maxW, int pan);
+int  Nm_TextWidthLatin(const char* s, int size);
 
 /* y is the arrow's vertical centre. */
 void Nm_ScrollArrowDraw(int cx, int y, int up, int enabled);
