@@ -58,8 +58,6 @@ typedef struct {
     int fullscreen;      /* 0 = windowed, 1 = exclusive fullscreen, 2 = borderless (desktop) */
     int confineCursor;   /* keep the pointer inside the window while focused, fullscreen/borderless only (config key: confine_cursor) */
     int disableCulling;  /* 1 = render all objects regardless of view angle */
-    int worldVisibilityPct; /* fog below 1.0 only: how far the world draws, 0 = the game's own
-                             * far caps, 100 = the whole town (config key: world_visibility_pct) */
     int drawDistancePct; /* per-poly far cap as a % of vanilla ~61u; 200 = ~122u. Worth raising with fog turned down */
     int preloadChunks;   /* 1 = load all IPD chunks at map init instead of streaming */
     int vsync;           /* 0 = off (uncapped), 1 = on, -1 = adaptive */
@@ -605,9 +603,6 @@ int Pc_WholeMapDrawActive(void);
 /* whole_map_exteriors resolved against the live fog strength (auto mode)
  * and PGXP, which the far band's depth test needs. */
 int Pc_WholeMapEnabled(void);
-/* The far cap for fog below 1.0 under world_visibility_pct: `stock` at 0,
- * no cap at 100, and up to 32x `stock` between. Fog 1.0+ returns `stock`. */
-int Pc_WorldVisCap(int stock);
 /* Fog thinned below 1.0: the world is visible past where monsters spawn and
  * despawn, so npc_main.c moves both out of the camera's view. */
 int Pc_LongViewActive(void);
