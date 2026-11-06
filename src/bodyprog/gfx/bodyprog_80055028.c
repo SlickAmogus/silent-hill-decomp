@@ -2479,6 +2479,11 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
 #endif
     vertOffset   = modelHdr->vertexOffset;
     normalOffset = modelHdr->normalOffset;
+#ifdef SH_PC_PORT
+    /* World meshes may cast flashlight shadows from semi-transparent
+     * surfaces (PsyX_GPU.cpp, g_PsyX_SemiShadowCast); effects never do. */
+    { extern int g_PsyX_SemiShadowCast; g_PsyX_SemiShadowCast = 1; }
+#endif
 
     gte_lddqa(g_WorldEnvWork.field_4C);
     gte_lddqb_0();
@@ -2538,7 +2543,9 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
 
         Gfx_MeshDraw(curMeshHdr, scratchData, otTag, arg2);
     }
-
+#ifdef SH_PC_PORT
+    { extern int g_PsyX_SemiShadowCast; g_PsyX_SemiShadowCast = 0; }
+#endif
 }
 
 void func_800574D4(s_MeshHeader* meshHdr, s_GteScratchData* scratchData) // 0x800574D4
@@ -4433,6 +4440,11 @@ void func_8005A21C(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
         return;
     }
 #endif
+#ifdef SH_PC_PORT
+    /* World meshes may cast flashlight shadows from semi-transparent
+     * surfaces (PsyX_GPU.cpp, g_PsyX_SemiShadowCast); effects never do. */
+    { extern int g_PsyX_SemiShadowCast; g_PsyX_SemiShadowCast = 1; }
+#endif
 
 #ifdef SH_PC_PORT
     /* Characters are fogged by the SHADER: the prim builder below attaches
@@ -4510,6 +4522,9 @@ void func_8005A21C(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
 
         func_8005AC50(curMeshHdr, (s_GteScratchData2*)scratchData, otTag, (s32)(intptr_t)arg2);
     }
+#ifdef SH_PC_PORT
+    { extern int g_PsyX_SemiShadowCast; g_PsyX_SemiShadowCast = 0; }
+#endif
 }
 
 #ifdef SH_PC_PORT
