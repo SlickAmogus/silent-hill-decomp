@@ -134,7 +134,7 @@ s_PcConfig g_PcConfig = {
     .crosshairSize       = 100.0f,
     .crosshairFpsAimOnly = 0, /* FPS crosshair: 0 = always shown, 1 = only while aiming */
     .crosshairHideMelee  = 0, /* 1 = no crosshair unless a gun is equipped */
-    .autoReload          = 1, /* 0 = reload button only, 1 = after a dry fire, 2 = original (also on aim) */
+    .autoReload          = 2, /* 0 = reload button only, 1 = after a dry fire, 2 = original (also on aim) */
     .ragdoll             = 0,
     .textSize            = 100.0f,
     .aimAssist           = 1, /* OTS/TPS free-aim aim assist (mouse body-coverage + controller auto-aim) */
