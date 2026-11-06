@@ -430,6 +430,7 @@ void Pc_TtfText_Draw(void)
     GLint     prevSrcRgb = GL_ONE, prevDstRgb = GL_ZERO, prevSrcA = GL_ONE, prevDstA = GL_ZERO;
     GLint     prevScissorBox[4];
     GLint     prevDrawFb = 0, prevReadFb = 0;
+    GLint     prevEqRgb = GL_FUNC_ADD, prevEqA = GL_FUNC_ADD;
     GLboolean prevBlend, prevDepth, prevCull, prevScissor;
     float     sx, sy;
     int       i;
@@ -476,6 +477,8 @@ void Pc_TtfText_Draw(void)
     glGetIntegerv(GL_BLEND_DST_RGB, &prevDstRgb);
     glGetIntegerv(GL_BLEND_SRC_ALPHA, &prevSrcA);
     glGetIntegerv(GL_BLEND_DST_ALPHA, &prevDstA);
+    glGetIntegerv(GL_BLEND_EQUATION_RGB, &prevEqRgb);
+    glGetIntegerv(GL_BLEND_EQUATION_ALPHA, &prevEqA);
     glGetIntegerv(GL_SCISSOR_BOX, prevScissorBox);
     prevBlend   = glIsEnabled(GL_BLEND);
     prevDepth   = glIsEnabled(GL_DEPTH_TEST);
@@ -493,6 +496,9 @@ void Pc_TtfText_Draw(void)
     glBindBuffer(GL_ARRAY_BUFFER, s_vbo);
     glUniform1i(s_locTex, 0);
     glEnable(GL_BLEND);
+    /* Menus leave GL_FUNC_REVERSE_SUBTRACT behind (subtractive shading): white
+     * ink would then subtract from black and draw nothing at all. */
+    glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
@@ -561,6 +567,7 @@ void Pc_TtfText_Draw(void)
     if (prevDepth)    glEnable(GL_DEPTH_TEST);
     if (!prevBlend)   glDisable(GL_BLEND);
     glBlendFuncSeparate(prevSrcRgb, prevDstRgb, prevSrcA, prevDstA);
+    glBlendEquationSeparate((GLenum)prevEqRgb, (GLenum)prevEqA);
     glBindTexture(GL_TEXTURE_2D, (GLuint)prevTex);
     glActiveTexture((GLenum)prevUnit);
     glBindBuffer(GL_ARRAY_BUFFER, (GLuint)prevBuf);
