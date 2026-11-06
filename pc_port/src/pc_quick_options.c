@@ -2597,18 +2597,13 @@ void Pc_QuickOptions_Draw(void)
 #if !defined(QO_MOBILE)
     if (!s_texHint)
     {
-        char  hint[384], hint2[384], key[64];
+        char  hint[384];
         float avail = panelW - 2.0f * pad;
         int   hpx   = (int)(hintH * 0.42f);
 
         if (hpx < 7) hpx = 7;
-        BindInput_KeyLabel(g_PcConfig.keyQuickOptions[0] ? g_PcConfig.keyQuickOptions : "F10", key, sizeof(key));
         snprintf(hint, sizeof(hint), "%s    %s    %s", Pc_LangQuick("Up/Down select"),
                  Pc_LangQuick("Left/Right adjust"), Pc_LangQuick("Q/E or PgUp/PgDn page"));
-        s_hintResetMode = Pc_ResetSettings_InputMode();
-        snprintf(hint2, sizeof(hint2), "%s    %s    %s    %s", Pc_LangQuick("Drag the title to move"),
-                 Pc_LangQuickFill("{key} or Esc close", "{key}", key),
-                 Pc_LangQuick("* needs restart"));
         s_hintResetMode = Pc_ResetSettings_InputMode();
         snprintf(hint + strlen(hint), sizeof(hint) - strlen(hint), "    %s",
                  Pc_LangQuick(Pc_ResetSettings_Hint()));
