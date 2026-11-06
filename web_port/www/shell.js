@@ -274,7 +274,7 @@
 	 * it is kept here, in a store of the launcher's own, every 30 seconds and
 	 * as the page hides; IDBFS would rewrite the whole growing file every few
 	 * seconds instead. The newest LOG_KEEP survive. */
-	var LOG_DB = "sh-online-logs", LOG_STORE = "logs", LOG_KEEP = 10;
+	var LOG_DB = "sh1-web-logs", LOG_STORE = "logs", LOG_KEEP = 10;
 
 	function openLogDb() {
 		return new Promise(function (resolve, reject) {
