@@ -4612,10 +4612,8 @@ void Options_BrightnessMenu_Control(void) // 0x801E6018
 
         case BrightnessMenuState_2:
 #ifdef SH_PC_PORT
-            /* Up/Down select a row (Brightness/Contrast/Saturation), Left/Right
-             * adjust it. Mouse: wheel adjusts the selected row; hovering a row
-             * band selects it; left-click the arrow columns adjusts; right-click
-             * leaves. Rows drawn from y 74 at 16px pitch (see ConfigDraw). */
+            /* Up/Down select a row, Left/Right adjust it, Confirm on RESET
+             * resets. Pointer and touch below. */
             {
                 int mx, my;
 
@@ -4636,80 +4634,70 @@ void Options_BrightnessMenu_Control(void) // 0x801E6018
 
                 if (Pc_MouseCursor_UiPos(&mx, &my))
                 {
-                    int wheel = Pc_MouseCursor_WheelStep();
+                    /* One pointer path for the mouse and for touch, whose taps
+                     * arrive here as clicks. UiPos is in the framebuffer space
+                     * ConfigDraw positions its text in, so each band is that
+                     * row's line plus the gap below it. On a row the label only
+                     * selects it and anything from just left of the left knob
+                     * outward steps it, so the 10px knobs are not the only
+                     * target; off the rows either side steps the selected row.
+                     * The percentage rows are 35 steps end to end, so a held
+                     * press repeats. The way out on touch is the overlay's
+                     * corner Back; right-click leaves with the mouse. */
+                    static int s_brtHoldFrames;
+                    static int s_brtHoldDir;
+                    int        wheel = Pc_MouseCursor_WheelStep();
+                    int        row   = -1;
+                    int        r;
 
-                    /* Wheel adjusts the selected row; left of centre lowers, right
-                     * raises it; right-click leaves. Kept geometry-free (no
-                     * per-row hit-test) — Up/Down selects the row. */
-                    if (wheel != 0)
-                        Pc_BrightnessRowAdjust(g_PcBrtRow, wheel);
-                    else if (Pc_Touch_UsedRecently())
+                    for (r = 0; r < PC_BRT_ROWS; r++)
                     {
-                        /* A finger has no Up/Down, so without this only the row
-                         * the screen opened on could ever change. The way out is
-                         * the touch overlay's corner Back button; the screen
-                         * itself is all controls. UiPos is in the framebuffer
-                         * space ConfigDraw positions its text in, so each band
-                         * is that row's 16px line plus the gap below it. */
-                        static int s_brtHoldFrames;
-                        static int s_brtHoldDir;
-                        int        row = -1;
-                        int        r;
+                        int top = SCREEN_POSITION_Y(PC_BRT_ROW_Y0 + (float)r * 8.0f);
 
-                        for (r = 0; r < PC_BRT_ROWS; r++)
-                        {
-                            int top = SCREEN_POSITION_Y(PC_BRT_ROW_Y0 + (float)r * 8.0f);
-
-                            if (my >= top - 2 && my < top + 17)
-                                row = r;
-                        }
-
-                        if (Pc_MouseCursor_LeftClicked() && row == PC_BRT_ROW_RESET)
-                        {
-                            s_brtHoldDir = 0;
-                            g_PcBrtRow   = row;
-                            Pc_BrightnessReset();
-                            Sd_PlaySfx(Sfx_MenuConfirm, 0, Q8(0.25f));
-                        }
-                        else if (Pc_MouseCursor_LeftClicked())
-                        {
-                            s_brtHoldDir    = 0;
-                            s_brtHoldFrames = 0;
-                            /* On a row, its label only selects it, and anything
-                             * from just left of the left knob outward steps it,
-                             * so the 10px knobs are not the only target. Off the
-                             * rows, either side steps the selected row. */
-                            if (row >= 0 && row != g_PcBrtRow)
-                            {
-                                g_PcBrtRow = row;
-                                Sd_PlaySfx(Sfx_MenuMove, 0, Q8(0.25f));
-                            }
-                            if (row < 0 || mx >= 150)
-                            {
-                                s_brtHoldDir = (mx < PC_BRT_VALUE_MID_X) ? -1 : +1;
-                                Pc_BrightnessRowAdjust(g_PcBrtRow, s_brtHoldDir);
-                            }
-                        }
-                        /* The percentage rows are 35 steps end to end. */
-                        else if (s_brtHoldDir != 0 && Pc_MouseCursor_LeftHeld())
-                        {
-                            s_brtHoldFrames++;
-                            if (s_brtHoldFrames > 20 && (s_brtHoldFrames % 4) == 0)
-                                Pc_BrightnessRowAdjust(g_PcBrtRow, s_brtHoldDir);
-                        }
-                        else
-                        {
-                            s_brtHoldDir = 0;
-                        }
+                        if (my >= top - 2 && my < top + 17)
+                            row = r;
                     }
-                    else if (Pc_MouseCursor_LeftClicked() && g_PcBrtRow == PC_BRT_ROW_RESET)
+
+                    if (row >= 0 && row != g_PcBrtRow && Pc_MouseCursor_Moved() && !Pc_MouseCursor_LeftHeld())
                     {
-                        Pc_BrightnessReset();
-                        Sd_PlaySfx(Sfx_MenuConfirm, 0, Q8(0.25f));
+                        g_PcBrtRow = row;
+                        Sd_PlaySfx(Sfx_MenuMove, 0, Q8(0.25f));
+                    }
+
+                    if (wheel != 0)
+                    {
+                        s_brtHoldDir = 0;
+                        Pc_BrightnessRowAdjust(g_PcBrtRow, wheel);
                     }
                     else if (Pc_MouseCursor_LeftClicked())
                     {
-                        Pc_BrightnessRowAdjust(g_PcBrtRow, (mx < 160) ? -1 : +1);
+                        s_brtHoldDir    = 0;
+                        s_brtHoldFrames = 0;
+                        if (row >= 0 && row != g_PcBrtRow)
+                        {
+                            g_PcBrtRow = row;
+                            Sd_PlaySfx(Sfx_MenuMove, 0, Q8(0.25f));
+                        }
+                        if (g_PcBrtRow == PC_BRT_ROW_RESET && (row < 0 || row == PC_BRT_ROW_RESET))
+                        {
+                            Pc_BrightnessReset();
+                            Sd_PlaySfx(Sfx_MenuConfirm, 0, Q8(0.25f));
+                        }
+                        else if (row < 0 || mx >= 150)
+                        {
+                            s_brtHoldDir = (mx < PC_BRT_VALUE_MID_X) ? -1 : +1;
+                            Pc_BrightnessRowAdjust(g_PcBrtRow, s_brtHoldDir);
+                        }
+                    }
+                    else if (s_brtHoldDir != 0 && Pc_MouseCursor_LeftHeld())
+                    {
+                        s_brtHoldFrames++;
+                        if (s_brtHoldFrames > 20 && (s_brtHoldFrames % 4) == 0)
+                            Pc_BrightnessRowAdjust(g_PcBrtRow, s_brtHoldDir);
+                    }
+                    else
+                    {
+                        s_brtHoldDir = 0;
                     }
 
                     if (Pc_MouseCursor_RightClicked())
