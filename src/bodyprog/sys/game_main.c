@@ -735,8 +735,8 @@ static void Pc_TpsCamera_Apply(void)
         }
 
         g_TpsCamYaw = Q12_ANGLE_NORM_U(g_TpsCamYaw + Q12_ANGLE(360.0f));
-        /* Tighter clamp on the look-down side so the camera doesn't rise far
-         * over Harry's head. */
+        /* Look-down stops at 50 degrees so the orbit doesn't rise far over
+         * Harry's head. */
         if (g_PcFpsCam) {
             /* First-person: allow looking down at the legs / up toward the sky,
              * but stay short of straight up/down so the forward vector + the
@@ -757,7 +757,7 @@ static void Pc_TpsCamera_Apply(void)
                     g_TpsCamYaw = Q12_ANGLE_NORM_U(tp_hr->rotation.vy - Q12_ANGLE(90.0f) + Q12_ANGLE(360.0f));
             }
         } else {
-            if (g_TpsCamPitch < -Q12_ANGLE(40.0f)) g_TpsCamPitch = -Q12_ANGLE(40.0f);
+            if (g_TpsCamPitch < -Q12_ANGLE(50.0f)) g_TpsCamPitch = -Q12_ANGLE(50.0f);
             if (g_TpsCamPitch >  Q12_ANGLE(50.0f)) g_TpsCamPitch =  Q12_ANGLE(50.0f);
         }
     }
