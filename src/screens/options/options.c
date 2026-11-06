@@ -4552,13 +4552,34 @@ void Options_ScreenPosMenu_ConfigDraw(void) // 0x801E5CBC
  * way to reach it. */
 static s32 g_PcBrtRow = 0;
 
-#define PC_BRT_ROWS 4
+#define PC_BRT_ROWS 5
+/* The last row is RESET: confirm puts the four values back to their defaults
+ * instead of leaving the screen. */
+#define PC_BRT_ROW_RESET 4
 /* Top row's y in percent, 8 per row after it. 52 put CLASSIC under the
- * reference bar on a 224-line frame (bottom ~15% of the picture). */
-#define PC_BRT_ROW_Y0 40.0f
+ * reference bar on a 224-line frame (bottom ~15% of the picture); the rows
+ * start higher since RESET joined them, so it clears the bar too. */
+#define PC_BRT_ROW_Y0 34.0f
 /* The value column's centre in UiPos x: the knobs are drawn at 178-187 and
  * 225-236 (ArrowsDraw, centre-origin + 160), the number between them. */
 #define PC_BRT_VALUE_MID_X 206
+
+static void Pc_BrightnessReset(void)
+{
+    extern float g_cfg_brightness, g_cfg_contrast, g_cfg_saturation;
+    extern const s_PcConfig* PcConfig_Defaults(void);
+    const s_PcConfig* d = PcConfig_Defaults();
+    char b[16];
+
+    g_PcConfig.brightness = g_cfg_brightness = d->brightness;
+    g_PcConfig.contrast   = g_cfg_contrast   = d->contrast;
+    g_PcConfig.saturation = g_cfg_saturation = d->saturation;
+    snprintf(b, sizeof(b), "%.3f", d->brightness); PcConfig_SaveKeyValue("brightness", b);
+    snprintf(b, sizeof(b), "%.3f", d->contrast);   PcConfig_SaveKeyValue("contrast", b);
+    snprintf(b, sizeof(b), "%.3f", d->saturation); PcConfig_SaveKeyValue("saturation", b);
+    /* Settings_Reset's console level (settings_reset.c). */
+    g_GameWork.config.brightness = 3;
+}
 
 static void Pc_BrightnessRowAdjust(s32 row, int dir)
 {
@@ -4677,7 +4698,14 @@ void Options_BrightnessMenu_Control(void) // 0x801E6018
                                 row = r;
                         }
 
-                        if (Pc_MouseCursor_LeftClicked())
+                        if (Pc_MouseCursor_LeftClicked() && row == PC_BRT_ROW_RESET)
+                        {
+                            s_brtHoldDir = 0;
+                            g_PcBrtRow   = row;
+                            Pc_BrightnessReset();
+                            Sd_PlaySfx(Sfx_MenuConfirm, 0, Q8(0.25f));
+                        }
+                        else if (Pc_MouseCursor_LeftClicked())
                         {
                             s_brtHoldDir    = 0;
                             s_brtHoldFrames = 0;
@@ -4708,6 +4736,11 @@ void Options_BrightnessMenu_Control(void) // 0x801E6018
                             s_brtHoldDir = 0;
                         }
                     }
+                    else if (Pc_MouseCursor_LeftClicked() && g_PcBrtRow == PC_BRT_ROW_RESET)
+                    {
+                        Pc_BrightnessReset();
+                        Sd_PlaySfx(Sfx_MenuConfirm, 0, Q8(0.25f));
+                    }
                     else if (Pc_MouseCursor_LeftClicked())
                     {
                         Pc_BrightnessRowAdjust(g_PcBrtRow, (mx < 160) ? -1 : +1);
@@ -4737,6 +4770,15 @@ void Options_BrightnessMenu_Control(void) // 0x801E6018
             }
 #endif
 
+#ifdef SH_PC_PORT
+            if (g_PcBrtRow == PC_BRT_ROW_RESET &&
+                (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.enter))
+            {
+                Pc_BrightnessReset();
+                Sd_PlaySfx(Sfx_MenuConfirm, 0, Q8(0.25f));
+                g_Controller0->clickedBtnFlags &= ~g_GameWorkPtr->config.controllerConfig.enter;
+            }
+#endif
             // Fade screen and leave menu.
             if (g_Controller0->clickedBtnFlags & (g_GameWorkPtr->config.controllerConfig.enter |
                                                  g_GameWorkPtr->config.controllerConfig.cancel))
@@ -4821,7 +4863,7 @@ void Options_BrightnessMenu_ConfigDraw(void) // 0x801E6238
      * actually 6, so the real widths are 118 / 123 / 121 and the column was
      * never pixel-exact to begin with. 7 underscores is the closest fit.) */
     const char* const NAMES[PC_BRT_ROWS] = { "BRIGHTNESS_", "CONTRAST_____", "SATURATION_",
-                                             "CLASSIC_______" };
+                                             "CLASSIC_______", "RESET" };
     const float*      vals[3];
     s32 i;
 
@@ -4831,6 +4873,13 @@ void Options_BrightnessMenu_ConfigDraw(void) // 0x801E6238
 
     for (i = 0; i < PC_BRT_ROWS; i++)
     {
+        if (i == PC_BRT_ROW_RESET)
+        {
+            Gfx_StringSetColor(i == g_PcBrtRow ? StringColorId_Gold : StringColorId_White);
+            Gfx_StringSetPosition(SCREEN_POSITION_X(22.0f), SCREEN_POSITION_Y(PC_BRT_ROW_Y0 + (float)i * 8.0f));
+            Gfx_StringDraw(NAMES[i], 20);
+            continue;
+        }
         if (i == 3)
         {
             /* 0-7, not a percentage: this is the console control's own scale,
@@ -4871,6 +4920,9 @@ void Options_BrightnessMenu_ArrowsDraw(void) // 0x801E628C
      * knob on the text line, matching the original's 84 vs its 79.5% value row).
      * X (8/64) already brackets the value column. */
     s32 yc  = (s32)(SCREEN_HEIGHT * ((PC_BRT_ROW_Y0 + (float)g_PcBrtRow * 8.0f) / 100.0f)) - 107;
+
+    if (g_PcBrtRow == PC_BRT_ROW_RESET)
+        return; /* nothing to adjust */
     /* Shift both knobs right so the left one clears the label and they bracket
      * the value number (labels are longer than the retail "LEVEL"). With the
      * value column now aligned across rows, 10 sits the knobs a touch tighter
