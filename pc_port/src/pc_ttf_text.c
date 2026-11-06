@@ -16,6 +16,7 @@
 #include <PsyX/common/glad.h>
 #include <PsyX/PsyX_backend.h>
 #include <PsyX/PsyX_public.h>
+extern GLuint GR_ScreenFBO(void);
 
 #include "stb_truetype.h"
 
@@ -428,6 +429,7 @@ void Pc_TtfText_Draw(void)
     GLint     prevProg = 0, prevVao = 0, prevBuf = 0, prevTex = 0, prevUnit = GL_TEXTURE0;
     GLint     prevSrcRgb = GL_ONE, prevDstRgb = GL_ZERO, prevSrcA = GL_ONE, prevDstA = GL_ZERO;
     GLint     prevScissorBox[4];
+    GLint     prevDrawFb = 0, prevReadFb = 0;
     GLboolean prevBlend, prevDepth, prevCull, prevScissor;
     float     sx, sy;
     int       i;
@@ -456,12 +458,14 @@ void Pc_TtfText_Draw(void)
         return;
 
     PsyX_GetDisplayViewport(&pic[0], &pic[1], &pic[2], &pic[3]);
-    glGetIntegerv(GL_VIEWPORT, vp);
-    if (pic[2] <= 0 || pic[3] <= 0 || vp[2] <= 0 || vp[3] <= 0)
+    if (pic[2] <= 0 || pic[3] <= 0)
         return;
     sx = (float)pic[2] / TT_NATIVE_W;
     sy = (float)pic[3] / TT_NATIVE_H;
 
+    glGetIntegerv(GL_VIEWPORT, vp);
+    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &prevDrawFb);
+    glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &prevReadFb);
     glGetIntegerv(GL_CURRENT_PROGRAM, &prevProg);
     glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &prevVao);
     glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &prevBuf);
@@ -478,12 +482,18 @@ void Pc_TtfText_Draw(void)
     prevCull    = glIsEnabled(GL_CULL_FACE);
     prevScissor = glIsEnabled(GL_SCISSOR_TEST);
 
+    /* Same target as the mouse cursor: in borderless, framebuffer 0 is painted
+     * over by the scene target's blit at present, so text drawn there never
+     * shows. The viewport is the game picture, which is what x/y map onto. */
+    glBindFramebuffer(GL_FRAMEBUFFER, GR_ScreenFBO());
+    glViewport(pic[0], pic[1], pic[2], pic[3]);
+
     glUseProgram(s_prog);
     glBindVertexArray(s_vao);
     glBindBuffer(GL_ARRAY_BUFFER, s_vbo);
     glUniform1i(s_locTex, 0);
     glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
     glEnable(GL_SCISSOR_TEST);
@@ -520,13 +530,13 @@ void Pc_TtfText_Draw(void)
         wPx  = (float)b->w;
         hPx  = (float)b->h;
 
-        clipR = (l->maxW > 0) ? (int)(left + (float)l->maxW * sx) : vp[0] + vp[2];
+        clipR = (l->maxW > 0) ? (int)(left + (float)l->maxW * sx) : pic[0] + pic[2];
         glScissor((GLint)left - 1, pic[1], clipR - (GLint)left + 2, pic[3]);
 
-        x0 = ((left - (float)vp[0]) / (float)vp[2]) * 2.0f - 1.0f;
-        x1 = ((left + wPx - (float)vp[0]) / (float)vp[2]) * 2.0f - 1.0f;
-        y0 = ((top - (float)vp[1]) / (float)vp[3]) * 2.0f - 1.0f;
-        y1 = ((top - hPx - (float)vp[1]) / (float)vp[3]) * 2.0f - 1.0f;
+        x0 = ((left - (float)pic[0]) / (float)pic[2]) * 2.0f - 1.0f;
+        x1 = ((left + wPx - (float)pic[0]) / (float)pic[2]) * 2.0f - 1.0f;
+        y0 = ((top - (float)pic[1]) / (float)pic[3]) * 2.0f - 1.0f;
+        y1 = ((top - hPx - (float)pic[1]) / (float)pic[3]) * 2.0f - 1.0f;
 
         v[0][0] = x0; v[0][1] = y0; v[0][2] = 0.0f; v[0][3] = 0.0f;
         v[1][0] = x0; v[1][1] = y1; v[1][2] = 0.0f; v[1][3] = 1.0f;
@@ -542,6 +552,9 @@ void Pc_TtfText_Draw(void)
         glDrawArrays(GL_TRIANGLES, 0, 6);
     }
 
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, (GLuint)prevDrawFb);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, (GLuint)prevReadFb);
+    glViewport(vp[0], vp[1], vp[2], vp[3]);
     glScissor(prevScissorBox[0], prevScissorBox[1], prevScissorBox[2], prevScissorBox[3]);
     if (!prevScissor) glDisable(GL_SCISSOR_TEST);
     if (prevCull)     glEnable(GL_CULL_FACE);
