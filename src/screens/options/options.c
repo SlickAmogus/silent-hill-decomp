@@ -1703,8 +1703,15 @@ static void PcOpt_ResetEntry(const s_PcOpt* e)
 
     if (e->key == NULL) return;
     if (e->kind == PCK_RES || e->kind == PCK_WINMODE ||
-        e->kind == PCK_NEXT || e->kind == PCK_PREV || e->kind == PCK_BACK ||
-        e->kind == PCK_MAP) return;
+        e->kind == PCK_NEXT || e->kind == PCK_PREV || e->kind == PCK_BACK) return;
+
+    /* The New Game start map, saved the way picking it on the row does. */
+    if (e->kind == PCK_MAP) {
+        strncpy(g_PcConfig.mapName, d->mapName, sizeof(g_PcConfig.mapName) - 1);
+        g_PcConfig.mapName[sizeof(g_PcConfig.mapName) - 1] = '\0';
+        PcConfig_SaveMapName(g_PcConfig.mapName);
+        return;
+    }
 
     if (e->kind == PCK_SLIDER && e->ffield != NULL) {
         float dv = *(const float*)((const char*)d + ((const char*)e->ffield - (const char*)&g_PcConfig));
