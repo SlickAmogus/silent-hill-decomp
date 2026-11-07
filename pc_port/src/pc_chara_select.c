@@ -653,29 +653,17 @@ int Pc_CharaSelect_Update(const NmInput* inRaw)
     }
 
     hit = cs_hit(in);
+    /* The wheel only scrolls. It used to cycle the model of the row under the
+     * pointer, so scrolling the list with the pointer over the model column
+     * quietly changed characters. */
     if (in->wheel != 0)
     {
-        if (s_hoverCol2 && hit != CS_HIT_NONE && hit != CS_HIT_BACK)
-        {
-            /* Scrolling over the model column cycles the row under the mouse. */
-            if (hit == CS_HIT_PREV || hit == CS_HIT_NEXT || hit == s_scroll.sel)
-                cs_cycle(in->wheel > 0 ? -1 : +1);
-            else
-            {
-                Nm_HighlightSnap();
-                cs_select_row(hit);
-                cs_cycle(in->wheel > 0 ? -1 : +1);
-            }
-        }
-        else
-        {
-            int oldTop = s_scroll.top;
+        int oldTop = s_scroll.top;
 
-            NmScroll_Wheel(&s_scroll, in->wheel);
-            if (s_scroll.top != oldTop)
-                s_onBack = 0;
-            cs_models_for_row();
-        }
+        NmScroll_Wheel(&s_scroll, in->wheel);
+        if (s_scroll.top != oldTop)
+            s_onBack = 0;
+        cs_models_for_row();
     }
 
     if (in->mouseLeft && hit != CS_HIT_NONE)
