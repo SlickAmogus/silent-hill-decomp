@@ -170,6 +170,26 @@ static void cs_apply(int chara)
     Pc_SkinChara_SetCharaFile(s_charas[chara].ilm, s_choice[chara]);
 }
 
+/* Reset all settings: every character back to its own model (a NAME.glb
+ * still wins, as with no choice made) and Harry back to Harry. */
+void Pc_CharaSelect_ResetAll(void)
+{
+    char key[32];
+    int  i;
+
+    for (i = 1; i < CS_CHARA_COUNT; i++)
+    {
+        if (s_choice[i][0] == '\0')
+            continue;
+        s_choice[i][0] = '\0';
+        cs_apply(i);
+        snprintf(key, sizeof(key), "chara_model_%s", s_charas[i].ilm);
+        PcConfig_SaveKeyValue(key, "");
+    }
+    Pc_PlayAs_SetByName("harry", 1);
+    s_modelsRow = -1;
+}
+
 void Pc_CharaSelect_Init(void)
 {
     int i;
