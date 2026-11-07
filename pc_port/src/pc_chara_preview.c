@@ -15,6 +15,7 @@
 
 #include "pc_chara_preview.h"
 #include "pc_chara_select.h"
+#include "pc_ilm_preview.h"
 #include "pc_skin_chara.h"
 #include "sh_log.h"
 
@@ -41,6 +42,10 @@ static float        s_bounds[6];
 static int          s_matCount;
 static PcSkinPreviewMat s_mats[CP_MAX_MATS];
 static float        s_yaw;
+/* The stock model when no swap is chosen: built off the disc once per pick. */
+static IlmPreview   s_ilm;
+static int          s_ilmId = -1;
+static GLuint       s_ilmTex[IP_MAX_MAT];
 static Uint32       s_lastMs;
 
 static GLuint cp_make_shader(GLenum type, const char* src)
@@ -238,6 +243,87 @@ static void m4_mul(const float* a, const float* b, float* o)
 }
 
 /* The model for the current pick, reloaded only when the pick changes. */
+static void cp_ilm_release(void)
+{
+    int i;
+
+    for (i = 0; i < IP_MAX_MAT; i++)
+        if (s_ilmTex[i] != 0)
+        {
+            glDeleteTextures(1, &s_ilmTex[i]);
+            s_ilmTex[i] = 0;
+        }
+    Pc_IlmPreview_Free(&s_ilm);
+    s_ilmId = -1;
+}
+
+static void cp_upload_stream(const float* stream, int corners)
+{
+    GLint prevVao = 0, prevBuf = 0;
+
+    glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &prevVao);
+    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &prevBuf);
+    glBindVertexArray(s_meshVao);
+    glBindBuffer(GL_ARRAY_BUFFER, s_meshVbo);
+    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)corners * 8 * sizeof(float), stream, GL_STATIC_DRAW);
+    glBindVertexArray((GLuint)prevVao);
+    glBindBuffer(GL_ARRAY_BUFFER, (GLuint)prevBuf);
+    s_stream  = stream;
+    s_corners = corners;
+}
+
+/* No swap file chosen: the stock body the row would draw, read off the disc. */
+static int cp_stock_sync(void)
+{
+    int id = Pc_CharaSelect_PreviewStockId();
+    int i;
+
+    s_model = NULL;
+    s_modelKey[0] = '\0';
+    if (id <= 0)
+        return 0;
+    if (id != s_ilmId)
+    {
+        GLint prevTex = 0;
+
+        cp_ilm_release();
+        s_ilmId = id;
+        s_stream = NULL;
+        s_corners = 0;
+        if (!Pc_IlmPreview_Build(id, &s_ilm))
+            return 0;
+        glGetIntegerv(GL_TEXTURE_BINDING_2D, &prevTex);
+        for (i = 0; i < s_ilm.matCount; i++)
+        {
+            if (s_ilm.rgba[i] == NULL)
+                continue;
+            glGenTextures(1, &s_ilmTex[i]);
+            glBindTexture(GL_TEXTURE_2D, s_ilmTex[i]);
+            /* PSX art: point-sampled, as the game draws it. */
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, s_ilm.texW, s_ilm.texH, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                         s_ilm.rgba[i]);
+        }
+        glBindTexture(GL_TEXTURE_2D, (GLuint)prevTex);
+    }
+    if (s_ilm.stream == NULL || s_ilm.corners == 0)
+        return 0;
+    s_matCount = s_ilm.matCount;
+    for (i = 0; i < s_matCount; i++)
+    {
+        s_mats[i].texture = s_ilmTex[i];
+        s_mats[i].first   = s_ilm.mats[i].first;
+        s_mats[i].count   = s_ilm.mats[i].count;
+    }
+    memcpy(s_bounds, s_ilm.bounds, sizeof(s_bounds));
+    if (s_stream != s_ilm.stream || s_corners != s_ilm.corners)
+        cp_upload_stream(s_ilm.stream, s_ilm.corners);
+    return 1;
+}
+
 static int cp_model_sync(void)
 {
     const char* file;
@@ -246,7 +332,9 @@ static int cp_model_sync(void)
     const float* stream = NULL;
     int         corners = 0;
 
-    if (target == NULL || file == NULL)
+    if (target != NULL && file == NULL)
+        return cp_stock_sync();
+    if (target == NULL)
     {
         s_model = NULL;
         s_modelKey[0] = '\0';
@@ -269,19 +357,7 @@ static int cp_model_sync(void)
     if (s_matCount == 0 || corners == 0)
         return 0;
     if (stream != s_stream || corners != s_corners)
-    {
-        GLint prevVao = 0, prevBuf = 0;
-
-        glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &prevVao);
-        glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &prevBuf);
-        glBindVertexArray(s_meshVao);
-        glBindBuffer(GL_ARRAY_BUFFER, s_meshVbo);
-        glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)corners * 8 * sizeof(float), stream, GL_STATIC_DRAW);
-        glBindVertexArray((GLuint)prevVao);
-        glBindBuffer(GL_ARRAY_BUFFER, (GLuint)prevBuf);
-        s_stream  = stream;
-        s_corners = corners;
-    }
+        cp_upload_stream(stream, corners);
     return 1;
 }
 

@@ -994,6 +994,18 @@ int Pc_PlayAs_Cycle(int step)
 
 /* After Additional Characters installed or removed swaps: rebuild the roster
  * and stay on the same character, or fall back to Harry if it went away. */
+/* The props and variant faces Play As hides on a stock body, for drawing that
+ * body elsewhere (Character Select's preview). NULL when none. */
+const char* const* Pc_PlayAs_HiddenPartsFor(int charaId)
+{
+    int i;
+
+    for (i = 0; i < PLAYAS_BUILTIN; i++)
+        if (s_builtin[i].charaId == charaId)
+            return s_builtin[i].hideParts;
+    return NULL;
+}
+
 void Pc_PlayAs_Rescan(void)
 {
     char cur[40];
