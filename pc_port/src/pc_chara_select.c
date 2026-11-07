@@ -21,6 +21,7 @@
 #include "lang_text.h"
 #include "pc_chara_dl.h"
 #include "pc_chara_dl_menu.h"
+#include "pc_chara_preview.h"
 #include "pc_chara_select.h"
 #include "pc_config.h"
 #include "pc_mouse_cursor.h"
@@ -100,7 +101,6 @@ static const CsChara s_charas[] = {
     { "AR",    "ALESSA",           Chara_Alessa },
     { "TAR",   "GHOST ALESSA",     Chara_GhostChildAlessa },
     { "MAR",   "INCUBATOR",        Chara_Incubator },
-    { "BAR",   "BLOODY INCUBATOR", Chara_BloodyIncubator },
     { "DOC",   "GHOST DOCTOR",     Chara_GhostDoctor },
 };
 #define CS_CHARA_COUNT ((int)(sizeof(s_charas) / sizeof(s_charas[0])))
@@ -916,7 +916,7 @@ void Pc_CharaSelect_Draw(void)
     {
         const char* file;
 
-        if (Pc_CharaSelect_PreviewTarget(&file) != NULL && file == NULL)
+        if (Pc_CharaSelect_PreviewTarget(&file) != NULL && !Pc_CharaPreview_Showing())
             Nm_TextDrawCentered((CS_PREV_X0 + CS_PREV_X1) / 2, (CS_PREV_Y0 + CS_PREV_Y1) / 2 - 8, NM_TEXT_TALL,
                                 StringColorId_DarkGrey, "NO_PREVIEW");
     }

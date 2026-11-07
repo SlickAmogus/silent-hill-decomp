@@ -42,6 +42,7 @@ static float        s_bounds[6];
 static int          s_matCount;
 static PcSkinPreviewMat s_mats[CP_MAX_MATS];
 static float        s_yaw;
+static int          s_showing;
 /* The stock model when no swap is chosen: built off the disc once per pick. */
 static IlmPreview   s_ilm;
 static int          s_ilmId = -1;
@@ -361,6 +362,11 @@ static int cp_model_sync(void)
     return 1;
 }
 
+int Pc_CharaPreview_Showing(void)
+{
+    return s_showing;
+}
+
 void Pc_CharaPreview_Draw(void)
 {
     GLint     prevProg = 0, prevVao = 0, prevBuf = 0, prevTex = 0, prevUnit = 0, prevFbo = 0;
@@ -374,6 +380,7 @@ void Pc_CharaPreview_Draw(void)
     float     mv[16], proj[16], mvp[16], rot[16], flip[16], trans[16];
     float     cx, cy, cz, height, dist, f, aspect, cs, sn, light[3];
 
+    s_showing = 0;
     if (!Pc_CharaSelect_IsOpen())
     {
         s_lastMs = 0;
@@ -383,6 +390,7 @@ void Pc_CharaPreview_Draw(void)
     if (s_glReady != 1) return;
     if (!cp_model_sync())
         return;
+    s_showing = 1;
 
     now = SDL_GetTicks();
     if (s_lastMs != 0)
