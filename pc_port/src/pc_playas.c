@@ -21,6 +21,7 @@
  * weapon's PLM window (and a later weapon load would stomp the body's tail).
  */
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
@@ -96,12 +97,12 @@ static const PcPlayAsChara s_builtin[] = {
 /* Skinned swaps for Harry found in gamedata/load/CHARA (HERO_CJ.glb or
  * HEROCJ.glb -> "CJ"), each its own row after the built-ins. They play on
  * Harry's own row and rig; only the glTF the skin loader reads changes. */
-#define PLAYAS_SWAP_MAX 32
+#define PLAYAS_SWAP_MAX 96
 typedef struct
 {
-    char name[24];
-    char label[24];
-    char file[32];
+    char name[40];
+    char label[40];
+    char file[64];
 } PcPlayAsSwap;
 
 static PcPlayAsChara s_playable[PLAYAS_BUILTIN + PLAYAS_SWAP_MAX];
@@ -989,6 +990,26 @@ int Pc_PlayAs_Cycle(int step)
 
     Pc_PlayAs_SetByIndex(idx, 1);
     return s_current;
+}
+
+/* After Additional Characters installed or removed swaps: rebuild the roster
+ * and stay on the same character, or fall back to Harry if it went away. */
+void Pc_PlayAs_Rescan(void)
+{
+    char cur[40];
+    int  i;
+
+    snprintf(cur, sizeof(cur), "%s", PlayAs_Cur()->name);
+    s_playCount = 0;
+    PlayAs_Roster();
+    for (i = 0; i < s_playCount; i++)
+        if (strcmp(s_playable[i].name, cur) == 0)
+        {
+            s_current = i;
+            return;
+        }
+    s_current = 0;
+    Pc_PlayAs_SetByIndex(0, 1);
 }
 
 void Pc_PlayAs_Init(void)
