@@ -11,6 +11,7 @@
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/chara/chara.h"
 #include "bodyprog/events/bgm.h"
+#include "bodyprog/game_boot/background_sound_init.h"
 #include "bodyprog/sound/sfx_id_enum.h"
 #include "bodyprog/sound/sound_system.h"
 #include "bodyprog/item_screens.h"
@@ -215,18 +216,6 @@ static void cs_scan_files(void)
     closedir(d);
 }
 
-static void cs_ilm_name(int charaId, char* out, size_t outSize)
-{
-    char file[32];
-    char* dot;
-
-    Fs_GetFileName(file, CHARA_FILE_INFOS[charaId].modelFileIdx);
-    dot = strrchr(file, '.');
-    if (dot != NULL)
-        *dot = '\0';
-    snprintf(out, outSize, "%s", file);
-}
-
 /* HERO_ swaps show their ini name (or the file name after HERO_); other
  * files, such as a SIBYL.glb replacement, show as the file. */
 static void cs_file_display(const char* base, char* out, size_t outSize)
@@ -271,11 +260,7 @@ static void cs_build_models(int chara)
                 if (file != NULL)
                     cs_file_display(file, m->display, sizeof(m->display));
                 else
-                {
-                    char ilm[32];
-                    cs_ilm_name(Pc_PlayAs_CharaId(i), ilm, sizeof(ilm));
-                    snprintf(m->display, sizeof(m->display), "%s.ILM", ilm);
-                }
+                    snprintf(m->display, sizeof(m->display), "%s", Pc_PlayAs_Label(i));
                 if (i == cur)
                     s_modelCur = s_modelCount;
                 s_modelCount++;
@@ -291,7 +276,7 @@ static void cs_build_models(int chara)
 
         m->kind = CS_M_STOCK;
         snprintf(m->token, sizeof(m->token), "-");
-        snprintf(m->display, sizeof(m->display), "%s.ILM", s_charas[chara].ilm);
+        snprintf(m->display, sizeof(m->display), "%s", s_charas[chara].label);
 
         snprintf(own, sizeof(own), "gamedata/load/CHARA/%s.glb", s_charas[chara].ilm);
         ownGlb = cs_file_exists(own);
@@ -398,7 +383,7 @@ static void cs_open_picker(void)
     if (chara < 0)
         return;
     SD_Call(Sfx_MenuConfirm);
-    Cdm_Open(CDM_PICKER, s_charas[chara].ilm, cs_current_token(chara, buf, sizeof(buf)));
+    Cdm_Open(CDM_PICKER, s_charas[chara].ilm, cs_current_token(chara, buf, sizeof(buf)), s_charas[chara].charaId);
 }
 
 /* Applies what the picker chose to the selected row's model list. */
@@ -443,10 +428,14 @@ static void cs_rescan(void)
 
 /* ---- music ---------------------------------------------------------- */
 
+extern int g_PcMenuMusicOwner;
+extern int g_PcMenuMusicCall;
+
 static void cs_music_start(void)
 {
     s_prevBgm   = g_GameWork.bgmIdx;
     s_musicStep = 0;
+    g_PcMenuMusicOwner = 1;
     if (s_prevBgm == BgmTrackIdx_5)
     {
         s_musicStep = 2;
@@ -466,20 +455,26 @@ static void cs_music_tick(void)
         Bgm_TrackSet(BgmTrackIdx_5);
         s_musicStep = 2;
     }
-    if (s_musicStep == 2 && g_GameWork.gameState == GameState_MainMenu)
+    /* Pumped here in every state: nothing else runs the BGM state machine
+     * under the title menu or the options screen, and in game the map's own
+     * call is held off (g_PcMenuMusicOwner) so its layers do not fight these. */
+    if (s_musicStep == 2)
     {
-        /* Nothing else runs the BGM state machine under the title menu. The
-         * layer ramps read the player's health, which is zero here. */
-        if (g_SysWork.playerWork.player.health <= Q12(0.0f))
+        /* The layer ramps read the player's health, which is zero on the
+         * title, as a death fade. */
+        if (g_GameWork.gameState == GameState_MainMenu && g_SysWork.playerWork.player.health <= Q12(0.0f))
             g_SysWork.playerWork.player.health = Q12(100.0f);
+        g_PcMenuMusicCall = 1;
         Bgm_Update(BgmFlag_Layer1 | BgmFlag_Layer2 | BgmFlag_Layer3 | BgmFlag_Layer4 |
                    BgmFlag_Layer5 | BgmFlag_Layer6 | BgmFlag_Layer7 | BgmFlag_KeepAlive,
                    Q12(240.0f), NULL);
+        g_PcMenuMusicCall = 0;
     }
 }
 
 static void cs_music_stop(void)
 {
+    g_PcMenuMusicOwner = 0;
     if (s_prevBgm < 0)
         return;
     if (s_prevBgm == BgmTrackIdx_5)
@@ -594,7 +589,7 @@ static void cs_select_row(int row)
 static void cs_download(void)
 {
     SD_Call(Sfx_MenuConfirm);
-    Cdm_Open(CDM_HUB, NULL, NULL);
+    Cdm_Open(CDM_HUB, NULL, NULL, Chara_Harry);
 }
 
 /* 0 when the activation closes the screen. */
@@ -838,16 +833,12 @@ static void cs_rows_draw(void)
             else if (row - 1 == 0)
             {
                 const char* f = Pc_PlayAs_File(Pc_PlayAs_Current());
-                char        ilm[32];
                 static char cur[64];
 
                 if (f != NULL)
                     cs_file_display(f, cur, sizeof(cur));
                 else
-                {
-                    cs_ilm_name(Pc_PlayAs_SkinCharaId(), ilm, sizeof(ilm));
-                    snprintf(cur, sizeof(cur), "%s.ILM", ilm);
-                }
+                    snprintf(cur, sizeof(cur), "%s", Pc_PlayAs_Label(Pc_PlayAs_Current()));
                 value = cur;
             }
             else
@@ -863,7 +854,7 @@ static void cs_rows_draw(void)
                     if (choice[0] == '\0' && cs_file_exists(own))
                         snprintf(cur, sizeof(cur), "%s.GLB", c->ilm);
                     else
-                        snprintf(cur, sizeof(cur), "%s.ILM", c->ilm);
+                        snprintf(cur, sizeof(cur), "%s", c->label);
                 }
                 else
                     cs_file_display(choice, cur, sizeof(cur));
@@ -936,6 +927,27 @@ void Pc_CharaSelect_Draw(void)
                          CS_PREV_X1 - cs_back_right() - 12, 1);
     }
     Pc_MouseCursor_Show();
+}
+
+int Pc_CharaSelect_PreviewStockId(void)
+{
+    int chara = cs_chara_row();
+
+    if (!s_open)
+        return -1;
+    if (Cdm_IsOpen())
+        return Cdm_PreviewStockId();
+    if (chara < 0 || s_modelCount == 0)
+        return -1;
+    {
+        const CsModel* m = &s_models[s_modelCur];
+
+        if (m->kind == CS_M_STOCK)
+            return s_charas[chara].charaId;
+        if (m->kind == CS_M_PLAYAS && Pc_PlayAs_File(m->playasIdx) == NULL)
+            return Pc_PlayAs_CharaId(m->playasIdx);
+    }
+    return -1;
 }
 
 void Pc_CharaSelect_PreviewRect(int* x0, int* y0, int* x1, int* y1)
