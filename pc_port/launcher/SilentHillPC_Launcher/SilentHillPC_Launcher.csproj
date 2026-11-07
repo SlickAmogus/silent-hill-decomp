@@ -65,6 +65,7 @@
     <Compile Include="DisplayModes.cs" />
     <Compile Include="DllWarningDialog.cs" />
     <Compile Include="EssentialMods.cs" />
+    <Compile Include="CharacterCatalog.cs" />
     <Compile Include="PeImports.cs" />
     <Compile Include="Form1.cs">
       <SubType>Form</SubType>

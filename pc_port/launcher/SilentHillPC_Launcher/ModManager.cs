@@ -106,6 +106,7 @@ namespace SilentHillPC_Launcher
 
         public  string ModsDir         { get { return Path.Combine(_gameRoot, "mods"); } }
         private string GamedataDir     { get { return Path.Combine(_gameRoot, "gamedata"); } }
+        public string GameRoot         { get { return _gameRoot; } }
         private string TexturemodsDir  { get { return Path.Combine(GamedataDir, "texturemods"); } }
         private string LoadDir         { get { return Path.Combine(GamedataDir, "load"); } }
         private string FmvDir          { get { return Path.Combine(GamedataDir, "FMV"); } }
@@ -932,6 +933,10 @@ namespace SilentHillPC_Launcher
             if (report != null) report(0, 0, Loc.T("Deploying mods…"));
             var plan = BuildDeployPlan(result);
             var keep = new HashSet<string>(plan.Keys.Select(Rel), StringComparer.OrdinalIgnoreCase);
+            // Characters from the Additional Characters catalog (game menu or this
+            // launcher) are nobody's deploy: a mod that once put a file of the same
+            // name there must not take it away again.
+            keep.UnionWith(CharacterCatalog.DownloadedRels(_gameRoot));
             var old  = ReadManifest();
             Undeploy(keep);
             var manifest = new List<string>();
@@ -1201,6 +1206,12 @@ namespace SilentHillPC_Launcher
                 try { PlanVideosFlat(m.LibraryPath, FmvDir, plan, candidates); result.Fmv++; }
                 catch (Exception ex) { result.Warnings.Add(m.Label + ": " + ex.Message); }
             }
+
+            // A downloaded character wins over every mod's file of the same name, so
+            // the downloads sit above the whole list in priority.
+            var downloaded = CharacterCatalog.DownloadedRels(_gameRoot);
+            foreach (var dst in plan.Keys.ToList())
+                if (downloaded.Contains(Rel(dst))) plan.Remove(dst);
 
             return plan;
         }

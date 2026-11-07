@@ -48,6 +48,14 @@ namespace SilentHillPC_Launcher
         private sealed class EssentialHeader { }
         private sealed class EssentialCharsHeader { }
         private sealed class EssentialRow { public EssentialMod Mod; }
+        // Additional Characters: the per-character catalog the game's menu also uses.
+        private CharacterCatalogFile _chars;
+        private List<CharacterCatalog.Record> _charRecs = new List<CharacterCatalog.Record>();
+        private readonly HashSet<string> _charInstall = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _charRemove  = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _charCatsOpen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private sealed class CharacterRow { public CatalogCharacter Char; }
+        private sealed class CharacterCategoryRow { public string Category; }
         // Installed mods shown as their catalog row, so each is listed once.
         private readonly Dictionary<ModEntry, EssentialMod> _bound = new Dictionary<ModEntry, EssentialMod>();
         private CheckBox  _chkLoose;
@@ -110,10 +118,14 @@ namespace SilentHillPC_Launcher
         private async void LoadCatalogAsync()
         {
             EssentialCatalog cat = null;
+            CharacterCatalogFile chars = null;
             try { cat = await EssentialMods.LoadAsync(_mgr.ModsDir, System.Threading.CancellationToken.None); }
+            catch { }
+            try { chars = await CharacterCatalog.LoadAsync(_mgr.ModsDir, System.Threading.CancellationToken.None); }
             catch { }
             if (IsDisposed) return;
             _catalog = cat;
+            _chars = chars;
             _catalogLoading = false;
             // Open by default until something is installed, so a fresh install sees it.
             _essentialExpanded = _mgr.Mods.Count == 0;
@@ -507,6 +519,7 @@ namespace SilentHillPC_Launcher
             if (_catalog == null) return;
             foreach (var em in _catalog.Mods)
             {
+                if (em.IsCharacter) continue;
                 var inst = EssentialMods.FindInstalled(em, _mgr.Mods, _bound.Keys);
                 if (inst != null) _bound[inst] = em;
             }
@@ -539,28 +552,121 @@ namespace SilentHillPC_Launcher
             foreach (var em in _catalog.Mods)
                 if (!em.IsCharacter) AddEssentialRow(em, "    ", _essentialExpanded);
 
-            // Character mods sit behind one Additional Characters row of their own.
-            var chars = _catalog.Mods.Where(m => m.IsCharacter).ToList();
-            if (chars.Count == 0) return;
-            if (_essentialExpanded)
+            AddCharacterRows();
+        }
+
+        /// <summary>Additional Characters, the same list the game's Character Select
+        /// downloads from: one fold per series, one tickable row per character.
+        /// Ticked = installed (or will be on Apply); unticking an installed one
+        /// removes it on Apply.</summary>
+        private void AddCharacterRows()
+        {
+            if (!_essentialExpanded || _chars == null || _chars.Characters.Count == 0) return;
+            _charRecs = CharacterCatalog.ReadRecords(_mgr.GameRoot);
+            var all = _chars.Characters;
+            int installed = all.Count(c => CharacterCatalog.IsInstalled(_mgr.GameRoot, c, _charRecs));
+            var sub = new ListViewItem("    " + (_charsExpanded ? "▼ " : "▶ ") + Loc.T("Additional Characters"))
             {
-                int installed = chars.Count(em => _bound.ContainsValue(em));
-                int ticked    = chars.Count(em => _toInstall.Contains(em.Id) && !_bound.ContainsValue(em));
-                var sub = new ListViewItem("    " + (_charsExpanded ? "▼ " : "▶ ") + Loc.T("Additional Characters"))
+                Tag = new EssentialCharsHeader(),
+                ToolTipText = Loc.T("Click to show or hide. Tick the characters you want and press Apply.")
+            };
+            sub.SubItems.Add("");
+            sub.SubItems.Add("");
+            sub.SubItems.Add(_charInstall.Count + _charRemove.Count > 0
+                ? Loc.F("{0} to install, {1} to remove", _charInstall.Count, _charRemove.Count)
+                : Loc.F("{0} of {1} installed", installed, all.Count));
+            sub.SubItems.Add(Loc.T("Playable characters. Pick them in Character Select (PC Options or the quick menu). Downloaded characters override a mod's file of the same name."));
+            sub.Font = new Font(_list.Font, FontStyle.Bold);
+            _list.Items.Add(sub);
+            if (!_charsExpanded) return;
+
+            var cats = all.Select(c => c.Category).Distinct(StringComparer.OrdinalIgnoreCase)
+                          .OrderBy(c => string.Equals(c, "Other", StringComparison.OrdinalIgnoreCase) ? 1 : 0)
+                          .ThenBy(c => c, StringComparer.OrdinalIgnoreCase).ToList();
+            foreach (var cat in cats)
+            {
+                var members = all.Where(c => string.Equals(c.Category, cat, StringComparison.OrdinalIgnoreCase))
+                                 .OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase).ToList();
+                bool open = _charCatsOpen.Contains(cat);
+                int have = members.Count(c => CharWillBeInstalled(c));
+                var crow = new ListViewItem("        " + (open ? "▼ " : "▶ ") + cat)
                 {
-                    Tag = new EssentialCharsHeader(),
-                    ToolTipText = Loc.T("Click to show or hide. Tick the characters you want and press Apply.")
+                    Tag = new CharacterCategoryRow { Category = cat },
+                    Checked = have == members.Count,
+                    ToolTipText = Loc.T("Tick to install the whole series, untick to remove it. Click the name to show or hide its characters.")
                 };
-                sub.SubItems.Add(string.Join(", ", chars.Select(c => c.Name)));
-                sub.SubItems.Add("");
-                sub.SubItems.Add(ticked > 0 ? Loc.F("{0} to install", ticked)
-                                            : Loc.F("{0} of {1} installed", installed, chars.Count));
-                sub.SubItems.Add(Loc.T("Playable characters for the Play as option and the multiplayer Character row. Online, a partner without the same character sees Harry."));
-                sub.Font = new Font(_list.Font, FontStyle.Bold);
-                _list.Items.Add(sub);
+                crow.SubItems.Add("");
+                crow.SubItems.Add("");
+                crow.SubItems.Add(Loc.F("{0} of {1}", have, members.Count));
+                crow.SubItems.Add("");
+                _list.Items.Add(crow);
+                if (!open) continue;
+                foreach (var c in members)
+                {
+                    bool inst = CharacterCatalog.IsInstalled(_mgr.GameRoot, c, _charRecs);
+                    var row = new ListViewItem("            " + c.Name)
+                    {
+                        Tag = new CharacterRow { Char = c },
+                        Checked = CharWillBeInstalled(c)
+                    };
+                    row.SubItems.Add(c.Author ?? "");
+                    row.SubItems.Add(Loc.F("Download ({0} MB)", Math.Max(1, (c.Size + 524288) / 1048576)));
+                    row.SubItems.Add(inst ? (CharacterCatalog.NeedsUpdate(c, _charRecs) ? Loc.T("Update available") : Loc.T("Installed"))
+                                          : Loc.T("Not installed"));
+                    row.SubItems.Add("v" + (c.Version ?? "1"));
+                    _list.Items.Add(row);
+                }
             }
-            foreach (var em in chars)
-                AddEssentialRow(em, "        ", _essentialExpanded && _charsExpanded);
+        }
+
+        private bool CharWillBeInstalled(CatalogCharacter c)
+        {
+            if (_charInstall.Contains(c.Id)) return true;
+            if (_charRemove.Contains(c.Id)) return false;
+            return CharacterCatalog.IsInstalled(_mgr.GameRoot, c, _charRecs);
+        }
+
+        private void SetCharWanted(CatalogCharacter c, bool want)
+        {
+            bool inst = CharacterCatalog.IsInstalled(_mgr.GameRoot, c, _charRecs);
+            _charInstall.Remove(c.Id);
+            _charRemove.Remove(c.Id);
+            if (want && (!inst || CharacterCatalog.NeedsUpdate(c, _charRecs))) _charInstall.Add(c.Id);
+            else if (!want && inst) _charRemove.Add(c.Id);
+        }
+
+        /// <summary>Download the ticked characters and remove the unticked ones, before
+        /// Apply deploys. False if cancelled or a download failed.</summary>
+        private bool ApplyCharacterChanges()
+        {
+            if (_chars == null || _charInstall.Count + _charRemove.Count == 0) return true;
+            var remove = _chars.Characters.Where(c => _charRemove.Contains(c.Id)).ToList();
+            var install = _chars.Characters.Where(c => _charInstall.Contains(c.Id)).ToList();
+            foreach (var c in remove) CharacterCatalog.Remove(_mgr.GameRoot, c);
+            _charRemove.Clear();
+            bool finished = true;
+            if (install.Count > 0)
+            {
+                try
+                {
+                    finished = ProgressDialog.RunCancellable(this, Loc.T("Downloading characters…"), (r, cancelled) =>
+                    {
+                        foreach (var c in install)
+                        {
+                            if (cancelled()) return;
+                            if (CharacterCatalog.Install(_mgr.GameRoot, c, r, cancelled)) _charInstall.Remove(c.Id);
+                        }
+                    });
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, Loc.F("Failed to download characters:\n\n{0}", ex.Message), Loc.T("Mod Manager"),
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    finished = false;
+                }
+            }
+            Populate();
+            return finished;
         }
 
         /// <summary>One catalog mod: its installed entry when there is one (always shown),
@@ -601,8 +707,13 @@ namespace SilentHillPC_Launcher
             var hit = _list.HitTest(e.Location);
             if (hit.Item == null) return;
             if (_catalog == null || _catalog.Mods.Count == 0) return;
+            var catRow = hit.Item.Tag as CharacterCategoryRow;
             if (hit.Item.Tag is EssentialHeader)           _essentialExpanded = !_essentialExpanded;
             else if (hit.Item.Tag is EssentialCharsHeader) _charsExpanded = !_charsExpanded;
+            else if (catRow != null && hit.Location != ListViewHitTestLocations.StateImage)
+            {
+                if (!_charCatsOpen.Remove(catRow.Category)) _charCatsOpen.Add(catRow.Category);
+            }
             else return;
             CommitOrderAndState();
             Populate();
@@ -629,6 +740,21 @@ namespace SilentHillPC_Launcher
         private void OnItemCheck(object sender, ItemCheckEventArgs e)
         {
             var tag = _list.Items[e.Index].Tag;
+            var crow = tag as CharacterRow;
+            if (crow != null)
+            {
+                SetCharWanted(crow.Char, e.NewValue == CheckState.Checked);
+                return;
+            }
+            var ccat = tag as CharacterCategoryRow;
+            if (ccat != null && _chars != null)
+            {
+                bool want = e.NewValue == CheckState.Checked;
+                foreach (var c in _chars.Characters.Where(c => string.Equals(c.Category, ccat.Category, StringComparison.OrdinalIgnoreCase)))
+                    SetCharWanted(c, want);
+                BeginInvoke(new Action(Populate));
+                return;
+            }
             var row = tag as EssentialRow;
             if (row != null)
             {
@@ -2016,6 +2142,7 @@ namespace SilentHillPC_Launcher
         private void OnApply(object sender, EventArgs e)
         {
             CommitOrderAndState();
+            if (!ApplyCharacterChanges()) return;
             if (!InstallTickedEssentials()) return;
             try
             {
