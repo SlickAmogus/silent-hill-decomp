@@ -460,9 +460,10 @@ static void cs_music_tick(void)
      * call is held off (g_PcMenuMusicOwner) so its layers do not fight these. */
     if (s_musicStep == 2)
     {
-        /* The layer ramps read the player's health, which is zero on the
-         * title, as a death fade. */
-        if (g_GameWork.gameState == GameState_MainMenu && g_SysWork.playerWork.player.health <= Q12(0.0f))
+        /* Bgm_Update fades everything out for a dead player, and the health
+         * is zero everywhere outside a game: the title and the options screen
+         * opened from it. A New Game sets the real value when it boots. */
+        if (g_GameWork.gameState != GameState_InGame && g_SysWork.playerWork.player.health <= Q12(0.0f))
             g_SysWork.playerWork.player.health = Q12(100.0f);
         g_PcMenuMusicCall = 1;
         Bgm_Update(BgmFlag_Layer1 | BgmFlag_Layer2 | BgmFlag_Layer3 | BgmFlag_Layer4 |
