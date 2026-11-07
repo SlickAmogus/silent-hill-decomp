@@ -75,7 +75,7 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_OTSRESTX, QO_X_OTSRESTY, QO_X_OTSAIMX, QO_X_OTSAIMY,
        QO_X_DREAMSTR, QO_X_DREAMBLUR, QO_X_DPADMOVE, QO_X_CROSSHAIRSTYLE,
        QO_X_LINEGAP, QO_X_CHARALIGHT, QO_X_PPLIGHT, QO_X_HEROLIGHT, QO_X_HEROLIGHTFL, QO_X_FACEANIM,
-       QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD, QO_X_FLASHAIM };
+       QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD, QO_X_WORLDVIS, QO_X_FLASHAIM };
 extern const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz);
 extern void        PcOpt_QuickExtraAdjust(int which, int dir);
 extern void        PcOpt_QuickViewReset(int mode);
@@ -125,6 +125,7 @@ static const QoRowDef s_pageGfx1[] = {
     { ROW_OPT,   "post_process",         0, NULL },
     { ROW_OPT,   "tonemap",              0, NULL },
     { ROW_OPT,   "fog_strength",         0, NULL },
+    { ROW_EXTRA, NULL, QO_X_WORLDVIS,       "World Visibility" },  /* fog below 1.0 only: qo_gfx1_page */
     { ROW_OPT,   "bullet_decals",        0, NULL },
     { ROW_EXTRA, NULL, QO_X_FACEANIM,       "Character Face Animation (WIP)" },
     /* Frame cap, beside Weather_Rate: both decide how fast the world ticks. */
@@ -373,6 +374,35 @@ static const QoRowDef* qo_cheat_page(int cpage, int actions, int* count)
     return s_cheatRows[cpage][actions];
 }
 
+/* World Visibility only exists below fog 1.0, where the fog plane no longer
+ * ends the view, so the page drops the row otherwise. */
+static const QoRowDef* qo_gfx1_page(int* count)
+{
+    static QoRowDef s_noWv[sizeof(s_pageGfx1) / sizeof(s_pageGfx1[0])];
+    static int      s_noWvCount = 0, s_lastShow = -1;
+    int             show = g_PcConfig.fogStrength < 1.0f;
+    int             i;
+
+    if (show != s_lastShow)
+    {
+        s_lastShow      = show;
+        s_viewRowsDirty = 1;
+    }
+    if (show)
+    {
+        *count = (int)(sizeof(s_pageGfx1) / sizeof(s_pageGfx1[0]));
+        return s_pageGfx1;
+    }
+    if (s_noWvCount == 0)
+    {
+        for (i = 0; i < (int)(sizeof(s_pageGfx1) / sizeof(s_pageGfx1[0])); i++)
+            if (!(s_pageGfx1[i].kind == ROW_EXTRA && s_pageGfx1[i].extra == QO_X_WORLDVIS))
+                s_noWv[s_noWvCount++] = s_pageGfx1[i];
+    }
+    *count = s_noWvCount;
+    return s_noWv;
+}
+
 enum { QO_PG_GFX1 = 0, QO_PG_GFX2, QO_PG_HUD, QO_PG_AUDIO, QO_PG_VIEW,
        QO_PG_CHEATS1, QO_PG_CHEATS2, QO_PG_DEBUG1, QO_PG_DEBUG2, QO_PG_CONTROLS };
 
@@ -391,7 +421,7 @@ static const QoRowDef* qo_page_rows(int page, int* count)
         case QO_PG_DEBUG1:   return qo_cheat_page(PC_CHEATS_PAGE_DEBUG,  0, count);
         case QO_PG_DEBUG2:   return qo_cheat_page(PC_CHEATS_PAGE_DEBUG,  1, count);
         case QO_PG_CONTROLS: return QO_TABLE(s_pageControls);
-        default:             return QO_TABLE(s_pageGfx1);
+        default:             return qo_gfx1_page(count);
     }
 }
 
