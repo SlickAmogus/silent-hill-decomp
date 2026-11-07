@@ -2418,6 +2418,216 @@ static void CharaPrimProbe_Note(const s_ModelInfo* modelInfo, const char* what)
 int g_PcCharaGhostDraw = 0;
 #endif
 
+#ifdef SH_PC_PORT
+static bool Pc_SewerGrateDepthModel(const s_ModelHeader* model)
+{
+    static const struct
+    {
+        char name[8];
+        u8   vertexCount;
+        u8   primitiveCount;
+    } stockModels[] = {
+        { "YUKNET00", 25, 16 },
+        { "YUKNET01", 20, 12 },
+        { "KABE03_F", 40, 28 },
+        { "KABE03_F", 30, 20 },
+        { "DEP",      52, 38 },
+        { "DEP_1",    52, 38 },
+        { "DAI",      44, 41 },
+        { "DAI1",     44, 41 },
+        { "DAI3",     18, 10 },
+        { "DAI1_NEA",  8,  4 },
+        /* The adjoining concrete platform's vertical edge can otherwise
+         * paint over the grate even though it lies below the grate plane. */
+        { "DR0401_N", 44, 22 }
+    };
+    s32 i;
+
+    if (model->meshCount != 1 || model->meshHdrs == NULL)
+        return false;
+
+    for (i = 0; i < ARRAY_SIZE(stockModels); i++)
+    {
+        if (memcmp(model->name.str, stockModels[i].name, 8) == 0 &&
+            model->meshHdrs[0].vertexCount == stockModels[i].vertexCount &&
+            model->meshHdrs[0].primitiveCount == stockModels[i].primitiveCount)
+            return true;
+    }
+    return false;
+}
+
+static bool Pc_SewerCanalStairDepthModel(const s_ModelHeader* model)
+{
+    if (model->meshCount != 1 || model->meshHdrs == NULL)
+        return false;
+
+    /* Resolve both sides of the stair/wall intersection, including the tall
+     * cross-canal screens. Leaving those painter-ordered lets a stair stringer
+     * overwrite the screen from the reverse view. */
+    return (memcmp(model->name.str, "TRP1_NEA", 8) == 0 &&
+            model->meshHdrs[0].vertexCount == 80 && model->meshHdrs[0].primitiveCount == 76) ||
+           ((memcmp(model->name.str, "W1_BACK2", 8) == 0 ||
+             memcmp(model->name.str, "GRID9\0\0\0", 8) == 0) &&
+            model->meshHdrs[0].vertexCount == 54 && model->meshHdrs[0].primitiveCount == 40) ||
+           ((memcmp(model->name.str, "AMIL_NEA", 8) == 0 ||
+             memcmp(model->name.str, "AMIR_NEA", 8) == 0) &&
+            model->meshHdrs[0].vertexCount == 33 && model->meshHdrs[0].primitiveCount == 19);
+}
+
+static bool Pc_SewerRoom6GrateBorderDepthModel(const s_ModelHeader* model)
+{
+    /* This room also uses a two-mesh concrete surround and adjoining floor
+     * strips. Resolve their overlap with the already depth-tested grates,
+     * without changing the painter ordering of the room's walls or water. */
+    if (model->meshHdrs == NULL)
+        return false;
+
+    return (memcmp(model->name.str, "YUKA03\0\0", 8) == 0 && model->meshCount == 1 &&
+            model->meshHdrs[0].vertexCount == 20 && model->meshHdrs[0].primitiveCount == 12) ||
+           (memcmp(model->name.str, "2_FAR\0\0\0", 8) == 0 && model->meshCount == 2 &&
+            model->meshHdrs[0].vertexCount == 52 && model->meshHdrs[0].primitiveCount == 38 &&
+            model->meshHdrs[1].vertexCount == 52 && model->meshHdrs[1].primitiveCount == 38);
+}
+
+static bool Pc_SewerWideGrateDepthModel(const s_ModelHeader* model)
+{
+    /* The wide crossing is part of a three-mesh floor/support model rather
+     * than a YUKNET object. Keep the crossing and its two borders on the same
+     * depth path; otherwise a painter-ordered support can cover the grating. */
+    return memcmp(model->name.str, "DR0702\0\0", 8) == 0 &&
+           model->meshCount == 3 && model->meshHdrs != NULL &&
+           model->meshHdrs[0].vertexCount == 80 && model->meshHdrs[0].primitiveCount == 44 &&
+           model->meshHdrs[1].vertexCount == 65 && model->meshHdrs[1].primitiveCount == 50 &&
+           model->meshHdrs[2].vertexCount == 65 && model->meshHdrs[2].primitiveCount == 50;
+}
+
+static bool Pc_SewerPlatformDepthModel(const s_ModelHeader* model)
+{
+    /* Stock floor/support assemblies next to sewer gratings can include a
+     * vertical edge below the walking surface. Keep each assembly on the
+     * grate's depth path rather than allowing that edge to paint over it.
+     * Match complete mesh layouts; unrelated walls, decals and water retain
+     * their original ordering. Both sewer maps reuse these assets. */
+    static const struct
+    {
+        char name[8];
+        u8 meshCount;
+        u8 vertexCount[2];
+        u8 primitiveCount[2];
+    } stockModels[] = {
+        { "DR1105",   2, {99,60}, {69,35} },
+        { "DR1102",   2, {52,54}, {38,40} },
+        { "DR1103",   2, {52,54}, {38,40} },
+        { "DR1104",   1, {28, 0}, {16, 0} },
+        { "DR1106",   1, {40, 0}, {24, 0} },
+        { "DR0508_F", 2, {81,20}, {54,12} },
+        { "DR1401",   1, {70, 0}, {44, 0} },
+        { "NULL6",    1, {52, 0}, {38, 0} },
+        { "DR1304",   1, {20, 0}, {13, 0} },
+        { "DR1301",   1, {30, 0}, {18, 0} },
+        { "DR0703",   1, {40, 0}, {24, 0} },
+        { "YUKA03_4", 1, {20, 0}, {12, 0} },
+        { "YUKA03_5", 1, {20, 0}, {12, 0} },
+        { "YUKAL",    1, {20, 0}, {11, 0} },
+        { "YUKAR",    1, {20, 0}, {11, 0} },
+        { "YUKAL_BA", 1, {20, 0}, {11, 0} },
+        { "YUKAR_BA", 1, {20, 0}, {11, 0} }
+    };
+    s32 i;
+    s32 meshIdx;
+
+    if (model->meshHdrs == NULL)
+        return false;
+
+    for (i = 0; i < ARRAY_SIZE(stockModels); i++)
+    {
+        if (memcmp(model->name.str, stockModels[i].name, 8) != 0 ||
+            model->meshCount != stockModels[i].meshCount)
+            continue;
+        for (meshIdx = 0; meshIdx < model->meshCount; meshIdx++)
+        {
+            if (model->meshHdrs[meshIdx].vertexCount != stockModels[i].vertexCount[meshIdx] ||
+                model->meshHdrs[meshIdx].primitiveCount != stockModels[i].primitiveCount[meshIdx])
+                break;
+        }
+        if (meshIdx == model->meshCount)
+            return true;
+    }
+    return false;
+}
+
+static bool Pc_SewerRoom12GrateBorderDepthModel(const s_ModelHeader* model)
+{
+    /* This crossing uses AMI1_NEA instead of the usual YUKNET00 grate. Test
+     * the grate itself as well as the adjoining DR1302 wall/floor assembly;
+     * testing only the concrete still lets its edge overwrite the grate.
+     * Keep this mixed assembly local to the reported room. */
+    if (model->meshCount != 1 || model->meshHdrs == NULL)
+        return false;
+
+    return (memcmp(model->name.str, "DR1302\0\0", 8) == 0 &&
+            model->meshHdrs[0].vertexCount == 94 && model->meshHdrs[0].primitiveCount == 63) ||
+           (memcmp(model->name.str, "AMI1_NEA", 8) == 0 &&
+            model->meshHdrs[0].vertexCount == 15 && model->meshHdrs[0].primitiveCount == 8);
+}
+
+static bool Pc_SewerRoom13GrateBorderDepthModel(const s_ModelHeader* model)
+{
+    /* The long corridor's end strips, floor margins and lower wall faces
+     * meet the grates/supports already using per-vertex depth. Keep those
+     * intersections on one path without changing the fence lettering,
+     * overhead beams, upper walls or water. */
+    if (model->meshCount != 1 || model->meshHdrs == NULL)
+        return false;
+
+    return ((memcmp(model->name.str, "SKIN8\0\0\0", 8) == 0 ||
+             memcmp(model->name.str, "YUKA03\0\0", 8) == 0) &&
+            model->meshHdrs[0].vertexCount == 20 && model->meshHdrs[0].primitiveCount == 12) ||
+           (memcmp(model->name.str, "KABE02_F", 8) == 0 &&
+            model->meshHdrs[0].vertexCount == 12 && model->meshHdrs[0].primitiveCount == 4);
+}
+
+static bool Pc_SewerRoom13FenceDepthModel(const s_ModelHeader* model)
+{
+    /* The end fence intersects the side-wall panels. Test both surfaces,
+     * including the fence's authored sign faces, instead of changing depth
+     * ordering for every wall/decal in the room. Keep the floor fix separate. */
+    if (model->meshCount != 1 || model->meshHdrs == NULL)
+        return false;
+
+    return (memcmp(model->name.str, "SKIN7\0\0\0", 8) == 0 &&
+            model->meshHdrs[0].vertexCount == 23 && model->meshHdrs[0].primitiveCount == 16) ||
+           (memcmp(model->name.str, "DOME1_FA", 8) == 0 &&
+            model->meshHdrs[0].vertexCount == 45 && model->meshHdrs[0].primitiveCount == 36) ||
+           ((memcmp(model->name.str, "AMI1_TR\0", 8) == 0 ||
+             memcmp(model->name.str, "AMI1_TR1", 8) == 0) &&
+            model->meshHdrs[0].vertexCount == 36 && model->meshHdrs[0].primitiveCount == 25) ||
+           ((memcmp(model->name.str, "AMI2_TR\0", 8) == 0 ||
+             memcmp(model->name.str, "AMI3_TR\0", 8) == 0) &&
+            model->meshHdrs[0].vertexCount == 24 && model->meshHdrs[0].primitiveCount == 15);
+}
+#endif
+
+#ifdef SH_PC_PORT
+static bool Pc_TownHedgeDepthModel(const s_ModelHeader* model)
+{
+    const s_MeshHeader* mesh;
+
+    if (model->meshCount != 1 || model->meshHdrs == NULL)
+        return false;
+
+    mesh = &model->meshHdrs[0];
+    return ((memcmp(model->name.str, "HEDGE1\0\0", 8) == 0 ||
+             memcmp(model->name.str, "HEDGE3\0\0", 8) == 0) &&
+            mesh->vertexCount == 32 && mesh->primitiveCount == 12) ||
+           ((memcmp(model->name.str, "HEDGE4\0\0", 8) == 0 ||
+             memcmp(model->name.str, "HEDGE6\0\0", 8) == 0) &&
+            mesh->vertexCount == 40 && mesh->primitiveCount == 17) ||
+           (memcmp(model->name.str, "HEDGE5\0\0", 8) == 0 &&
+            mesh->vertexCount == 30 && mesh->primitiveCount == 14);
+}
+#endif
+
 void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat, MATRIX* worldMat, u16 arg5) // 0x80057090
 {
     s32            temp_a0;
@@ -2494,8 +2704,52 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat
         {
 #ifdef SH_PC_PORT
             if (g_PcCharaPrimProbeActive) CharaPrimProbe_Note(modelInfo, "func_80057344 chain (unlit)");
-#endif
+            {
+                int prevActorDepth = g_PsxActorDepth;
+                /* Sewer grates, supports and adjacent wall/borders overlap across
+                 * OT buckets. Depth-test these stock models together; testing
+                 * only the grate lets a later wall face overwrite it. Keep the
+                 * remaining world in painter order to preserve wall markings.
+                 * Both sewer maps reuse the grate models across multiple rooms;
+                 * the canal stair/wall group and extra concrete borders are
+                 * limited to the first sewer's rooms 5 and 6 respectively.
+                 * The wide crossing includes its own floor/support meshes and
+                 * is matched throughout both sewer maps, regardless of room. */
+                if (g_GameWork.gameState == GameState_InGame && g_SavegamePtr != NULL &&
+                    (g_SavegamePtr->mapIdx == MapIdx_MAP5_S00 || g_SavegamePtr->mapIdx == MapIdx_MAP6_S03) &&
+                    (Pc_SewerGrateDepthModel(modelHdr) || Pc_SewerWideGrateDepthModel(modelHdr) ||
+                      Pc_SewerPlatformDepthModel(modelHdr) ||
+                     (g_SavegamePtr->mapIdx == MapIdx_MAP5_S00 && g_SavegamePtr->mapRoomIdx == 5 &&
+                      Pc_SewerCanalStairDepthModel(modelHdr)) ||
+                      (g_SavegamePtr->mapIdx == MapIdx_MAP5_S00 && g_SavegamePtr->mapRoomIdx == 6 &&
+                        Pc_SewerRoom6GrateBorderDepthModel(modelHdr)) ||
+                      (g_SavegamePtr->mapIdx == MapIdx_MAP5_S00 && g_SavegamePtr->mapRoomIdx == 12 &&
+                        Pc_SewerRoom12GrateBorderDepthModel(modelHdr)) ||
+                      (g_SavegamePtr->mapIdx == MapIdx_MAP5_S00 && g_SavegamePtr->mapRoomIdx == 13 &&
+                       (Pc_SewerRoom13GrateBorderDepthModel(modelHdr) ||
+                        Pc_SewerRoom13FenceDepthModel(modelHdr)))))
+                    g_PsxActorDepth = 1;
+                /* The bin's bottom polygons share coarse OT buckets with its
+                 * side panels. Resolve their self-overlap per pixel instead of
+                 * moving the separate ground shadow ahead of the whole model. */
+                if (g_GameWork.gameState == GameState_InGame && g_SavegamePtr != NULL &&
+                    g_SavegamePtr->mapIdx == MapIdx_MAP5_S01 && g_SavegamePtr->mapRoomIdx == 11 &&
+                    memcmp(modelHdr->name.str, "TRASHCAN", 8) == 0 &&
+                    modelHdr->meshCount == 1 && modelHdr->meshHdrs != NULL &&
+                    modelHdr->meshHdrs[0].vertexCount == 64 && modelHdr->meshHdrs[0].primitiveCount == 43)
+                    g_PsxActorDepth = 1;
+                /* Both low and tall stock hedges have folded faces sharing
+                 * coarse OT buckets. Resolve the whole hedge family wherever
+                 * reused in town, without changing fence/street painter order. */
+                if (g_GameWork.gameState == GameState_InGame && g_SavegamePtr != NULL &&
+                    g_SavegamePtr->mapIdx == MapIdx_MAP5_S01 && Pc_TownHedgeDepthModel(modelHdr))
+                    g_PsxActorDepth = 1;
+                func_80057344(modelInfo, otTag, arg2, viewMat);
+                g_PsxActorDepth = prevActorDepth;
+            }
+#else
             func_80057344(modelInfo, otTag, arg2, viewMat);
+#endif
         }
     }
 }
@@ -2549,6 +2803,81 @@ void func_80057228(MATRIX* mat, s32 alpha, SVECTOR* arg2, VECTOR3* arg3) // 0x80
     gte_stsv(&g_WorldEnvWork.field_7C);
 }
 
+#ifdef SH_PC_PORT
+static bool Pc_SewerFenceVisibleMesh(const s_ModelHeader* model, const s_MeshHeader* mesh,
+                                    s_MeshHeader* visible, s_Primitive* primitives)
+{
+    s32 columns;
+    s32 firstZ;
+    s32 stepZ;
+    s32 side;
+    s32 i;
+    s32 kept = 0;
+
+    if (g_GameWork.gameState != GameState_InGame || g_SavegamePtr == NULL ||
+        g_SavegamePtr->mapIdx != MapIdx_MAP5_S00 || g_SavegamePtr->mapRoomIdx != 13 ||
+        model->meshCount != 1 || model->vertexOffset != 0 || model->normalOffset != 0 ||
+        mesh->verticesXy == NULL || mesh->verticesZ == NULL || mesh->primitives == NULL)
+        return false;
+
+    if (memcmp(model->name.str, "AMI1_TR\0", 8) == 0 ||
+        memcmp(model->name.str, "AMI1_TR1", 8) == 0)
+    {
+        columns = 6;
+        firstZ = 640;
+        stepZ = -256;
+        side = memcmp(model->name.str, "AMI1_TR\0", 8) == 0 ? -1 : 1;
+    }
+    else if (memcmp(model->name.str, "AMI2_TR\0", 8) == 0 ||
+             memcmp(model->name.str, "AMI3_TR\0", 8) == 0)
+    {
+        columns = 4;
+        firstZ = memcmp(model->name.str, "AMI2_TR\0", 8) == 0 ? 384 : -384;
+        stepZ = firstZ > 0 ? -256 : 256;
+        side = 2;
+    }
+    else
+        return false;
+
+    if (mesh->vertexCount != columns * 6 || mesh->primitiveCount != (columns - 1) * 5)
+        return false;
+    /* Match the stock planar grid before omitting its buried outer column.
+     * The DEP/DEP_1 wall ends are only 1/256 unit in front of these faces;
+     * quantized depth can alternate between the concrete and hidden fence.
+     * Filter a draw-local copy: loaded geometry, sign faces and other rooms
+     * remain unchanged, including when the camera views the fence in reverse. */
+    for (i = 0; i < mesh->vertexCount; i++)
+    {
+        if (mesh->verticesXy[i].vx != 0 || mesh->verticesXy[i].vy != -(i / columns) * 256 ||
+            mesh->verticesZ[i] != firstZ + (i % columns) * stepZ)
+            return false;
+    }
+    for (i = 0; i < mesh->primitiveCount; i++)
+    {
+        s32 k;
+        bool buried = true;
+        for (k = 0; k < 4; k++)
+        {
+            u8 index = mesh->primitives[i].field_C[k];
+            s32 z;
+            if (index >= mesh->vertexCount)
+                return false;
+            z = mesh->verticesZ[index];
+            if (!(side == -1 ? z <= -384 : side == 1 ? z >= 384 : z >= 128))
+                buried = false;
+        }
+        if (!buried)
+            primitives[kept++] = mesh->primitives[i];
+    }
+    if (kept != mesh->primitiveCount - 5)
+        return false;
+    *visible = *mesh;
+    visible->primitiveCount = kept;
+    visible->primitives = primitives;
+    return true;
+}
+#endif
+
 void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* mat) // 0x80057344
 {
     u32               normalOffset;
@@ -2581,6 +2910,13 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
 
     for (curMeshHdr = modelHdr->meshHdrs; curMeshHdr < &modelHdr->meshHdrs[modelHdr->meshCount]; curMeshHdr++)
     {
+#ifdef SH_PC_PORT
+        s_MeshHeader visibleMesh;
+        s_Primitive visiblePrimitives[25];
+        s_MeshHeader* drawMesh = curMeshHdr;
+        if (Pc_SewerFenceVisibleMesh(modelHdr, curMeshHdr, &visibleMesh, visiblePrimitives))
+            drawMesh = &visibleMesh;
+#endif
         if (vertOffset != 0 || normalOffset != 0)
         {
             func_8005759C(curMeshHdr, scratchData, vertOffset, normalOffset);
@@ -2589,6 +2925,102 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
         {
             func_800574D4(curMeshHdr, scratchData);
         }
+
+#ifdef SH_PC_PORT
+        /* These stock fence panels extend past their four-unit tile, including
+         * the perpendicular corner. Trim only the scratch copy to the tile. */
+        if (g_GameWork.gameState == GameState_InGame && g_SavegamePtr != NULL &&
+            g_SavegamePtr->mapIdx == MapIdx_MAP5_S01 &&
+            memcmp(modelHdr->name.str, "1411_18_", 8) == 0 &&
+            modelHdr->meshCount == 1 && curMeshHdr->vertexCount == 15 &&
+            curMeshHdr->primitiveCount == 8 && vertOffset == 0 && normalOffset == 0)
+        {
+            s32 i;
+            bool planar = true;
+            for (i = 0; i < 15; i++)
+                if (curMeshHdr->verticesXy[i].vx != 0)
+                    planar = false;
+            if (planar)
+                for (i = 0; i < 15; i++)
+                    scratchData->field_18C[i] = CLAMP(scratchData->field_18C[i], -512, 512);
+        }
+        /* Opposing low-hedge instances share their outer skin. Nest one of
+         * the two orientations slightly inside the other, rather than letting
+         * coincident faces alternate with camera/OT rounding. */
+        if (g_GameWork.gameState == GameState_InGame && g_SavegamePtr != NULL &&
+            g_SavegamePtr->mapIdx == MapIdx_MAP5_S01 && Pc_TownHedgeDepthModel(modelHdr) &&
+            curMeshHdr->vertexCount == 32 && vertOffset == 0 && normalOffset == 0 &&
+            modelInfo->coord != NULL &&
+            (modelInfo->coord->workm.m[0][0] > 0 || modelInfo->coord->workm.m[0][2] > 0))
+        {
+            s32 i;
+            for (i = 0; i < 32; i++)
+            {
+                scratchData->screenXy_0[i].vx = scratchData->screenXy_0[i].vx * 95 / 100;
+                scratchData->screenXy_0[i].vy += 4;
+                scratchData->field_18C[i] = scratchData->field_18C[i] * 95 / 100;
+            }
+        }
+        /* This short town hedge row places full-width sections one unit apart.
+         * Their top and side skins coincide: true depth alone still ties them.
+         * Stagger only these authored instances in the scratch copy, in both
+         * local Y and Z (at most 12/256 world units). Do not stretch their UVs,
+         * remove reverse faces, or alter the shared model/collision data. */
+        if (g_GameWork.gameState == GameState_InGame && g_SavegamePtr != NULL &&
+            g_SavegamePtr->mapIdx == MapIdx_MAP5_S01 && Pc_TownHedgeDepthModel(modelHdr) &&
+            vertOffset == 0 && normalOffset == 0 && modelInfo->coord != NULL)
+        {
+            const MATRIX* instanceMat = &modelInfo->coord->workm;
+            s32 layer = 0;
+            if (instanceMat->t[1] == -13 && instanceMat->t[2] == -29568 &&
+                instanceMat->m[0][0] == -4096 && instanceMat->m[1][1] == 4096 &&
+                instanceMat->m[2][2] == -4096 &&
+                instanceMat->m[0][1] == 0 && instanceMat->m[0][2] == 0 &&
+                instanceMat->m[1][0] == 0 && instanceMat->m[1][2] == 0 &&
+                instanceMat->m[2][0] == 0 && instanceMat->m[2][1] == 0)
+            {
+                if (memcmp(modelHdr->name.str, "HEDGE5\0\0", 8) == 0)
+                {
+                    if (instanceMat->t[0] == -3200) layer = 4;
+                    if (instanceMat->t[0] == -2944) layer = 8;
+                }
+                else if (memcmp(modelHdr->name.str, "HEDGE4\0\0", 8) == 0 &&
+                         instanceMat->t[0] == -2698)
+                    layer = 12;
+            }
+            if (layer != 0)
+            {
+                s32 i;
+                for (i = 0; i < curMeshHdr->vertexCount; i++)
+                {
+                    scratchData->screenXy_0[i].vy += layer;
+                    scratchData->field_18C[i] += layer;
+                }
+            }
+        }
+        /* The Indian Runner entrance mat is authored coplanar with the floor.
+         * Room-local depth testing exposes that overlap. Lift only its twelve
+         * vertices in the per-draw scratch copy (16/256 world units), leaving
+         * the loaded mesh and the rest of the box assembly untouched. */
+        if (g_GameWork.gameState == GameState_InGame && g_SavegamePtr != NULL &&
+            g_SavegamePtr->mapIdx == MapIdx_MAP5_S02 && g_SavegamePtr->mapRoomIdx == 17 &&
+            memcmp(modelHdr->name.str, "BOSS\0\0\0\0", 8) == 0 &&
+            modelHdr->meshCount == 13 && curMeshHdr == &modelHdr->meshHdrs[6] &&
+            curMeshHdr->vertexCount == 90 && curMeshHdr->primitiveCount == 61 &&
+            vertOffset == 0 && normalOffset == 0 &&
+            curMeshHdr->verticesXy[78].vx == -766 && curMeshHdr->verticesZ[78] == -921 &&
+            curMeshHdr->verticesXy[89].vx == -622 && curMeshHdr->verticesZ[89] == -1165)
+        {
+            s32 i;
+            bool coplanar = true;
+            for (i = 78; i < 90; i++)
+                if (curMeshHdr->verticesXy[i].vy != 0)
+                    coplanar = false;
+            if (coplanar)
+                for (i = 78; i < 90; i++)
+                    scratchData->screenXy_0[i].vy -= 16;
+        }
+#endif
 
         switch (g_WorldEnvWork.field_0)
         {
@@ -2620,7 +3052,7 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
                 Uint64       t1;
                 func_80057B7C(curMeshHdr, vertOffset, scratchData, mat);
                 t1 = SDL_GetPerformanceCounter();
-                Gfx_MeshDraw(curMeshHdr, scratchData, otTag, arg2);
+                Gfx_MeshDraw(drawMesh, scratchData, otTag, arg2);
                 g_wmTXform += (double)(t1 - t0) * f;
                 g_wmTMesh  += (double)(SDL_GetPerformanceCounter() - t1) * f;
                 continue;
@@ -2629,7 +3061,11 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
 #endif
         func_80057B7C(curMeshHdr, vertOffset, scratchData, mat);
 
+#ifdef SH_PC_PORT
+        Gfx_MeshDraw(drawMesh, scratchData, otTag, arg2);
+#else
         Gfx_MeshDraw(curMeshHdr, scratchData, otTag, arg2);
+#endif
     }
 #ifdef SH_PC_PORT
     { extern int g_PsyX_SemiShadowCast; g_PsyX_SemiShadowCast = 0; }
@@ -6089,6 +6525,11 @@ static int Pc_FarModelEligible(const s_ModelHeader* modelHdr)
     if (modelHdr == NULL || modelHdr->meshHdrs == NULL || modelHdr->field_B_0)
         return 0;
     if (Pc_WideLm_IsWide(modelHdr))
+        return 0;
+    /* Stock hedge depth and scratch-geometry corrections belong to the mesh
+     * drawer. The whole-map cache otherwise bypasses them entirely. */
+    if (g_SavegamePtr != NULL && g_SavegamePtr->mapIdx == MapIdx_MAP5_S01 &&
+        Pc_TownHedgeDepthModel(modelHdr))
         return 0;
     b4 = modelHdr->field_B_4;
     if ((b4 & 0xFF) && b4 >= 0 && b4 < 4)
