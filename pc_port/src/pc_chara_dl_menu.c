@@ -16,6 +16,7 @@
 #include "bodyprog/text/text_draw.h"
 #include "pc_chara_dl.h"
 #include "pc_chara_dl_menu.h"
+#include "pc_chara_preview.h"
 #include "pc_mouse_cursor.h"
 #include "pc_native_menu_draw.h"
 #include "pc_playas.h"
@@ -1098,8 +1099,7 @@ static void m_preview_panel(void)
     int         cx = (M_PREV_X0 + M_PREV_X1) / 2;
 
     m_frame(M_PREV_X0, M_PREV_Y0, M_PREV_X1, M_PREV_Y1);
-    Cdm_PreviewTarget(&file);
-    if (file == NULL)
+    if (Cdm_PreviewTarget(&file) != NULL && !Pc_CharaPreview_Showing() && Cd_Busy() == 0)
         Nm_TextDrawCentered(cx, (M_PREV_Y0 + M_BTN_Y) / 2 - 8, NM_TEXT_TALL, StringColorId_DarkGrey, "?");
     if (s_page == P_DOWN && s_rowCount > 0 && s_rows[s_scroll.sel].type == R_ITEM &&
         !Cd_PreviewFile(s_rows[s_scroll.sel].idx))
