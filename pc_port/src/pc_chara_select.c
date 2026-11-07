@@ -18,6 +18,8 @@
 #include "main/fileinfo.h"
 #include "main/fsqueue.h"
 #include "lang_text.h"
+#include "pc_chara_dl.h"
+#include "pc_chara_dl_menu.h"
 #include "pc_chara_select.h"
 #include "pc_config.h"
 #include "pc_mouse_cursor.h"
@@ -72,8 +74,8 @@ static void cs_field_update(void)
 #define CS_HIT_PREV   (-3)
 #define CS_HIT_NEXT   (-4)
 
-#define CS_MAX_MODELS  48
-#define CS_TOKEN_MAX   48
+#define CS_MAX_MODELS  160
+#define CS_TOKEN_MAX   64
 
 typedef struct
 {
@@ -225,10 +227,17 @@ static void cs_ilm_name(int charaId, char* out, size_t outSize)
     snprintf(out, outSize, "%s", file);
 }
 
+/* HERO_ swaps show their ini name (or the file name after HERO_); other
+ * files, such as a SIBYL.glb replacement, show as the file. */
 static void cs_file_display(const char* base, char* out, size_t outSize)
 {
     char path[160];
 
+    if (SDL_strncasecmp(base, "HERO", 4) == 0 && base[4] != '\0')
+    {
+        Cd_DisplayName(base, out, (int)outSize);
+        return;
+    }
     snprintf(path, sizeof(path), "gamedata/load/CHARA/%s.glb", base);
     snprintf(out, outSize, "%s.%s", base, cs_file_exists(path) ? "GLB" : "GLTF");
 }
@@ -356,6 +365,80 @@ static void cs_cycle(int dir)
         return;
     SD_Call(Sfx_MenuMove);
     cs_pick(chara, (s_modelCur + (dir < 0 ? -1 : 1) + s_modelCount) % s_modelCount);
+}
+
+/* ---- model picker --------------------------------------------------- */
+
+/* What the picker should mark as current: NULL for the stock model, a file
+ * base, or "*name" for one of Harry's Play As cast. */
+static const char* cs_current_token(int chara, char* buf, size_t sz)
+{
+    if (chara == 0)
+    {
+        int         cur  = Pc_PlayAs_Current();
+        const char* file = Pc_PlayAs_File(cur);
+
+        if (file != NULL)
+            return file;
+        if (Pc_PlayAs_CharaId(cur) == Chara_Harry)
+            return NULL;
+        snprintf(buf, sz, "*%s", Pc_PlayAs_Name(cur));
+        return buf;
+    }
+    if (s_choice[chara][0] == '\0' || strcmp(s_choice[chara], "-") == 0)
+        return NULL;
+    return s_choice[chara];
+}
+
+static void cs_open_picker(void)
+{
+    int  chara = cs_chara_row();
+    char buf[CS_TOKEN_MAX + 2];
+
+    if (chara < 0)
+        return;
+    SD_Call(Sfx_MenuConfirm);
+    Cdm_Open(CDM_PICKER, s_charas[chara].ilm, cs_current_token(chara, buf, sizeof(buf)));
+}
+
+/* Applies what the picker chose to the selected row's model list. */
+static void cs_picker_apply(const char* file)
+{
+    int chara = cs_chara_row();
+    int i;
+
+    if (chara < 0)
+        return;
+    for (i = 0; i < s_modelCount; i++)
+    {
+        const CsModel* m = &s_models[i];
+        int            hit;
+
+        if (file == NULL)
+            hit = (chara == 0) ? (m->kind == CS_M_PLAYAS && Pc_PlayAs_File(m->playasIdx) == NULL &&
+                                  Pc_PlayAs_CharaId(m->playasIdx) == Chara_Harry)
+                               : m->kind == CS_M_STOCK;
+        else if (file[0] == '*')
+            hit = m->kind == CS_M_PLAYAS && strcmp(Pc_PlayAs_Name(m->playasIdx), file + 1) == 0;
+        else if (m->kind == CS_M_PLAYAS)
+            hit = Pc_PlayAs_File(m->playasIdx) != NULL && SDL_strcasecmp(Pc_PlayAs_File(m->playasIdx), file) == 0;
+        else
+            hit = m->kind == CS_M_FILE && SDL_strcasecmp(m->token, file) == 0;
+        if (hit)
+        {
+            cs_pick(chara, i);
+            return;
+        }
+    }
+}
+
+/* After the Additional Characters screens changed the folder. */
+static void cs_rescan(void)
+{
+    cs_scan_files();
+    Pc_PlayAs_Rescan();
+    s_modelsRow = -1;
+    cs_models_for_row();
 }
 
 /* ---- music ---------------------------------------------------------- */
@@ -511,7 +594,7 @@ static void cs_select_row(int row)
 static void cs_download(void)
 {
     SD_Call(Sfx_MenuConfirm);
-    cs_set_status("DOWNLOADS COME WITH THE NEXT UPDATE");
+    Cdm_Open(CDM_HUB, NULL, NULL);
 }
 
 /* 0 when the activation closes the screen. */
@@ -527,7 +610,7 @@ static int cs_activate(void)
         cs_download();
         return 1;
     }
-    cs_cycle(+1);
+    cs_open_picker();
     return 1;
 }
 
@@ -547,6 +630,22 @@ int Pc_CharaSelect_Update(const NmInput* inRaw)
     if (loc.mouseOk)
         loc.mouseX = s_fieldL + (loc.mouseX * CS_FIELD_W) / 320;
     cs_music_tick();
+
+    if (Cdm_IsOpen())
+    {
+        const char* file;
+
+        if (cs_escape_pressed())
+            loc.cancel = 1;
+        if (Cdm_Update(in))
+            return 1;
+        if (Cdm_TakeChanged())
+            cs_rescan();
+        if (Cdm_PickerResult(&file))
+            cs_picker_apply(file);
+        s_escPrev = 1;
+        return 1;
+    }
     back    = cs_escape_pressed();
     oldSel  = s_scroll.sel;
     oldBack = s_onBack;
@@ -598,6 +697,8 @@ int Pc_CharaSelect_Update(const NmInput* inRaw)
         }
         if (hit != s_scroll.sel || s_onBack)
             cs_select_row(hit);
+        else if (s_hoverCol2)
+            cs_open_picker();
         else
             return cs_activate();
     }
@@ -716,7 +817,7 @@ static void cs_rows_draw(void)
 
         if (row == CS_ROW_DOWNLOAD)
         {
-            Nm_SanitizeGlyphs("Download more...", clean, sizeof(clean), 1);
+            Nm_SanitizeGlyphs("Additional Characters...", clean, sizeof(clean), 1);
             w = Nm_TextDrawMarquee(CS_COL1_X0, y, NM_TEXT_TALL, color, clean, CS_COL1_X1 - CS_COL1_X0, sel);
             if (sel)
                 Nm_HighlightDraw(CS_COL1_X0 - 1, CS_COL1_X0 + w + 4, y + 14);
@@ -806,6 +907,12 @@ void Pc_CharaSelect_Draw(void)
     else
         Nm_BlackBackgroundDraw();
 
+    if (Cdm_IsOpen())
+    {
+        Cdm_Draw(s_fieldL, s_fieldR);
+        return;
+    }
+
     Nm_TextDrawCentered(160, CS_HEADING_Y, NM_TEXT_TALL, StringColorId_White, "CHARACTER_SELECT");
     Nm_RuleDraw(CS_COL1_X0, CS_PREV_X1, CS_RULE_Y, 0);
     cs_line(CS_DIV1_X, CS_RULE_Y, CS_DIV1_X, CS_ARROW_DN_Y + 6, 1);
@@ -833,6 +940,11 @@ void Pc_CharaSelect_Draw(void)
 
 void Pc_CharaSelect_PreviewRect(int* x0, int* y0, int* x1, int* y1)
 {
+    if (Cdm_IsOpen())
+    {
+        Cdm_PreviewRect(x0, y0, x1, y1);
+        return;
+    }
     *x0 = CS_PREV_X0 + 3;
     *y0 = CS_PREV_Y0 + 3;
     *x1 = CS_PREV_X1 - 3;
@@ -844,6 +956,8 @@ const char* Pc_CharaSelect_PreviewTarget(const char** file)
     int chara = cs_chara_row();
 
     *file = NULL;
+    if (s_open && Cdm_IsOpen())
+        return Cdm_PreviewTarget(file);
     if (!s_open || chara < 0 || s_modelCount == 0)
         return NULL;
     {
