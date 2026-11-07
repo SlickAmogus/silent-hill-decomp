@@ -250,6 +250,23 @@ static u32 Pc_FarKey(u16 z0, u16 z1, u16 z2, u16 z3)
     return k;
 }
 
+static int s_pcBenchHedgeLate = 0;
+static int s_pcParkShadowAlpha = 255;
+extern void PsyX_SetNextPrimAlpha(int alpha);
+
+/* Ground texture shadows must blend with the paving, not replace a whole
+ * rectangle. Operate on emitted packets only, never on resident materials. */
+static void Pc_ParkShadowPacket(void* prim)
+{
+    P_TAG* packet = (P_TAG*)prim;
+    if (s_pcParkShadowAlpha < 255 && (packet->code & ~3) == 0x3C)
+    {
+        packet->code |= 2;
+        ((POLY_GT4*)prim)->tpage &= ~0x60;
+        PsyX_SetNextPrimAlpha(s_pcParkShadowAlpha);
+    }
+}
+
 static void Pc_FarOtAdd(void* prim, u32 key)
 {
     s32 idx = (key > PC_FAR_OT_BASE) ? (s32)((key - PC_FAR_OT_BASE) >> PC_FAR_OT_SHIFT) : 0;
@@ -261,6 +278,7 @@ static void Pc_FarOtAdd(void* prim, u32 key)
 
 #define SH_ADDPRIM_MESH(tag, sd, shift, prim)                                    \
     do {                                                                        \
+        Pc_ParkShadowPacket(prim);                                               \
         if (g_PsxActorDepth)                                                    \
             PsyX_SetNextPrimSzActor((sd)->field_18C[(sd)->field_380.s_0.field_10], \
                 (sd)->field_18C[(sd)->field_380.s_0.field_11],                  \
@@ -268,7 +286,9 @@ static void Pc_FarOtAdd(void* prim, u32 key)
                 (sd)->field_18C[(sd)->field_380.s_0.field_13 == 0xFF            \
                     ? (sd)->field_380.s_0.field_12 : (sd)->field_380.s_0.field_13], \
                 (sd)->field_380.s_0.field_13 == 0xFF ? 3 : 4);                  \
-        if (s_pcFarOtActive && (sd)->field_380.s_0.field_18 == SH_OT_LAST_DEPTH(shift)) \
+        if (s_pcBenchHedgeLate)                                                  \
+            addPrim(&(tag)[0], (prim));                                          \
+        else if (s_pcFarOtActive && (sd)->field_380.s_0.field_18 == SH_OT_LAST_DEPTH(shift)) \
             Pc_FarOtAdd((prim), Pc_FarKey((u16)(sd)->field_18C[(sd)->field_380.s_0.field_10], \
                 (u16)(sd)->field_18C[(sd)->field_380.s_0.field_11],              \
                 (u16)(sd)->field_18C[(sd)->field_380.s_0.field_12],              \
@@ -2496,6 +2516,86 @@ static bool Pc_SewerRoom13FenceDepthModel(const s_ModelHeader* model)
 #endif
 
 #ifdef SH_PC_PORT
+static bool Pc_TownParkShadowModel(const s_ModelHeader* model)
+{
+    if (model->meshCount != 1 || model->meshHdrs == NULL)
+        return false;
+    return (memcmp(model->name.str, "SHADOW7\0", 8) == 0 &&
+            model->meshHdrs[0].vertexCount == 9 && model->meshHdrs[0].primitiveCount == 4) ||
+           (memcmp(model->name.str, "SYA\0\0\0\0\0", 8) == 0 &&
+            model->meshHdrs[0].vertexCount == 20 && model->meshHdrs[0].primitiveCount == 8);
+}
+
+static bool Pc_TownBenchHedgeInstance(const s_ModelInfo* info)
+{
+    const s_ModelHeader* model = info->modelHdr;
+    const MATRIX* m;
+    if (model->meshCount != 1 || model->meshHdrs == NULL || info->coord == NULL ||
+        !((memcmp(model->name.str, "HEDGE5\0\0", 8) == 0 &&
+           model->meshHdrs[0].vertexCount == 30 && model->meshHdrs[0].primitiveCount == 14) ||
+          ((memcmp(model->name.str, "HEDGE4\0\0", 8) == 0 ||
+            memcmp(model->name.str, "HEDGE6\0\0", 8) == 0) &&
+           model->meshHdrs[0].vertexCount == 40 && model->meshHdrs[0].primitiveCount == 17)))
+        return false;
+    m = &info->coord->workm;
+    return m->t[1] == -38 && m->t[2] == -26112 &&
+           (m->t[0] == 4864 || m->t[0] == 5120 || m->t[0] == 5376) &&
+           m->m[1][1] == 4096 && (m->m[0][0] == 4096 || m->m[0][0] == -4096) &&
+           m->m[2][2] == m->m[0][0] && m->m[0][1] == 0 && m->m[0][2] == 0 &&
+           m->m[1][0] == 0 && m->m[1][2] == 0 && m->m[2][0] == 0 && m->m[2][1] == 0;
+}
+
+static bool Pc_TownFountainDepthModel(const s_ModelHeader* model)
+{
+    static const u8 meshCounts[2][5][2] = {
+        {{83, 68}, {99, 62}, {73, 52}, {76, 59}, {71, 63}},
+        {{90, 64}, {80, 64}, {92, 65}, {52, 29}, {70, 60}}
+    };
+    int variant;
+    int i;
+
+    if (model->meshHdrs == NULL)
+        return false;
+
+    /* The outer basin is split into separate north/south and side groups;
+     * matching only the five-mesh sides misses the rim's corner triangles. */
+    if (memcmp(model->name.str, "RSR0902\0", 8) == 0 ||
+        memcmp(model->name.str, "RSR0903\0", 8) == 0)
+        return model->meshCount == 2 &&
+               model->meshHdrs[0].vertexCount == 85 && model->meshHdrs[0].primitiveCount == 68 &&
+               model->meshHdrs[1].vertexCount == 16 && model->meshHdrs[1].primitiveCount == 7;
+
+    if (memcmp(model->name.str, "RSR1302\0", 8) == 0 ||
+        memcmp(model->name.str, "RSR1303\0", 8) == 0)
+        return model->meshCount == 1 &&
+               model->meshHdrs[0].vertexCount == 93 && model->meshHdrs[0].primitiveCount == 67;
+
+    if (model->meshCount != 5)
+        return false;
+
+    if (memcmp(model->name.str, "RSR0901\0", 8) == 0)
+        variant = 0;
+    else if (memcmp(model->name.str, "RSR1301\0", 8) == 0)
+        variant = 1;
+    else
+        return false;
+
+    for (i = 0; i < 5; i++)
+    {
+        if (model->meshHdrs[i].vertexCount != meshCounts[variant][i][0] ||
+            model->meshHdrs[i].primitiveCount != meshCounts[variant][i][1])
+            return false;
+    }
+    return true;
+}
+
+static bool Pc_TownTrashcanDepthModel(const s_ModelHeader* model)
+{
+    return memcmp(model->name.str, "TRASHCAN", 8) == 0 &&
+           model->meshCount == 1 && model->meshHdrs != NULL &&
+           model->meshHdrs[0].vertexCount == 64 && model->meshHdrs[0].primitiveCount == 43;
+}
+
 static bool Pc_TownHedgeDepthModel(const s_ModelHeader* model)
 {
     const s_MeshHeader* mesh;
@@ -2593,6 +2693,25 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat
             if (g_PcCharaPrimProbeActive) CharaPrimProbe_Note(modelInfo, "func_80057344 chain (unlit)");
             {
                 int prevActorDepth = g_PsxActorDepth;
+                int prevBenchHedgeLate = s_pcBenchHedgeLate;
+                int prevParkShadowAlpha = s_pcParkShadowAlpha;
+                if (g_GameWork.gameState == GameState_InGame && g_SavegamePtr != NULL &&
+                    g_SavegamePtr->mapIdx == MapIdx_MAP5_S01)
+                {
+                    s_pcBenchHedgeLate = g_PsxUsePgxp && Pc_TownBenchHedgeInstance(modelInfo);
+                    if (Pc_TownParkShadowModel(modelHdr) && modelInfo->coord != NULL)
+                    {
+                        const MATRIX* m = &modelInfo->coord->workm;
+                        if ((memcmp(modelHdr->name.str, "SHADOW7\0", 8) == 0 &&
+                             m->t[2] == -26112 &&
+                             ((m->t[0] == 4736 && m->t[1] == -44) ||
+                              ((m->t[0] == 4992 || m->t[0] == 5248 || m->t[0] == 5504) && m->t[1] == -41))) ||
+                            (memcmp(modelHdr->name.str, "SYA\0\0\0\0\0", 8) == 0 &&
+                             m->t[0] == 5120 && m->t[1] == -40 &&
+                             (m->t[2] == -25599 || m->t[2] == -26623)))
+                            s_pcParkShadowAlpha = 48;
+                    }
+                }
                 /* Sewer grates, supports and adjacent wall/borders overlap across
                  * OT buckets. Depth-test these stock models together; testing
                  * only the grate lets a later wall face overwrite it. Keep the
@@ -2616,14 +2735,11 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat
                        (Pc_SewerRoom13GrateBorderDepthModel(modelHdr) ||
                         Pc_SewerRoom13FenceDepthModel(modelHdr)))))
                     g_PsxActorDepth = 1;
-                /* The bin's bottom polygons share coarse OT buckets with its
-                 * side panels. Resolve their self-overlap per pixel instead of
-                 * moving the separate ground shadow ahead of the whole model. */
+                /* The bin's bottom and rim polygons share coarse OT buckets
+                 * with its side panels. Resolve self-overlap wherever this
+                 * stock model is reused in town; leave its ground shadow alone. */
                 if (g_GameWork.gameState == GameState_InGame && g_SavegamePtr != NULL &&
-                    g_SavegamePtr->mapIdx == MapIdx_MAP5_S01 && g_SavegamePtr->mapRoomIdx == 11 &&
-                    memcmp(modelHdr->name.str, "TRASHCAN", 8) == 0 &&
-                    modelHdr->meshCount == 1 && modelHdr->meshHdrs != NULL &&
-                    modelHdr->meshHdrs[0].vertexCount == 64 && modelHdr->meshHdrs[0].primitiveCount == 43)
+                    g_SavegamePtr->mapIdx == MapIdx_MAP5_S01 && Pc_TownTrashcanDepthModel(modelHdr))
                     g_PsxActorDepth = 1;
                 /* Both low and tall stock hedges have folded faces sharing
                  * coarse OT buckets. Resolve the whole hedge family wherever
@@ -2631,8 +2747,16 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat
                 if (g_GameWork.gameState == GameState_InGame && g_SavegamePtr != NULL &&
                     g_SavegamePtr->mapIdx == MapIdx_MAP5_S01 && Pc_TownHedgeDepthModel(modelHdr))
                     g_PsxActorDepth = 1;
+                /* The fountain basin and rim span several meshes whose faces
+                 * share coarse OT buckets. Resolve only the six stock fountain
+                 * groups, leaving nearby paving/decals in painter order. */
+                if (g_GameWork.gameState == GameState_InGame && g_SavegamePtr != NULL &&
+                    g_SavegamePtr->mapIdx == MapIdx_MAP5_S01 && Pc_TownFountainDepthModel(modelHdr))
+                    g_PsxActorDepth = 1;
                 func_80057344(modelInfo, otTag, arg2, viewMat);
                 g_PsxActorDepth = prevActorDepth;
+                s_pcBenchHedgeLate = prevBenchHedgeLate;
+                s_pcParkShadowAlpha = prevParkShadowAlpha;
             }
 #else
             func_80057344(modelInfo, otTag, arg2, viewMat);
@@ -2869,6 +2993,45 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
                 else if (memcmp(modelHdr->name.str, "HEDGE4\0\0", 8) == 0 &&
                          instanceMat->t[0] == -2698)
                     layer = 12;
+            }
+            /* A second row also overlaps at its normal two-unit joins, and
+             * places a full HEDGE5 directly on its HEDGE6 end cap. Alternate
+             * the affected sections and separate the duplicate end section. */
+            if (instanceMat->t[1] == -13 &&
+                (instanceMat->t[2] == -22144 || instanceMat->t[2] == -21120) &&
+                instanceMat->m[0][0] == 4096 && instanceMat->m[1][1] == 4096 &&
+                instanceMat->m[2][2] == 4096 &&
+                instanceMat->m[0][1] == 0 && instanceMat->m[0][2] == 0 &&
+                instanceMat->m[1][0] == 0 && instanceMat->m[1][2] == 0 &&
+                instanceMat->m[2][0] == 0 && instanceMat->m[2][1] == 0 &&
+                memcmp(modelHdr->name.str, "HEDGE5\0\0", 8) == 0)
+            {
+                if (instanceMat->t[2] == -22144)
+                {
+                    if (instanceMat->t[0] == -4608 || instanceMat->t[0] == -3584) layer = 4;
+                    if (instanceMat->t[0] == -2816) layer = 8;
+                }
+                else
+                {
+                    /* The facing row behind the lamp has the same coplanar
+                     * joins, including a half-tile overlap at its corner. */
+                    if (instanceMat->t[0] == -1280 || instanceMat->t[0] == -256) layer = 4;
+                    if (instanceMat->t[0] == -2304) layer = 8;
+                }
+            }
+            /* Opposing copies and adjacent sections of this bench hedge
+             * coincide. Separate only the scratch geometry of these six. */
+            if (Pc_TownBenchHedgeInstance(modelInfo))
+            {
+                s32 i;
+                layer = (instanceMat->t[0] - 4864) / 64;
+                if (instanceMat->m[0][0] > 0)
+                    for (i = 0; i < curMeshHdr->vertexCount; i++)
+                    {
+                        scratchData->screenXy_0[i].vx = scratchData->screenXy_0[i].vx * 95 / 100;
+                        scratchData->screenXy_0[i].vy += 16;
+                        scratchData->field_18C[i] = scratchData->field_18C[i] * 95 / 100;
+                    }
             }
             if (layer != 0)
             {
@@ -6398,10 +6561,11 @@ static int Pc_FarModelEligible(const s_ModelHeader* modelHdr)
         return 0;
     if (Pc_WideLm_IsWide(modelHdr))
         return 0;
-    /* Stock hedge depth and scratch-geometry corrections belong to the mesh
+    /* Stock fountain/bin/hedge depth and scratch corrections belong to the mesh
      * drawer. The whole-map cache otherwise bypasses them entirely. */
     if (g_SavegamePtr != NULL && g_SavegamePtr->mapIdx == MapIdx_MAP5_S01 &&
-        Pc_TownHedgeDepthModel(modelHdr))
+        (Pc_TownHedgeDepthModel(modelHdr) || Pc_TownTrashcanDepthModel(modelHdr) ||
+         Pc_TownFountainDepthModel(modelHdr) || Pc_TownParkShadowModel(modelHdr)))
         return 0;
     b4 = modelHdr->field_B_4;
     if ((b4 & 0xFF) && b4 >= 0 && b4 < 4)
