@@ -153,6 +153,7 @@ function Get-ShippedAssets {
 # it; it ships from its own source folder, pc_port/angle/, json companions
 # included (its Vulkan backend needs vk_swiftshader_icd.json), when present.
 $angleDir = Join-Path $PSScriptRoot "..\pc_port\angle"
+$sdlDir   = Join-Path $PSScriptRoot "..\pc_port\sdl"
 function Get-ShippedRuntimeFiles {
     $objdump = Join-Path $MingwBin "objdump.exe"
     if (-not (Test-Path $objdump)) { throw "objdump not found at $objdump (pass -MingwBin)." }
@@ -175,6 +176,13 @@ function Get-ShippedRuntimeFiles {
 
     if (Test-Path $angleDir) {
         Get-ChildItem $angleDir -File | Where-Object { $_.Extension -in '.dll', '.json' } | ForEach-Object {
+            $out[$_.Name.ToLower()] = [pscustomobject]@{ RelPath = $_.Name; Source = $_.FullName }
+        }
+    }
+    # SDL3 through sdl2-compat (pc_port/sdl/README.md). Laid over the import
+    # walk on purpose: its SDL2.dll is the compat shim and must replace MinGW's.
+    if (Test-Path (Join-Path $sdlDir "SDL3.dll")) {
+        Get-ChildItem $sdlDir -File -Filter "*.dll" | ForEach-Object {
             $out[$_.Name.ToLower()] = [pscustomobject]@{ RelPath = $_.Name; Source = $_.FullName }
         }
     }
