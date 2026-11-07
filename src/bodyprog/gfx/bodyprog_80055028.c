@@ -2495,6 +2495,26 @@ static bool Pc_SewerRoom13FenceDepthModel(const s_ModelHeader* model)
 }
 #endif
 
+#ifdef SH_PC_PORT
+static bool Pc_TownHedgeDepthModel(const s_ModelHeader* model)
+{
+    const s_MeshHeader* mesh;
+
+    if (model->meshCount != 1 || model->meshHdrs == NULL)
+        return false;
+
+    mesh = &model->meshHdrs[0];
+    return ((memcmp(model->name.str, "HEDGE1\0\0", 8) == 0 ||
+             memcmp(model->name.str, "HEDGE3\0\0", 8) == 0) &&
+            mesh->vertexCount == 32 && mesh->primitiveCount == 12) ||
+           ((memcmp(model->name.str, "HEDGE4\0\0", 8) == 0 ||
+             memcmp(model->name.str, "HEDGE6\0\0", 8) == 0) &&
+            mesh->vertexCount == 40 && mesh->primitiveCount == 17) ||
+           (memcmp(model->name.str, "HEDGE5\0\0", 8) == 0 &&
+            mesh->vertexCount == 30 && mesh->primitiveCount == 14);
+}
+#endif
+
 void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat, MATRIX* worldMat, u16 arg5) // 0x80057090
 {
     s32            temp_a0;
@@ -2604,6 +2624,12 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat
                     memcmp(modelHdr->name.str, "TRASHCAN", 8) == 0 &&
                     modelHdr->meshCount == 1 && modelHdr->meshHdrs != NULL &&
                     modelHdr->meshHdrs[0].vertexCount == 64 && modelHdr->meshHdrs[0].primitiveCount == 43)
+                    g_PsxActorDepth = 1;
+                /* Both low and tall stock hedges have folded faces sharing
+                 * coarse OT buckets. Resolve the whole hedge family wherever
+                 * reused in town, without changing fence/street painter order. */
+                if (g_GameWork.gameState == GameState_InGame && g_SavegamePtr != NULL &&
+                    g_SavegamePtr->mapIdx == MapIdx_MAP5_S01 && Pc_TownHedgeDepthModel(modelHdr))
                     g_PsxActorDepth = 1;
                 func_80057344(modelInfo, otTag, arg2, viewMat);
                 g_PsxActorDepth = prevActorDepth;
@@ -2783,6 +2809,77 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
         }
 
 #ifdef SH_PC_PORT
+        /* These stock fence panels extend past their four-unit tile, including
+         * the perpendicular corner. Trim only the scratch copy to the tile. */
+        if (g_GameWork.gameState == GameState_InGame && g_SavegamePtr != NULL &&
+            g_SavegamePtr->mapIdx == MapIdx_MAP5_S01 &&
+            memcmp(modelHdr->name.str, "1411_18_", 8) == 0 &&
+            modelHdr->meshCount == 1 && curMeshHdr->vertexCount == 15 &&
+            curMeshHdr->primitiveCount == 8 && vertOffset == 0 && normalOffset == 0)
+        {
+            s32 i;
+            bool planar = true;
+            for (i = 0; i < 15; i++)
+                if (curMeshHdr->verticesXy[i].vx != 0)
+                    planar = false;
+            if (planar)
+                for (i = 0; i < 15; i++)
+                    scratchData->field_18C[i] = CLAMP(scratchData->field_18C[i], -512, 512);
+        }
+        /* Opposing low-hedge instances share their outer skin. Nest one of
+         * the two orientations slightly inside the other, rather than letting
+         * coincident faces alternate with camera/OT rounding. */
+        if (g_GameWork.gameState == GameState_InGame && g_SavegamePtr != NULL &&
+            g_SavegamePtr->mapIdx == MapIdx_MAP5_S01 && Pc_TownHedgeDepthModel(modelHdr) &&
+            curMeshHdr->vertexCount == 32 && vertOffset == 0 && normalOffset == 0 &&
+            modelInfo->coord != NULL &&
+            (modelInfo->coord->workm.m[0][0] > 0 || modelInfo->coord->workm.m[0][2] > 0))
+        {
+            s32 i;
+            for (i = 0; i < 32; i++)
+            {
+                scratchData->screenXy_0[i].vx = scratchData->screenXy_0[i].vx * 95 / 100;
+                scratchData->screenXy_0[i].vy += 4;
+                scratchData->field_18C[i] = scratchData->field_18C[i] * 95 / 100;
+            }
+        }
+        /* This short town hedge row places full-width sections one unit apart.
+         * Their top and side skins coincide: true depth alone still ties them.
+         * Stagger only these authored instances in the scratch copy, in both
+         * local Y and Z (at most 12/256 world units). Do not stretch their UVs,
+         * remove reverse faces, or alter the shared model/collision data. */
+        if (g_GameWork.gameState == GameState_InGame && g_SavegamePtr != NULL &&
+            g_SavegamePtr->mapIdx == MapIdx_MAP5_S01 && Pc_TownHedgeDepthModel(modelHdr) &&
+            vertOffset == 0 && normalOffset == 0 && modelInfo->coord != NULL)
+        {
+            const MATRIX* instanceMat = &modelInfo->coord->workm;
+            s32 layer = 0;
+            if (instanceMat->t[1] == -13 && instanceMat->t[2] == -29568 &&
+                instanceMat->m[0][0] == -4096 && instanceMat->m[1][1] == 4096 &&
+                instanceMat->m[2][2] == -4096 &&
+                instanceMat->m[0][1] == 0 && instanceMat->m[0][2] == 0 &&
+                instanceMat->m[1][0] == 0 && instanceMat->m[1][2] == 0 &&
+                instanceMat->m[2][0] == 0 && instanceMat->m[2][1] == 0)
+            {
+                if (memcmp(modelHdr->name.str, "HEDGE5\0\0", 8) == 0)
+                {
+                    if (instanceMat->t[0] == -3200) layer = 4;
+                    if (instanceMat->t[0] == -2944) layer = 8;
+                }
+                else if (memcmp(modelHdr->name.str, "HEDGE4\0\0", 8) == 0 &&
+                         instanceMat->t[0] == -2698)
+                    layer = 12;
+            }
+            if (layer != 0)
+            {
+                s32 i;
+                for (i = 0; i < curMeshHdr->vertexCount; i++)
+                {
+                    scratchData->screenXy_0[i].vy += layer;
+                    scratchData->field_18C[i] += layer;
+                }
+            }
+        }
         /* The Indian Runner entrance mat is authored coplanar with the floor.
          * Room-local depth testing exposes that overlap. Lift only its twelve
          * vertices in the per-draw scratch copy (16/256 world units), leaving
@@ -6300,6 +6397,11 @@ static int Pc_FarModelEligible(const s_ModelHeader* modelHdr)
     if (modelHdr == NULL || modelHdr->meshHdrs == NULL || modelHdr->field_B_0)
         return 0;
     if (Pc_WideLm_IsWide(modelHdr))
+        return 0;
+    /* Stock hedge depth and scratch-geometry corrections belong to the mesh
+     * drawer. The whole-map cache otherwise bypasses them entirely. */
+    if (g_SavegamePtr != NULL && g_SavegamePtr->mapIdx == MapIdx_MAP5_S01 &&
+        Pc_TownHedgeDepthModel(modelHdr))
         return 0;
     b4 = modelHdr->field_B_4;
     if ((b4 & 0xFF) && b4 >= 0 && b4 < 4)
