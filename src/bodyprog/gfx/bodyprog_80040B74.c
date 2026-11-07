@@ -2148,10 +2148,19 @@ int Pc_WholeMapEnabled(void)
      * Nothing far off is lit enough to see, and drawing the whole town there
      * still costs as much as in daylight. */
     if (g_PcConfig.wholeMapExteriors == 2)
-        return g_PsyX_FogStrength < 1.0f &&
+        return g_PsyX_FogStrength < 1.0f && g_PcConfig.worldVisibility &&
                (g_WorldEnvWork.fog.color.r >= 40 || g_WorldEnvWork.fog.color.g >= 40 ||
                 g_WorldEnvWork.fog.color.b >= 40);
     return g_PcConfig.wholeMapExteriors != 0;
+}
+
+int Pc_WorldVisCap(int stock)
+{
+    extern float g_PsyX_FogStrength;
+
+    if (g_PsyX_FogStrength >= 1.0f || !g_PcConfig.worldVisibility || stock <= 0)
+        return stock;
+    return 0x7FFFFFFF;
 }
 
 int Pc_WholeMapDrawActive(void)

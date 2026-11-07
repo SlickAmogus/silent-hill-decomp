@@ -79,7 +79,7 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_CAMSTYLE, QO_X_OTSSIDE, QO_X_CROSSHAIRSTYLE,
        QO_X_LINEGAP, QO_X_CHARALIGHT, QO_X_PPLIGHT, QO_X_HEROLIGHT, QO_X_HEROLIGHTFL, QO_X_FACEANIM,
        QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD,
-       QO_X_GYROAIM, QO_X_GYROSENS, QO_X_GYROMOVE, QO_X_FLASHAIM };
+       QO_X_GYROAIM, QO_X_GYROSENS, QO_X_GYROMOVE, QO_X_FLASHAIM, QO_X_WORLDVIS };
 extern const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz);
 extern void        PcOpt_QuickExtraAdjust(int which, int dir);
 extern void        PcOpt_QuickViewReset(int mode);
@@ -178,6 +178,7 @@ static const QoRowDef s_page0[] = {
     { ROW_OPT,   "post_process",         0, NULL },
     { ROW_OPT,   "tonemap",              0, NULL },
     { ROW_OPT,   "fog_strength",         0, NULL },
+    { ROW_EXTRA, NULL, QO_X_WORLDVIS,       "World Visibility" },  /* fog below 1.0 only: qo_page0_rows */
     { ROW_OPT,   "flashlight_mode",      0, NULL },
     { ROW_OPT,   "flashlight_intensity", 0, NULL },
     { ROW_OPT,   "flashlight_size",      0, NULL },
@@ -544,6 +545,36 @@ static const QoRowDef* qo_controls_page(int* count)
 }
 #endif
 
+/* World Visibility only exists below fog 1.0, where the fog plane no longer
+ * ends the view, so the page drops the row otherwise. Filtered here, before
+ * the mobile chunker, so the phone pages are cut from the same list. */
+static const QoRowDef* qo_page0_rows(int* count)
+{
+    static QoRowDef s_noWv[sizeof(s_page0) / sizeof(s_page0[0])];
+    static int      s_noWvCount = 0, s_lastShow = -1;
+    int             show = g_PcConfig.fogStrength < 1.0f;
+    int             i;
+
+    if (show != s_lastShow)
+    {
+        s_lastShow      = show;
+        s_viewRowsDirty = 1;
+    }
+    if (show)
+    {
+        *count = (int)(sizeof(s_page0) / sizeof(s_page0[0]));
+        return s_page0;
+    }
+    if (s_noWvCount == 0)
+    {
+        for (i = 0; i < (int)(sizeof(s_page0) / sizeof(s_page0[0])); i++)
+            if (!(s_page0[i].kind == ROW_EXTRA && s_page0[i].extra == QO_X_WORLDVIS))
+                s_noWv[s_noWvCount++] = s_page0[i];
+    }
+    *count = s_noWvCount;
+    return s_noWv;
+}
+
 static const QoRowDef* qo_section_rows(int page, int* count)
 {
 #if defined(QO_MOBILE)
@@ -555,8 +586,7 @@ static const QoRowDef* qo_section_rows(int page, int* count)
     if (page == 2) return qo_view_page(count);
     if (page == 3) return qo_cheat_page(PC_CHEATS_PAGE_CHEATS, "Next page  (Debug)",    count);
     if (page == 4) return qo_cheat_page(PC_CHEATS_PAGE_DEBUG,  "Next page  (Controls)", count);
-    *count = (int)(sizeof(s_page0) / sizeof(s_page0[0]));
-    return s_page0;
+    return qo_page0_rows(count);
 }
 
 static const char* const s_pageTitles[QO_PAGES] = {

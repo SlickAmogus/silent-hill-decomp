@@ -982,7 +982,7 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_CAMSTYLE, QO_X_OTSSIDE, QO_X_CROSSHAIRSTYLE,
        QO_X_LINEGAP, QO_X_CHARALIGHT, QO_X_PPLIGHT, QO_X_HEROLIGHT, QO_X_HEROLIGHTFL, QO_X_FACEANIM,
        QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD,
-       QO_X_GYROAIM, QO_X_GYROSENS, QO_X_GYROMOVE, QO_X_FLASHAIM };
+       QO_X_GYROAIM, QO_X_GYROSENS, QO_X_GYROMOVE, QO_X_FLASHAIM, QO_X_WORLDVIS };
 
 /* display_aspect = crt puts the picture on (4:3 x trim), so one framebuffer
  * pixel lands on screen this many times wider than tall at trim 1.0. It is the
@@ -1106,6 +1106,8 @@ const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz)
         return Pc_LangQuickMenu(g_PcConfig.heroLightWithFlashlight ? "On" : "Off");
     case QO_X_FACEANIM:
         return Pc_LangQuickMenu(g_PcConfig.charaFaceAnim ? "On" : "Off");
+    case QO_X_WORLDVIS:
+        return g_PcConfig.worldVisibility ? Pc_LangQuick("Full") : Pc_LangQuickMenu("Off");
     case QO_X_CROSSHAIRMELEE:
         return Pc_LangQuickMenu(g_PcConfig.crosshairHideMelee ? "On" : "Off");
     case QO_X_GYROAIM: {
@@ -1626,6 +1628,12 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
         Sd_PlaySfx(Sfx_MenuMove, 0, 64);
         break;
     }
+    /* Read by every far cap each frame, so it applies live. */
+    case QO_X_WORLDVIS:
+        g_PcConfig.worldVisibility = !g_PcConfig.worldVisibility;
+        PcConfig_SaveKeyValue("world_visibility", g_PcConfig.worldVisibility ? "1" : "0");
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        break;
     /* Read by the skinned-character draw each frame, so it applies live. */
     case QO_X_FACEANIM:
         g_PcConfig.charaFaceAnim = !g_PcConfig.charaFaceAnim;
