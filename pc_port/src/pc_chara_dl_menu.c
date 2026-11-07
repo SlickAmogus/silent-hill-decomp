@@ -93,6 +93,7 @@ static char      s_dialogText[160];
 
 /* Picker. */
 static char s_pickStock[16];
+static int  s_pickStockId;
 static char s_pickCur[64];
 static int  s_pickDone;
 static char s_pickFile[64];
@@ -160,6 +161,17 @@ static void m_plusminus(int x, int y, int expanded)
     m_line(x, cy, x + 6, cy, 0xC0, 0xC0, 0xC0);
     if (!expanded)
         m_line(x + 3, cy - 3, x + 3, cy + 3, 0xC0, 0xC0, 0xC0);
+}
+
+/* The picker's stock row by name: the Play As cast entry for that body. */
+static const char* m_stock_label(void)
+{
+    int i;
+
+    for (i = 0; i < Pc_PlayAs_Count(); i++)
+        if (Pc_PlayAs_File(i) == NULL && Pc_PlayAs_CharaId(i) == s_pickStockId)
+            return Pc_PlayAs_Label(i);
+    return "Original model";
 }
 
 static void m_text(int x, int y, int color, const char* s, int maxW, int sel)
@@ -554,8 +566,9 @@ static void m_set_page(int page)
 /* ------------------------------------------------------------------------ */
 /* open / close                                                              */
 
-void Cdm_Open(int page, const char* stock, const char* current)
+void Cdm_Open(int page, const char* stock, const char* current, int stockCharaId)
 {
+    s_pickStockId = stockCharaId;
     s_open    = 1;
     s_closing = 0;
     s_dialog  = D_NONE;
@@ -973,7 +986,7 @@ static void m_rows_draw(void)
         if (r->type == R_STOCK)
         {
             int cur = s_pickCur[0] == '\0';
-            snprintf(label, sizeof(label), "Original model%s", cur ? "  *" : "");
+            snprintf(label, sizeof(label), "%s%s", m_stock_label(), cur ? "  *" : "");
             m_text(x, y, color, label, M_LIST_X1 - x, sel);
             continue;
         }
@@ -1045,7 +1058,11 @@ static void m_info_draw(void)
             snprintf(author, sizeof(author), "%s", Cd_GroupGet(s_cats[r->cat].group)->author);
     }
     else if (r->type == R_STOCK)
-        snprintf(name, sizeof(name), "Original model");
+    {
+        snprintf(name, sizeof(name), "%s", m_stock_label());
+        snprintf(game, sizeof(game), "Silent Hill");
+        snprintf(author, sizeof(author), "Konami");
+    }
     else if (r->type == R_PLAYAS)
     {
         snprintf(name, sizeof(name), "%s", Pc_PlayAs_Label(r->idx));
@@ -1224,6 +1241,20 @@ const char* Cdm_PreviewTarget(const char** file)
         }
     }
     return s_page == P_PICK ? s_pickStock : "HERO";
+}
+
+int Cdm_PreviewStockId(void)
+{
+    const MRow* r;
+
+    if (!s_open || s_page != P_PICK || s_rowCount == 0 || s_scroll.sel >= s_rowCount || s_dialog != D_NONE)
+        return -1;
+    r = &s_rows[s_scroll.sel];
+    if (r->type == R_STOCK)
+        return s_pickStockId;
+    if (r->type == R_PLAYAS)
+        return Pc_PlayAs_CharaId(r->idx);
+    return -1;
 }
 
 void Cdm_PreviewRect(int* x0, int* y0, int* x1, int* y1)
