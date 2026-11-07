@@ -788,8 +788,10 @@ static int qm_view(int out[QM_MAX_MODS + 1])
         else if (qm_grouped(&s_mods[i]))
             grouped = 1;
     }
-    if (s_mode != QM_GROUP && grouped)
-        out[n++] = QM_ROW_GROUP;
+    /* Characters moved to Character Select's Additional Characters, which
+     * downloads them one at a time and lists installed packs there. The old
+     * packs stay installed (and still update), they just are not offered here. */
+    (void)grouped;
     return n;
 }
 
