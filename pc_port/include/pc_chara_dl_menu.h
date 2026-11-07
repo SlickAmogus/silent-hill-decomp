@@ -16,7 +16,7 @@ enum { CDM_HUB, CDM_PICKER };
 
 /* picker: `stock` is the stock model name the list picks a model for (HERO,
  * SIBYL...), `current` the chosen file base or NULL for the stock model. */
-void Cdm_Open(int page, const char* stock, const char* current);
+void Cdm_Open(int page, const char* stock, const char* current, int stockCharaId);
 int  Cdm_IsOpen(void);
 /* 0 once the screen closes back to Character Select. */
 int  Cdm_Update(const NmInput* in);
@@ -26,6 +26,8 @@ int  Cdm_PickerResult(const char** file);
 /* Preview: the file to show fitted to HERO (or the picker's stock model). */
 const char* Cdm_PreviewTarget(const char** file);
 void Cdm_PreviewRect(int* x0, int* y0, int* x1, int* y1);
+/* The stock character the selected row stands for (Chara_*), or -1. */
+int  Cdm_PreviewStockId(void);
 /* Set after anything was installed, removed or switched, so the host rescans. */
 int  Cdm_TakeChanged(void);
 

@@ -17,7 +17,8 @@ extern "C" {
  * WorldGfx_HarryCharaLoad. Only retargets table rows; the boot load and
  * WorldGfx_PlayerModelProcessLoad do the rest. */
 void Pc_PlayAs_Init(void);
-void Pc_PlayAs_Rescan(void);                         /* after swap files were added or removed */
+void Pc_PlayAs_Rescan(void);
+const char* const* Pc_PlayAs_HiddenPartsFor(int charaId); /* props to hide on a stock body, or NULL */                         /* after swap files were added or removed */
 
 int         Pc_PlayAs_Count(void);
 int         Pc_PlayAs_Current(void);
