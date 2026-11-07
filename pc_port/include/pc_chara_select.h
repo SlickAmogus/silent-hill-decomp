@@ -19,6 +19,7 @@ extern "C" {
 
 void Pc_CharaSelect_Init(void);                                        /* after Pc_PlayAs_Init */
 void Pc_CharaSelect_ConfigKey(const char* name, const char* value);    /* config: chara_model_NAME */
+void Pc_CharaSelect_ResetAll(void);                                    /* reset all settings */
 
 void Pc_CharaSelect_Open(void);
 int  Pc_CharaSelect_IsOpen(void);
