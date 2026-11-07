@@ -118,6 +118,15 @@ void Bgm_GlobalLayerVariablesUpdate(void) // 0x80035ED0
     g_SysWork.bgmLayerVolumes[ARRAY_SIZE(g_SysWork.bgmLayerVolumes) - 1] = Q12(0.0f);
 }
 
+#ifdef SH_PC_PORT
+/* Character Select plays the results track over whatever was on. The map
+ * keeps calling this with its own layers while the quick menu is up (the game
+ * does not pause), which would fade the results track's layers out again, so
+ * while the screen owns the music only its own call gets through. */
+int g_PcMenuMusicOwner;
+int g_PcMenuMusicCall;
+#endif
+
 void Bgm_Update(s32 bgmFlags, q19_12 fadeSpeed, s_BgmLayerLimits* layerLimits) // 0x80035F4C
 {
     s16       temp_v0;
@@ -136,6 +145,11 @@ void Bgm_Update(s32 bgmFlags, q19_12 fadeSpeed, s_BgmLayerLimits* layerLimits) /
     q3_12*    layerVols;
     u8*       layerLimitsCpy;
     static s8 bgmLayerVolumes[8];
+
+#ifdef SH_PC_PORT
+    if (g_PcMenuMusicOwner && !g_PcMenuMusicCall)
+        return;
+#endif
 
     // Setup.
     flagsCpy       = bgmFlags;
