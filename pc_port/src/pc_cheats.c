@@ -257,7 +257,7 @@ static const CheatRow s_cheats[] = {
     { "Hunting rifle +30",    CH_ACTION,  NULL, act_rifle },
     { "Shotgun +30",          CH_ACTION,  NULL, act_shotgun },
     { "Kill nearby enemies",  CH_ACTION,  NULL, act_kill_nearby },
-    { "Play as",              CH_PLAYAS,  NULL, NULL },
+    { "Character menu",       CH_ACTION,  NULL, act_chara_menu },
     { "Free camera",          CH_FREECAM, NULL, NULL },
 };
 
