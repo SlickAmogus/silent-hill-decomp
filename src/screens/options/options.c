@@ -1805,6 +1805,11 @@ void Pc_Options_ResetToDefaults(void)
          * not a table row; Pc_ControlStyleSet swaps the binds and saves it. */
         g_PcConfig.controlStyle = d->controlStyle;
         Pc_ControlStyleSet(d->controlStyle);
+        /* Character Select's choices are settings too. */
+        {
+            extern void Pc_CharaSelect_ResetAll(void);
+            Pc_CharaSelect_ResetAll();
+        }
     }
     SH_DBG_ECHO("Settings reset to defaults (resolution and window mode kept).");
 }
