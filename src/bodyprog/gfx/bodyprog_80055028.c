@@ -2516,6 +2516,15 @@ static bool Pc_SewerRoom13FenceDepthModel(const s_ModelHeader* model)
 #endif
 
 #ifdef SH_PC_PORT
+static bool Pc_TownMotelFacadeDepthModel(const s_ModelHeader* model)
+{
+    /* Adjacent stock facade blocks overlap at the jamb of motel door 2. */
+    return (memcmp(model->name.str, "MT122_2_", 8) == 0 ||
+            memcmp(model->name.str, "MT122_3_", 8) == 0) &&
+           model->meshCount == 1 && model->meshHdrs != NULL &&
+           model->meshHdrs[0].vertexCount == 90 && model->meshHdrs[0].primitiveCount == 72;
+}
+
 static bool Pc_TownParkShadowModel(const s_ModelHeader* model)
 {
     if (model->meshCount != 1 || model->meshHdrs == NULL)
@@ -2752,6 +2761,10 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat
                  * groups, leaving nearby paving/decals in painter order. */
                 if (g_GameWork.gameState == GameState_InGame && g_SavegamePtr != NULL &&
                     g_SavegamePtr->mapIdx == MapIdx_MAP5_S01 && Pc_TownFountainDepthModel(modelHdr))
+                    g_PsxActorDepth = 1;
+                if (g_GameWork.gameState == GameState_InGame && g_SavegamePtr != NULL &&
+                    g_SavegamePtr->mapIdx == MapIdx_MAP5_S01 &&
+                    Pc_TownMotelFacadeDepthModel(modelHdr))
                     g_PsxActorDepth = 1;
                 func_80057344(modelInfo, otTag, arg2, viewMat);
                 g_PsxActorDepth = prevActorDepth;
@@ -6565,7 +6578,8 @@ static int Pc_FarModelEligible(const s_ModelHeader* modelHdr)
      * drawer. The whole-map cache otherwise bypasses them entirely. */
     if (g_SavegamePtr != NULL && g_SavegamePtr->mapIdx == MapIdx_MAP5_S01 &&
         (Pc_TownHedgeDepthModel(modelHdr) || Pc_TownTrashcanDepthModel(modelHdr) ||
-         Pc_TownFountainDepthModel(modelHdr) || Pc_TownParkShadowModel(modelHdr)))
+         Pc_TownFountainDepthModel(modelHdr) || Pc_TownParkShadowModel(modelHdr) ||
+         Pc_TownMotelFacadeDepthModel(modelHdr)))
         return 0;
     b4 = modelHdr->field_B_4;
     if ((b4 & 0xFF) && b4 >= 0 && b4 < 4)
