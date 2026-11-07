@@ -520,6 +520,7 @@ static const char* const HELP_LINES[] = {
     " kf [n]         keyframe viewer: toggle, or view frame n",
     " playas [name]  play as another character (bare = list)",
     " playas next / previous  cycle characters (bindable)",
+    " charmenu (cmenu)  open or close Character Select (bindable)",
     " gpubench       GPU cost of each graphics setting here (stand still ~20 s)",
     " skinini        re-read the character models' .ini files",
     " minimapnomap [0|1]  minimap before the map is found: 0 hide, 1 empty panel",
@@ -2547,6 +2548,24 @@ void Pc_ConsoleExec(const char* line)
     } else if (strcmp(cmd, "SKININI") == 0) {
         extern int Pc_SkinChara_ReloadSettings(void);
         cprintf("re-read %d character .ini file(s)", Pc_SkinChara_ReloadSettings());
+    } else if (strcmp(cmd, "CHARMENU") == 0 || strcmp(cmd, "CMENU") == 0) {
+        /* Hosted by the quick menu, which runs its input and freezes the
+         * world under it, so open that first. Again from a key closes both. */
+        extern int  Pc_CharaSelect_IsOpen(void);
+        extern void Pc_CharaSelect_Open(void);
+        extern int  Pc_QuickOptions_IsOpen(void);
+        extern void Pc_QuickOptions_Toggle(void);
+        extern void Pc_QuickOptions_Close(void);
+        if (Pc_CharaSelect_IsOpen()) {
+            Pc_QuickOptions_Close();
+        } else {
+            if (!Pc_QuickOptions_IsOpen())
+                Pc_QuickOptions_Toggle();
+            if (Pc_QuickOptions_IsOpen())
+                Pc_CharaSelect_Open();
+            else
+                cprintf("Character Select is not available here");
+        }
     } else if (strcmp(cmd, "PLAYAS") == 0) {
         extern int         Pc_PlayAs_SetByName(const char* name, int save);
         extern int         Pc_PlayAs_Current(void);
