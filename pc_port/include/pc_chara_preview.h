@@ -9,6 +9,8 @@ extern "C" {
 /* From the post-capture GL hook: draws Character Select's model preview into
  * the screen's third column while the screen is open. */
 void Pc_CharaPreview_Draw(void);
+/* The last frame drew a model, so the screens leave their placeholder off. */
+int  Pc_CharaPreview_Showing(void);
 
 #ifdef __cplusplus
 }
