@@ -8301,3 +8301,8 @@ PL: (używana własna kopia)
 NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
 EN: Don't ask again
 PL: Nie pytaj ponownie
+
+[QUICK.Your_QoL_character_packs_are_now_part_of_Additional_Characters._Download_the_new_versions?]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Your QoL character packs are now part of Additional Characters. Download the new versions?
+PL: Twoje paczki postaci QoL są teraz częścią dodatkowych postaci. Pobrać nowe wersje?

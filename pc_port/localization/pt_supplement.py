@@ -156,3 +156,10 @@ QUICK = dict(globals().get('QUICK', {}))
 QUICK.update({
     "Don't ask again": 'Não perguntar de novo',
 })
+
+
+# Character Select / Additional Characters.
+QUICK = dict(globals().get('QUICK', {}))
+QUICK.update({
+    'Your QoL character packs are now part of Additional Characters. Download the new versions?': 'Seus pacotes de personagens QoL agora fazem parte dos personagens adicionais. Baixar as novas versões?',
+})

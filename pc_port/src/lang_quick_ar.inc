@@ -313,4 +313,6 @@ static const s_QuickAr s_MenuArTr[] = {
     { "(custom copy in use)", "(تُستخدم نسخة مخصصة)" },
     /* Character Select / Additional Characters. */
     { "Don't ask again", "لا تسأل مرة أخرى" },
+    /* Character Select / Additional Characters. */
+    { "Your QoL character packs are now part of Additional Characters. Download the new versions?", "أصبحت حزم شخصيات QoL جزءًا من الشخصيات الإضافية. هل تريد تنزيل الإصدارات الجديدة؟" },
 };
