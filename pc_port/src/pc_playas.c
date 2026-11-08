@@ -34,6 +34,7 @@
 #include "main/fileinfo.h"
 
 #include "pc_playas.h"
+#include "pc_chara_dl.h"
 #include "pc_big_lm.h"
 #include "pc_config.h"
 #include "pc_skin_chara.h"
@@ -126,16 +127,22 @@ static int PlayAs_SwapCmp(const void* a, const void* b)
 
 static int PlayAs_Roster(void)
 {
+    /* The load order: a file in load/CHARA keeps its name over a download. */
+    static const char* const dirs[2] = { "gamedata/load/CHARA", CD_DL_DIR };
     DIR* d;
     struct dirent* e;
-    int i;
+    int i, di;
 
     if (s_playCount > 0)
         return s_playCount;
     for (i = 0; i < PLAYAS_BUILTIN; i++)
         s_playable[s_playCount++] = s_builtin[i];
-    if (!g_PcConfig.allowLooseFiles || (d = opendir("gamedata/load/CHARA")) == NULL)
+    if (!g_PcConfig.allowLooseFiles)
         return s_playCount;
+    for (di = 0; di < 2; di++)
+    {
+    if ((d = opendir(dirs[di])) == NULL)
+        continue;
     while ((e = readdir(d)) != NULL && s_playCount < PLAYAS_BUILTIN + PLAYAS_SWAP_MAX)
     {
         PcPlayAsSwap* sw = &s_swaps[s_playCount - PLAYAS_BUILTIN];
@@ -163,7 +170,8 @@ static int PlayAs_Roster(void)
         sw->file[len] = '\0';
         if (PlayAs_NameTaken(sw->name))
         {
-            SH_DBG("[PLAYAS] %s: the name \"%s\" is already taken, skipped", n, sw->name);
+            if (di == 0)
+                SH_DBG("[PLAYAS] %s: the name \"%s\" is already taken, skipped", n, sw->name);
             continue;
         }
         memset(&s_playable[s_playCount], 0, sizeof(s_playable[0]));
@@ -175,6 +183,7 @@ static int PlayAs_Roster(void)
         SH_DBG("[PLAYAS] Harry swap %s -> PLAYAS %s", n, sw->name);
     }
     closedir(d);
+    }
     /* readdir order is the filesystem's, so sort or the cycle order would
      * differ per machine. */
     qsort(&s_playable[PLAYAS_BUILTIN], (size_t)(s_playCount - PLAYAS_BUILTIN),

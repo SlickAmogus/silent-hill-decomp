@@ -211,14 +211,22 @@ static int cs_file_exists(const char* path)
 
 static void cs_scan_files(void)
 {
+    static const char* const dirs[2] = { "gamedata/load/CHARA", CD_DL_DIR };
     DIR*           d;
     struct dirent* e;
+    int            di;
 
     s_fileCount = 0;
-    if (!g_PcConfig.allowLooseFiles || (d = opendir("gamedata/load/CHARA")) == NULL)
+    if (!g_PcConfig.allowLooseFiles)
         return;
+    for (di = 0; di < 2; di++)
+    {
+    if ((d = opendir(dirs[di])) == NULL)
+        continue;
     while ((e = readdir(d)) != NULL && s_fileCount < CS_MAX_MODELS)
     {
+        int dup = 0, k;
+
         const char* dot = strrchr(e->d_name, '.');
         size_t      n;
 
@@ -232,9 +240,13 @@ static void cs_scan_files(void)
             continue;
         memcpy(s_files[s_fileCount], e->d_name, n);
         s_files[s_fileCount][n] = '\0';
-        s_fileCount++;
+        for (k = 0; k < s_fileCount && !dup; k++)
+            dup = SDL_strcasecmp(s_files[k], s_files[s_fileCount]) == 0;
+        if (!dup)
+            s_fileCount++;
     }
     closedir(d);
+    }
 }
 
 /* HERO_ swaps show their ini name (or the file name after HERO_); other
@@ -248,7 +260,12 @@ static void cs_file_display(const char* base, char* out, size_t outSize)
         Cd_DisplayName(base, out, (int)outSize);
         return;
     }
-    snprintf(path, sizeof(path), "gamedata/load/CHARA/%s.glb", base);
+    {
+        char rb[160];
+
+        snprintf(path, sizeof(path), "gamedata/load/CHARA/%s", base);
+        snprintf(path, sizeof(path), "%s.glb", Cd_ResolveBase(path, rb, (int)sizeof(rb)));
+    }
     snprintf(out, outSize, "%s.%s", base, cs_file_exists(path) ? "GLB" : "GLTF");
 }
 

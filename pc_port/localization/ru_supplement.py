@@ -418,3 +418,10 @@ QUICK.update({
     'Puppet Nurse': 'Медсестра-марионетка',
     'Puppet Doctor': 'Доктор-марионетка',
 })
+
+
+# Character Select / Additional Characters.
+QUICK = dict(globals().get('QUICK', {}))
+QUICK.update({
+    '(custom copy in use)': '(используется своя копия)',
+})

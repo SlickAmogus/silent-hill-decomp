@@ -187,18 +187,6 @@ static void m_small(int x, int y, int color, const char* s, int maxW)
     Ct_Small(x, y, color, s, maxW);
 }
 
-/* One more {placeholder} on top of Ct_Fill's one. */
-static void m_fill2(char* out, int outSz, const char* en, const char* name, int n)
-{
-    const char* t = Ct_Fill(en, "{name}", name);
-    const char* at = strstr(t, "{n}");
-
-    if (at == NULL)
-        snprintf(out, (size_t)outSz, "%s", t);
-    else
-        snprintf(out, (size_t)outSz, "%.*s%d%s", (int)(at - t), t, n, at + 3);
-}
-
 /* ------------------------------------------------------------------------ */
 /* model of each page                                                        */
 
@@ -242,14 +230,18 @@ static int m_item_cmp_name(const int* a, const int* b)
     return SDL_strcasecmp(m_item_name(*a), m_item_name(*b));
 }
 
-/* The category a picker row sorts under: its category, else its author,
- * else Other. */
+/* The category a picker row sorts under: its category, else its author (the
+ * ini's, else its pack's), else the pack it came in, else Other. */
 static void m_pick_cat(const CdLocal* l, char* out, int outSz)
 {
+    const CdGroup* g = Cd_GroupGet(l->group);
+
     if (l->category[0])
         snprintf(out, (size_t)outSz, "%s", l->category);
     else if (l->author[0])
         snprintf(out, (size_t)outSz, "%s", l->author);
+    else if (g != NULL && g->source == CD_SRC_PACK && g->name[0])
+        snprintf(out, (size_t)outSz, "%s", g->name);
     else
         snprintf(out, (size_t)outSz, "Other");
 }
@@ -416,14 +408,8 @@ static void m_install(int idx, int confirmed)
 {
     const CdEntry* e = Cd_CatalogGet(idx);
 
-    if (!confirmed && Cd_HasForeignCopy(e))
-    {
-        s_pendingIdx = idx;
-        snprintf(s_dialogText, sizeof(s_dialogText), "%s", Ct_Fill("Replace your installed {name}?", "{name}", e->name));
-        s_dialog = D_REPLACE;
-        NmConfirm_Open(&s_confirm);
-        return;
-    }
+    (void)e;
+    (void)confirmed;
     Cd_QueueInstall(idx);
     s_changed = 1;
 }
@@ -442,25 +428,12 @@ static void m_toggle_item(int idx)
 
 static void m_toggle_category(int c, int confirmed)
 {
-    int i, all = 1, foreign = 0;
+    int i, all = 1;
 
+    (void)confirmed;
     for (i = 0; i < Cd_CatalogCount(); i++)
-        if (strcmp(Cd_CatalogGet(i)->category, s_cats[c].name) == 0)
-        {
-            if (!Cd_IsDownloaded(Cd_CatalogGet(i)))
-                all = 0;
-            if (Cd_HasForeignCopy(Cd_CatalogGet(i)))
-                foreign++;
-        }
-    if (!all && foreign && !confirmed)
-    {
-        s_pendingIdx = -(c + 1);
-        m_fill2(s_dialogText, (int)sizeof(s_dialogText), "Replace {n} installed file(s) in {name}?",
-                Ct_Tr(s_cats[c].name), foreign);
-        s_dialog = D_REPLACE;
-        NmConfirm_Open(&s_confirm);
-        return;
-    }
+        if (strcmp(Cd_CatalogGet(i)->category, s_cats[c].name) == 0 && !Cd_IsDownloaded(Cd_CatalogGet(i)))
+            all = 0;
     SD_Call(Sfx_MenuConfirm);
     for (i = 0; i < Cd_CatalogCount(); i++)
         if (strcmp(Cd_CatalogGet(i)->category, s_cats[c].name) == 0)
@@ -1022,8 +995,9 @@ static void m_rows_draw(void)
             int            st = Cd_IsDownloaded(e) ? 1 : 0;
 
             m_checkbox(x, y, st, sel);
-            snprintf(label, sizeof(label), "%s%s%s", e->name, Cd_NeedsUpdate(e) ? " " : "",
-                     Cd_NeedsUpdate(e) ? Ct_Tr("(update)") : "");
+            const char* tag = Cd_NeedsUpdate(e) ? Ct_Tr("(update)") : Cd_CustomCopyWins(e) ? Ct_Tr("(custom copy in use)") : "";
+
+            snprintf(label, sizeof(label), "%s%s%s", e->name, tag[0] ? " " : "", tag);
         }
         else if (s_page == P_LOCAL)
         {
