@@ -88,7 +88,7 @@ static MCat s_cats[M_MAX_CATS];
 static int  s_catCount;
 
 /* Dialogs. */
-enum { D_NONE, D_REPLACE, D_JOJO, D_RESTART, D_INFO };
+enum { D_NONE, D_REPLACE, D_JOJO, D_RESTART, D_INFO, D_QOL };
 static int       s_dialog;
 static NmConfirm s_confirm;
 static int       s_pendingIdx;   /* D_REPLACE: catalog index or -(cat+1) */
@@ -105,7 +105,8 @@ static int  s_pickStockChosen;
 static int s_restartShown;
 static int s_wasBusy;
 static int s_jojoAsked;   /* the update offer is made once per visit */
-static int s_jojoSel;     /* D_JOJO: 0 Yes, 1 No, 2 Don't ask again */
+static int s_jojoSel;     /* D_JOJO / D_QOL: 0 Yes, 1 No, 2 Don't ask again */
+static int s_qolAsked;    /* the QoL pack offer: once per visit too */
 static const char* const s_jojoBtn[3] = { "Yes", "No", "Don't ask again" };
 static const int s_jojoX[3] = { 70, 140, 236 }; /* button centres */
 
@@ -600,6 +601,7 @@ void Cdm_Open(int page, const char* stock, const char* current, int stockCharaId
     else
     {
         s_jojoAsked = 0;
+        s_qolAsked  = 0;
         m_set_page(P_HUB);
         Cd_CatalogRefresh();
     }
@@ -686,7 +688,7 @@ static int m_dialog_update(const NmInput* in)
         }
         return 1;
     }
-    if (s_dialog == D_JOJO)
+    if (s_dialog == D_JOJO || s_dialog == D_QOL)
     {
         int i, pick = -1, old = s_jojoSel;
 
@@ -718,11 +720,19 @@ static int m_dialog_update(const NmInput* in)
         SD_Call(pick == 0 ? Sfx_MenuConfirm : Sfx_MenuCancel);
         if (pick == 0)
         {
-            Cd_UpdateOldJojo();
+            if (s_dialog == D_JOJO)
+                Cd_UpdateOldJojo();
+            else
+                Cd_UpdateLegacy();
             s_changed = 1;
         }
         else if (pick == 2)
-            Cd_SetOldJojoNoAsk();
+        {
+            if (s_dialog == D_JOJO)
+                Cd_SetOldJojoNoAsk();
+            else
+                Cd_SetLegacyNoAsk();
+        }
         s_dialog = D_NONE;
         return 1;
     }
@@ -769,6 +779,15 @@ int Cdm_Update(const NmInput* in)
                  Ct_Tr("Newer versions of jojo670's characters are available. Update them?"));
         s_dialog = D_JOJO;
         NmConfirm_Open(&s_confirm);
+    }
+    if (s_page == P_HUB && s_dialog == D_NONE && !s_qolAsked && !Cd_Busy() && Cd_LegacyPending() &&
+        !Cd_LegacyNoAsk())
+    {
+        s_qolAsked = 1;
+        s_jojoSel  = 0;
+        snprintf(s_dialogText, sizeof(s_dialogText), "%s",
+                 Ct_Tr("Your QoL character packs are now part of Additional Characters. Download the new versions?"));
+        s_dialog = D_QOL;
     }
     if (s_dialog != D_NONE)
         return m_dialog_update(in);
@@ -1158,7 +1177,7 @@ static void m_dialog_draw(void)
         Ct_DrawCentered(cx, 124, 1, StringColorId_Gold, "OK");
         return;
     }
-    if (s_dialog == D_JOJO)
+    if (s_dialog == D_JOJO || s_dialog == D_QOL)
     {
         int i;
 

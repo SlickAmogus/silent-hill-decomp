@@ -70,6 +70,12 @@ void           Cd_CatalogRefresh(void);
 /* "Don't ask again" on the old jojo670 pack offer. */
 int            Cd_OldJojoNoAsk(void);
 void           Cd_SetOldJojoNoAsk(void);
+/* A QoL character pack (the old QoL list's, any launcher or port) is installed
+ * whose characters the catalog now has: offer to replace it. */
+int            Cd_LegacyPending(void);
+void           Cd_UpdateLegacy(void);
+int            Cd_LegacyNoAsk(void);
+void           Cd_SetLegacyNoAsk(void);
 int            Cd_CatalogState(void);
 int            Cd_CatalogCount(void);
 const CdEntry* Cd_CatalogGet(int i);
