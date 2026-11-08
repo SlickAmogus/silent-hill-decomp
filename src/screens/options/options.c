@@ -306,13 +306,13 @@ static const s_PcOpt PCOPT_G[] = {
     { "PGXP",           &g_PcConfig.usePgxp,            "use_pgxp",             VAL_ONOFF, 2, LBL_ONOFF, &g_PsxUsePgxp,                 1, PCK_INT    },
     { "Post_Process",   &g_PcConfig.postProcess,        "post_process",         VAL_POST,  9, LBL_POST,  &g_cfg_postProcess,            1, PCK_INT    },
     { "Tone_Mapping",   &g_PcConfig.tonemap,            "tonemap",              VAL_TONE,  4, LBL_TONE,  &g_cfg_tonemap,                1, PCK_INT    },
+    /* New-Game start map. Moved here from the Camera page, which had run to 12
+     * rows (the practical maximum) while this page had room to spare. */
+    { "Map",            NULL,                           "map",                  NULL,      0, NULL,      NULL,                          1, PCK_MAP    },
     /* Opens the Character Select screen (pc_chara_select.c). Antialiasing
      * moved to the System page to keep this one at 11 rows; it needs a
      * restart either way. */
     { "Character_Customization", NULL,                NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_CHARA  },
-    /* New-Game start map. Moved here from the Camera page, which had run to 12
-     * rows (the practical maximum) while this page had room to spare. */
-    { "Map",            NULL,                           "map",                  NULL,      0, NULL,      NULL,                          1, PCK_MAP    },
 #if defined(__ANDROID__)
     /* Where the disc image, gamedata/, config.cfg, the memory cards and the log
      * live. The default is an SD card where one is present, because the players
