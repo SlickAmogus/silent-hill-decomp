@@ -319,4 +319,6 @@ static const s_QuickCjk s_MenuCjkTr[] = {
     { "Don't ask again", "今後表示しない", "不再询问" },
     /* Character Select / Additional Characters. */
     { "Your QoL character packs are now part of Additional Characters. Download the new versions?", "QoLキャラクターパックは追加キャラクターに統合されました。新しいバージョンをダウンロードしますか？", "你的 QoL 角色包现已并入额外角色。要下载新版本吗？" },
+    /* Character Select / Additional Characters. */
+    { "Load Preview", "プレビューを読み込む", "加载预览" },
 };

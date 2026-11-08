@@ -147,6 +147,16 @@ const char* Ct_Name(const char* label)
     return Ct_Tr(key);
 }
 
+int Ct_SmallWidth(const char* utf8)
+{
+    char line[CT_LINE * 2];
+
+    if (utf8 == NULL || utf8[0] == '\0')
+        return 0;
+    ct_ttf_line(utf8, line, (int)sizeof(line), 0);
+    return Pc_TtfText_Width(line, 0);
+}
+
 void Ct_Small(int x, int y, int color, const char* utf8, int maxW)
 {
     char line[CT_LINE * 2];

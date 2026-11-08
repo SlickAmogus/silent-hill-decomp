@@ -315,4 +315,6 @@ static const s_QuickAr s_MenuArTr[] = {
     { "Don't ask again", "لا تسأل مرة أخرى" },
     /* Character Select / Additional Characters. */
     { "Your QoL character packs are now part of Additional Characters. Download the new versions?", "أصبحت حزم شخصيات QoL جزءًا من الشخصيات الإضافية. هل تريد تنزيل الإصدارات الجديدة؟" },
+    /* Character Select / Additional Characters. */
+    { "Load Preview", "تحميل المعاينة" },
 };
