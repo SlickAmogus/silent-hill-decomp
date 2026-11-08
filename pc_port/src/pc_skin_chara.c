@@ -61,6 +61,8 @@ extern s_WorldEnvWork g_WorldEnvWork;
 #define PC_SKIN_MAX_CHARA 255
 /* Files looked for and not found, kept apart so they never take a slot. */
 #define PC_SKIN_MAX_MISSING 1024
+/* Models the Character Select preview keeps besides the one it shows. */
+#define SKIN_PREVIEW_KEEP 4
 #define PC_SKIN_MAX_MATS  32
 #define PC_SKIN_MAX_JOINTS 256
 #define PC_SKIN_INFL      4
@@ -3984,10 +3986,30 @@ void* Pc_SkinChara_PreviewLoad(const char* name, const char* file)
     if (def == NULL)
         return NULL;
     snprintf(base, sizeof(base), "gamedata/load/CHARA/%s", file);
-    for (i = 0; i < s_charaCount; i++)
-        if (s_chara[i].previewOnly && s_chara[i].file[0] != '\0' &&
-            !(strcmp(s_chara[i].file, file) == 0 && s_chara[i].def == def))
-            Skin_Release(&s_chara[i]);
+    /* Browsing keeps the last few models it showed, so stepping back and
+     * forth between rows (or Cybil and Monster Cybil, one file fitted twice)
+     * costs nothing; older ones are freed, so a list of any length still
+     * holds only that many. Freeing every other model at once reloaded and
+     * re-decoded a 40k-vertex model on each step back. */
+    for (;;)
+    {
+        PcSkinChara* oldest = NULL;
+        int          held = 0;
+
+        for (i = 0; i < s_charaCount; i++)
+        {
+            PcSkinChara* c = &s_chara[i];
+
+            if (!c->previewOnly || c->file[0] == '\0' || (strcmp(c->file, file) == 0 && c->def == def))
+                continue;
+            held++;
+            if (oldest == NULL || c->lastUse < oldest->lastUse)
+                oldest = c;
+        }
+        if (held < SKIN_PREVIEW_KEEP || oldest == NULL)
+            break;
+        Skin_Release(oldest);
+    }
     {
         int fresh = 1;
 
