@@ -113,7 +113,44 @@ namespace SilentHillPC_Launcher
             return Path.Combine(gameRoot, "gamedata", "load", "CHARA");
         }
 
+        /// <summary>Downloads live in their own folder, after load\CHARA in the game's
+        /// load order: a mod's or a hand-copied file of the same name is the one that
+        /// loads. Only jojo670's old unversioned pack gives way (see the deploy plan).</summary>
+        private static string DlDir(string gameRoot)
+        {
+            return Path.Combine(gameRoot, "gamedata", "load", "CHARA_dl");
+        }
+
+        /// <summary>Downloads went into load\CHARA before the load order. A recorded
+        /// file there is the download's (the deploy plan kept mods off it), so it moves.</summary>
+        private static void MigrateDownloads(string gameRoot, List<Record> recs)
+        {
+            foreach (var r in recs)
+            {
+                string to = Path.Combine(DlDir(gameRoot), r.Hero + ".glb");
+                string from = Path.Combine(CharaDir(gameRoot), r.Hero + ".glb");
+                if (System.IO.File.Exists(to) || !System.IO.File.Exists(from)) continue;
+                try
+                {
+                    Directory.CreateDirectory(DlDir(gameRoot));
+                    foreach (var ext in new[] { ".glb", ".ini" })
+                    {
+                        string f = Path.Combine(CharaDir(gameRoot), r.Hero + ext);
+                        if (System.IO.File.Exists(f)) System.IO.File.Move(f, Path.Combine(DlDir(gameRoot), r.Hero + ext));
+                    }
+                }
+                catch { }
+            }
+        }
+
         public static List<Record> ReadRecords(string gameRoot)
+        {
+            var list = ReadRecordsRaw(gameRoot);
+            MigrateDownloads(gameRoot, list);
+            return list;
+        }
+
+        private static List<Record> ReadRecordsRaw(string gameRoot)
         {
             var list = new List<Record>();
             string p = RecordsPath(gameRoot);
@@ -138,8 +175,9 @@ namespace SilentHillPC_Launcher
             System.IO.File.WriteAllText(RecordsPath(gameRoot), sb.ToString());
         }
 
-        /// <summary>gamedata-relative paths (gamedata\load\CHARA\HERO_X.glb/.ini) of every
-        /// downloaded character, for the deploy plan to leave alone.</summary>
+        /// <summary>gamedata-relative paths (gamedata\load\CHARA\HERO_X.glb/.ini) a
+        /// downloaded character would be shadowed by, for the deploy plan to keep jojo670's
+        /// old pack off.</summary>
         public static HashSet<string> DownloadedRels(string gameRoot)
         {
             var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -155,7 +193,7 @@ namespace SilentHillPC_Launcher
         {
             recs = recs ?? ReadRecords(gameRoot);
             return recs.Any(r => string.Equals(r.Id, c.Id, StringComparison.OrdinalIgnoreCase) &&
-                                 System.IO.File.Exists(Path.Combine(CharaDir(gameRoot), r.Hero + ".glb")));
+                                 System.IO.File.Exists(Path.Combine(DlDir(gameRoot), r.Hero + ".glb")));
         }
 
         public static bool NeedsUpdate(CatalogCharacter c, List<Record> recs)
@@ -202,7 +240,7 @@ namespace SilentHillPC_Launcher
                         throw new Exception(Loc.F("{0}: the download is damaged (checksum mismatch). Try again.", c.Name));
                 }
 
-                string dir = CharaDir(gameRoot);
+                string dir = DlDir(gameRoot);
                 Directory.CreateDirectory(dir);
                 string hero = c.Hero;
                 using (var za = ZipFile.OpenRead(zip))
@@ -241,7 +279,7 @@ namespace SilentHillPC_Launcher
             {
                 foreach (var ext in new[] { ".glb", ".ini" })
                 {
-                    string p = Path.Combine(CharaDir(gameRoot), r.Hero + ext);
+                    string p = Path.Combine(DlDir(gameRoot), r.Hero + ext);
                     try { if (System.IO.File.Exists(p)) System.IO.File.Delete(p); } catch { }
                 }
             }

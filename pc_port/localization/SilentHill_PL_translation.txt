@@ -8291,3 +8291,8 @@ PL: Pielęgniarka-marionetka
 NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
 EN: Puppet Doctor
 PL: Lekarz-marionetka
+
+[QUICK.(custom_copy_in_use)]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: (custom copy in use)
+PL: (używana własna kopia)

@@ -36,6 +36,7 @@
 #include "psx/libgpu.h"
 #include "psyq/libgs.h"
 #include "hires_override.h"
+#include "pc_chara_dl.h"
 #include "pc_config.h"
 #include "pc_lipsync.h"
 #include "pc_pplit.h"
@@ -2628,9 +2629,11 @@ static int Skin_PickInstance(PcSkinChara* ch, const void* boneCoords)
 /* The entry for one glTF, loaded on first use. */
 static PcSkinChara* Skin_Entry(const char* name, const char* file, const char* base, const PcSkinRestDef* def)
 {
-    char path[128];
+    char path[128], resolved[128];
     PcSkinChara* ch = NULL;
     int i;
+
+    base = Cd_ResolveBase(base, resolved, (int)sizeof(resolved));
 
     /* One file per target character: the fit (scale, anchors, rest swing) is
      * computed against `def`, so the same glb standing in for two characters

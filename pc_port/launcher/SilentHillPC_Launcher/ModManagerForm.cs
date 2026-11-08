@@ -575,7 +575,7 @@ namespace SilentHillPC_Launcher
             sub.SubItems.Add(_charInstall.Count + _charRemove.Count > 0
                 ? Loc.F("{0} to install, {1} to remove", _charInstall.Count, _charRemove.Count)
                 : Loc.F("{0} of {1} installed", installed, all.Count));
-            sub.SubItems.Add(Loc.T("Playable characters. Pick them in Character Select (PC Options or the quick menu). Downloaded characters override a mod's file of the same name."));
+            sub.SubItems.Add(Loc.T("Playable characters. Pick them in Character Select (PC Options or the quick menu). Custom characters (a mod, or files you copied in yourself) take priority over these downloads when they share a file name."));
             sub.Font = new Font(_list.Font, FontStyle.Bold);
             _list.Items.Add(sub);
             if (!_charsExpanded) return;
