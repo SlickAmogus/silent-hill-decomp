@@ -260,6 +260,14 @@ namespace SilentHillPC_Launcher
                 }
 
                 var recs = ReadRecords(gameRoot);
+                // An update that renamed the model leaves no stray file behind.
+                foreach (var old in recs.Where(r => string.Equals(r.Id, c.Id, StringComparison.OrdinalIgnoreCase) &&
+                                                    !string.Equals(r.Hero, hero, StringComparison.OrdinalIgnoreCase)))
+                    foreach (var ext in new[] { ".glb", ".ini" })
+                    {
+                        string p = Path.Combine(dir, old.Hero + ext);
+                        try { if (System.IO.File.Exists(p)) System.IO.File.Delete(p); } catch { }
+                    }
                 recs.RemoveAll(r => string.Equals(r.Id, c.Id, StringComparison.OrdinalIgnoreCase));
                 recs.Add(new Record { Id = c.Id, Version = string.IsNullOrEmpty(c.Version) ? "1" : c.Version,
                                       Sha256 = string.IsNullOrEmpty(c.Sha256) ? "-" : c.Sha256, Hero = hero });

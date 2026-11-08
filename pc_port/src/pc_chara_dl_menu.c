@@ -598,7 +598,7 @@ void Cdm_Open(int page, const char* stock, const char* current, int stockCharaId
     {
         s_jojoAsked = 0;
         m_set_page(P_HUB);
-        Cd_CatalogFetch();
+        Cd_CatalogRefresh();
     }
 }
 
@@ -1187,7 +1187,7 @@ void Cdm_Draw(int fieldL, int fieldR)
     else
     {
         m_line(M_DIV_X, M_RULE_Y, M_DIV_X, M_ARROW_DN_Y + 6, Q8_COLOR(0.125f), Q8_COLOR(0.125f), 0xFF);
-        if (s_page == P_DOWN && Cd_CatalogState() == CD_CAT_LOADING)
+        if (s_page == P_DOWN && Cd_CatalogState() == CD_CAT_LOADING && Cd_CatalogCount() == 0)
             m_text(M_LIST_X0, M_LIST_Y, StringColorId_LightGrey, Ct_Tr("Loading the list..."), M_LIST_X1 - M_LIST_X0, 0);
         else if (s_page == P_DOWN && Cd_CatalogState() == CD_CAT_FAILED)
             m_text(M_LIST_X0, M_LIST_Y, StringColorId_LightGrey, Ct_Tr("Could not reach the list."), M_LIST_X1 - M_LIST_X0, 0);
