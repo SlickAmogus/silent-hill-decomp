@@ -526,11 +526,26 @@ int Cd_LocalFind(const char* hero)
     return -1;
 }
 
-int Cd_CustomCopyWins(const CdEntry* e)
+int Cd_PackCopy(const CdEntry* e)
 {
-    int i = e != NULL ? Cd_LocalFind(e->hero) : -1;
+    int i;
 
-    return i >= 0 && s_local[i].source != CD_SRC_DOWNLOAD && s_local[i].enabled && !s_local[i].oldJojo;
+    for (i = 0; e != NULL && i < s_localCount; i++)
+        if (s_local[i].source != CD_SRC_DOWNLOAD && cd_ieq(s_local[i].hero, e->hero))
+            return i;
+    return -1;
+}
+
+/* A copy of `hero` that is not a download: the same file seen twice (a
+ * launcher mod's deployed copy, then the folder scan) is listed once. */
+static int cd_local_find_pack(const char* hero)
+{
+    int i;
+
+    for (i = 0; i < s_localCount; i++)
+        if (s_local[i].source != CD_SRC_DOWNLOAD && cd_ieq(s_local[i].hero, hero))
+            return i;
+    return -1;
 }
 
 static int cd_group_add(const char* name, const char* key, const char* author, int source, int enabled)
@@ -556,10 +571,12 @@ static CdLocal* cd_local_add(const char* hero, const char* dir, int source, int 
     CdLocal* l;
     char     path[320];
 
-    if (s_localCount >= CD_MAX_LOCAL || Cd_LocalFind(hero) >= 0)
+    if (s_localCount >= CD_MAX_LOCAL)
         return NULL;
-    l = &s_local[s_localCount++];
+    l = &s_local[s_localCount];
     memset(l, 0, sizeof(*l));
+    l->shadowed = Cd_LocalFind(hero) >= 0;
+    s_localCount++;
     snprintf(l->hero, sizeof(l->hero), "%s", hero);
     snprintf(path, sizeof(path), "%s/%s.ini", dir, hero);
     cd_ini_meta_path(path, l->name, sizeof(l->name), l->category, sizeof(l->category), l->author,
@@ -762,10 +779,6 @@ static void cd_scan_launcher_mods(void)
             {
                 char path[320];
 
-                /* The old pack gives way to a download of the same name, as in
-                 * the launcher; every other mod wins over one. */
-                if (s_groups[g].oldJojo && cd_record_by_hero(heroes[i]))
-                    continue;
                 snprintf(path, sizeof(path), CD_CHARA_DIR "/%s.glb", heroes[i]);
                 {
                     CdLocal* l = cd_local_add(heroes[i], m.enabled && cd_exists(path) ? CD_CHARA_DIR : dir,
@@ -847,14 +860,14 @@ const char* Cd_ResolveBase(const char* base, char* out, int outSz)
 
     if (at == NULL)
         return base;
-    snprintf(p, sizeof(p), "%s.glb", base);
-    if (cd_exists(p))
-        return base;
-    snprintf(p, sizeof(p), "%s.gltf", base);
-    if (cd_exists(p))
-        return base;
     snprintf(out, (size_t)outSz, "%.*s/load/CHARA_dl/%s", (int)(at - base), base, at + 12);
-    return out;
+    snprintf(p, sizeof(p), "%s.glb", out);
+    if (cd_exists(p))
+        return out;
+    snprintf(p, sizeof(p), "%s.gltf", out);
+    if (cd_exists(p))
+        return out;
+    return base;
 }
 
 void Cd_LocalScan(void)
@@ -867,6 +880,24 @@ void Cd_LocalScan(void)
     cd_records_load();
 
     cd_migrate_downloads();
+
+    /* Downloads first: they are what loads, and cd_local_add marks every later
+     * copy of the same file as shadowed. Grouped by category. */
+    for (i = 0; i < s_recCount; i++)
+    {
+        char path[320], cat[CD_NAME_MAX];
+        int  g;
+
+        snprintf(path, sizeof(path), CD_DL_DIR "/%s.glb", s_rec[i].hero);
+        if (!cd_exists(path))
+            continue;
+        snprintf(path, sizeof(path), CD_DL_DIR "/%s.ini", s_rec[i].hero);
+        cd_ini_meta_path(path, NULL, 0, cat, sizeof(cat), NULL, 0, NULL, 0);
+        if (cat[0] == '\0')
+            snprintf(cat, sizeof(cat), "Other");
+        g = cd_group_add(cat, cat, "", CD_SRC_DOWNLOAD, 1);
+        cd_local_add(s_rec[i].hero, CD_DL_DIR, CD_SRC_DOWNLOAD, g, 1);
+    }
 
 #if defined(CD_HAS_LAUNCHER_MODS)
     cd_scan_launcher_mods();
@@ -889,7 +920,7 @@ void Cd_LocalScan(void)
             enabled = cd_exists(on);
             if (!enabled && !cd_exists(off))
                 continue;
-            if (Cd_LocalFind(s_legacy[i].heroes[j]) >= 0)
+            if (cd_local_find_pack(s_legacy[i].heroes[j]) >= 0)
                 continue;
             if (g < 0)
                 g = cd_group_add(s_legacy[i].name, s_legacy[i].id, s_legacy[i].author, CD_SRC_PACK, enabled);
@@ -915,7 +946,7 @@ void Cd_LocalScan(void)
 
         for (i = 0; i < n; i++)
         {
-            if (Cd_LocalFind(heroes[i]) >= 0)
+            if (cd_local_find_pack(heroes[i]) >= 0)
                 continue;
             if (g < 0)
                 g = cd_group_add("Manually installed", "loose", "", CD_SRC_LOOSE, 1);
@@ -924,7 +955,7 @@ void Cd_LocalScan(void)
         n = cd_list_heroes(CD_OFF_DIR "/loose", heroes, CD_MAX_LOCAL);
         for (i = 0; i < n; i++)
         {
-            if (Cd_LocalFind(heroes[i]) >= 0)
+            if (cd_local_find_pack(heroes[i]) >= 0)
                 continue;
             if (g < 0)
                 g = cd_group_add("Manually installed", "loose", "", CD_SRC_LOOSE, 0);
@@ -937,35 +968,6 @@ void Cd_LocalScan(void)
                 if (s_local[i].group == g && s_local[i].enabled)
                     s_groups[g].enabled = 1;
         }
-    }
-
-    /* Downloads after everything else: a custom copy of the same name is the
-     * one that loads (cd_local_add keeps the first). Grouped by category. */
-    for (i = 0; i < s_recCount; i++)
-    {
-        char path[320], cat[CD_NAME_MAX];
-        int  g;
-
-        snprintf(path, sizeof(path), CD_DL_DIR "/%s.ini", s_rec[i].hero);
-        cd_ini_meta_path(path, NULL, 0, cat, sizeof(cat), NULL, 0, NULL, 0);
-        if (cat[0] == '\0')
-            snprintf(cat, sizeof(cat), "Other");
-        snprintf(path, sizeof(path), CD_DL_DIR "/%s.glb", s_rec[i].hero);
-        if (!cd_exists(path))
-            continue;
-        {
-            int k = Cd_LocalFind(s_rec[i].hero);
-
-            if (k >= 0 && s_local[k].enabled && !s_local[k].oldJojo)
-                continue;
-            if (k >= 0)
-            {
-                memmove(&s_local[k], &s_local[k + 1], (size_t)(s_localCount - k - 1) * sizeof(s_local[0]));
-                s_localCount--;
-            }
-        }
-        g = cd_group_add(cat, cat, "", CD_SRC_DOWNLOAD, 1);
-        cd_local_add(s_rec[i].hero, CD_DL_DIR, CD_SRC_DOWNLOAD, g, 1);
     }
 
     /* Ports: jojo670's pack copied in by hand has no modinfo here; its files
@@ -1257,7 +1259,7 @@ static void cd_migrate_downloads(void)
 static void cd_old_jojo_step_aside(const char* hero)
 {
     static const char* const ext[2] = { "glb", "ini" };
-    int                      i = Cd_LocalFind(hero), k;
+    int                      i = cd_local_find_pack(hero), k;
     const CdGroup*           g;
 
     if (i < 0 || s_local[i].source == CD_SRC_DOWNLOAD || !s_local[i].enabled || !s_local[i].oldJojo)
@@ -1384,7 +1386,7 @@ const char* Cd_PreviewFile(int idx)
     if (idx < 0 || idx >= s_catCount)
         return NULL;
     /* Installed: the real file is the preview. */
-    if (cd_record_by_id(s_cat[idx].id) && !Cd_CustomCopyWins(&s_cat[idx]))
+    if (cd_record_by_id(s_cat[idx].id))
     {
         static char installed[CD_FILE_MAX + 16];
         snprintf(installed, sizeof(installed), "../CHARA_dl/%s", cd_record_by_id(s_cat[idx].id)->hero);

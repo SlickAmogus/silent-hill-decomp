@@ -316,4 +316,9 @@ static const s_QuickCjk s_MenuCjkTr[] = {
     { "Your QoL character packs are now part of Additional Characters. Download the new versions?", "QoLキャラクターパックは追加キャラクターに統合されました。新しいバージョンをダウンロードしますか？", "你的 QoL 角色包现已并入额外角色。要下载新版本吗？" },
     /* Character Select / Additional Characters. */
     { "Load Preview", "プレビューを読み込む", "加载预览" },
+    /* Character Select / Additional Characters. */
+    { "(download in use)", "（ダウンロード版を使用中）", "（正在使用下载版本）" },
+    { "no version", "バージョンなし", "无版本" },
+    { "{a} is already installed from {b} ({c}). The download ({d}) will be used instead. Download it?", "{a}は{b}からインストール済みです（{c}）。代わりにダウンロード版（{d}）が使われます。ダウンロードしますか？", "{a} 已从 {b} 安装（{c}）。将改用下载版本（{d}）。要下载吗？" },
+    { "{a} of these characters are already installed from packs. The downloads will be used instead. Download them?", "これらのうち{a}体はパックからインストール済みです。代わりにダウンロード版が使われます。ダウンロードしますか？", "其中 {a} 个角色已从角色包安装。将改用下载版本。要下载吗？" },
 };

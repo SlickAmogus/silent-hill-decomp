@@ -284,7 +284,7 @@ static void m_build(void)
         {
             char cat[64];
 
-            if (!Cd_LocalGet(i)->enabled)
+            if (!Cd_LocalGet(i)->enabled || Cd_LocalGet(i)->shadowed)
                 continue;
             m_pick_cat(Cd_LocalGet(i), cat, sizeof(cat));
             m_cat_find_or_add(cat, -1);
@@ -352,7 +352,7 @@ static void m_build(void)
                     continue;
                 if (s_page == P_PICK)
                 {
-                    if (!l->enabled)
+                    if (!l->enabled || l->shadowed)
                         continue;
                     m_pick_cat(l, cat, sizeof(cat));
                     if (strcmp(cat, s_cats[c].name) != 0)
@@ -409,12 +409,57 @@ static int m_cat_state(int c)
 /* ------------------------------------------------------------------------ */
 /* actions                                                                   */
 
+/* Placeholders {a}..{d} filled in order (the translations may move them). */
+static void m_fill4(char* out, int outSz, const char* tmpl, const char* a, const char* b, const char* c,
+                    const char* d)
+{
+    const char* v[4] = { a, b, c, d };
+    int         o = 0;
+
+    while (*tmpl && o < outSz - 1)
+    {
+        if (tmpl[0] == '{' && tmpl[1] >= 'a' && tmpl[1] <= 'd' && tmpl[2] == '}')
+        {
+            o += snprintf(out + o, (size_t)(outSz - o), "%s", v[tmpl[1] - 'a'] ? v[tmpl[1] - 'a'] : "");
+            if (o > outSz - 1)
+                o = outSz - 1;
+            tmpl += 3;
+        }
+        else
+            out[o++] = *tmpl++;
+    }
+    out[o] = '\0';
+}
+
+static void m_version(char* out, int outSz, const char* v)
+{
+    if (v != NULL && v[0])
+        snprintf(out, (size_t)outSz, "v%s", v);
+    else
+        snprintf(out, (size_t)outSz, "%s", Ct_Tr("no version"));
+}
+
 static void m_install(int idx, int confirmed)
 {
     const CdEntry* e = Cd_CatalogGet(idx);
+    int            k = Cd_PackCopy(e);
 
-    (void)e;
-    (void)confirmed;
+    if (!confirmed && k >= 0 && !Cd_IsDownloaded(e))
+    {
+        const CdLocal* l = Cd_LocalGet(k);
+        const CdGroup* g = Cd_GroupGet(l->group);
+        char           have[32], next[32], tmpl[512];
+
+        m_version(have, (int)sizeof(have), l->version);
+        m_version(next, (int)sizeof(next), e->version);
+        snprintf(tmpl, sizeof(tmpl), "%s",
+                 Ct_Tr("{a} is already installed from {b} ({c}). The download ({d}) will be used instead. Download it?"));
+        m_fill4(s_dialogText, (int)sizeof(s_dialogText), tmpl, e->name, g ? Ct_Tr(g->name) : "", have, next);
+        s_pendingIdx = idx;
+        s_dialog     = D_REPLACE;
+        Pc_ConfirmDialog_Open3("Additional Characters", s_dialogText, NULL);
+        return;
+    }
     Cd_QueueInstall(idx);
     s_changed = 1;
 }
@@ -433,12 +478,28 @@ static void m_toggle_item(int idx)
 
 static void m_toggle_category(int c, int confirmed)
 {
-    int i, all = 1;
+    int i, all = 1, packed = 0;
 
-    (void)confirmed;
     for (i = 0; i < Cd_CatalogCount(); i++)
         if (strcmp(Cd_CatalogGet(i)->category, s_cats[c].name) == 0 && !Cd_IsDownloaded(Cd_CatalogGet(i)))
+        {
             all = 0;
+            if (Cd_PackCopy(Cd_CatalogGet(i)) >= 0)
+                packed++;
+        }
+    if (!all && packed > 0 && !confirmed)
+    {
+        char n[16], tmpl[512];
+
+        snprintf(n, sizeof(n), "%d", packed);
+        snprintf(tmpl, sizeof(tmpl), "%s",
+                 Ct_Tr("{a} of these characters are already installed from packs. The downloads will be used instead. Download them?"));
+        m_fill4(s_dialogText, (int)sizeof(s_dialogText), tmpl, n, NULL, NULL, NULL);
+        s_pendingIdx = -(c + 1);
+        s_dialog     = D_REPLACE;
+        Pc_ConfirmDialog_Open3("Additional Characters", s_dialogText, NULL);
+        return;
+    }
     SD_Call(Sfx_MenuConfirm);
     for (i = 0; i < Cd_CatalogCount(); i++)
         if (strcmp(Cd_CatalogGet(i)->category, s_cats[c].name) == 0)
@@ -685,6 +746,23 @@ static int m_dialog_update(const NmInput* in)
         {
             SD_Call(Sfx_MenuConfirm);
             s_dialog = D_NONE;
+        }
+        return 1;
+    }
+    if (s_dialog == D_REPLACE)
+    {
+        int r = Pc_ConfirmDialog_Update(in->left, in->right, in->confirm, in->cancel || in->mouseRight);
+
+        if (r == PC_CONFIRM_NONE)
+            return 1;
+        SD_Call(r == PC_CONFIRM_YES ? Sfx_MenuConfirm : Sfx_MenuCancel);
+        s_dialog = D_NONE;
+        if (r == PC_CONFIRM_YES)
+        {
+            if (s_pendingIdx >= 0)
+                m_install(s_pendingIdx, 1);
+            else
+                m_toggle_category(-s_pendingIdx - 1, 1);
         }
         return 1;
     }
@@ -1034,7 +1112,7 @@ static void m_rows_draw(void)
             int            st = Cd_IsDownloaded(e) ? 1 : 0;
 
             m_checkbox(x, y, st, sel);
-            const char* tag = Cd_NeedsUpdate(e) ? Ct_Tr("(update)") : Cd_CustomCopyWins(e) ? Ct_Tr("(custom copy in use)") : "";
+            const char* tag = Cd_NeedsUpdate(e) ? Ct_Tr("(update)") : "";
 
             snprintf(label, sizeof(label), "%s%s%s", e->name, tag[0] ? " " : "", tag);
         }
@@ -1043,7 +1121,12 @@ static void m_rows_draw(void)
             const CdLocal* l = Cd_LocalGet(r->idx);
 
             m_checkbox(x, y, l->enabled ? 1 : 0, sel);
-            snprintf(label, sizeof(label), "%s", l->name);
+            /* A pack's copy that the download of the same file overrides. */
+            if (l->shadowed && l->source != CD_SRC_DOWNLOAD && Cd_LocalFind(l->hero) >= 0 &&
+                Cd_LocalGet(Cd_LocalFind(l->hero))->source == CD_SRC_DOWNLOAD)
+                snprintf(label, sizeof(label), "%s %s", l->name, Ct_Tr("(download in use)"));
+            else
+                snprintf(label, sizeof(label), "%s", l->name);
         }
         else
         {
@@ -1153,7 +1236,7 @@ static void m_dialog_draw(void)
     int cx = (s_fl + s_fr) / 2;
 
     /* The two offers are the shared message box, drawn by its own hook. */
-    if (s_dialog == D_NONE || s_dialog == D_JOJO || s_dialog == D_QOL)
+    if (s_dialog == D_NONE || s_dialog == D_JOJO || s_dialog == D_QOL || s_dialog == D_REPLACE)
         return;
     m_small(s_fl + 16, 104, StringColorId_White, s_dialogText, M_W - 32);
     if (s_dialog == D_RESTART || s_dialog == D_INFO)
@@ -1181,7 +1264,7 @@ static void m_dialog_draw(void)
 
 void Cdm_Close(void)
 {
-    if (s_dialog == D_JOJO || s_dialog == D_QOL)
+    if (s_dialog == D_JOJO || s_dialog == D_QOL || s_dialog == D_REPLACE)
         Pc_ConfirmDialog_Cancel();
     s_dialog = D_NONE;
     s_open   = 0;
