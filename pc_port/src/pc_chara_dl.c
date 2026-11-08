@@ -93,18 +93,20 @@ static int cd_copy(const char* from, const char* to)
     return ok;
 }
 
-/* rename() across a still-open handle fails on Windows; fall back to copy. */
+/* Copy, then delete -- never rename(). PsyCross implements the PSX memory
+ * card API under libc's names in this same image (libapi.c), and its rename()
+ * answers 0, libc's "success", for any path not on a card while moving
+ * nothing. remove() and fopen() are libc's own. */
 static int cd_move(const char* from, const char* to)
 {
     remove(to);
-    if (rename(from, to) == 0)
-        return 1;
-    if (cd_copy(from, to))
+    if (!cd_copy(from, to))
     {
-        remove(from);
-        return 1;
+        remove(to);
+        return 0;
     }
-    return 0;
+    remove(from);
+    return 1;
 }
 
 static int cd_ieq(const char* a, const char* b)
@@ -1234,14 +1236,18 @@ static void cd_migrate_downloads(void)
             continue;
         cd_mkdir("gamedata/load");
         cd_mkdir(CD_DL_DIR);
-        for (k = 0; k < 2; k++)
         {
-            snprintf(from, sizeof(from), CD_CHARA_DIR "/%s.%s", s_rec[i].hero, ext[k]);
-            snprintf(to, sizeof(to), CD_DL_DIR "/%s.%s", s_rec[i].hero, ext[k]);
-            if (cd_exists(from))
-                cd_move(from, to);
+            int ok = 1;
+
+            for (k = 0; k < 2; k++)
+            {
+                snprintf(from, sizeof(from), CD_CHARA_DIR "/%s.%s", s_rec[i].hero, ext[k]);
+                snprintf(to, sizeof(to), CD_DL_DIR "/%s.%s", s_rec[i].hero, ext[k]);
+                if (cd_exists(from) && !cd_move(from, to))
+                    ok = 0;
+            }
+            SH_DBG("[CHARADL] %s download %s to " CD_DL_DIR, ok ? "moved" : "could not move", s_rec[i].hero);
         }
-        SH_DBG("[CHARADL] moved download %s to " CD_DL_DIR, s_rec[i].hero);
     }
 }
 
