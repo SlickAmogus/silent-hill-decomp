@@ -1301,6 +1301,15 @@ static void cd_finish_install(const CdEntry* e)
     }
     remove(s_netPath);
     r = cd_record_by_id(e->id);
+    if (r != NULL && hero[0] && !cd_ieq(r->hero, hero))
+    {
+        char p[320];
+
+        snprintf(p, sizeof(p), CD_DL_DIR "/%s.glb", r->hero);
+        remove(p);
+        snprintf(p, sizeof(p), CD_DL_DIR "/%s.ini", r->hero);
+        remove(p);
+    }
     if (r == NULL && s_recCount < CD_MAX_ENTRIES)
         r = &s_rec[s_recCount++];
     if (r != NULL)
@@ -1465,9 +1474,18 @@ void Cd_CatalogFetch(void)
     cd_push(CD_JOB_CATALOG, 0);
 }
 
-void Cd_QueueInstall(int idx)  { if (idx >= 0 && idx < s_catCount) cd_push(CD_JOB_INSTALL, idx); }
-void Cd_QueueRemove(int idx)   { if (idx >= 0 && idx < s_catCount) cd_push(CD_JOB_REMOVE, idx); }
-void Cd_QueuePreview(int idx)  { if (idx >= 0 && idx < s_catCount && !Cd_PreviewFile(idx)) cd_push(CD_JOB_PREVIEW, idx); }
+void Cd_CatalogRefresh(void)
+{
+    /* Queued jobs hold catalog indices, which a new list could reorder. */
+    if (s_catState == CD_CAT_LOADING || Cd_Busy())
+        return;
+    s_catState = CD_CAT_LOADING;
+    cd_push(CD_JOB_CATALOG, 0);
+}
+
+void Cd_QueueInstall(int idx)  { if (s_catState != CD_CAT_LOADING && idx >= 0 && idx < s_catCount) cd_push(CD_JOB_INSTALL, idx); }
+void Cd_QueueRemove(int idx)   { if (s_catState != CD_CAT_LOADING && idx >= 0 && idx < s_catCount) cd_push(CD_JOB_REMOVE, idx); }
+void Cd_QueuePreview(int idx)  { if (s_catState != CD_CAT_LOADING && idx >= 0 && idx < s_catCount && !Cd_PreviewFile(idx)) cd_push(CD_JOB_PREVIEW, idx); }
 void Cd_SetGroupEnabled(int g, int enabled) { cd_push(enabled ? CD_JOB_GROUP_ON : CD_JOB_GROUP_OFF, g); }
 
 int Cd_OldJojoPending(void)
@@ -1568,11 +1586,17 @@ void Cd_Tick(void)
     {
         char* json = (s_netStatus >= 200 && s_netStatus < 300) ? cd_read_all(s_netPath, 2 * 1024 * 1024) : NULL;
 
-        s_catState = (json != NULL && cd_parse_catalog(json) > 0) ? CD_CAT_READY : CD_CAT_FAILED;
+        if (json != NULL && cd_parse_catalog(json) > 0)
+        {
+            s_catState = CD_CAT_READY;
+            memset(s_previewReady, 0, sizeof(s_previewReady));
+        }
+        else
+            s_catState = s_catCount > 0 ? CD_CAT_READY : CD_CAT_FAILED;
         free(json);
         remove(s_netPath);
         snprintf(s_status, sizeof(s_status), "%s",
-                 s_catState == CD_CAT_READY ? "" : Pc_LangQuick("The character list could not be downloaded"));
+                 s_catState == CD_CAT_FAILED ? Pc_LangQuick("The character list could not be downloaded") : "");
         SH_DBG("[CHARADL] catalog: status %d, %d characters", s_netStatus, s_catCount);
         Cd_LocalScan();
         break;
