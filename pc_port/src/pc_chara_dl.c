@@ -346,6 +346,8 @@ static void cd_cat_field(void* ctx, const char* k, const char* v)
     else if (strcmp(k, "hero") == 0)     snprintf(e->hero, sizeof(e->hero), "%s", v);
     else if (strcmp(k, "size") == 0)     e->size = atoll(v);
     else if (strcmp(k, "sha256") == 0)   snprintf(e->sha256, sizeof(e->sha256), "%s", v);
+    else if (strcmp(k, "glb_size") == 0) e->glbSize = atoll(v);
+    else if (strcmp(k, "glb_crc32") == 0) e->glbCrc = (unsigned)strtoul(v, NULL, 16);
 }
 
 /* Off the net: anything that could escape the folders is dropped. */
@@ -638,6 +640,7 @@ typedef struct
     char name[CD_NAME_MAX];
     char display[CD_NAME_MAX];
     char author[96];
+    char essential[64];
     int  enabled;
 } CdMod;
 
@@ -648,6 +651,7 @@ static void cd_mod_field(void* ctx, const char* k, const char* v)
     if (strcmp(k, "Name") == 0)             snprintf(m->name, sizeof(m->name), "%s", v);
     else if (strcmp(k, "DisplayName") == 0) snprintf(m->display, sizeof(m->display), "%s", v);
     else if (strcmp(k, "Author") == 0)      snprintf(m->author, sizeof(m->author), "%s", v);
+    else if (strcmp(k, "EssentialId") == 0) snprintf(m->essential, sizeof(m->essential), "%s", v);
     else if (strcmp(k, "Enabled") == 0)     m->enabled = strcmp(v, "true") == 0;
 }
 
@@ -1550,6 +1554,205 @@ static void cd_job_begin(const CdJob* j)
     }
 }
 
+/* ------------------------------------------------------------------------ */
+/* the QoL character packs -> the catalog                                    */
+
+#define CD_JOJO_NOASK "gamedata/chara_jojo_noask"
+#define CD_MIGRATED   "gamedata/chara_migrated.txt"
+
+int Cd_OldJojoNoAsk(void) { return cd_exists(CD_JOJO_NOASK); }
+
+void Cd_SetOldJojoNoAsk(void)
+{
+    FILE* f = fopen(CD_JOJO_NOASK, "w");
+
+    if (f != NULL)
+    {
+        fputs("The old jojo670 pack offer was turned off (Don't ask again). Delete to be asked again.\n", f);
+        fclose(f);
+    }
+}
+
+static int cd_crc_file(const char* path, long long* size, unsigned* crc)
+{
+    FILE*         f = fopen(path, "rb");
+    unsigned char buf[65536];
+    size_t        n;
+    mz_ulong      c = MZ_CRC32_INIT;
+
+    if (f == NULL)
+        return 0;
+    *size = 0;
+    while ((n = fread(buf, 1, sizeof(buf), f)) > 0)
+    {
+        c = mz_crc32(c, buf, n);
+        *size += (long long)n;
+    }
+    fclose(f);
+    *crc = (unsigned)c;
+    return 1;
+}
+
+static void cd_qol_unmark(const char* id)
+{
+    char* txt = cd_read_all("gamedata/qol_installed.txt", 1024 * 1024);
+    FILE* f;
+    char* line;
+
+    if (txt == NULL)
+        return;
+    f = fopen("gamedata/qol_installed.txt", "w");
+    if (f != NULL)
+    {
+        for (line = strtok(txt, "\n"); line != NULL; line = strtok(NULL, "\n"))
+        {
+            size_t n = strcspn(line, " \r");
+
+            if (!(n == strlen(id) && strncmp(line, id, n) == 0) && line[0] != '\r')
+                fprintf(f, "%s\n", line);
+        }
+        fclose(f);
+    }
+    free(txt);
+}
+
+#if defined(CD_HAS_LAUNCHER_MODS)
+/* The launcher mod the Essential list installed as `essentialId`. */
+static int cd_find_essential_mod(const char* essentialId, CdMod* out)
+{
+    char*       json = cd_read_all("mods/modmanager.json", 4 * 1024 * 1024);
+    const char* p;
+    int         found = 0;
+
+    if (json == NULL)
+        return 0;
+    p = strstr(json, "\"Mods\"");
+    if (p && (p = strchr(p, '[')) != NULL)
+        for (p++; *p && !found;)
+        {
+            while (*p && *p != '{' && *p != ']')
+                p++;
+            if (*p != '{')
+                break;
+            memset(out, 0, sizeof(*out));
+            p = cd_json_object(p, cd_mod_field, out);
+            found = out->name[0] && cd_ieq(out->essential, essentialId);
+        }
+    free(json);
+    return found;
+}
+#endif
+
+/* Characters first shipped as QoL packs are catalog entries now. Each one a
+ * pack still installed has is downloaded again from the catalog (matched by
+ * its model's size and CRC-32, else its file name), and the pack's copy is
+ * deleted once that download is in, so a failed download never loses a
+ * character. When every one of a pack's characters is in, the pack itself is
+ * uninstalled, so it neither shadows the downloads nor comes back. Runs when
+ * the list arrives and again when the downloads it queued are done. */
+static unsigned char s_legacyTried[CD_MAX_ENTRIES]; /* queued this session */
+
+static int cd_legacy_entry(const char* glb, const char* hero)
+{
+    long long size = 0;
+    unsigned  crc = 0;
+    int       k;
+
+    if (cd_crc_file(glb, &size, &crc) && size > 0)
+        for (k = 0; k < s_catCount; k++)
+            if (s_cat[k].glbSize == size && s_cat[k].glbCrc == crc)
+                return k;
+    for (k = 0; k < s_catCount; k++)
+        if (cd_ieq(s_cat[k].hero, hero))
+            return k;
+    return -1;
+}
+
+static void cd_migrate_legacy(void)
+{
+    int i, j;
+
+    for (i = 0; i < CD_LEGACY_COUNT; i++)
+    {
+        const CdLegacyPack* L = &s_legacy[i];
+        char                modDir[300] = "", off[200];
+        int                 ports = cd_qol_installed(L->id), waiting = 0;
+#if defined(CD_HAS_LAUNCHER_MODS)
+        CdMod               mod;
+        int                 pc = !ports && cd_find_essential_mod(L->id, &mod) && cd_mod_chara_dir(mod.name, modDir, sizeof(modDir));
+#else
+        int                 pc = 0;
+#endif
+
+        if (!ports && !pc)
+            continue;
+        snprintf(off, sizeof(off), CD_OFF_DIR "/%s", L->id);
+        for (j = 0; L->heroes[j] != NULL; j++)
+        {
+            const char* h = L->heroes[j];
+            const char* dirs[3] = { CD_CHARA_DIR, off, modDir };
+            char        src[400] = "", p[400];
+            CdRecord*   r;
+            int         k, idx;
+
+            for (k = 0; k < 3 && !src[0]; k++)
+            {
+                if (!dirs[k][0])
+                    continue;
+                snprintf(src, sizeof(src), "%s/%s.glb", dirs[k], h);
+                if (!cd_exists(src))
+                    src[0] = '\0';
+            }
+            if (!src[0] || (idx = cd_legacy_entry(src, h)) < 0)
+                continue;
+            r = cd_record_by_id(s_cat[idx].id);
+            snprintf(p, sizeof(p), CD_DL_DIR "/%s.glb", r ? r->hero : "");
+            if (r == NULL || !cd_exists(p))
+            {
+                if (!s_legacyTried[idx])
+                {
+                    s_legacyTried[idx] = 1;
+                    cd_push(CD_JOB_INSTALL, idx);
+                    SH_DBG("[CHARADL] %s: %s -> downloading %s", L->id, h, s_cat[idx].id);
+                }
+                waiting++;
+                continue;
+            }
+            for (k = 0; k < 2; k++)
+            {
+                const char* d = k == 0 ? CD_CHARA_DIR : off;
+
+                snprintf(p, sizeof(p), "%s/%s.glb", d, h);
+                if (cd_exists(p))
+                    s_restart = 1;
+                remove(p);
+                snprintf(p, sizeof(p), "%s/%s.ini", d, h);
+                remove(p);
+            }
+        }
+        if (waiting > 0)
+            continue;
+        if (ports)
+            cd_qol_unmark(L->id);
+#if defined(CD_HAS_LAUNCHER_MODS)
+        if (pc)
+            cd_launcher_set_enabled(mod.name, 0);
+#endif
+        {
+            /* The launcher deletes the pack from its library when it sees this. */
+            FILE* f = fopen(CD_MIGRATED, "a");
+
+            if (f != NULL)
+            {
+                fprintf(f, "%s\n", L->id);
+                fclose(f);
+            }
+        }
+        cd_persist();
+        SH_DBG("[CHARADL] QoL pack %s replaced by its Additional Characters downloads", L->id);
+    }
+}
+
 void Cd_Tick(void)
 {
     CdJob* j;
@@ -1590,6 +1793,8 @@ void Cd_Tick(void)
         {
             s_catState = CD_CAT_READY;
             memset(s_previewReady, 0, sizeof(s_previewReady));
+            cd_records_load();
+            cd_migrate_legacy();
         }
         else
             s_catState = s_catCount > 0 ? CD_CAT_READY : CD_CAT_FAILED;
@@ -1603,6 +1808,9 @@ void Cd_Tick(void)
     }
     case CD_JOB_INSTALL:
         cd_finish_install(&s_cat[j->arg]);
+        /* The last of a QoL pack's downloads: the pack can go now. */
+        if ((s_jobHead + 1) % CD_MAX_JOBS == s_jobTail)
+            cd_migrate_legacy();
         Cd_LocalScan();
         break;
     case CD_JOB_PREVIEW:

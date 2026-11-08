@@ -8696,3 +8696,8 @@ TR:
 NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
 EN: (custom copy in use)
 TR: 
+
+[QUICK.Don't_ask_again]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Don't ask again
+TR: 
