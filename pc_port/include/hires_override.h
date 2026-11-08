@@ -103,6 +103,7 @@ unsigned int HiresOverride_LookupByTpageClut(int tpage, int clut,
  * must be treated as a miss. Used by the modern glTF item path, whose meshes
  * carry their own base-colour image rather than a PSX CLUT. */
 unsigned int HiresOverride_CreateTextureRGBA(const unsigned char* rgba, int w, int h);
+void HiresOverride_DeleteTexture(unsigned int texture);
 
 void HiresOverride_LogStats(void);
 
