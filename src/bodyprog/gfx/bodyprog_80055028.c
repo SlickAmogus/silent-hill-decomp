@@ -2591,6 +2591,12 @@ static bool Pc_TownMotelFacadeDepthModel(const s_ModelHeader* model)
            model->meshHdrs[0].vertexCount == 90 && model->meshHdrs[0].primitiveCount == 72;
 }
 
+static bool Pc_BoatCabinDepthActive(void)
+{
+    return g_GameWork.gameState == GameState_InGame && g_SavegamePtr != NULL &&
+           g_SavegamePtr->mapIdx == MapIdx_MAP6_S01 && g_SavegamePtr->mapRoomIdx == 19;
+}
+
 static bool Pc_BoatGangwayDepthModel(const s_ModelHeader* model)
 {
     /* The same visible dock spans player rooms 15/16. Gate by model
@@ -2753,6 +2759,9 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat
     s32            temp_a0;
     GsOT_TAG*      otTag;
     s_ModelHeader* modelHdr;
+#ifdef SH_PC_PORT
+    MATRIX         cabinView;
+#endif
 
     modelHdr = modelInfo->modelHdr;
 
@@ -2782,6 +2791,48 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat
         return;
     }
 
+
+#ifdef SH_PC_PORT
+    /* Static cabin pieces and separately submitted trim must use the same
+     * world-to-screen origin. Do not round each object's camera-relative
+     * translation independently before projecting its vertices. */
+    if (Pc_BoatCabinDepthActive() && worldMat != NULL && viewMat != NULL)
+    {
+        extern int PGXP_MatrixLookup(const MATRIX*, double*);
+        extern int PGXP_MatrixLookupTranslation(const MATRIX*, double*);
+        extern void PGXP_MatrixRegister(const MATRIX*, const double*);
+        extern void PGXP_MatrixRegisterTranslation(MATRIX*, const double*);
+        double camera[9], rotation[9], cameraT[3], translation[3];
+        s32 r, c, k;
+
+        for (r = 0; r < 3; r++)
+        {
+            cameraT[r] = GsWSMATRIX.t[r];
+            for (c = 0; c < 3; c++)
+                camera[r * 3 + c] = GsWSMATRIX.m[r][c] / 4096.0;
+        }
+        PGXP_MatrixLookup(&GsWSMATRIX, camera);
+        PGXP_MatrixLookupTranslation(&GsWSMATRIX, cameraT);
+        cabinView = *viewMat;
+        for (r = 0; r < 3; r++)
+        {
+            translation[r] = cameraT[r];
+            for (k = 0; k < 3; k++)
+                translation[r] += camera[r * 3 + k] * worldMat->t[k];
+            cabinView.t[r] = (s32)translation[r];
+            for (c = 0; c < 3; c++)
+            {
+                rotation[r * 3 + c] = 0.0;
+                for (k = 0; k < 3; k++)
+                    rotation[r * 3 + c] += camera[r * 3 + k] * worldMat->m[k][c] / 4096.0;
+                cabinView.m[r][c] = (s16)(rotation[r * 3 + c] * 4096.0);
+            }
+        }
+        PGXP_MatrixRegister(&cabinView, rotation);
+        PGXP_MatrixRegisterTranslation(&cabinView, translation);
+        viewMat = &cabinView;
+    }
+#endif
 
     otTag = &arg1->org[func_800571D0(modelHdr->field_B_1)];
     temp_a0 = modelHdr->field_B_4;
@@ -2895,6 +2946,11 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat
                 if (Pc_MotelRoom9WallModel(modelHdr))
                     g_PsxActorDepth = 1;
                 if (Pc_BoatGangwayDepthModel(modelHdr))
+                    g_PsxActorDepth = 1;
+                /* Room depth alone retains flat per-polygon world depths.
+                 * The cabin's frames, door and floor need the existing
+                 * per-vertex depth path as well, restored after this draw. */
+                if (Pc_BoatCabinDepthActive())
                     g_PsxActorDepth = 1;
                 func_80057344(modelInfo, otTag, arg2, viewMat);
                 g_PsxActorDepth = prevActorDepth;
@@ -7050,6 +7106,8 @@ static int Pc_FarModelEligible(const s_ModelHeader* modelHdr)
     if (modelHdr == NULL || modelHdr->meshHdrs == NULL || modelHdr->field_B_0)
         return 0;
     if (Pc_WideLm_IsWide(modelHdr))
+        return 0;
+    if (Pc_BoatCabinDepthActive())
         return 0;
     /* The cache bypasses the room-local scratch corrections above. */
     if (Pc_MotelRoom9WallModel(modelHdr))
