@@ -82,3 +82,63 @@ MENU = {
     'Quick_Save':      'Salvar_Rápido',
     'Quick_Load':      'Carregar_Ráp.',
 }
+
+
+# Character Select / Additional Characters.
+QUICK = dict(globals().get('QUICK', {}))
+QUICK.update({
+    'Character Select': 'Seleção de personagem',
+    'Additional Characters...': 'Personagens adicionais...',
+    'Additional Characters': 'Personagens adicionais',
+    'No preview': 'Sem prévia',
+    'Could not load that model': 'Não foi possível carregar o modelo',
+    'Back': 'Voltar',
+    'Original model': 'Modelo original',
+    'Silent Hill 1 cast': 'Elenco de Silent Hill 1',
+    'Other': 'Outros',
+    'Replace your installed {name}?': 'Substituir {name} instalado?',
+    'Replace {n} installed file(s) in {name}?': 'Substituir {n} arquivo(s) instalado(s) em {name}?',
+    'Restart the game to use the updated characters.': 'Reinicie o jogo para usar os personagens atualizados.',
+    "Newer versions of jojo670's characters are available. Update them?": 'Há versões mais novas dos personagens de jojo670. Atualizar?',
+    '(update)': '(atualizar)',
+    'Download Preview': 'Baixar prévia',
+    'Downloadable Characters': 'Personagens para baixar',
+    'Installed Characters': 'Personagens instalados',
+    'Choose a Model': 'Escolha um modelo',
+    'Downloadable': 'Para baixar',
+    'Locally installed': 'Instalados localmente',
+    'Loading the list...': 'Carregando a lista...',
+    'Could not reach the list.': 'Não foi possível acessar a lista.',
+    'Nothing here yet.': 'Nada aqui ainda.',
+    'Fetching the character list...': 'Obtendo a lista de personagens...',
+    'Downloading {name}...': 'Baixando {name}...',
+    'Downloading the preview of {name}...': 'Baixando a prévia de {name}...',
+    'Installed {name}': '{name} instalado',
+    'Removed {name}': '{name} removido',
+    '{name}: download failed': '{name}: falha no download',
+    '{name}: could not install': '{name}: não foi possível instalar',
+    '{name}: preview failed': '{name}: falha na prévia',
+    'The character list could not be downloaded': 'Não foi possível baixar a lista de personagens',
+    '{name} enabled': '{name} ativado',
+    '{name} disabled': '{name} desativado',
+    'Monster Cybil': 'Cybil monstro',
+    'Bloody Lisa': 'Lisa ensanguentada',
+    'Ghost Alessa': 'Alessa fantasma',
+    'Incubator': 'Incubadora',
+    'Ghost Doctor': 'Médico fantasma',
+    'Puppet Nurse': 'Enfermeira marionete',
+    'Puppet Doctor': 'Médico marionete',
+})
+
+
+# Character Select names that do not change, and OK.
+SAME = set(globals().get('SAME', ())) | {
+    'QUICK.OK',
+    'QUICK.Harry',
+    'QUICK.Cybil',
+    'QUICK.Lisa',
+    'QUICK.Dahlia',
+    'QUICK.Kaufmann',
+    'QUICK.Cheryl',
+    'QUICK.Alessa',
+}

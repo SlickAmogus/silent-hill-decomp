@@ -14,6 +14,7 @@
 
 #include "miniz.h"
 #include "pc_chara_dl.h"
+#include "lang_quick.h"
 #include "pc_config.h"
 #include "sh_log.h"
 
@@ -1165,7 +1166,7 @@ static void cd_finish_install(const CdEntry* e)
 
     if (s_netStatus < 200 || s_netStatus >= 300 || (e->size > 0 && s_netGot > 0 && s_netGot != e->size))
     {
-        snprintf(s_status, sizeof(s_status), "%s: download failed", e->name);
+        snprintf(s_status, sizeof(s_status), "%s", Pc_LangQuickFill("{name}: download failed", "{name}", e->name));
         remove(s_netPath);
         return;
     }
@@ -1178,7 +1179,7 @@ static void cd_finish_install(const CdEntry* e)
         s_restart = 1;
     if (!cd_unzip_chara(s_netPath, CD_CHARA_DIR, 0, hero, sizeof(hero)))
     {
-        snprintf(s_status, sizeof(s_status), "%s: could not install", e->name);
+        snprintf(s_status, sizeof(s_status), "%s", Pc_LangQuickFill("{name}: could not install", "{name}", e->name));
         remove(s_netPath);
         return;
     }
@@ -1197,7 +1198,7 @@ static void cd_finish_install(const CdEntry* e)
     cd_records_save();
     cd_allow_loose();
     cd_persist();
-    snprintf(s_status, sizeof(s_status), "Installed %s", e->name);
+    snprintf(s_status, sizeof(s_status), "%s", Pc_LangQuickFill("Installed {name}", "{name}", e->name));
     SH_DBG("[CHARADL] installed %s (%s %s)", e->id, e->hero, e->version);
 }
 
@@ -1215,7 +1216,7 @@ static void cd_do_remove(const CdEntry* e)
     cd_record_drop(e->id);
     cd_records_save();
     cd_persist();
-    snprintf(s_status, sizeof(s_status), "Removed %s", e->name);
+    snprintf(s_status, sizeof(s_status), "%s", Pc_LangQuickFill("Removed {name}", "{name}", e->name));
     SH_DBG("[CHARADL] removed %s", e->id);
 }
 
@@ -1226,7 +1227,7 @@ static void cd_finish_preview(int idx)
 
     if (s_netStatus < 200 || s_netStatus >= 300)
     {
-        snprintf(s_status, sizeof(s_status), "%s: preview failed", e->name);
+        snprintf(s_status, sizeof(s_status), "%s", Pc_LangQuickFill("{name}: preview failed", "{name}", e->name));
         remove(s_netPath);
         return;
     }
@@ -1238,7 +1239,7 @@ static void cd_finish_preview(int idx)
         s_status[0] = '\0';
     }
     else
-        snprintf(s_status, sizeof(s_status), "%s: preview failed", e->name);
+        snprintf(s_status, sizeof(s_status), "%s", Pc_LangQuickFill("{name}: preview failed", "{name}", e->name));
     remove(s_netPath);
 }
 
@@ -1252,6 +1253,23 @@ const char* Cd_PreviewFile(int idx)
         static char installed[CD_FILE_MAX];
         snprintf(installed, sizeof(installed), "%s", cd_record_by_id(s_cat[idx].id)->hero);
         return installed;
+    }
+    /* Already here from a pack, the launcher or by hand: preview that copy,
+     * no download needed. */
+    {
+        int li = Cd_LocalFind(s_cat[idx].hero);
+
+        if (li >= 0)
+        {
+            static char local[CD_FILE_MAX + 64];
+            const CdLocal* l = &s_local[li];
+
+            if (l->enabled)
+                snprintf(local, sizeof(local), "%s", l->hero);
+            else
+                snprintf(local, sizeof(local), "../CHARA_off/%s/%s", s_groups[l->group].key, l->hero);
+            return local;
+        }
     }
     return s_previewReady[idx][0] ? s_previewReady[idx] : NULL;
 }
@@ -1291,7 +1309,8 @@ static void cd_group_toggle(int g, int enabled)
                 }
             }
         cd_launcher_set_enabled(s_groups[g].key, enabled);
-        snprintf(s_status, sizeof(s_status), "%s %s", s_groups[g].name, enabled ? "enabled" : "disabled");
+        snprintf(s_status, sizeof(s_status), "%s",
+                 Pc_LangQuickFill(enabled ? "{name} enabled" : "{name} disabled", "{name}", s_groups[g].name));
         return;
     }
 #endif
@@ -1317,7 +1336,8 @@ static void cd_group_toggle(int g, int enabled)
         }
     }
     cd_persist();
-    snprintf(s_status, sizeof(s_status), "%s %s", s_groups[g].name, enabled ? "enabled" : "disabled");
+    snprintf(s_status, sizeof(s_status), "%s",
+                 Pc_LangQuickFill(enabled ? "{name} enabled" : "{name} disabled", "{name}", s_groups[g].name));
 }
 
 void Cd_CatalogFetch(void)
@@ -1379,15 +1399,15 @@ static void cd_job_begin(const CdJob* j)
     switch (j->kind)
     {
     case CD_JOB_CATALOG:
-        snprintf(s_status, sizeof(s_status), "Fetching the character list...");
+        snprintf(s_status, sizeof(s_status), "%s", Pc_LangQuick("Fetching the character list..."));
         cd_net_start(CD_CATALOG_FILE, 0);
         break;
     case CD_JOB_INSTALL:
-        snprintf(s_status, sizeof(s_status), "Downloading %s...", s_cat[j->arg].name);
+        snprintf(s_status, sizeof(s_status), "%s", Pc_LangQuickFill("Downloading {name}...", "{name}", s_cat[j->arg].name));
         cd_net_start(s_cat[j->arg].file, s_cat[j->arg].size);
         break;
     case CD_JOB_PREVIEW:
-        snprintf(s_status, sizeof(s_status), "Downloading the preview of %s...", s_cat[j->arg].name);
+        snprintf(s_status, sizeof(s_status), "%s", Pc_LangQuickFill("Downloading the preview of {name}...", "{name}", s_cat[j->arg].name));
         cd_net_start(s_cat[j->arg].file, s_cat[j->arg].size);
         break;
     default:
@@ -1435,7 +1455,7 @@ void Cd_Tick(void)
         free(json);
         remove(s_netPath);
         snprintf(s_status, sizeof(s_status), "%s",
-                 s_catState == CD_CAT_READY ? "" : "The character list could not be downloaded");
+                 s_catState == CD_CAT_READY ? "" : Pc_LangQuick("The character list could not be downloaded"));
         SH_DBG("[CHARADL] catalog: status %d, %d characters", s_netStatus, s_catCount);
         Cd_LocalScan();
         break;
