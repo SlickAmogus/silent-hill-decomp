@@ -1989,5 +1989,6 @@
  "QUICK.Ghost_Doctor": "Ghost Doctor",
  "QUICK.Puppet_Nurse": "Puppet Nurse",
  "QUICK.Puppet_Doctor": "Puppet Doctor",
- "QUICK.(custom_copy_in_use)": "(custom copy in use)"
+ "QUICK.(custom_copy_in_use)": "(custom copy in use)",
+ "QUICK.Don't_ask_again": "Don't ask again"
 }
