@@ -260,3 +260,5 @@
 { "Alessa", { NULL, NULL, NULL, NULL } },
 /* Character Select / Additional Characters. */
 { "(custom copy in use)", { "(eigene Kopie aktiv)", "(copie perso utilisée)", "(se usa una copia propia)", "(in uso una copia personale)" } },
+/* Character Select / Additional Characters. */
+{ "Don't ask again", { "Nicht mehr fragen", "Ne plus demander", "No volver a preguntar", "Non chiedere più" } },

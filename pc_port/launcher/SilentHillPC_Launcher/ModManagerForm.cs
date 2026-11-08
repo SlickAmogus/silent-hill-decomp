@@ -146,6 +146,7 @@ namespace SilentHillPC_Launcher
                         (r, cancelled) => _mgr.Prepare(todo, r, cancelled));
             }
             _mgr.Scan();
+            try { CharacterCatalog.DropMigratedPacks(_mgr); } catch { }
 
             foreach (var m in _mgr.Mods.ToList())
             {
