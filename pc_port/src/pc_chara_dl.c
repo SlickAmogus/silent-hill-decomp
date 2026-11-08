@@ -39,10 +39,11 @@
 #define CD_RECORDS      "gamedata/chara_downloads.txt"
 #define CD_TEST_DIR     "gamedata/chara_catalog_test"
 
-#define CD_MAX_ENTRIES 128
-#define CD_MAX_LOCAL   160
-#define CD_MAX_GROUPS  48
-#define CD_MAX_JOBS    160
+#define CD_MAX_ENTRIES 1024
+#define CD_MAX_LOCAL   1024
+#define CD_MAX_GROUPS  256
+/* Above the catalog size: ticking every series queues one job per character. */
+#define CD_MAX_JOBS    (CD_MAX_ENTRIES + 64)
 
 /* ------------------------------------------------------------------------ */
 /* small file helpers                                                        */
@@ -730,7 +731,8 @@ static void cd_scan_launcher_mods(void)
         while (*p)
         {
             CdMod m;
-            char  dir[300], heroes[48][CD_FILE_MAX], id[64], author[96];
+            static char heroes[CD_MAX_LOCAL][CD_FILE_MAX];
+            char  dir[300], id[64], author[96];
             int   n, i, g, hasVer;
 
             while (*p && *p != '{' && *p != ']')
@@ -741,7 +743,7 @@ static void cd_scan_launcher_mods(void)
             p = cd_json_object(p, cd_mod_field, &m);
             if (!m.name[0] || !cd_mod_chara_dir(m.name, dir, sizeof(dir)))
                 continue;
-            n = cd_list_heroes(dir, heroes, 48);
+            n = cd_list_heroes(dir, heroes, CD_MAX_LOCAL);
             if (n == 0)
                 continue;
             cd_mod_modinfo(m.name, dir, id, sizeof(id), author, sizeof(author), &hasVer);
@@ -851,7 +853,7 @@ const char* Cd_ResolveBase(const char* base, char* out, int outSz)
 
 void Cd_LocalScan(void)
 {
-    char heroes[CD_MAX_LOCAL][CD_FILE_MAX];
+    static char heroes[CD_MAX_LOCAL][CD_FILE_MAX];
     int  n, i, j;
 
     s_localCount = 0;

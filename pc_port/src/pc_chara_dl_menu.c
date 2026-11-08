@@ -17,6 +17,7 @@
 #include "pc_chara_dl.h"
 #include "pc_chara_dl_menu.h"
 #include "pc_chara_text.h"
+#include "lang_quick.h"
 #include "pc_chara_preview.h"
 #include "pc_mouse_cursor.h"
 #include "pc_native_menu_draw.h"
@@ -55,8 +56,8 @@ enum { P_HUB, P_DOWN, P_LOCAL, P_PICK };
 enum { R_HEADER, R_ITEM, R_STOCK, R_PLAYAS };
 #define M_CAST_GROUP (-2)  /* the picker's built-in Play As cast, Harry only */
 
-#define M_MAX_ROWS 256
-#define M_MAX_CATS 64
+#define M_MAX_ROWS 2048
+#define M_MAX_CATS 256
 
 typedef struct
 {
@@ -309,7 +310,7 @@ static void m_build(void)
     }
     for (c = 0; c < s_catCount && s_rowCount < M_MAX_ROWS; c++)
     {
-        int items[160];
+        static int items[1024];
 
         n = 0;
         if (s_cats[c].group == M_CAST_GROUP)
@@ -332,13 +333,13 @@ static void m_build(void)
         }
         if (s_page == P_DOWN)
         {
-            for (i = 0; i < Cd_CatalogCount() && n < 160; i++)
+            for (i = 0; i < Cd_CatalogCount() && n < (int)(sizeof(items) / sizeof(items[0])); i++)
                 if (strcmp(Cd_CatalogGet(i)->category, s_cats[c].name) == 0)
                     items[n++] = i;
         }
         else
         {
-            for (i = 0; i < Cd_LocalCount() && n < 160; i++)
+            for (i = 0; i < Cd_LocalCount() && n < (int)(sizeof(items) / sizeof(items[0])); i++)
             {
                 const CdLocal* l = Cd_LocalGet(i);
                 char           cat[64];
@@ -1171,10 +1172,13 @@ void Cdm_Draw(int fieldL, int fieldR)
             int y = M_LIST_Y + 16 + i * 24;
             int w;
 
+            char up[96];
+
             Nm_BulletDraw(M_LIST_X0, y, s_hubSel == i);
-            w = Ct_Width(items[i], 1);
-            Ct_Draw(M_LIST_X0 + NM_BULLET_TEXT_DX, y, 1, s_hubSel == i ? StringColorId_Gold : StringColorId_White,
-                    items[i], 0, 0);
+            Pc_LangUtf8Upper(Ct_Tr(items[i]), up, (int)sizeof(up));
+            w = Ct_TextWidth(up, 1);
+            Ct_DrawText(M_LIST_X0 + NM_BULLET_TEXT_DX, y, 1, s_hubSel == i ? StringColorId_Gold : StringColorId_White,
+                        up, 0, 0);
             if (s_hubSel == i)
                 Nm_HighlightDraw(M_LIST_X0 - 1, M_LIST_X0 + NM_BULLET_TEXT_DX + w + 4, y + 14);
         }
