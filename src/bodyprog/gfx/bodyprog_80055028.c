@@ -2591,6 +2591,34 @@ static bool Pc_TownMotelFacadeDepthModel(const s_ModelHeader* model)
            model->meshHdrs[0].vertexCount == 90 && model->meshHdrs[0].primitiveCount == 72;
 }
 
+static bool Pc_BoatGangwayDepthModel(const s_ModelHeader* model)
+{
+    /* The same visible dock spans player rooms 15/16. Gate by model
+     * signatures, not the player's room, to avoid changing geometry in view. */
+    if (g_GameWork.gameState != GameState_InGame || g_SavegamePtr == NULL ||
+        g_SavegamePtr->mapIdx != MapIdx_MAP6_S00 ||
+        model->meshCount != 1 || model->meshHdrs == NULL)
+        return false;
+    return (((memcmp(model->name.str, "CUBE1_NE", 8) == 0 ||
+              memcmp(model->name.str, "CUB9_NEA", 8) == 0) &&
+             model->meshHdrs[0].vertexCount == 36 && model->meshHdrs[0].primitiveCount == 27) ||
+            (memcmp(model->name.str, "BMERGE1_", 8) == 0 &&
+             model->meshHdrs[0].vertexCount == 44 && model->meshHdrs[0].primitiveCount == 29) ||
+            (memcmp(model->name.str, "OBJ7\0\0\0\0", 8) == 0 &&
+             model->meshHdrs[0].vertexCount == 96 && model->meshHdrs[0].primitiveCount == 77) ||
+            (memcmp(model->name.str, "SKIN51\0\0", 8) == 0 &&
+             model->meshHdrs[0].vertexCount == 40 && model->meshHdrs[0].primitiveCount == 32) ||
+            (memcmp(model->name.str, "2122_29_", 8) == 0 &&
+             model->meshHdrs[0].vertexCount == 37 && model->meshHdrs[0].primitiveCount == 23) ||
+            ((memcmp(model->name.str, "POSTER1\0", 8) == 0 ||
+              memcmp(model->name.str, "POSTER2\0", 8) == 0) &&
+             model->meshHdrs[0].vertexCount == 4 && model->meshHdrs[0].primitiveCount == 1) ||
+            (memcmp(model->name.str, "2122_23_", 8) == 0 &&
+             model->meshHdrs[0].vertexCount == 22 && model->meshHdrs[0].primitiveCount == 11) ||
+            (memcmp(model->name.str, "2122_22_", 8) == 0 &&
+             model->meshHdrs[0].vertexCount == 23 && model->meshHdrs[0].primitiveCount == 19));
+}
+
 static bool Pc_TownStoneBorderDepthModel(const s_ModelHeader* model)
 {
     static const struct { const char* name; u8 meshes; u8 vertices; u8 primitives; } stock[] = {
@@ -2866,6 +2894,8 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat
                  * stock room shell, then restore the caller's depth mode. */
                 if (Pc_MotelRoom9WallModel(modelHdr))
                     g_PsxActorDepth = 1;
+                if (Pc_BoatGangwayDepthModel(modelHdr))
+                    g_PsxActorDepth = 1;
                 func_80057344(modelInfo, otTag, arg2, viewMat);
                 g_PsxActorDepth = prevActorDepth;
                 s_pcBenchHedgeLate = prevBenchHedgeLate;
@@ -3003,6 +3033,98 @@ static bool Pc_SewerFenceVisibleMesh(const s_ModelHeader* model, const s_MeshHea
 #endif
 
 #ifdef SH_PC_PORT
+static bool Pc_BoatPosterVisibleMesh(const s_ModelInfo* info, const s_MeshHeader* mesh,
+                                    s_MeshHeader* visible, s_Primitive* primitives,
+                                    DVECTOR* xy, s16* z)
+{
+    const s_ModelHeader* model = info->modelHdr;
+    const MATRIX* instance;
+    const s_Primitive* source;
+    int row, col, corner;
+    if (!Pc_BoatGangwayDepthModel(model) || model->vertexOffset != 0 || model->normalOffset != 0 ||
+        mesh != model->meshHdrs || mesh->vertexCount != 4 || mesh->primitiveCount != 1 ||
+        memcmp(model->name.str, "POSTER2\0", 8) != 0 || info->coord == NULL)
+        return false;
+    instance = &info->coord->workm;
+    if (instance->t[0] != -41216 || instance->t[1] != 640 || instance->t[2] != 6989 ||
+        instance->m[0][2] != -4096)
+        return false;
+    source = mesh->primitives;
+    /* A single quad bridges the host's diagonal fold and sinks into its
+     * middle. Subdivide only this instance; keep the accepted flat sheet. */
+    for (row = 0; row <= 4; row++)
+        for (col = 0; col <= 4; col++)
+        {
+            int i = row * 5 + col;
+            xy[i].vx = 57 - 114 * col / 4;
+            xy[i].vy = 74 - 148 * row / 4;
+            z[i] = 0;
+        }
+    xy[25] = xy[26] = xy[24];
+    z[25] = z[26] = z[24];
+    for (row = 0; row < 4; row++)
+        for (col = 0; col < 4; col++)
+        {
+            s_Primitive* p = &primitives[row * 4 + col];
+            u16 uv[4];
+            *p = *source;
+            for (corner = 0; corner < 4; corner++)
+            {
+                int r = row + (corner >= 2);
+                int c = col + (corner & 1);
+                const u16 original[4] = {source->field_0, source->field_4, source->field_8, source->field_A};
+                int u = ((4-c)*(4-r)*(original[0]&255) + c*(4-r)*(original[1]&255) +
+                         (4-c)*r*(original[2]&255) + c*r*(original[3]&255)) / 16;
+                int v = ((4-c)*(4-r)*(original[0]>>8) + c*(4-r)*(original[1]>>8) +
+                         (4-c)*r*(original[2]>>8) + c*r*(original[3]>>8)) / 16;
+                p->field_C[corner] = r * 5 + c;
+                uv[corner] = u | (v << 8);
+            }
+            p->field_0 = uv[0]; p->field_4 = uv[1];
+            p->field_8 = uv[2]; p->field_A = uv[3];
+        }
+    *visible = *mesh;
+    visible->vertexCount = 25;
+    visible->primitiveCount = 16;
+    visible->verticesXy = xy;
+    visible->verticesZ = z;
+    visible->primitives = primitives;
+    return true;
+}
+
+static bool Pc_BoatGangwayVisibleMesh(const s_ModelHeader* model, const s_MeshHeader* mesh,
+                                    s_MeshHeader* visible, s_Primitive* primitives)
+{
+    static const u8 topFaces[] = {5, 10, 15, 18, 21, 24, 25, 26};
+    int i, c;
+    if (!Pc_BoatGangwayDepthModel(model) || mesh != model->meshHdrs ||
+        mesh->vertexCount != 36 || mesh->primitiveCount != 27 ||
+        model->vertexOffset != 0 || model->normalOffset != 0 ||
+        mesh->verticesXy == NULL || mesh->verticesZ == NULL || mesh->primitives == NULL ||
+        mesh->verticesXy[7].vx != 205 || mesh->verticesXy[7].vy != 481 ||
+        mesh->verticesXy[15].vx != -217 || mesh->verticesXy[15].vy != 573)
+        return false;
+    /* Continue the main top's lighting across the separately authored end
+     * patches. Their independent shade slots form dark triangular seams even
+     * with correct depth. Keep all vertices, UVs and side/underside shading. */
+    memcpy(primitives, mesh->primitives, mesh->primitiveCount * sizeof(*primitives));
+    for (i = 0; i < (int)sizeof(topFaces); i++)
+    {
+        s_Primitive* p = &primitives[topFaces[i]];
+        for (c = 0; c < 4; c++)
+        {
+            int vertex = p->field_C[c];
+            int corner = mesh->verticesXy[vertex].vx >= -77 ? 0 : 1;
+            if (mesh->verticesZ[vertex] > 0)
+                corner += 2;
+            p->field_10[c] = mesh->primitives[6].field_10[corner];
+        }
+    }
+    *visible = *mesh;
+    visible->primitives = primitives;
+    return true;
+}
+
 static bool Pc_MotelReceptionDoorVisibleMesh(const s_ModelHeader* model, const s_MeshHeader* mesh,
                                              s_MeshHeader* visible, s_Primitive* primitives,
                                              DVECTOR* xy, s16* z)
@@ -3203,6 +3325,10 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
         s_MeshHeader* drawMesh = curMeshHdr;
         if (Pc_SewerFenceVisibleMesh(modelHdr, curMeshHdr, &visibleMesh, visiblePrimitives))
             drawMesh = &visibleMesh;
+        else if (Pc_BoatPosterVisibleMesh(modelInfo, curMeshHdr, &visibleMesh, visiblePrimitives, doorXy, doorZ))
+            drawMesh = &visibleMesh;
+        else if (Pc_BoatGangwayVisibleMesh(modelHdr, curMeshHdr, &visibleMesh, visiblePrimitives))
+            drawMesh = &visibleMesh;
         else if (Pc_MotelReceptionDoorVisibleMesh(modelHdr, curMeshHdr, &visibleMesh, visiblePrimitives, doorXy, doorZ))
             drawMesh = &visibleMesh;
 #endif
@@ -3220,6 +3346,49 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
         }
 
 #ifdef SH_PC_PORT
+        /* Conform these two paper sheets to their bent host panel, rather
+         * than translating the entire sheet away from the fence. Work in
+         * world Y/Z because POSTER instances rotate within the fence plane. */
+        if (Pc_BoatGangwayDepthModel(modelHdr) &&
+            (memcmp(modelHdr->name.str, "POSTER1\0", 8) == 0 ||
+             memcmp(modelHdr->name.str, "POSTER2\0", 8) == 0) &&
+            vertOffset == 0 && normalOffset == 0 && modelInfo->coord != NULL &&
+            modelInfo->coord->workm.t[0] == -41216 &&
+            modelInfo->coord->workm.m[0][2] == -4096)
+        {
+            const MATRIX* host = &modelInfo->coord->workm;
+            s32 i;
+            if ((host->t[1] == 614 && host->t[2] == 6835) ||
+                (host->t[1] == 640 && host->t[2] == 6989))
+                for (i = 0; i < drawMesh->vertexCount; i++)
+                {
+                    s32 x = drawMesh->verticesXy[i].vx;
+                    s32 y = drawMesh->verticesXy[i].vy;
+                    s32 wy = host->t[1] + (host->m[1][0] * x + host->m[1][1] * y) / 4096;
+                    s32 wz = host->t[2] + (host->m[2][0] * x + host->m[2][1] * y) / 4096;
+                    s32 skinX = 0;
+                    if (wz > 6912)
+                    {
+                        s32 z = CLAMP(wz - 6912, 0, 256);
+                        s32 h = CLAMP(wy - 512, 0, 256);
+                        skinX = h >= z ? 19 * z / 256 : (-22 * z + 41 * h) / 256;
+                    }
+                    scratchData->field_18C[i] = -(skinX + (drawMesh != curMeshHdr ? 4 : 2));
+                }
+        }
+        /* The bent fence continues below the walkway at Y=768. Its buried
+         * tail must not cover the adjoining timber when the camera turns. */
+        if (Pc_BoatGangwayDepthModel(modelHdr) &&
+            memcmp(modelHdr->name.str, "2122_29_", 8) == 0 &&
+            modelInfo->coord != NULL && modelInfo->coord->workm.t[0] == -41216 &&
+            modelInfo->coord->workm.t[1] == 0 && modelInfo->coord->workm.t[2] == 7168 &&
+            vertOffset == 0 && normalOffset == 0)
+        {
+            s32 i;
+            for (i = 0; i < curMeshHdr->vertexCount; i++)
+                if (scratchData->screenXy_0[i].vy > 768)
+                    scratchData->screenXy_0[i].vy = 768;
+        }
         if (Pc_MotelRoom9WallModel(modelHdr))
         {
             s32 i;
@@ -6884,6 +7053,8 @@ static int Pc_FarModelEligible(const s_ModelHeader* modelHdr)
         return 0;
     /* The cache bypasses the room-local scratch corrections above. */
     if (Pc_MotelRoom9WallModel(modelHdr))
+        return 0;
+    if (Pc_BoatGangwayDepthModel(modelHdr))
         return 0;
     if (Pc_MotelReceptionDoorDepthModel(modelHdr))
         return 0;
