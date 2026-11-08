@@ -105,6 +105,9 @@ static int  s_pickStockChosen;
 static int s_restartShown;
 static int s_wasBusy;
 static int s_jojoAsked;   /* the update offer is made once per visit */
+static int s_jojoSel;     /* D_JOJO: 0 Yes, 1 No, 2 Don't ask again */
+static const char* const s_jojoBtn[3] = { "Yes", "No", "Don't ask again" };
+static const int s_jojoX[3] = { 70, 140, 236 }; /* button centres */
 
 /* ------------------------------------------------------------------------ */
 /* drawing helpers                                                           */
@@ -683,6 +686,46 @@ static int m_dialog_update(const NmInput* in)
         }
         return 1;
     }
+    if (s_dialog == D_JOJO)
+    {
+        int i, pick = -1, old = s_jojoSel;
+
+        if (in->left)
+            s_jojoSel = (s_jojoSel + 2) % 3;
+        if (in->right)
+            s_jojoSel = (s_jojoSel + 1) % 3;
+        for (i = 0; i < 3; i++)
+        {
+            int w = Ct_Width(s_jojoBtn[i], 1);
+
+            if (in->mouseY >= 120 && in->mouseY < 140 && in->mouseX >= s_jojoX[i] - w / 2 - 4 &&
+                in->mouseX < s_jojoX[i] + w / 2 + 4)
+            {
+                if (in->mouseMoved)
+                    s_jojoSel = i;
+                if (in->mouseLeft)
+                    pick = i;
+            }
+        }
+        if (s_jojoSel != old)
+            SD_Call(Sfx_MenuMove);
+        if (in->confirm)
+            pick = s_jojoSel;
+        if (in->cancel || in->mouseRight)
+            pick = 1;
+        if (pick < 0)
+            return 1;
+        SD_Call(pick == 0 ? Sfx_MenuConfirm : Sfx_MenuCancel);
+        if (pick == 0)
+        {
+            Cd_UpdateOldJojo();
+            s_changed = 1;
+        }
+        else if (pick == 2)
+            Cd_SetOldJojoNoAsk();
+        s_dialog = D_NONE;
+        return 1;
+    }
     res = NmConfirm_Update(&s_confirm, in);
     if (res == NM_CONFIRM_PENDING)
         return 1;
@@ -695,11 +738,6 @@ static int m_dialog_update(const NmInput* in)
                 m_install(s_pendingIdx, 1);
             else
                 m_toggle_category(-s_pendingIdx - 1, 1);
-        }
-        else if (s_dialog == D_JOJO)
-        {
-            Cd_UpdateOldJojo();
-            s_changed = 1;
         }
     }
     s_dialog = D_NONE;
@@ -723,9 +761,10 @@ int Cdm_Update(const NmInput* in)
         snprintf(s_dialogText, sizeof(s_dialogText), "%s", Ct_Tr("Restart the game to use the updated characters."));
         s_dialog = D_RESTART;
     }
-    if (s_page == P_HUB && s_dialog == D_NONE && !s_jojoAsked && Cd_OldJojoPending())
+    if (s_page == P_HUB && s_dialog == D_NONE && !s_jojoAsked && Cd_OldJojoPending() && !Cd_OldJojoNoAsk())
     {
         s_jojoAsked = 1;
+        s_jojoSel   = 0;
         snprintf(s_dialogText, sizeof(s_dialogText), "%s",
                  Ct_Tr("Newer versions of jojo670's characters are available. Update them?"));
         s_dialog = D_JOJO;
@@ -1117,6 +1156,21 @@ static void m_dialog_draw(void)
     if (s_dialog == D_RESTART || s_dialog == D_INFO)
     {
         Ct_DrawCentered(cx, 124, 1, StringColorId_Gold, "OK");
+        return;
+    }
+    if (s_dialog == D_JOJO)
+    {
+        int i;
+
+        for (i = 0; i < 3; i++)
+        {
+            int w = Ct_Width(s_jojoBtn[i], 1);
+            int x = s_jojoX[i] - w / 2;
+
+            Ct_Draw(x, 124, 1, s_jojoSel == i ? StringColorId_Gold : StringColorId_White, s_jojoBtn[i], 0, 0);
+            if (s_jojoSel == i)
+                Nm_HighlightDraw(x - 4, x + w + 4, 138);
+        }
         return;
     }
     {

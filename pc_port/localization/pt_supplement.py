@@ -149,3 +149,10 @@ QUICK = dict(globals().get('QUICK', {}))
 QUICK.update({
     '(custom copy in use)': '(usando cópia personalizada)',
 })
+
+
+# Character Select / Additional Characters.
+QUICK = dict(globals().get('QUICK', {}))
+QUICK.update({
+    "Don't ask again": 'Não perguntar de novo',
+})

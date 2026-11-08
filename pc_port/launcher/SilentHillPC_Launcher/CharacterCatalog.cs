@@ -143,6 +143,22 @@ namespace SilentHillPC_Launcher
             }
         }
 
+        /// <summary>QoL character packs the game has moved into Additional Characters
+        /// (gamedata\chara_migrated.txt, one Essential id per line): their characters are
+        /// downloads now, so the pack itself leaves the library and is never updated
+        /// again. Returns whether anything was removed.</summary>
+        public static bool DropMigratedPacks(ModManager mgr)
+        {
+            string p = Path.Combine(mgr.GameRoot, "gamedata", "chara_migrated.txt");
+            if (!System.IO.File.Exists(p)) return false;
+            var ids = new HashSet<string>(System.IO.File.ReadAllLines(p).Select(l => l.Trim()).Where(l => l.Length > 0),
+                                          StringComparer.OrdinalIgnoreCase);
+            var gone = mgr.Mods.Where(m => !string.IsNullOrEmpty(m.EssentialId) && ids.Contains(m.EssentialId)).ToList();
+            foreach (var m in gone) mgr.DeleteLibrary(m);
+            if (gone.Count > 0) mgr.SaveState();
+            return gone.Count > 0;
+        }
+
         public static List<Record> ReadRecords(string gameRoot)
         {
             var list = ReadRecordsRaw(gameRoot);

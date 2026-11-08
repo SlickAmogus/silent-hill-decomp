@@ -2093,6 +2093,9 @@ public partial class Form1 : Form
         {
             var mgr = new ModManager(AppDomain.CurrentDomain.BaseDirectory, config);
             mgr.Scan();
+            // QoL character packs the game moved into Additional Characters leave
+            // first, so they are never updated again.
+            try { CharacterCatalog.DropMigratedPacks(mgr); } catch { }
             if (!mgr.Mods.Any(m => !string.IsNullOrEmpty(m.EssentialId))) return;
             var cat = await EssentialMods.LoadAsync(mgr.ModsDir, System.Threading.CancellationToken.None);
             if (cat == null) return;
