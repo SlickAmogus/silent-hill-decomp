@@ -267,6 +267,28 @@ static void Pc_ParkShadowPacket(void* prim)
     }
 }
 
+static bool s_pcMotelReceptionDoor;
+
+static bool Pc_MotelReceptionDoorPacketDepth(const s_GteScratchData* scratch)
+{
+    static const u8 faces[][4] = {
+        {66, 90, 85, 85}, {95, 94, 62, 61}, {93, 91, 49, 62},
+        {49, 62, 50, 61}, {95, 96, 86, 90}, {87, 86, 65, 64},
+        {53, 63, 93, 91}, {63, 92, 91, 96}, {64, 86, 66, 90},
+        {96, 92, 90, 85}, {91, 96, 62, 95}, {94, 95, 87, 86},
+        {99, 53, 66, 63}, {53, 99, 63, 66},
+        {99, 53, 48, 49}, {53, 99, 49, 48}, {48, 64, 99, 66},
+        {48, 49, 51, 50}, {49, 48, 50, 51}
+    };
+    int i;
+    if (!s_pcMotelReceptionDoor)
+        return false;
+    for (i = 0; i < (int)(sizeof(faces) / sizeof(faces[0])); i++)
+        if (memcmp(&scratch->field_380.s_0.field_10, faces[i], 4) == 0)
+            return true;
+    return false;
+}
+
 static void Pc_FarOtAdd(void* prim, u32 key)
 {
     s32 idx = (key > PC_FAR_OT_BASE) ? (s32)((key - PC_FAR_OT_BASE) >> PC_FAR_OT_SHIFT) : 0;
@@ -279,7 +301,7 @@ static void Pc_FarOtAdd(void* prim, u32 key)
 #define SH_ADDPRIM_MESH(tag, sd, shift, prim)                                    \
     do {                                                                        \
         Pc_ParkShadowPacket(prim);                                               \
-        if (g_PsxActorDepth)                                                    \
+        if (g_PsxActorDepth || Pc_MotelReceptionDoorPacketDepth(sd))              \
             PsyX_SetNextPrimSzActor((sd)->field_18C[(sd)->field_380.s_0.field_10], \
                 (sd)->field_18C[(sd)->field_380.s_0.field_11],                  \
                 (sd)->field_18C[(sd)->field_380.s_0.field_12],                  \
@@ -2516,6 +2538,17 @@ static bool Pc_SewerRoom13FenceDepthModel(const s_ModelHeader* model)
 #endif
 
 #ifdef SH_PC_PORT
+static bool Pc_MotelReceptionDoorDepthModel(const s_ModelHeader* model)
+{
+    if (g_GameWork.gameState != GameState_InGame || g_SavegamePtr == NULL ||
+        g_SavegamePtr->mapIdx != MapIdx_MAP5_S03 || g_SavegamePtr->mapRoomIdx != 8 ||
+        model->meshHdrs == NULL || model->vertexOffset != 0 || model->normalOffset != 0)
+        return false;
+    return memcmp(model->name.str, "NUJ_BACK", 8) == 0 && model->meshCount == 2 &&
+           model->meshHdrs[0].vertexCount == 97 && model->meshHdrs[0].primitiveCount == 67 &&
+           model->meshHdrs[1].vertexCount == 54 && model->meshHdrs[1].primitiveCount == 41;
+}
+
 static bool Pc_MotelRoom9WallModel(const s_ModelHeader* model)
 {
     static const u8 roomMeshes[3][8][2] = {
@@ -2939,6 +2972,172 @@ static bool Pc_SewerFenceVisibleMesh(const s_ModelHeader* model, const s_MeshHea
 }
 #endif
 
+#ifdef SH_PC_PORT
+static bool Pc_MotelReceptionDoorVisibleMesh(const s_ModelHeader* model, const s_MeshHeader* mesh,
+                                             s_MeshHeader* visible, s_Primitive* primitives,
+                                             DVECTOR* xy, s16* z)
+{
+    static const u8 top[4] = {54, 53, 66, 63};
+    static const s16 vertices[4][3] = {
+        {-39, -508, 503}, {-252, -500, 603},
+        {-51, -499, 487}, {-258, -499, 581}
+    };
+    s_Primitive* cap;
+    int i;
+    if (g_GameWork.gameState == GameState_InGame && g_SavegamePtr != NULL &&
+        g_SavegamePtr->mapIdx == MapIdx_MAP5_S03 && g_SavegamePtr->mapRoomIdx == 8 &&
+        memcmp(model->name.str, "NUQ_BACK", 8) == 0 && model->meshCount == 2 &&
+        model->vertexOffset == 0 && model->normalOffset == 0 && mesh == model->meshHdrs &&
+        mesh->verticesXy != NULL && mesh->verticesZ != NULL && mesh->primitives != NULL &&
+        mesh->vertexCount == 82 && mesh->primitiveCount == 46 &&
+        mesh->verticesXy[37].vx == -102 && mesh->verticesXy[37].vy == -487 &&
+        mesh->verticesZ[37] == 736 && mesh->verticesXy[61].vx == 27 &&
+        mesh->verticesZ[61] == 737)
+    {
+        /* Continue the rear wall down behind the open leaf. Its stock mesh
+         * stops above the leaf and leaves a real hole, not a door-top defect. */
+        static const u8 edge[] = {38, 37, 61};
+        memcpy(primitives, mesh->primitives, mesh->primitiveCount * sizeof(*primitives));
+        memcpy(xy, mesh->verticesXy, mesh->vertexCount * sizeof(*xy));
+        memcpy(z, mesh->verticesZ, mesh->vertexCount * sizeof(*z));
+        for (i = 0; i < 3; i++)
+        {
+            xy[82 + i] = xy[edge[i]];
+            xy[82 + i].vy = 0;
+            z[82 + i] = z[edge[i]];
+        }
+        /* The loaders read pairs of Z values and projection reads triples. */
+        xy[85] = xy[86] = xy[84];
+        z[85] = z[84];
+        *visible = *mesh;
+        visible->primitives = primitives;
+        visible->verticesXy = xy;
+        visible->verticesZ = z;
+        visible->vertexCount = 85;
+        for (i = 0; i < 2; i++)
+        {
+            const s_Primitive* source = &mesh->primitives[i == 0 ? 38 : 28];
+            cap = &primitives[visible->primitiveCount++];
+            *cap = *source;
+            cap->field_C[0] = edge[i];
+            cap->field_C[1] = edge[i + 1];
+            cap->field_C[2] = 82 + i;
+            cap->field_C[3] = 83 + i;
+            /* Start at the existing wall's lower edge, not at the top of
+             * its atlas rectangle (which repeats the frame as a large patch). */
+            cap->field_0 = i == 0 ? source->field_A : source->field_0;
+            cap->field_4 = i == 0 ? source->field_4 : source->field_8;
+            cap->field_8 = (u16)(cap->field_0 + (60 << 8));
+            cap->field_A = (u16)(cap->field_4 + (60 << 8));
+            cap->field_10[0] = cap->field_10[2] = source->field_10[i == 0 ? 3 : 0];
+            cap->field_10[1] = cap->field_10[3] = source->field_10[i == 0 ? 1 : 2];
+        }
+        return true;
+    }
+    if (!Pc_MotelReceptionDoorDepthModel(model) || mesh != model->meshHdrs ||
+        mesh->verticesXy == NULL || mesh->verticesZ == NULL || mesh->primitives == NULL)
+        return false;
+    for (i = 0; i < 4; i++)
+        if (mesh->verticesXy[top[i]].vx != vertices[i][0] ||
+            mesh->verticesXy[top[i]].vy != vertices[i][1] ||
+            mesh->verticesZ[top[i]] != vertices[i][2])
+            return false;
+    /* Close the actual leaf's missing top, joining its existing front and
+     * back edges. Use the painted narrow-edge material, not wallpaper. */
+    memcpy(primitives, mesh->primitives, mesh->primitiveCount * sizeof(*primitives));
+    cap = &primitives[mesh->primitiveCount];
+    *cap = mesh->primitives[30];
+    memcpy(cap->field_C, top, sizeof(top));
+    /* Repeat the narrow painted edge across the length, rather than
+     * stretching the side face's full-height shaded pattern over the top. */
+    cap->field_0 = cap->field_4 = (u16)(mesh->primitives[30].field_8 + 0x100);
+    cap->field_8 = cap->field_A = (u16)(mesh->primitives[30].field_A + 0x100);
+    cap->field_10[0] = cap->field_10[1] = cap->field_10[2] = cap->field_10[3] = mesh->primitives[30].field_10[0];
+    *visible = *mesh;
+    visible->primitives = primitives;
+    visible->primitiveCount++;
+    primitives[visible->primitiveCount] = *cap;
+    cap = &primitives[visible->primitiveCount++];
+    cap->field_C[0] = 53;
+    cap->field_C[1] = 54;
+    cap->field_C[2] = 63;
+    cap->field_C[3] = 66;
+    cap->field_0 = primitives[mesh->primitiveCount].field_4;
+    cap->field_4 = primitives[mesh->primitiveCount].field_0;
+    cap->field_8 = primitives[mesh->primitiveCount].field_A;
+    cap->field_A = primitives[mesh->primitiveCount].field_8;
+    /* Close the reverse panel with the front's painted-panel UV rectangle. */
+    for (i = 0; i < 2; i++)
+    {
+        static const u8 rear[2][4] = {{54, 53, 48, 49}, {48, 49, 51, 50}};
+        s_Primitive* front;
+        cap = &primitives[visible->primitiveCount++];
+        *cap = mesh->primitives[63];
+        memcpy(cap->field_C, rear[i], 4);
+        cap->field_0 = i == 0 ? mesh->primitives[63].field_8 : mesh->primitives[63].field_0;
+        cap->field_4 = i == 0 ? mesh->primitives[62].field_0 : mesh->primitives[65].field_8;
+        cap->field_8 = i == 0 ? mesh->primitives[63].field_0 : mesh->primitives[58].field_0;
+        cap->field_A = i == 0 ? mesh->primitives[65].field_8 : mesh->primitives[28].field_A;
+        cap->field_10[0] = cap->field_10[1] = cap->field_10[2] = cap->field_10[3] = mesh->primitives[63].field_10[0];
+        front = cap;
+        cap = &primitives[visible->primitiveCount++];
+        *cap = *front;
+        cap->field_C[0] = front->field_C[1];
+        cap->field_C[1] = front->field_C[0];
+        cap->field_C[2] = front->field_C[3];
+        cap->field_C[3] = front->field_C[2];
+        cap->field_0 = front->field_4;
+        cap->field_4 = front->field_0;
+        cap->field_8 = front->field_A;
+        cap->field_A = front->field_8;
+    }
+    /* Continue the perpendicular wall behind the leaf, outside the opening. */
+    memcpy(xy, mesh->verticesXy, mesh->vertexCount * sizeof(*xy));
+    memcpy(z, mesh->verticesZ, mesh->vertexCount * sizeof(*z));
+    xy[97] = xy[45]; xy[97].vy = 0; z[97] = z[45];
+    xy[98] = xy[82]; xy[98].vy = 0; z[98] = z[82];
+    visible->verticesXy = xy;
+    visible->verticesZ = z;
+    cap = &primitives[visible->primitiveCount++];
+    *cap = mesh->primitives[52];
+    cap->field_C[0] = 45; cap->field_C[1] = 82;
+    cap->field_C[2] = 97; cap->field_C[3] = 98;
+    cap->field_0 = mesh->primitives[54].field_0;
+    cap->field_4 = mesh->primitives[54].field_8;
+    cap->field_8 = (u16)(cap->field_0 + (80 << 8));
+    cap->field_A = (u16)(cap->field_4 + (80 << 8));
+    cap->field_10[0] = cap->field_10[2] = mesh->primitives[54].field_10[0];
+    cap->field_10[1] = cap->field_10[3] = mesh->primitives[54].field_10[2];
+    primitives[visible->primitiveCount] = *cap;
+    cap = &primitives[visible->primitiveCount++];
+    cap->field_C[0] = 82; cap->field_C[1] = 45;
+    cap->field_C[2] = 98; cap->field_C[3] = 97;
+    cap->field_0 = primitives[visible->primitiveCount - 2].field_4;
+    cap->field_4 = primitives[visible->primitiveCount - 2].field_0;
+    cap->field_8 = primitives[visible->primitiveCount - 2].field_A;
+    cap->field_A = primitives[visible->primitiveCount - 2].field_8;
+    cap->field_10[0] = cap->field_10[2] = mesh->primitives[54].field_10[2];
+    cap->field_10[1] = cap->field_10[3] = mesh->primitives[54].field_10[0];
+    /* Vertex 54 belongs to the fixed jamb as well as the open leaf. Level
+     * only a private leaf copy, leaving the frame's shared vertex untouched. */
+    xy[99] = xy[54]; xy[99].vy = -499; z[99] = z[54];
+    xy[53].vy = -499;
+    xy[100] = xy[101] = xy[99];
+    z[100] = z[101] = z[99];
+    visible->vertexCount = 100;
+    for (i = 30; i < visible->primitiveCount; i++)
+    {
+        int k;
+        if (i != 30 && i < mesh->primitiveCount)
+            continue;
+        for (k = 0; k < 4; k++)
+            if (primitives[i].field_C[k] == 54)
+                primitives[i].field_C[k] = 99;
+    }
+    return true;
+}
+#endif
+
 void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* mat) // 0x80057344
 {
     u32               normalOffset;
@@ -2968,9 +3167,13 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
     {
 #ifdef SH_PC_PORT
         s_MeshHeader visibleMesh;
-        s_Primitive visiblePrimitives[25];
+        s_Primitive visiblePrimitives[79];
+        DVECTOR doorXy[102];
+        s16 doorZ[102];
         s_MeshHeader* drawMesh = curMeshHdr;
         if (Pc_SewerFenceVisibleMesh(modelHdr, curMeshHdr, &visibleMesh, visiblePrimitives))
+            drawMesh = &visibleMesh;
+        else if (Pc_MotelReceptionDoorVisibleMesh(modelHdr, curMeshHdr, &visibleMesh, visiblePrimitives, doorXy, doorZ))
             drawMesh = &visibleMesh;
 #endif
         if (vertOffset != 0 || normalOffset != 0)
@@ -2979,7 +3182,11 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
         }
         else
         {
+#ifdef SH_PC_PORT
+            func_800574D4(drawMesh, scratchData);
+#else
             func_800574D4(curMeshHdr, scratchData);
+#endif
         }
 
 #ifdef SH_PC_PORT
@@ -3171,19 +3378,27 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
                 const double f  = 1000.0 / (double)SDL_GetPerformanceFrequency();
                 Uint64       t0 = SDL_GetPerformanceCounter();
                 Uint64       t1;
-                func_80057B7C(curMeshHdr, vertOffset, scratchData, mat);
+                func_80057B7C(drawMesh, vertOffset, scratchData, mat);
                 t1 = SDL_GetPerformanceCounter();
+                s_pcMotelReceptionDoor = Pc_MotelReceptionDoorDepthModel(modelHdr) && curMeshHdr == modelHdr->meshHdrs;
                 Gfx_MeshDraw(drawMesh, scratchData, otTag, arg2);
+                s_pcMotelReceptionDoor = false;
                 g_wmTXform += (double)(t1 - t0) * f;
                 g_wmTMesh  += (double)(SDL_GetPerformanceCounter() - t1) * f;
                 continue;
             }
         }
 #endif
+#ifdef SH_PC_PORT
+        func_80057B7C(drawMesh, vertOffset, scratchData, mat);
+#else
         func_80057B7C(curMeshHdr, vertOffset, scratchData, mat);
+#endif
 
 #ifdef SH_PC_PORT
+        s_pcMotelReceptionDoor = Pc_MotelReceptionDoorDepthModel(modelHdr) && curMeshHdr == modelHdr->meshHdrs;
         Gfx_MeshDraw(drawMesh, scratchData, otTag, arg2);
+        s_pcMotelReceptionDoor = false;
 #else
         Gfx_MeshDraw(curMeshHdr, scratchData, otTag, arg2);
 #endif
@@ -6639,6 +6854,12 @@ static int Pc_FarModelEligible(const s_ModelHeader* modelHdr)
         return 0;
     /* The cache bypasses the room-local scratch corrections above. */
     if (Pc_MotelRoom9WallModel(modelHdr))
+        return 0;
+    if (Pc_MotelReceptionDoorDepthModel(modelHdr))
+        return 0;
+    if (g_GameWork.gameState == GameState_InGame && g_SavegamePtr != NULL &&
+        g_SavegamePtr->mapIdx == MapIdx_MAP5_S03 && g_SavegamePtr->mapRoomIdx == 8 &&
+        memcmp(modelHdr->name.str, "NUQ_BACK", 8) == 0)
         return 0;
     /* Stock fountain/bin/hedge depth and scratch corrections belong to the mesh
      * drawer. The whole-map cache otherwise bypasses them entirely. */
