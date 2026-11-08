@@ -4512,7 +4512,14 @@ void MainLoop(void) // 0x80032EE0
                                      (g_Screen_FadeStatus & 0x7) <= ScreenFadeState_FadeInStart;
             const int uiIsMenu = uiMenuState && !uiWorldOnScreen && !uiFadeOpaque;
 
-            g_PcHorPlusEnabled = uiIsMenu ? 0 : g_PcHorPlusGate;
+            /* Character Select over gameplay lays out like it does on the
+             * title screen (widened native menu, g_PsxWideMenu), but the world
+             * behind it keeps the gameplay gate on, and this pass then framed
+             * the menu as gameplay: zoomed in at 16:9. */
+            extern int Pc_CharaSelect_IsOpen(void);
+            const int uiCharaSelect = Pc_CharaSelect_IsOpen();
+
+            g_PcHorPlusEnabled = (uiIsMenu || uiCharaSelect) ? 0 : g_PcHorPlusGate;
             g_PsxUIOrthoPass   = 1;
             GsDrawOt(&g_OrderingTable2[g_ActiveBufferIdx]);
             g_PsxUIOrthoPass   = 0;
