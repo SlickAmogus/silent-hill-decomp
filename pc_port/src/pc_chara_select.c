@@ -77,8 +77,8 @@ static void cs_field_update(void)
 #define CS_HIT_PREV   (-3)
 #define CS_HIT_NEXT   (-4)
 
-#define CS_MAX_MODELS  160
-#define CS_TOKEN_MAX   64
+#define CS_MAX_MODELS  1024
+#define CS_TOKEN_MAX   96
 
 typedef struct
 {
@@ -113,7 +113,7 @@ typedef struct
 {
     CsModelKind kind;
     char        token[CS_TOKEN_MAX]; /* config value: "-" stock, play-as name, or file base */
-    char        display[64];         /* the file name shown */
+    char        display[96];         /* the file name shown */
     int         playasIdx;
 } CsModel;
 

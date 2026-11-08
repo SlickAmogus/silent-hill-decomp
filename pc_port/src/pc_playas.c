@@ -98,12 +98,12 @@ static const PcPlayAsChara s_builtin[] = {
 /* Skinned swaps for Harry found in gamedata/load/CHARA (HERO_CJ.glb or
  * HEROCJ.glb -> "CJ"), each its own row after the built-ins. They play on
  * Harry's own row and rig; only the glTF the skin loader reads changes. */
-#define PLAYAS_SWAP_MAX 96
+#define PLAYAS_SWAP_MAX 1024
 typedef struct
 {
-    char name[40];
-    char label[40];
-    char file[64];
+    char name[80];
+    char label[80];
+    char file[96];
 } PcPlayAsSwap;
 
 static PcPlayAsChara s_playable[PLAYAS_BUILTIN + PLAYAS_SWAP_MAX];

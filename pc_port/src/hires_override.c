@@ -1343,6 +1343,14 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
     return 0;
 }
 
+void HiresOverride_DeleteTexture(unsigned int texture)
+{
+    GLuint t = (GLuint)texture;
+
+    if (t != 0)
+        glDeleteTextures(1, &t);
+}
+
 unsigned int HiresOverride_CreateTextureRGBA(const unsigned char* rgba, int w, int h)
 {
     GLuint texture = 0;
