@@ -45,7 +45,9 @@ static Uint32 s_phaseStart;
 #define CD_OPEN_MS  180u
 #define CD_CLOSE_MS 140u
 
-static int  s_sel;          /* 0 = Yes, 1 = No */
+static int  s_sel;          /* 0 = Yes, 1 = No, 2 = the third button */
+static int  s_btnCount = 2;
+static char s_third[CD_TEXT_MAX];
 static char s_title[CD_TEXT_MAX];
 static char s_message[CD_TEXT_MAX];
 static int  s_textDirty;    /* strings changed -> re-bake */
@@ -66,8 +68,9 @@ static int            s_fontsTried;
 static int            s_fontsScript = -1;
 
 /* Baked text, keyed to the pixel size it was baked at (re-baked on resize). */
-static GLuint s_texTitle, s_texMsg, s_texYes, s_texNo, s_texHint;
+static GLuint s_texTitle, s_texMsg, s_texYes, s_texNo, s_texHint, s_texThird;
 static int    s_titleW, s_titleH, s_msgW, s_msgH, s_yesW, s_yesH, s_noW, s_noH, s_hintW, s_hintH;
+static int    s_thirdW, s_thirdH;
 static int    s_bakedForPx;
 
 /* The game's arrow pointer, decoded from VRAM once. The overlay composites
@@ -75,7 +78,7 @@ static int    s_bakedForPx;
 
 /* Geometry published by Draw for Update's mouse hit-test (viewport px, y up). */
 static float s_vpW = 1920.0f, s_vpH = 1080.0f;
-static float s_geoBtnL[2], s_geoBtnR[2], s_geoBtnT, s_geoBtnB;
+static float s_geoBtnL[3], s_geoBtnR[3], s_geoBtnT, s_geoBtnB;
 static int   s_geoValid;
 
 /* ------------------------------------------------------------------ */
@@ -363,6 +366,7 @@ static void cd_free_text(void)
     cd_retire(s_texYes);   s_texYes   = 0;
     cd_retire(s_texNo);    s_texNo    = 0;
     cd_retire(s_texHint);  s_texHint  = 0;
+    cd_retire(s_texThird); s_texThird = 0;
 }
 
 /* ------------------------------------------------------------------ */
@@ -393,6 +397,20 @@ void Pc_ConfirmDialog_Open(const char* title, const char* message)
     s_sel        = 1; /* "No" is the safe default */
     s_geoValid   = 0;
     s_openTicks  = s_phaseStart;
+    s_btnCount   = 2;
+}
+
+void Pc_ConfirmDialog_Open3(const char* title, const char* message, const char* third)
+{
+    char up[CD_TEXT_MAX];
+
+    if (s_phase == CD_OPENING || s_phase == CD_SHOWN)
+        return;
+    Pc_ConfirmDialog_Open(NULL, message);
+    Pc_LangUtf8Upper(title ? Pc_LangQuick(title) : "", up, (int)sizeof(up));
+    snprintf(s_title, sizeof(s_title), "%s", up);
+    snprintf(s_third, sizeof(s_third), "%s", third ? Pc_LangQuick(third) : "");
+    s_btnCount = s_third[0] ? 3 : 2;
 }
 
 static void cd_close(void)
@@ -427,14 +445,14 @@ int Pc_ConfirmDialog_Update(int left, int right, int confirm, int cancel)
     /* Yes sits on the reading side's start, so in RTL it is the right button. */
     if (Pc_LangQuickScript() == LANG_QUICK_SCRIPT_ARABIC)
     {
-        if (left)  s_sel = 1;
-        if (right) s_sel = 0;
+        int t = left;
+        left  = right;
+        right = t;
     }
-    else
-    {
-        if (left)  s_sel = 0;
-        if (right) s_sel = 1;
-    }
+    if (left && s_sel > 0)
+        s_sel--;
+    if (right && s_sel < s_btnCount - 1)
+        s_sel++;
 
     /* Mouse: hover selects a button, left-click activates it. */
     mMoved = Pc_MouseCursor_Moved();
@@ -444,7 +462,7 @@ int Pc_ConfirmDialog_Update(int left, int right, int confirm, int cancel)
         float py  = (1.0f - my) * s_vpH; /* top-left norm -> bottom-left px */
         float mpx = mx * s_vpW;
         int   b;
-        for (b = 0; b < 2; b++)
+        for (b = 0; b < s_btnCount; b++)
         {
             if (mpx >= s_geoBtnL[b] && mpx <= s_geoBtnR[b] && py <= s_geoBtnT && py >= s_geoBtnB)
             {
@@ -457,7 +475,7 @@ int Pc_ConfirmDialog_Update(int left, int right, int confirm, int cancel)
     if (confirm)
     {
         cd_close();
-        return s_sel == 0 ? PC_CONFIRM_YES : PC_CONFIRM_NO;
+        return s_sel == 0 ? PC_CONFIRM_YES : s_sel == 1 ? PC_CONFIRM_NO : PC_CONFIRM_THIRD;
     }
     return PC_CONFIRM_NONE;
 }
@@ -470,7 +488,7 @@ void Pc_ConfirmDialog_Draw(void)
 {
     GLint vp[4];
     float vpW, vpH, panelW, panelH, panelL, panelR, panelT, panelB;
-    float titleH, hintH, pad, btnW, btnH, btnGap, btnT, btnB, btnL[2], dim = 1.0f;
+    float titleH, hintH, pad, btnW, btnH, btnGap, btnT, btnB, btnL[3], dim = 1.0f;
     int   px, b;
 
     GLint  prevProg = 0, prevVao = 0, prevBuf = 0, prevTex = 0, prevUnit = GL_TEXTURE0, prevAlign = 4;
@@ -544,6 +562,8 @@ void Pc_ConfirmDialog_Draw(void)
     if (!s_texMsg)   s_texMsg   = cd_bake(s_message, (float)px,                    &s_msgW,   &s_msgH);
     if (!s_texYes)   s_texYes   = cd_bake(Pc_LangQuick("Yes"), (float)px,                    &s_yesW,   &s_yesH);
     if (!s_texNo)    s_texNo    = cd_bake(Pc_LangQuick("No"), (float)px,                    &s_noW,    &s_noH);
+    if (!s_texThird && s_btnCount == 3)
+        s_texThird = cd_bake(s_third, (float)px, &s_thirdW, &s_thirdH);
     if (s_texHint && s_hintMode != (Pc_ResetSettings_InputMode() == PC_INPUT_TOUCH))
     {
         cd_retire(s_texHint);
@@ -563,6 +583,12 @@ void Pc_ConfirmDialog_Draw(void)
 
     panelW = 0.36f * vpW;
     if (panelW < (float)s_msgW + 2.0f * pad) panelW = (float)s_msgW + 2.0f * pad;
+    if (s_btnCount == 3)
+    {
+        /* Gaps are 6% of the panel each: solve for the width that holds them. */
+        float need = (3.0f * ((float)s_thirdW + pad) + 2.0f * pad) / (1.0f - 2.0f * 0.06f);
+        if (panelW < need) panelW = need;
+    }
     if (panelW < (float)s_hintW + 2.0f * pad) panelW = (float)s_hintW + 2.0f * pad;
     if (panelW > 0.90f * vpW) panelW = 0.90f * vpW;
     panelL = (vpW - panelW) * 0.5f;
@@ -574,20 +600,23 @@ void Pc_ConfirmDialog_Draw(void)
     btnH   = panelH * 0.20f;
     btnW   = panelW * 0.22f;
     btnGap = panelW * 0.06f;
+    if (s_btnCount == 3 && btnW < (float)s_thirdW + pad)
+        btnW = (float)s_thirdW + pad;
     btnB   = panelB + hintH + panelH * 0.08f;
     btnT   = btnB + btnH;
-    btnL[0] = (vpW - (2.0f * btnW + btnGap)) * 0.5f;
-    btnL[1] = btnL[0] + btnW + btnGap;
+    btnL[0] = (vpW - ((float)s_btnCount * btnW + (float)(s_btnCount - 1) * btnGap)) * 0.5f;
+    for (b = 1; b < s_btnCount; b++)
+        btnL[b] = btnL[b - 1] + btnW + btnGap;
     if (Pc_LangQuickScript() == LANG_QUICK_SCRIPT_ARABIC)
     {
         float t = btnL[0];
-        btnL[0] = btnL[1];
-        btnL[1] = t;
+        btnL[0] = btnL[s_btnCount - 1];
+        btnL[s_btnCount - 1] = t;
     }
 
     /* Publish geometry for Update's mouse hit-test. */
     s_vpW = vpW; s_vpH = vpH;
-    for (b = 0; b < 2; b++) { s_geoBtnL[b] = btnL[b]; s_geoBtnR[b] = btnL[b] + btnW; }
+    for (b = 0; b < s_btnCount; b++) { s_geoBtnL[b] = btnL[b]; s_geoBtnR[b] = btnL[b] + btnW; }
     s_geoBtnT = btnT; s_geoBtnB = btnB;
     s_geoValid = 1;
 
@@ -642,11 +671,11 @@ void Pc_ConfirmDialog_Draw(void)
     }
 
     /* Buttons: the selected one gets the rust fill, the other a faint outline. */
-    for (b = 0; b < 2; b++)
+    for (b = 0; b < s_btnCount; b++)
     {
-        GLuint tex = b == 0 ? s_texYes : s_texNo;
-        int    tw  = b == 0 ? s_yesW : s_noW;
-        int    th  = b == 0 ? s_yesH : s_noH;
+        GLuint tex = b == 0 ? s_texYes : b == 1 ? s_texNo : s_texThird;
+        int    tw  = b == 0 ? s_yesW : b == 1 ? s_noW : s_thirdW;
+        int    th  = b == 0 ? s_yesH : b == 1 ? s_noH : s_thirdH;
         float  l = btnL[b], r = btnL[b] + btnW;
         if (b == s_sel)
             cd_quad(s_texWhite, NX(l), NY(btnT), NX(r), NY(btnB), 0.42f, 0.16f, 0.12f, 0.85f * dim);
