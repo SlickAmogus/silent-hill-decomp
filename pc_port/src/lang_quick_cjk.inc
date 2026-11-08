@@ -313,4 +313,6 @@ static const s_QuickCjk s_MenuCjkTr[] = {
     { "Ghost Doctor", "幽霊の医師", "幽灵医生" },
     { "Puppet Nurse", "パペットナース", "傀儡护士" },
     { "Puppet Doctor", "パペットドクター", "傀儡医生" },
+    /* Character Select / Additional Characters. */
+    { "(custom copy in use)", "（カスタム版を使用中）", "（正在使用自定义版本）" },
 };

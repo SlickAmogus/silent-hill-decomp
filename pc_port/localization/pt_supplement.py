@@ -142,3 +142,10 @@ SAME = set(globals().get('SAME', ())) | {
     'QUICK.Cheryl',
     'QUICK.Alessa',
 }
+
+
+# Character Select / Additional Characters.
+QUICK = dict(globals().get('QUICK', {}))
+QUICK.update({
+    '(custom copy in use)': '(usando cópia personalizada)',
+})
