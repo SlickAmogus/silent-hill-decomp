@@ -317,4 +317,9 @@ static const s_QuickAr s_MenuArTr[] = {
     { "Your QoL character packs are now part of Additional Characters. Download the new versions?", "أصبحت حزم شخصيات QoL جزءًا من الشخصيات الإضافية. هل تريد تنزيل الإصدارات الجديدة؟" },
     /* Character Select / Additional Characters. */
     { "Load Preview", "تحميل المعاينة" },
+    /* Character Select / Additional Characters. */
+    { "(download in use)", "(يُستخدم التنزيل)" },
+    { "no version", "بلا إصدار" },
+    { "{a} is already installed from {b} ({c}). The download ({d}) will be used instead. Download it?", "{a} مثبت بالفعل من {b} ({c}). سيُستخدم التنزيل ({d}) بدلًا منه. هل تريد تنزيله؟" },
+    { "{a} of these characters are already installed from packs. The downloads will be used instead. Download them?", "{a} من هذه الشخصيات مثبتة بالفعل من حزم. ستُستخدم التنزيلات بدلًا منها. هل تريد تنزيلها؟" },
 };

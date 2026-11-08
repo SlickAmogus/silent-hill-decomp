@@ -54,3 +54,7 @@
 { "Don't ask again", "Больше не спрашивать" },
 { "Your QoL character packs are now part of Additional Characters. Download the new versions?", "Ваши наборы персонажей QoL теперь входят в дополнительных персонажей. Скачать новые версии?" },
 { "Load Preview", "Загрузить предпросмотр" },
+{ "(download in use)", "(используется загрузка)" },
+{ "no version", "без версии" },
+{ "{a} is already installed from {b} ({c}). The download ({d}) will be used instead. Download it?", "{a} уже установлен из {b} ({c}). Вместо него будет использоваться загрузка ({d}). Скачать?" },
+{ "{a} of these characters are already installed from packs. The downloads will be used instead. Download them?", "{a} из этих персонажей уже установлены из наборов. Вместо них будут использоваться загрузки. Скачать?" },

@@ -44,6 +44,11 @@ namespace SilentHillPC_Launcher
         private bool _catalogLoading = true;
         private bool _essentialExpanded;
         private bool _charsExpanded; // the Additional Characters fold inside the section
+        // Set while Populate rebuilds the list. Adding an item that is already
+        // ticked raises ItemCheck; a ticked series row answered that by queueing
+        // another Populate, which re-added it ticked, and so on for ever: the
+        // launcher hung as soon as the fold opened with a whole series installed.
+        private bool _populating;
         private readonly HashSet<string> _toInstall = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private sealed class EssentialHeader { }
         private sealed class EssentialCharsHeader { }
@@ -485,6 +490,13 @@ namespace SilentHillPC_Launcher
 
         private void Populate()
         {
+            _populating = true;
+            try { PopulateRows(); }
+            finally { _populating = false; }
+        }
+
+        private void PopulateRows()
+        {
             _list.BeginUpdate();
             _list.Items.Clear();
             BindEssentials();
@@ -576,7 +588,7 @@ namespace SilentHillPC_Launcher
             sub.SubItems.Add(_charInstall.Count + _charRemove.Count > 0
                 ? Loc.F("{0} to install, {1} to remove", _charInstall.Count, _charRemove.Count)
                 : Loc.F("{0} of {1} installed", installed, all.Count));
-            sub.SubItems.Add(Loc.T("Playable characters. Pick them in Character Select (PC Options or the quick menu). Custom characters (a mod, or files you copied in yourself) take priority over these downloads when they share a file name."));
+            sub.SubItems.Add(Loc.T("Playable characters. Pick them in Character Select (PC Options or the quick menu). These take priority over a mod's or a pack's character with the same file name: untick a character here to use the one from a pack instead."));
             sub.Font = new Font(_list.Font, FontStyle.Bold);
             _list.Items.Add(sub);
             if (!_charsExpanded) return;
@@ -740,6 +752,7 @@ namespace SilentHillPC_Launcher
         /// <summary>Block toggling the placeholder hint row (no backing mod).</summary>
         private void OnItemCheck(object sender, ItemCheckEventArgs e)
         {
+            if (_populating) return;
             var tag = _list.Items[e.Index].Tag;
             var crow = tag as CharacterRow;
             if (crow != null)

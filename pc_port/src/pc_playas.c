@@ -127,8 +127,8 @@ static int PlayAs_SwapCmp(const void* a, const void* b)
 
 static int PlayAs_Roster(void)
 {
-    /* The load order: a file in load/CHARA keeps its name over a download. */
-    static const char* const dirs[2] = { "gamedata/load/CHARA", CD_DL_DIR };
+    /* The load order: a download keeps its name over a file in load/CHARA. */
+    static const char* const dirs[2] = { CD_DL_DIR, "gamedata/load/CHARA" };
     DIR* d;
     struct dirent* e;
     int i, di;
