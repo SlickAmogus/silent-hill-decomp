@@ -2591,6 +2591,36 @@ static bool Pc_TownMotelFacadeDepthModel(const s_ModelHeader* model)
            model->meshHdrs[0].vertexCount == 90 && model->meshHdrs[0].primitiveCount == 72;
 }
 
+static bool Pc_TownStoneBorderDepthModel(const s_ModelHeader* model)
+{
+    static const struct { const char* name; u8 meshes; u8 vertices; u8 primitives; } stock[] = {
+        {"SPR231", 2, 40, 25}, {"SPR226", 3, 97, 60},
+        {"SPR219", 2, 40, 25}, {"SPR232", 1, 30, 17},
+        {"SPR227", 1, 84, 49}, {"SPR215", 1, 84, 49},
+        {"SPR216", 1, 30, 17}
+    };
+    int i;
+    if (g_GameWork.gameState != GameState_InGame || g_SavegamePtr == NULL ||
+        g_SavegamePtr->mapIdx != MapIdx_MAP5_S01 || model->meshHdrs == NULL)
+        return false;
+    /* Separate end/corner blocks use a different model family. Their feet
+     * reach Y=-28/-33, below the adjoining pavement at Y=-38. */
+    if (model->meshCount == 1 &&
+        ((memcmp(model->name.str, "0209_", 5) == 0 &&
+          ((model->meshHdrs[0].vertexCount == 48 && model->meshHdrs[0].primitiveCount == 33) ||
+           (model->meshHdrs[0].vertexCount == 60 && model->meshHdrs[0].primitiveCount == 44))) ||
+         (memcmp(model->name.str, "0111_", 5) == 0 &&
+          model->meshHdrs[0].vertexCount == 48 && model->meshHdrs[0].primitiveCount == 33)))
+        return true;
+    for (i = 0; i < (int)(sizeof(stock) / sizeof(stock[0])); i++)
+        if (memcmp(model->name.str, stock[i].name, 6) == 0 &&
+            model->meshCount == stock[i].meshes &&
+            model->meshHdrs[0].vertexCount == stock[i].vertices &&
+            model->meshHdrs[0].primitiveCount == stock[i].primitives)
+            return true;
+    return false;
+}
+
 static bool Pc_TownParkShadowModel(const s_ModelHeader* model)
 {
     if (model->meshCount != 1 || model->meshHdrs == NULL)
@@ -2830,7 +2860,7 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat
                     g_PsxActorDepth = 1;
                 if (g_GameWork.gameState == GameState_InGame && g_SavegamePtr != NULL &&
                     g_SavegamePtr->mapIdx == MapIdx_MAP5_S01 &&
-                    Pc_TownMotelFacadeDepthModel(modelHdr))
+                    (Pc_TownMotelFacadeDepthModel(modelHdr) || Pc_TownStoneBorderDepthModel(modelHdr)))
                     g_PsxActorDepth = 1;
                 /* Resolve carpet against the clipped skirting across the whole
                  * stock room shell, then restore the caller's depth mode. */
@@ -6866,7 +6896,7 @@ static int Pc_FarModelEligible(const s_ModelHeader* modelHdr)
     if (g_SavegamePtr != NULL && g_SavegamePtr->mapIdx == MapIdx_MAP5_S01 &&
         (Pc_TownHedgeDepthModel(modelHdr) || Pc_TownTrashcanDepthModel(modelHdr) ||
          Pc_TownFountainDepthModel(modelHdr) || Pc_TownParkShadowModel(modelHdr) ||
-         Pc_TownMotelFacadeDepthModel(modelHdr)))
+          Pc_TownMotelFacadeDepthModel(modelHdr) || Pc_TownStoneBorderDepthModel(modelHdr)))
         return 0;
     b4 = modelHdr->field_B_4;
     if ((b4 & 0xFF) && b4 >= 0 && b4 < 4)
