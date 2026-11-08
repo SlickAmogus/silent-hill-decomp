@@ -1152,11 +1152,14 @@ static void m_preview_panel(void)
     if (s_page == P_DOWN && s_rowCount > 0 && s_rows[s_scroll.sel].type == R_ITEM &&
         !Cd_PreviewFile(s_rows[s_scroll.sel].idx))
     {
-        const char* lbl = "Download Preview";
-        int         w   = Ct_Width(lbl, 0);
+        /* The small face, like the details under it: measured and drawn
+         * the same way, so the box fits the label and both centre. */
+        const char* lbl = Ct_Tr("Load Preview");
+        int         w   = Ct_SmallWidth(lbl);
 
-        Ct_Draw(cx - w / 2, M_BTN_Y, 0, s_onPreviewBtn ? StringColorId_Gold : StringColorId_White, lbl,
-                M_PREV_X1 - M_PREV_X0, 0);
+        if (w > M_PREV_X1 - M_PREV_X0 - 12)
+            w = M_PREV_X1 - M_PREV_X0 - 12;
+        Ct_Small(cx - w / 2, M_BTN_Y + 2, s_onPreviewBtn ? StringColorId_Gold : StringColorId_White, lbl, w);
         m_line(cx - w / 2 - 4, M_BTN_Y - 2, cx + w / 2 + 4, M_BTN_Y - 2, 0xC0, 0x80, 0x50);
         m_line(cx - w / 2 - 4, M_BTN_Y + 12, cx + w / 2 + 4, M_BTN_Y + 12, 0xC0, 0x80, 0x50);
         m_line(cx - w / 2 - 4, M_BTN_Y - 2, cx - w / 2 - 4, M_BTN_Y + 12, 0xC0, 0x80, 0x50);

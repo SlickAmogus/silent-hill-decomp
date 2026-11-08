@@ -30,6 +30,8 @@ int  Ct_TextWidth(const char* utf8, int tall);
 const char* Ct_Name(const char* label);
 /* Small detail lines: always TrueType (they run long and keep their case). */
 void Ct_Small(int x, int y, int color, const char* utf8, int maxW);
+/* Width of a line as Ct_Small draws it. */
+int  Ct_SmallWidth(const char* utf8);
 
 #ifdef __cplusplus
 }

@@ -53,3 +53,4 @@
 { "(custom copy in use)", "(используется своя копия)" },
 { "Don't ask again", "Больше не спрашивать" },
 { "Your QoL character packs are now part of Additional Characters. Download the new versions?", "Ваши наборы персонажей QoL теперь входят в дополнительных персонажей. Скачать новые версии?" },
+{ "Load Preview", "Загрузить предпросмотр" },
