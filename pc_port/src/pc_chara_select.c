@@ -558,6 +558,8 @@ void Pc_CharaSelect_Close(void)
 {
     if (!s_open)
         return;
+    if (Cdm_IsOpen())
+        Cdm_Close();
     s_open = 0;
     g_PsxWideMenu = 0;
     cs_music_stop();

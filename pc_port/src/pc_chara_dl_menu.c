@@ -17,6 +17,7 @@
 #include "pc_chara_dl.h"
 #include "pc_chara_dl_menu.h"
 #include "pc_chara_text.h"
+#include "pc_confirm_dialog.h"
 #include "lang_quick.h"
 #include "pc_chara_preview.h"
 #include "pc_mouse_cursor.h"
@@ -105,10 +106,9 @@ static int  s_pickStockChosen;
 static int s_restartShown;
 static int s_wasBusy;
 static int s_jojoAsked;   /* the update offer is made once per visit */
-static int s_jojoSel;     /* D_JOJO / D_QOL: 0 Yes, 1 No, 2 Don't ask again */
+
 static int s_qolAsked;    /* the QoL pack offer: once per visit too */
-static const char* const s_jojoBtn[3] = { "Yes", "No", "Don't ask again" };
-static const int s_jojoX[3] = { 70, 140, 236 }; /* button centres */
+
 
 /* ------------------------------------------------------------------------ */
 /* drawing helpers                                                           */
@@ -690,33 +690,14 @@ static int m_dialog_update(const NmInput* in)
     }
     if (s_dialog == D_JOJO || s_dialog == D_QOL)
     {
-        int i, pick = -1, old = s_jojoSel;
+        int r, pick;
 
-        if (in->left)
-            s_jojoSel = (s_jojoSel + 2) % 3;
-        if (in->right)
-            s_jojoSel = (s_jojoSel + 1) % 3;
-        for (i = 0; i < 3; i++)
-        {
-            int w = Ct_Width(s_jojoBtn[i], 1);
-
-            if (in->mouseY >= 120 && in->mouseY < 140 && in->mouseX >= s_jojoX[i] - w / 2 - 4 &&
-                in->mouseX < s_jojoX[i] + w / 2 + 4)
-            {
-                if (in->mouseMoved)
-                    s_jojoSel = i;
-                if (in->mouseLeft)
-                    pick = i;
-            }
-        }
-        if (s_jojoSel != old)
-            SD_Call(Sfx_MenuMove);
-        if (in->confirm)
-            pick = s_jojoSel;
-        if (in->cancel || in->mouseRight)
-            pick = 1;
-        if (pick < 0)
+        /* The shared message box (the one Reset settings uses) reads the
+         * mouse itself and draws above everything from the GL hook. */
+        r = Pc_ConfirmDialog_Update(in->left, in->right, in->confirm, in->cancel || in->mouseRight);
+        if (r == PC_CONFIRM_NONE)
             return 1;
+        pick = r == PC_CONFIRM_YES ? 0 : r == PC_CONFIRM_THIRD ? 2 : 1;
         SD_Call(pick == 0 ? Sfx_MenuConfirm : Sfx_MenuCancel);
         if (pick == 0)
         {
@@ -774,20 +755,19 @@ int Cdm_Update(const NmInput* in)
     if (s_page == P_HUB && s_dialog == D_NONE && !s_jojoAsked && Cd_OldJojoPending() && !Cd_OldJojoNoAsk())
     {
         s_jojoAsked = 1;
-        s_jojoSel   = 0;
-        snprintf(s_dialogText, sizeof(s_dialogText), "%s",
-                 Ct_Tr("Newer versions of jojo670's characters are available. Update them?"));
         s_dialog = D_JOJO;
-        NmConfirm_Open(&s_confirm);
+        Pc_ConfirmDialog_Open3("Additional Characters",
+                               "Newer versions of jojo670's characters are available. Update them?",
+                               "Don't ask again");
     }
     if (s_page == P_HUB && s_dialog == D_NONE && !s_qolAsked && !Cd_Busy() && Cd_LegacyPending() &&
         !Cd_LegacyNoAsk())
     {
         s_qolAsked = 1;
-        s_jojoSel  = 0;
-        snprintf(s_dialogText, sizeof(s_dialogText), "%s",
-                 Ct_Tr("Your QoL character packs are now part of Additional Characters. Download the new versions?"));
         s_dialog = D_QOL;
+        Pc_ConfirmDialog_Open3("Additional Characters",
+                               "Your QoL character packs are now part of Additional Characters. Download the new versions?",
+                               "Don't ask again");
     }
     if (s_dialog != D_NONE)
         return m_dialog_update(in);
@@ -1172,7 +1152,8 @@ static void m_dialog_draw(void)
 {
     int cx = (s_fl + s_fr) / 2;
 
-    if (s_dialog == D_NONE)
+    /* The two offers are the shared message box, drawn by its own hook. */
+    if (s_dialog == D_NONE || s_dialog == D_JOJO || s_dialog == D_QOL)
         return;
     m_small(s_fl + 16, 104, StringColorId_White, s_dialogText, M_W - 32);
     if (s_dialog == D_RESTART || s_dialog == D_INFO)
@@ -1180,21 +1161,7 @@ static void m_dialog_draw(void)
         Ct_DrawCentered(cx, 124, 1, StringColorId_Gold, "OK");
         return;
     }
-    if (s_dialog == D_JOJO || s_dialog == D_QOL)
-    {
-        int i;
 
-        for (i = 0; i < 3; i++)
-        {
-            int w = Ct_Width(s_jojoBtn[i], 1);
-            int x = s_jojoX[i] - w / 2;
-
-            Ct_Draw(x, 124, 1, s_jojoSel == i ? StringColorId_Gold : StringColorId_White, s_jojoBtn[i], 0, 0);
-            if (s_jojoSel == i)
-                Nm_HighlightDraw(x - 4, x + w + 4, 138);
-        }
-        return;
-    }
     {
         static const char* const yn[2] = { "Yes", "No" };
         int                      i;
@@ -1210,6 +1177,14 @@ static void m_dialog_draw(void)
                 Nm_HighlightDraw(x - 4, x + w + 4, 138);
         }
     }
+}
+
+void Cdm_Close(void)
+{
+    if (s_dialog == D_JOJO || s_dialog == D_QOL)
+        Pc_ConfirmDialog_Cancel();
+    s_dialog = D_NONE;
+    s_open   = 0;
 }
 
 void Cdm_Draw(int fieldL, int fieldR)
