@@ -11846,11 +11846,16 @@ void Game_PlayerInfoInit(void) // 0x8007E5AC
 
     itemGroupId = INV_ITEM_GROUP(g_SavegamePtr->equippedWeapon);
 
-    // Assign weapon that the player was holding when saving.
+    // Check the bound before reading an item: reserve ammo may be absent.
+    i = INV_ITEM_COUNT_MAX;
     if (itemGroupId == InvItemGroup_MeleeWeapons || itemGroupId == InvItemGroup_GunWeapons)
     {
-        for (i = 0; g_SavegamePtr->items[i].id_0 != g_SavegamePtr->equippedWeapon && i < INV_ITEM_COUNT_MAX; i++);
+        for (i = 0; i < INV_ITEM_COUNT_MAX && g_SavegamePtr->items[i].id_0 != g_SavegamePtr->equippedWeapon; i++);
+    }
 
+    // Assign the saved weapon only if it exists in the inventory.
+    if (i < INV_ITEM_COUNT_MAX)
+    {
         g_SysWork.playerCombat.weaponAttack        = g_SavegamePtr->equippedWeapon + InvItemId_KitchenKnife;
         g_SysWork.playerCombat.currentWeaponAmmo  = g_SavegamePtr->items[i].count_1;
         g_SysWork.playerCombat.weaponInventoryIdx = i;
@@ -11862,7 +11867,7 @@ void Game_PlayerInfoInit(void) // 0x8007E5AC
         else
         {
             for (i = 0;
-                 g_SavegamePtr->items[i].id_0 != (g_SavegamePtr->equippedWeapon + InvItemId_HealthDrink) && i < INV_ITEM_COUNT_MAX;
+                 i < INV_ITEM_COUNT_MAX && g_SavegamePtr->items[i].id_0 != (g_SavegamePtr->equippedWeapon + InvItemId_HealthDrink);
                  i++);
 
             if (i == INV_ITEM_COUNT_MAX)
@@ -11877,6 +11882,13 @@ void Game_PlayerInfoInit(void) // 0x8007E5AC
     }
     else
     {
+        if (itemGroupId == InvItemGroup_MeleeWeapons || itemGroupId == InvItemGroup_GunWeapons)
+        {
+            // A missing saved weapon must not leave an invalid inventory index.
+            g_SavegamePtr->equippedWeapon = InvItemId_Unequipped;
+            g_Inventory_EquippedItem      = InvItemId_Unequipped;
+        }
+
         g_SysWork.playerCombat.weaponAttack        = NO_VALUE;
         g_SysWork.playerCombat.currentWeaponAmmo  = 0;
         g_SysWork.playerCombat.totalWeaponAmmo    = 0;
