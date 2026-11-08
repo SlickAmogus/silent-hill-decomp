@@ -133,3 +133,16 @@ QUICK = {
     'Infinite ammo':   'Nieskończona amunicja',
     'Spawn':           'Przywołanie',
 }
+
+
+# Character Select names that do not change, and OK.
+SAME = set(globals().get('SAME', ())) | {
+    'QUICK.OK',
+    'QUICK.Harry',
+    'QUICK.Cybil',
+    'QUICK.Lisa',
+    'QUICK.Dahlia',
+    'QUICK.Kaufmann',
+    'QUICK.Cheryl',
+    'QUICK.Alessa',
+}
