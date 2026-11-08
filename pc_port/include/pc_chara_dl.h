@@ -62,6 +62,9 @@ typedef struct
 /* ---- catalog ----------------------------------------------------------- */
 enum { CD_CAT_NONE, CD_CAT_LOADING, CD_CAT_READY, CD_CAT_FAILED };
 void           Cd_CatalogFetch(void);         /* once per session unless forced */
+/* Once per visit to the menu: fetches the list again. The list already shown
+ * stays until the new one lands, and stays if the fetch fails. */
+void           Cd_CatalogRefresh(void);
 int            Cd_CatalogState(void);
 int            Cd_CatalogCount(void);
 const CdEntry* Cd_CatalogGet(int i);
