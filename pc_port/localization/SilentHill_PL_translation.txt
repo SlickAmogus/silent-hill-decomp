@@ -8086,3 +8086,208 @@ PL: ~J0(1.4) Harry.
 [MAP7_S03.99]
 EN: ~J0(1.0) Go. ~E
 PL: ~J0(1.0) Rusz się. ~E
+
+[QUICK.Character_Select]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Character Select
+PL: Wybór postaci
+
+[QUICK.Additional_Characters...]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Additional Characters...
+PL: Dodatkowe postacie...
+
+[QUICK.Additional_Characters]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Additional Characters
+PL: Dodatkowe postacie
+
+[QUICK.No_preview]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: No preview
+PL: Brak podglądu
+
+[QUICK.Could_not_load_that_model]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Could not load that model
+PL: Nie udało się wczytać modelu
+
+[QUICK.Back]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Back
+PL: Wstecz
+
+[QUICK.Original_model]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Original model
+PL: Oryginalny model
+
+[QUICK.Silent_Hill_1_cast]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Silent Hill 1 cast
+PL: Postacie z Silent Hill 1
+
+[QUICK.Other]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Other
+PL: Inne
+
+[QUICK.Replace_your_installed_{name}?]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Replace your installed {name}?
+PL: Zastąpić zainstalowaną postać {name}?
+
+[QUICK.Replace_{n}_installed_file(s)_in_{name}?]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Replace {n} installed file(s) in {name}?
+PL: Zastąpić zainstalowane pliki ({n}) w {name}?
+
+[QUICK.Restart_the_game_to_use_the_updated_characters.]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Restart the game to use the updated characters.
+PL: Uruchom grę ponownie, aby użyć zaktualizowanych postaci.
+
+[QUICK.Newer_versions_of_jojo670's_characters_are_available._Update_them?]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Newer versions of jojo670's characters are available. Update them?
+PL: Dostępne są nowsze wersje postaci jojo670. Zaktualizować?
+
+[QUICK.(update)]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: (update)
+PL: (aktualizacja)
+
+[QUICK.Download_Preview]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Download Preview
+PL: Pobierz podgląd
+
+[QUICK.Downloadable_Characters]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Downloadable Characters
+PL: Postacie do pobrania
+
+[QUICK.Installed_Characters]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Installed Characters
+PL: Zainstalowane postacie
+
+[QUICK.Choose_a_Model]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Choose a Model
+PL: Wybierz model
+
+[QUICK.Downloadable]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Downloadable
+PL: Do pobrania
+
+[QUICK.Locally_installed]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Locally installed
+PL: Zainstalowane lokalnie
+
+[QUICK.Loading_the_list...]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Loading the list...
+PL: Wczytywanie listy...
+
+[QUICK.Could_not_reach_the_list.]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Could not reach the list.
+PL: Nie udało się pobrać listy.
+
+[QUICK.Nothing_here_yet.]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Nothing here yet.
+PL: Na razie nic tu nie ma.
+
+[QUICK.Fetching_the_character_list...]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Fetching the character list...
+PL: Pobieranie listy postaci...
+
+[QUICK.Downloading_{name}...]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Downloading {name}...
+PL: Pobieranie: {name}...
+
+[QUICK.Downloading_the_preview_of_{name}...]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Downloading the preview of {name}...
+PL: Pobieranie podglądu: {name}...
+
+[QUICK.Installed_{name}]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Installed {name}
+PL: Zainstalowano: {name}
+
+[QUICK.Removed_{name}]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Removed {name}
+PL: Usunięto: {name}
+
+[QUICK.{name}:_download_failed]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: {name}: download failed
+PL: {name}: pobieranie nie powiodło się
+
+[QUICK.{name}:_could_not_install]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: {name}: could not install
+PL: {name}: nie udało się zainstalować
+
+[QUICK.{name}:_preview_failed]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: {name}: preview failed
+PL: {name}: podgląd nie powiódł się
+
+[QUICK.The_character_list_could_not_be_downloaded]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: The character list could not be downloaded
+PL: Nie udało się pobrać listy postaci
+
+[QUICK.{name}_enabled]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: {name} enabled
+PL: {name}: włączono
+
+[QUICK.{name}_disabled]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: {name} disabled
+PL: {name}: wyłączono
+
+[QUICK.Monster_Cybil]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Monster Cybil
+PL: Cybil-potwór
+
+[QUICK.Bloody_Lisa]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Bloody Lisa
+PL: Zakrwawiona Lisa
+
+[QUICK.Ghost_Alessa]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Ghost Alessa
+PL: Duch Alessy
+
+[QUICK.Incubator]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Incubator
+PL: Inkubator
+
+[QUICK.Ghost_Doctor]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Ghost Doctor
+PL: Duch lekarza
+
+[QUICK.Puppet_Nurse]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Puppet Nurse
+PL: Pielęgniarka-marionetka
+
+[QUICK.Puppet_Doctor]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Puppet Doctor
+PL: Lekarz-marionetka

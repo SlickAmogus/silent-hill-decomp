@@ -478,8 +478,13 @@ const char* Pc_LangQuick(const char* en)
                 { "[OK] confirm", "[OK] подтвердить" },
                 { "[Cancel] back", "[Отмена] назад" }
             };
+            static const struct { const char* en; const char* ru; } chara[] = {
+#include "lang_quick_ru.inc"
+            };
             for (i = 0; i < (int)(sizeof(text) / sizeof(text[0])); i++)
                 if (strcmp(en, text[i].en) == 0) return text[i].ru;
+            for (i = 0; i < (int)(sizeof(chara) / sizeof(chara[0])); i++)
+                if (strcmp(en, chara[i].en) == 0) return chara[i].ru;
             return en;
         }
         case QL_PACK:

@@ -16,6 +16,7 @@
 #include "bodyprog/text/text_draw.h"
 #include "pc_chara_dl.h"
 #include "pc_chara_dl_menu.h"
+#include "pc_chara_text.h"
 #include "pc_chara_preview.h"
 #include "pc_mouse_cursor.h"
 #include "pc_native_menu_draw.h"
@@ -47,7 +48,7 @@ static int s_fl, s_fr;
 #define M_BACK_X   (s_fl + 16)
 /* The right panel: preview above, button and details below. */
 #define M_BTN_Y    150
-#define M_INFO_Y0  168
+#define M_INFO_Y0  166
 #define M_INFO_Y1  182
 
 enum { P_HUB, P_DOWN, P_LOCAL, P_PICK };
@@ -171,24 +172,31 @@ static const char* m_stock_label(void)
 
     for (i = 0; i < Pc_PlayAs_Count(); i++)
         if (Pc_PlayAs_File(i) == NULL && Pc_PlayAs_CharaId(i) == s_pickStockId)
-            return Pc_PlayAs_Label(i);
-    return "Original model";
+            return Ct_Name(Pc_PlayAs_Label(i));
+    return Ct_Tr("Original model");
 }
 
 static void m_text(int x, int y, int color, const char* s, int maxW, int sel)
 {
-    char clean[128];
-
-    Nm_SanitizeGlyphs(s, clean, sizeof(clean), 1);
-    Nm_TextDrawLatin(x, y, NM_TEXT_TALL, color, clean, maxW, sel);
+    Ct_DrawText(x, y, 1, color, s, maxW, sel);
 }
 
+/* Detail and status lines: TrueType, so long text keeps its case and fits. */
 static void m_small(int x, int y, int color, const char* s, int maxW)
 {
-    char clean[128];
+    Ct_Small(x, y, color, s, maxW);
+}
 
-    Nm_SanitizeGlyphs(s, clean, sizeof(clean), 1);
-    Nm_TextDrawLatin(x, y, NM_TEXT_SMALL, color, clean, maxW, 0);
+/* One more {placeholder} on top of Ct_Fill's one. */
+static void m_fill2(char* out, int outSz, const char* en, const char* name, int n)
+{
+    const char* t = Ct_Fill(en, "{name}", name);
+    const char* at = strstr(t, "{n}");
+
+    if (at == NULL)
+        snprintf(out, (size_t)outSz, "%s", t);
+    else
+        snprintf(out, (size_t)outSz, "%.*s%d%s", (int)(at - t), t, n, at + 3);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -411,7 +419,7 @@ static void m_install(int idx, int confirmed)
     if (!confirmed && Cd_HasForeignCopy(e))
     {
         s_pendingIdx = idx;
-        snprintf(s_dialogText, sizeof(s_dialogText), "Replace your installed %s?", e->name);
+        snprintf(s_dialogText, sizeof(s_dialogText), "%s", Ct_Fill("Replace your installed {name}?", "{name}", e->name));
         s_dialog = D_REPLACE;
         NmConfirm_Open(&s_confirm);
         return;
@@ -447,8 +455,8 @@ static void m_toggle_category(int c, int confirmed)
     if (!all && foreign && !confirmed)
     {
         s_pendingIdx = -(c + 1);
-        snprintf(s_dialogText, sizeof(s_dialogText), "Replace %d installed file%s in %s?", foreign,
-                 foreign == 1 ? "" : "s", s_cats[c].name);
+        m_fill2(s_dialogText, (int)sizeof(s_dialogText), "Replace {n} installed file(s) in {name}?",
+                Ct_Tr(s_cats[c].name), foreign);
         s_dialog = D_REPLACE;
         NmConfirm_Open(&s_confirm);
         return;
@@ -738,14 +746,14 @@ int Cdm_Update(const NmInput* in)
     if (Cd_RestartAdvised() && !Cd_Busy() && !s_restartShown && s_dialog == D_NONE)
     {
         s_restartShown = 1;
-        snprintf(s_dialogText, sizeof(s_dialogText), "Restart the game to use the updated characters.");
+        snprintf(s_dialogText, sizeof(s_dialogText), "%s", Ct_Tr("Restart the game to use the updated characters."));
         s_dialog = D_RESTART;
     }
     if (s_page == P_HUB && s_dialog == D_NONE && !s_jojoAsked && Cd_OldJojoPending())
     {
         s_jojoAsked = 1;
-        snprintf(s_dialogText, sizeof(s_dialogText),
-                 "Newer versions of jojo670's characters are available. Update them?");
+        snprintf(s_dialogText, sizeof(s_dialogText), "%s",
+                 Ct_Tr("Newer versions of jojo670's characters are available. Update them?"));
         s_dialog = D_JOJO;
         NmConfirm_Open(&s_confirm);
     }
@@ -980,7 +988,7 @@ static void m_rows_draw(void)
         if (r->type == R_PLAYAS)
         {
             int cur = s_pickCur[0] == '*' && strcmp(s_pickCur + 1, Pc_PlayAs_Name(r->idx)) == 0;
-            snprintf(label, sizeof(label), "%s%s", Pc_PlayAs_Label(r->idx), cur ? "  *" : "");
+            snprintf(label, sizeof(label), "%s%s", Ct_Name(Pc_PlayAs_Label(r->idx)), cur ? "  *" : "");
             m_text(x, y, color, label, M_LIST_X1 - x, sel);
             continue;
         }
@@ -1005,7 +1013,7 @@ static void m_rows_draw(void)
                 m_plusminus(x, y, s_cats[r->cat].expanded);
                 tx = x + 10;
             }
-            m_text(tx, y, color, s_cats[r->cat].name, M_LIST_X1 - tx, sel);
+            m_text(tx, y, color, Ct_Tr(s_cats[r->cat].name), M_LIST_X1 - tx, sel);
             continue;
         }
         if (s_page == P_DOWN)
@@ -1014,7 +1022,8 @@ static void m_rows_draw(void)
             int            st = Cd_IsDownloaded(e) ? 1 : 0;
 
             m_checkbox(x, y, st, sel);
-            snprintf(label, sizeof(label), "%s%s", e->name, Cd_NeedsUpdate(e) ? " (update)" : "");
+            snprintf(label, sizeof(label), "%s%s%s", e->name, Cd_NeedsUpdate(e) ? " " : "",
+                     Cd_NeedsUpdate(e) ? Ct_Tr("(update)") : "");
         }
         else if (s_page == P_LOCAL)
         {
@@ -1054,7 +1063,7 @@ static void m_info_draw(void)
     r = &s_rows[s_scroll.sel];
     if (r->type == R_HEADER)
     {
-        snprintf(name, sizeof(name), "%s", s_cats[r->cat].name);
+        snprintf(name, sizeof(name), "%s", Ct_Tr(s_cats[r->cat].name));
         if (s_page == P_LOCAL && Cd_GroupGet(s_cats[r->cat].group)->author[0])
             snprintf(author, sizeof(author), "%s", Cd_GroupGet(s_cats[r->cat].group)->author);
     }
@@ -1066,7 +1075,7 @@ static void m_info_draw(void)
     }
     else if (r->type == R_PLAYAS)
     {
-        snprintf(name, sizeof(name), "%s", Pc_PlayAs_Label(r->idx));
+        snprintf(name, sizeof(name), "%s", Ct_Name(Pc_PlayAs_Label(r->idx)));
         snprintf(game, sizeof(game), "Silent Hill");
         snprintf(author, sizeof(author), "Konami");
     }
@@ -1087,10 +1096,16 @@ static void m_info_draw(void)
             snprintf(ver, sizeof(ver), "v%s", l->version);
         snprintf(author, sizeof(author), "%s", l->author);
     }
-    m_small(x0, M_INFO_Y0, StringColorId_White, name, mid - x0 - 4);
-    m_small(mid, M_INFO_Y0, StringColorId_LightGrey, ver, x1 - mid);
-    m_small(x0, M_INFO_Y1, StringColorId_LightGrey, game, mid - x0 - 4);
-    m_small(mid, M_INFO_Y1, StringColorId_LightGrey, author, x1 - mid);
+    (void)mid;
+    {
+        char top[160];
+
+        /* Name and version share the first line; the version is short. */
+        snprintf(top, sizeof(top), "%s%s%s", name, ver[0] ? "   " : "", ver);
+        m_small(x0, M_INFO_Y0, StringColorId_White, top, x1 - x0);
+        m_small(x0, M_INFO_Y0 + 9, StringColorId_LightGrey, game, x1 - x0);
+        m_small(x0, M_INFO_Y0 + 18, StringColorId_LightGrey, author, x1 - x0);
+    }
 }
 
 static void m_preview_panel(void)
@@ -1104,11 +1119,11 @@ static void m_preview_panel(void)
     if (s_page == P_DOWN && s_rowCount > 0 && s_rows[s_scroll.sel].type == R_ITEM &&
         !Cd_PreviewFile(s_rows[s_scroll.sel].idx))
     {
-        const char* lbl = "Download_Preview";
-        int         w   = Nm_TextWidthLatin(lbl, NM_TEXT_SMALL);
+        const char* lbl = "Download Preview";
+        int         w   = Ct_Width(lbl, 0);
 
-        Nm_TextDrawLatin(cx - w / 2, M_BTN_Y, NM_TEXT_SMALL, s_onPreviewBtn ? StringColorId_Gold : StringColorId_White,
-                         lbl, M_PREV_X1 - M_PREV_X0, 0);
+        Ct_Draw(cx - w / 2, M_BTN_Y, 0, s_onPreviewBtn ? StringColorId_Gold : StringColorId_White, lbl,
+                M_PREV_X1 - M_PREV_X0, 0);
         m_line(cx - w / 2 - 4, M_BTN_Y - 2, cx + w / 2 + 4, M_BTN_Y - 2, 0xC0, 0x80, 0x50);
         m_line(cx - w / 2 - 4, M_BTN_Y + 12, cx + w / 2 + 4, M_BTN_Y + 12, 0xC0, 0x80, 0x50);
         m_line(cx - w / 2 - 4, M_BTN_Y - 2, cx - w / 2 - 4, M_BTN_Y + 12, 0xC0, 0x80, 0x50);
@@ -1123,19 +1138,32 @@ static void m_dialog_draw(void)
 
     if (s_dialog == D_NONE)
         return;
+    m_small(s_fl + 16, 104, StringColorId_White, s_dialogText, M_W - 32);
     if (s_dialog == D_RESTART || s_dialog == D_INFO)
     {
-        m_text(cx - Nm_TextWidthLatin(s_dialogText, NM_TEXT_TALL) / 2, 100, StringColorId_White, s_dialogText,
-               M_W - 16, 1);
-        Nm_TextDrawCentered(cx, 124, NM_TEXT_TALL, StringColorId_Gold, "OK");
+        Ct_DrawCentered(cx, 124, 1, StringColorId_Gold, "OK");
         return;
     }
-    NmConfirm_Draw(&s_confirm, s_dialogText, 112);
+    {
+        static const char* const yn[2] = { "Yes", "No" };
+        int                      i;
+
+        for (i = 0; i < 2; i++)
+        {
+            int sel = (i == 0) ? s_confirm.yes : !s_confirm.yes;
+            int w   = Ct_Width(yn[i], 1);
+            int x   = ((i == 0) ? 120 : 200) - w / 2;
+
+            Ct_Draw(x, 124, 1, sel ? StringColorId_Gold : StringColorId_White, yn[i], 0, 0);
+            if (sel)
+                Nm_HighlightDraw(x - 4, x + w + 4, 138);
+        }
+    }
 }
 
 void Cdm_Draw(int fieldL, int fieldR)
 {
-    const char* heading = "ADDITIONAL_CHARACTERS";
+    const char* heading = "Additional Characters";
     float       prog;
     const char* status;
 
@@ -1144,12 +1172,12 @@ void Cdm_Draw(int fieldL, int fieldR)
     s_fl = fieldL;
     s_fr = fieldR;
     if (s_page == P_DOWN)
-        heading = "DOWNLOADABLE_CHARACTERS";
+        heading = "Downloadable Characters";
     else if (s_page == P_LOCAL)
-        heading = "INSTALLED_CHARACTERS";
+        heading = "Installed Characters";
     else if (s_page == P_PICK)
-        heading = "CHOOSE_A_MODEL";
-    Nm_TextDrawCentered(160, M_HEADING_Y, NM_TEXT_TALL, StringColorId_White, heading);
+        heading = "Choose a Model";
+    Ct_DrawCentered(160, M_HEADING_Y, 1, StringColorId_White, heading);
     Nm_RuleDraw(M_LIST_X0, M_PREV_X1, M_RULE_Y, 0);
 
     if (s_dialog != D_NONE && s_dialog != D_RESTART && s_dialog != D_INFO)
@@ -1161,7 +1189,7 @@ void Cdm_Draw(int fieldL, int fieldR)
 
     if (s_page == P_HUB)
     {
-        static const char* const items[3] = { "Downloadable", "Locally_installed", "Back" };
+        static const char* const items[3] = { "Downloadable", "Locally installed", "Back" };
         int                      i;
 
         for (i = 0; i < 2; i++)
@@ -1170,9 +1198,9 @@ void Cdm_Draw(int fieldL, int fieldR)
             int w;
 
             Nm_BulletDraw(M_LIST_X0, y, s_hubSel == i);
-            w = Nm_TextWidth(items[i]);
-            Nm_TextDraw(M_LIST_X0 + NM_BULLET_TEXT_DX, y, NM_TEXT_TALL,
-                        s_hubSel == i ? StringColorId_Gold : StringColorId_White, items[i]);
+            w = Ct_Width(items[i], 1);
+            Ct_Draw(M_LIST_X0 + NM_BULLET_TEXT_DX, y, 1, s_hubSel == i ? StringColorId_Gold : StringColorId_White,
+                    items[i], 0, 0);
             if (s_hubSel == i)
                 Nm_HighlightDraw(M_LIST_X0 - 1, M_LIST_X0 + NM_BULLET_TEXT_DX + w + 4, y + 14);
         }
@@ -1182,11 +1210,11 @@ void Cdm_Draw(int fieldL, int fieldR)
     {
         m_line(M_DIV_X, M_RULE_Y, M_DIV_X, M_ARROW_DN_Y + 6, Q8_COLOR(0.125f), Q8_COLOR(0.125f), 0xFF);
         if (s_page == P_DOWN && Cd_CatalogState() == CD_CAT_LOADING)
-            m_text(M_LIST_X0, M_LIST_Y, StringColorId_LightGrey, "Loading the list...", M_LIST_X1 - M_LIST_X0, 0);
+            m_text(M_LIST_X0, M_LIST_Y, StringColorId_LightGrey, Ct_Tr("Loading the list..."), M_LIST_X1 - M_LIST_X0, 0);
         else if (s_page == P_DOWN && Cd_CatalogState() == CD_CAT_FAILED)
-            m_text(M_LIST_X0, M_LIST_Y, StringColorId_LightGrey, "Could not reach the list.", M_LIST_X1 - M_LIST_X0, 0);
+            m_text(M_LIST_X0, M_LIST_Y, StringColorId_LightGrey, Ct_Tr("Could not reach the list."), M_LIST_X1 - M_LIST_X0, 0);
         else if (s_rowCount == 0)
-            m_text(M_LIST_X0, M_LIST_Y, StringColorId_LightGrey, "Nothing here yet.", M_LIST_X1 - M_LIST_X0, 0);
+            m_text(M_LIST_X0, M_LIST_Y, StringColorId_LightGrey, Ct_Tr("Nothing here yet."), M_LIST_X1 - M_LIST_X0, 0);
         else
             m_rows_draw();
         m_preview_panel();

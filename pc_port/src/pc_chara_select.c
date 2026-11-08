@@ -23,6 +23,7 @@
 #include "pc_chara_dl_menu.h"
 #include "pc_chara_preview.h"
 #include "pc_chara_select.h"
+#include "pc_chara_text.h"
 #include "pc_config.h"
 #include "pc_mouse_cursor.h"
 #include "pc_native_menu_draw.h"
@@ -90,18 +91,18 @@ typedef struct
  * fits them. Monster and ending Cybil share Cybil's row through the loader's
  * alt rule, so the rows stay the characters a player names. */
 static const CsChara s_charas[] = {
-    { "HERO",  "HARRY",            Chara_Harry },
-    { "SIBYL", "CYBIL",            Chara_Cybil },
-    { "MSB",   "MONSTER CYBIL",    Chara_MonsterCybil },
-    { "LISA",  "LISA",             Chara_Lisa },
-    { "BLISA", "BLOODY LISA",      Chara_BloodyLisa },
-    { "DARIA", "DAHLIA",           Chara_Dahlia },
-    { "KAU",   "KAUFMANN",         Chara_Kaufmann },
-    { "SRL",   "CHERYL",           Chara_Cheryl },
-    { "AR",    "ALESSA",           Chara_Alessa },
-    { "TAR",   "GHOST ALESSA",     Chara_GhostChildAlessa },
-    { "MAR",   "INCUBATOR",        Chara_Incubator },
-    { "DOC",   "GHOST DOCTOR",     Chara_GhostDoctor },
+    { "HERO",  "Harry",            Chara_Harry },
+    { "SIBYL", "Cybil",            Chara_Cybil },
+    { "MSB",   "Monster Cybil",    Chara_MonsterCybil },
+    { "LISA",  "Lisa",             Chara_Lisa },
+    { "BLISA", "Bloody Lisa",      Chara_BloodyLisa },
+    { "DARIA", "Dahlia",           Chara_Dahlia },
+    { "KAU",   "Kaufmann",         Chara_Kaufmann },
+    { "SRL",   "Cheryl",           Chara_Cheryl },
+    { "AR",    "Alessa",           Chara_Alessa },
+    { "TAR",   "Ghost Alessa",     Chara_GhostChildAlessa },
+    { "MAR",   "Incubator",        Chara_Incubator },
+    { "DOC",   "Ghost Doctor",     Chara_GhostDoctor },
 };
 #define CS_CHARA_COUNT ((int)(sizeof(s_charas) / sizeof(s_charas[0])))
 #define CS_ROW_COUNT   (1 + CS_CHARA_COUNT)
@@ -280,7 +281,7 @@ static void cs_build_models(int chara)
                 if (file != NULL)
                     cs_file_display(file, m->display, sizeof(m->display));
                 else
-                    snprintf(m->display, sizeof(m->display), "%s", Pc_PlayAs_Label(i));
+                    snprintf(m->display, sizeof(m->display), "%s", Ct_Name(Pc_PlayAs_Label(i)));
                 if (i == cur)
                     s_modelCur = s_modelCount;
                 s_modelCount++;
@@ -296,7 +297,7 @@ static void cs_build_models(int chara)
 
         m->kind = CS_M_STOCK;
         snprintf(m->token, sizeof(m->token), "-");
-        snprintf(m->display, sizeof(m->display), "%s", s_charas[chara].label);
+        snprintf(m->display, sizeof(m->display), "%s", Ct_Tr(s_charas[chara].label));
 
         snprintf(own, sizeof(own), "gamedata/load/CHARA/%s.glb", s_charas[chara].ilm);
         ownGlb = cs_file_exists(own);
@@ -352,7 +353,7 @@ static void cs_pick(int chara, int idx)
     if (m->kind == CS_M_PLAYAS)
     {
         if (!Pc_PlayAs_SetByIndex(m->playasIdx, 1))
-            cs_set_status("COULD NOT LOAD THAT MODEL");
+            cs_set_status(Ct_Tr("Could not load that model"));
         return;
     }
     snprintf(s_choice[chara], sizeof(s_choice[chara]), "%s", m->token);
@@ -808,7 +809,6 @@ static void cs_back_draw(int selected)
 
 static void cs_rows_draw(void)
 {
-    char clean[128];
     int  i;
 
     for (i = 0; i < CS_VISIBLE && s_scroll.top + i < CS_ROW_COUNT; i++)
@@ -821,8 +821,7 @@ static void cs_rows_draw(void)
 
         if (row == CS_ROW_DOWNLOAD)
         {
-            Nm_SanitizeGlyphs("Additional Characters...", clean, sizeof(clean), 1);
-            w = Nm_TextDrawMarquee(CS_COL1_X0, y, NM_TEXT_TALL, color, clean, CS_COL1_X1 - CS_COL1_X0, sel);
+            w = Ct_Draw(CS_COL1_X0, y, 1, color, "Additional Characters...", CS_COL1_X1 - CS_COL1_X0, sel);
             if (sel)
                 Nm_HighlightDraw(CS_COL1_X0 - 1, CS_COL1_X0 + w + 4, y + 14);
             continue;
@@ -832,8 +831,7 @@ static void cs_rows_draw(void)
             const CsChara* c = &s_charas[row - 1];
             const char*    value = "";
 
-            Nm_SanitizeGlyphs(c->label, clean, sizeof(clean), 1);
-            w = Nm_TextDrawLatin(CS_COL1_X0, y, NM_TEXT_TALL, color, clean, CS_COL1_X1 - CS_COL1_X0, sel);
+            w = Ct_Draw(CS_COL1_X0, y, 1, color, c->label, CS_COL1_X1 - CS_COL1_X0, sel);
             if (sel)
                 Nm_HighlightDraw(CS_COL1_X0 - 1, CS_COL1_X0 + w + 4, y + 14);
 
@@ -847,7 +845,7 @@ static void cs_rows_draw(void)
                 if (f != NULL)
                     cs_file_display(f, cur, sizeof(cur));
                 else
-                    snprintf(cur, sizeof(cur), "%s", Pc_PlayAs_Label(Pc_PlayAs_Current()));
+                    snprintf(cur, sizeof(cur), "%s", Ct_Name(Pc_PlayAs_Label(Pc_PlayAs_Current())));
                 value = cur;
             }
             else
@@ -863,27 +861,25 @@ static void cs_rows_draw(void)
                     if (choice[0] == '\0' && cs_file_exists(own))
                         snprintf(cur, sizeof(cur), "%s.GLB", c->ilm);
                     else
-                        snprintf(cur, sizeof(cur), "%s", c->label);
+                        snprintf(cur, sizeof(cur), "%s", Ct_Tr(c->label));
                 }
                 else
                     cs_file_display(choice, cur, sizeof(cur));
                 value = cur;
             }
 
-            Nm_SanitizeGlyphs(value, clean, sizeof(clean), 1);
             if (sel)
             {
                 int maxW = CS_COL2_X1 - CS_COL2_X0 - 20;
-                int tw   = Nm_TextWidthLatin(clean, NM_TEXT_TALL);
+                int tw   = Ct_TextWidth(value, 1);
                 int x    = CS_COL2_X0 + 10 + ((maxW - (tw < maxW ? tw : maxW)) / 2);
 
-                w = Nm_TextDrawLatin(x, y, NM_TEXT_TALL, StringColorId_Gold, clean, maxW, 1);
+                w = Ct_DrawText(x, y, 1, StringColorId_Gold, value, maxW, 1);
                 if (s_modelCount > 1)
                     Nm_ValueArrowsDraw(x, x + w, y);
             }
             else
-                Nm_TextDrawLatin(CS_COL2_X0, y, NM_TEXT_TALL, StringColorId_LightGrey, clean,
-                                 CS_COL2_X1 - CS_COL2_X0, 0);
+                Ct_DrawText(CS_COL2_X0, y, 1, StringColorId_LightGrey, value, CS_COL2_X1 - CS_COL2_X0, 0);
         }
     }
 
@@ -896,8 +892,6 @@ static void cs_rows_draw(void)
 
 void Pc_CharaSelect_Draw(void)
 {
-    char clean[128];
-
     if (!s_open)
         return;
     cs_field_update();
@@ -913,7 +907,7 @@ void Pc_CharaSelect_Draw(void)
         return;
     }
 
-    Nm_TextDrawCentered(160, CS_HEADING_Y, NM_TEXT_TALL, StringColorId_White, "CHARACTER_SELECT");
+    Ct_DrawCentered(160, CS_HEADING_Y, 1, StringColorId_White, "Character Select");
     Nm_RuleDraw(CS_COL1_X0, CS_PREV_X1, CS_RULE_Y, 0);
     cs_line(CS_DIV1_X, CS_RULE_Y, CS_DIV1_X, CS_ARROW_DN_Y + 6, 1);
     cs_frame(CS_PREV_X0, CS_PREV_Y0, CS_PREV_X1, CS_PREV_Y1);
@@ -925,16 +919,13 @@ void Pc_CharaSelect_Draw(void)
         const char* file;
 
         if (Pc_CharaSelect_PreviewTarget(&file) != NULL && !Pc_CharaPreview_Showing())
-            Nm_TextDrawCentered((CS_PREV_X0 + CS_PREV_X1) / 2, (CS_PREV_Y0 + CS_PREV_Y1) / 2 - 8, NM_TEXT_TALL,
-                                StringColorId_DarkGrey, "NO_PREVIEW");
+            Ct_DrawCentered((CS_PREV_X0 + CS_PREV_X1) / 2, (CS_PREV_Y0 + CS_PREV_Y1) / 2 - 8, 1,
+                            StringColorId_DarkGrey, "No preview");
     }
 
     if (s_status[0] != '\0' && SDL_GetTicks() < s_statusUntil)
-    {
-        Nm_SanitizeGlyphs(s_status, clean, sizeof(clean), 1);
-        Nm_TextDrawLatin(cs_back_right() + 12, CS_FOOTER_Y, NM_TEXT_TALL, StringColorId_LightGrey, clean,
-                         CS_PREV_X1 - cs_back_right() - 12, 1);
-    }
+        Ct_Small(cs_back_right() + 12, CS_FOOTER_Y + 4, StringColorId_LightGrey, s_status,
+                 CS_PREV_X1 - cs_back_right() - 12);
     Pc_MouseCursor_Show();
 }
 
