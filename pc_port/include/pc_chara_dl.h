@@ -49,6 +49,7 @@ typedef struct
     int  group;                    /* index into the groups */
     int  enabled;                  /* 0 = parked in CHARA_off (or a disabled launcher mod) */
     int  oldJojo;                  /* a file of jojo670's old unversioned pack */
+    int  shadowed;                 /* another copy of the same file loads instead */
 } CdLocal;
 
 typedef struct
@@ -93,15 +94,17 @@ int Cd_IsDownloaded(const CdEntry* e);
 /* Installed from the catalog, but an older version or build of it. */
 int Cd_NeedsUpdate(const CdEntry* e);
 /* A file of that name is present that the catalog did not install. */
-/* Load order: gamedata/load/CHARA (mods, packs, files copied in by hand)
- * first, then the downloads in CD_DL_DIR. The one exception is jojo670's old
- * unversioned pack, whose files give way to a download of the same name. */
+/* Load order: the downloads in CD_DL_DIR first, then gamedata/load/CHARA
+ * (mods, packs, files copied in by hand). A download always wins a file name;
+ * the game resolves it, so a launcher that knows nothing of downloads (an
+ * old one) cannot change that. */
 #define CD_DL_DIR "gamedata/load/CHARA_dl"
-/* A custom copy of e's file is installed and loads instead of the download. */
-int Cd_CustomCopyWins(const CdEntry* e);
+/* A pack's or hand-copied copy of e's file (not the download): its local
+ * index, else -1. */
+int Cd_PackCopy(const CdEntry* e);
 /* `base` (a path without extension) as the load order resolves it: a file
- * under load/CHARA that is not there is looked for in CD_DL_DIR. Returns
- * `base` itself or `out`. */
+ * under load/CHARA that has a download is the download. Returns `base`
+ * itself or `out`. */
 const char* Cd_ResolveBase(const char* base, char* out, int outSz);
 
 /* Display text from an ini (name/category/author/version); empty when absent. */

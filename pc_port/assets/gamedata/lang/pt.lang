@@ -1897,3 +1897,7 @@ QUICK.(custom_copy_in_use)=(usando cópia personalizada)
 QUICK.Don't_ask_again=Não perguntar de novo
 QUICK.Your_QoL_character_packs_are_now_part_of_Additional_Characters._Download_the_new_versions?=Seus pacotes de personagens QoL agora fazem parte dos personagens adicionais. Baixar as novas versões?
 QUICK.Load_Preview=Carregar prévia
+QUICK.(download_in_use)=(usando o download)
+QUICK.no_version=sem versão
+QUICK.{a}_is_already_installed_from_{b}_({c})._The_download_({d})_will_be_used_instead._Download_it?={a} já está instalado a partir de {b} ({c}). O download ({d}) será usado no lugar. Baixar?
+QUICK.{a}_of_these_characters_are_already_installed_from_packs._The_downloads_will_be_used_instead._Download_them?={a} destes personagens já estão instalados a partir de pacotes. Os downloads serão usados no lugar. Baixar?

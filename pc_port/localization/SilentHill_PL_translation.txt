@@ -8311,3 +8311,23 @@ PL: Twoje paczki postaci QoL są teraz częścią dodatkowych postaci. Pobrać n
 NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
 EN: Load Preview
 PL: Wczytaj podgląd
+
+[QUICK.(download_in_use)]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: (download in use)
+PL: (używane pobranie)
+
+[QUICK.no_version]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: no version
+PL: brak wersji
+
+[QUICK.{a}_is_already_installed_from_{b}_({c})._The_download_({d})_will_be_used_instead._Download_it?]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: {a} is already installed from {b} ({c}). The download ({d}) will be used instead. Download it?
+PL: {a} jest już zainstalowany z {b} ({c}). Zamiast tego zostanie użyte pobranie ({d}). Pobrać?
+
+[QUICK.{a}_of_these_characters_are_already_installed_from_packs._The_downloads_will_be_used_instead._Download_them?]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: {a} of these characters are already installed from packs. The downloads will be used instead. Download them?
+PL: {a} z tych postaci jest już zainstalowanych z paczek. Zamiast nich zostaną użyte pobrania. Pobrać?

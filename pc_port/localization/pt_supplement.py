@@ -170,3 +170,13 @@ QUICK = dict(globals().get('QUICK', {}))
 QUICK.update({
     'Load Preview': 'Carregar prévia',
 })
+
+
+# Character Select / Additional Characters.
+QUICK = dict(globals().get('QUICK', {}))
+QUICK.update({
+    '(download in use)': '(usando o download)',
+    'no version': 'sem versão',
+    '{a} is already installed from {b} ({c}). The download ({d}) will be used instead. Download it?': '{a} já está instalado a partir de {b} ({c}). O download ({d}) será usado no lugar. Baixar?',
+    '{a} of these characters are already installed from packs. The downloads will be used instead. Download them?': '{a} destes personagens já estão instalados a partir de pacotes. Os downloads serão usados no lugar. Baixar?',
+})

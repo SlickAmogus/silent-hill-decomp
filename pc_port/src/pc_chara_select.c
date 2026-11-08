@@ -211,7 +211,7 @@ static int cs_file_exists(const char* path)
 
 static void cs_scan_files(void)
 {
-    static const char* const dirs[2] = { "gamedata/load/CHARA", CD_DL_DIR };
+    static const char* const dirs[2] = { CD_DL_DIR, "gamedata/load/CHARA" };
     DIR*           d;
     struct dirent* e;
     int            di;
