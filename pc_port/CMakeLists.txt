@@ -827,6 +827,25 @@ install(TARGETS SilentHillPC RUNTIME DESTINATION bin)
 if(BUILD_TESTING)
     enable_testing()
 
+    # Link the real player initialization, discarding unrelated gameplay code
+    # so this regression runs without SDL, a renderer, a disc, or a save file.
+    # Section garbage collection here uses the ELF linker interface.
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        add_executable(pc_player_info_init_test
+            tests/pc_player_info_init_test.c
+            "${DECOMP_DIR}/src/bodyprog/player_control.c")
+        target_include_directories(pc_player_info_init_test PRIVATE
+            $<TARGET_PROPERTY:SilentHillPC,INCLUDE_DIRECTORIES>)
+        target_compile_definitions(pc_player_info_init_test PRIVATE
+            $<TARGET_PROPERTY:SilentHillPC,COMPILE_DEFINITIONS>)
+        target_compile_options(pc_player_info_init_test PRIVATE
+            $<TARGET_PROPERTY:SilentHillPC,COMPILE_OPTIONS>
+            -ffunction-sections -fdata-sections)
+        target_link_options(pc_player_info_init_test PRIVATE -Wl,--gc-sections)
+        target_link_libraries(pc_player_info_init_test PRIVATE m)
+        add_test(NAME pc_player_info_init_test COMMAND pc_player_info_init_test)
+    endif()
+
     # PSY-Q math used by the flashlight flare's relative-angle calculation.
     add_executable(pc_gte_math_test
         tests/pc_gte_math_test.c
