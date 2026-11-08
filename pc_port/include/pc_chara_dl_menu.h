@@ -21,6 +21,8 @@ int  Cdm_IsOpen(void);
 /* 0 once the screen closes back to Character Select. */
 int  Cdm_Update(const NmInput* in);
 void Cdm_Draw(int fieldL, int fieldR);
+/* Shut with Character Select, taking an open message box with it. */
+void Cdm_Close(void);
 /* The picker's result once it closed: 1 with *file set (NULL = stock model). */
 int  Cdm_PickerResult(const char** file);
 /* Preview: the file to show fitted to HERO (or the picker's stock model). */
