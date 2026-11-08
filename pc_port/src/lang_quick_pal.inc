@@ -264,3 +264,5 @@
 { "Don't ask again", { "Nicht mehr fragen", "Ne plus demander", "No volver a preguntar", "Non chiedere più" } },
 /* Character Select / Additional Characters. */
 { "Your QoL character packs are now part of Additional Characters. Download the new versions?", { "Deine QoL-Charakterpakete sind jetzt Teil der weiteren Charaktere. Die neuen Versionen herunterladen?", "Vos packs de personnages QoL font désormais partie des personnages supplémentaires. Télécharger les nouvelles versions ?", "Tus packs de personajes QoL ahora forman parte de los personajes adicionales. ¿Descargar las nuevas versiones?", "I tuoi pacchetti di personaggi QoL fanno ora parte dei personaggi aggiuntivi. Scaricare le nuove versioni?" } },
+/* Character Select / Additional Characters. */
+{ "Load Preview", { "Vorschau laden", "Charger l'aperçu", "Cargar vista previa", "Carica anteprima" } },

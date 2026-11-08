@@ -439,3 +439,10 @@ QUICK = dict(globals().get('QUICK', {}))
 QUICK.update({
     'Your QoL character packs are now part of Additional Characters. Download the new versions?': 'Ваши наборы персонажей QoL теперь входят в дополнительных персонажей. Скачать новые версии?',
 })
+
+
+# Character Select / Additional Characters.
+QUICK = dict(globals().get('QUICK', {}))
+QUICK.update({
+    'Load Preview': 'Загрузить предпросмотр',
+})

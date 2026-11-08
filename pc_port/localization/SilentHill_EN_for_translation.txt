@@ -8706,3 +8706,8 @@ TR:
 NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
 EN: Your QoL character packs are now part of Additional Characters. Download the new versions?
 TR: 
+
+[QUICK.Load_Preview]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Load Preview
+TR: 
