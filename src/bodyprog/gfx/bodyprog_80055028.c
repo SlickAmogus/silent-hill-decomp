@@ -2516,6 +2516,39 @@ static bool Pc_SewerRoom13FenceDepthModel(const s_ModelHeader* model)
 #endif
 
 #ifdef SH_PC_PORT
+static bool Pc_MotelRoom9WallModel(const s_ModelHeader* model)
+{
+    static const u8 roomMeshes[3][8][2] = {
+        {{61, 35}},
+        {{99, 68}, {95, 68}, {9, 4}},
+        {{99, 79}, {94, 62}, {95, 69}, {99, 67},
+         {97, 69}, {94, 64}, {72, 44}, {57, 36}}
+    };
+    int variant;
+    int i;
+    if (g_GameWork.gameState != GameState_InGame || g_SavegamePtr == NULL ||
+        g_SavegamePtr->mapIdx != MapIdx_MAP5_S03 || g_SavegamePtr->mapRoomIdx != 9 ||
+        model->meshHdrs == NULL || model->vertexOffset != 0 || model->normalOffset != 0)
+        return false;
+    if (memcmp(model->name.str, "NULL2_BA", 8) == 0 && model->meshCount == 1)
+        variant = 0;
+    else if (memcmp(model->name.str, "NULL1_BA", 8) == 0 && model->meshCount == 3)
+        variant = 1;
+    else if (memcmp(model->name.str, "BOSS\0\0\0\0", 8) == 0 && model->meshCount == 8)
+        variant = 2;
+    else
+        return false;
+    for (i = 0; i < model->meshCount; i++)
+    {
+        const s_MeshHeader* mesh = &model->meshHdrs[i];
+        if (mesh->vertexCount != roomMeshes[variant][i][0] ||
+            mesh->primitiveCount != roomMeshes[variant][i][1] ||
+            mesh->verticesXy == NULL || mesh->verticesZ == NULL || mesh->primitives == NULL)
+            return false;
+    }
+    return true;
+}
+
 static bool Pc_TownMotelFacadeDepthModel(const s_ModelHeader* model)
 {
     /* Adjacent stock facade blocks overlap at the jamb of motel door 2. */
@@ -2766,6 +2799,10 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat
                     g_SavegamePtr->mapIdx == MapIdx_MAP5_S01 &&
                     Pc_TownMotelFacadeDepthModel(modelHdr))
                     g_PsxActorDepth = 1;
+                /* Resolve carpet against the clipped skirting across the whole
+                 * stock room shell, then restore the caller's depth mode. */
+                if (Pc_MotelRoom9WallModel(modelHdr))
+                    g_PsxActorDepth = 1;
                 func_80057344(modelInfo, otTag, arg2, viewMat);
                 g_PsxActorDepth = prevActorDepth;
                 s_pcBenchHedgeLate = prevBenchHedgeLate;
@@ -2946,6 +2983,32 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
         }
 
 #ifdef SH_PC_PORT
+        if (Pc_MotelRoom9WallModel(modelHdr))
+        {
+            s32 i;
+            /* The carpet is at local Y=0. Buried wall feet at Y=5 can be
+             * painted over it by PSX ordering, exposing a flickering stripe.
+             * Clip only the draw-local copy; keep assets and collision intact. */
+            for (i = 0; i < curMeshHdr->vertexCount; i++)
+                if (curMeshHdr->verticesXy[i].vy == 5)
+                    scratchData->screenXy_0[i].vy = 0;
+
+            /* The white sill overlaps the coplanar bathroom tile, whose front
+             * edge is Z=506. Trim its three rear top vertices to that edge,
+             * leaving the white riser and the rest of the floor unchanged. */
+            if (modelHdr->meshCount == 3 && curMeshHdr == &modelHdr->meshHdrs[0] &&
+                curMeshHdr->verticesXy[44].vx == 389 && curMeshHdr->verticesXy[44].vy == -26 &&
+                curMeshHdr->verticesZ[44] == 516 &&
+                curMeshHdr->verticesXy[45].vx == 174 && curMeshHdr->verticesXy[45].vy == -26 &&
+                curMeshHdr->verticesZ[45] == 516 &&
+                curMeshHdr->verticesXy[46].vx == 294 && curMeshHdr->verticesXy[46].vy == -26 &&
+                curMeshHdr->verticesZ[46] == 516)
+            {
+                scratchData->field_18C[44] = 506;
+                scratchData->field_18C[45] = 506;
+                scratchData->field_18C[46] = 506;
+            }
+        }
         /* These stock fence panels extend past their four-unit tile, including
          * the perpendicular corner. Trim only the scratch copy to the tile. */
         if (g_GameWork.gameState == GameState_InGame && g_SavegamePtr != NULL &&
@@ -6573,6 +6636,9 @@ static int Pc_FarModelEligible(const s_ModelHeader* modelHdr)
     if (modelHdr == NULL || modelHdr->meshHdrs == NULL || modelHdr->field_B_0)
         return 0;
     if (Pc_WideLm_IsWide(modelHdr))
+        return 0;
+    /* The cache bypasses the room-local scratch corrections above. */
+    if (Pc_MotelRoom9WallModel(modelHdr))
         return 0;
     /* Stock fountain/bin/hedge depth and scratch corrections belong to the mesh
      * drawer. The whole-map cache otherwise bypasses them entirely. */
