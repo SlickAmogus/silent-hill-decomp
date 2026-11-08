@@ -309,4 +309,6 @@ static const s_QuickAr s_MenuArTr[] = {
     { "Ghost Doctor", "الطبيب الشبح" },
     { "Puppet Nurse", "الممرضة الدمية" },
     { "Puppet Doctor", "الطبيب الدمية" },
+    /* Character Select / Additional Characters. */
+    { "(custom copy in use)", "(تُستخدم نسخة مخصصة)" },
 };

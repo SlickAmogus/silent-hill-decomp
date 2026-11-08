@@ -253,3 +253,5 @@
 { "Kaufmann", { NULL, NULL, NULL, NULL } },
 { "Cheryl", { NULL, NULL, NULL, NULL } },
 { "Alessa", { NULL, NULL, NULL, NULL } },
+/* Character Select / Additional Characters. */
+{ "(custom copy in use)", { "(eigene Kopie aktiv)", "(copie perso utilisée)", "(se usa una copia propia)", "(in uso una copia personale)" } },
