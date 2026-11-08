@@ -22,6 +22,7 @@ extern GLuint GR_ScreenFBO(void);
 
 #include "lang_ar.h"
 #include "lang_pack.h"
+#include "lang_quick.h"
 #include "lang_ru.h"
 #include "pc_ttf_text.h"
 #include "sh_log.h"
@@ -36,7 +37,7 @@ extern GLuint GR_ScreenFBO(void);
 #define TT_SMALL_PX 7.0f
 #define TT_MIN_FIT  0.70f
 
-#define TT_QUEUE_MAX 48
+#define TT_QUEUE_MAX 96
 #define TT_CACHE_MAX 64
 #define TT_TEXT_MAX  512
 
@@ -71,6 +72,7 @@ static s_TtBake s_cache[TT_CACHE_MAX];
 static stbtt_fontinfo s_font;
 static unsigned char* s_fontData;
 static int            s_fontState; /* 0 untried, 1 ok, -1 none */
+static int            s_fontScript = -1; /* script*2 + Cyrillic the face was picked for */
 
 static int    s_glState; /* 0 untried, 1 ok, -1 failed */
 static GLuint s_prog, s_vao, s_vbo;
@@ -84,11 +86,27 @@ int Pc_TtfText_Needed(void)
            (Pc_LangPackActive() && Pc_LangPackFont() == LANG_PACK_FONT_CYRILLIC);
 }
 
+static int tt_cyrillic(void)
+{
+    const unsigned char* t = (const unsigned char*)Pc_LangQuick("Yes");
+
+    for (; *t; t++)
+        if (*t == 0xD0 || *t == 0xD1)
+            return 1;
+    return 0;
+}
+
+static int tt_needs_script_face(void)
+{
+    return Pc_LangQuickScript() != LANG_QUICK_SCRIPT_LATIN || tt_cyrillic();
+}
+
 static void tt_fonts_init(void)
 {
-    /* Server text is English with the odd accent; the game's own Latin UI face
-     * first, then the Arabic bundle, which carries full Latin as well. */
-    static const char* paths[] = {
+    /* Barlow, the native menus' Latin face, unless the language needs a
+     * script it lacks: then the quick menu's faces for that script first (a
+     * CJK or Arabic face, or Oswald for Cyrillic; each carries Latin too). */
+    static const char* fixed[] = {
         "gamedata/font/BarlowSemiCondensed-Regular.ttf",
         "gamedata/font/arabic.ttf",
         "C:/Windows/Fonts/segoeui.ttf",
@@ -96,10 +114,15 @@ static void tt_fonts_init(void)
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf",
     };
-    int i;
+    const char* paths[24];
+    int         n, i;
 
-    s_fontState = -1;
-    for (i = 0; i < (int)(sizeof(paths) / sizeof(paths[0])); i++)
+    n = tt_needs_script_face() ? Pc_LangQuickFontPaths(paths, 16) : 0;
+    for (i = 0; i < (int)(sizeof(fixed) / sizeof(fixed[0])) && n < 24; i++)
+        paths[n++] = fixed[i];
+    s_fontScript = Pc_LangQuickScript() * 2 + tt_cyrillic();
+    s_fontState  = -1;
+    for (i = 0; i < n; i++)
     {
         FILE* f = fopen(paths[i], "rb");
         long  n;
@@ -161,6 +184,24 @@ static int tt_utf8_next(const char** pp)
         *pp += 1;
     }
     return cp;
+}
+
+static void tt_script_check(void)
+{
+    int i;
+
+    if (s_fontState == 0 || Pc_LangQuickScript() * 2 + tt_cyrillic() == s_fontScript)
+        return;
+    for (i = 0; i < TT_CACHE_MAX; i++)
+        if (s_cache[i].tex)
+        {
+            if (s_glState == 1)
+                glDeleteTextures(1, &s_cache[i].tex);
+            s_cache[i].tex = 0;
+        }
+    free(s_fontData);
+    s_fontData  = NULL;
+    s_fontState = 0;
 }
 
 static float tt_measure(const char* text, float px)
@@ -432,7 +473,7 @@ void Pc_TtfText_Draw(void)
     GLint     prevDrawFb = 0, prevReadFb = 0;
     GLint     prevEqRgb = GL_FUNC_ADD, prevEqA = GL_FUNC_ADD;
     GLboolean prevBlend, prevDepth, prevCull, prevScissor;
-    float     sx, sy;
+    float     sx, sy, wideM;
     int       i;
 
     if (s_building)
@@ -449,6 +490,7 @@ void Pc_TtfText_Draw(void)
     if (s_showCount == 0)
         return;
 
+    tt_script_check();
     if (s_fontState == 0)
         tt_fonts_init();
     if (s_fontState != 1)
@@ -461,7 +503,15 @@ void Pc_TtfText_Draw(void)
     PsyX_GetDisplayViewport(&pic[0], &pic[1], &pic[2], &pic[3]);
     if (pic[2] <= 0 || pic[3] <= 0)
         return;
-    sx = (float)pic[2] / TT_NATIVE_W;
+    /* A widened native menu (g_PsxWideMenu) spans -m..320+m across the
+     * picture, not 0..320. */
+    {
+        extern int   g_PsxWideMenu;
+        extern float PsyX_WideMenuMargin(void);
+
+        wideM = g_PsxWideMenu ? PsyX_WideMenuMargin() : 0.0f;
+    }
+    sx = (float)pic[2] / (TT_NATIVE_W + 2.0f * wideM);
     sy = (float)pic[3] / TT_NATIVE_H;
 
     glGetIntegerv(GL_VIEWPORT, vp);
@@ -531,7 +581,7 @@ void Pc_TtfText_Draw(void)
             continue;
 
         /* Window pixels, GL bottom-left origin; the line's top sits at y. */
-        left = (float)pic[0] + (float)l->x * sx;
+        left = (float)pic[0] + ((float)l->x + wideM) * sx;
         top  = (float)pic[1] + (float)pic[3] - (float)l->y * sy - (natPx * (1.0f - fit) * 0.5f * sy);
         wPx  = (float)b->w;
         hPx  = (float)b->h;
