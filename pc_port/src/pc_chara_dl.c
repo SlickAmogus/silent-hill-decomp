@@ -1559,6 +1559,40 @@ static void cd_job_begin(const CdJob* j)
 
 #define CD_JOJO_NOASK "gamedata/chara_jojo_noask"
 #define CD_MIGRATED   "gamedata/chara_migrated.txt"
+#define CD_QOL_NOASK  "gamedata/chara_qol_noask"
+
+static int s_legacyGo; /* the player said yes this session */
+/* Worked out when the list arrives, not per frame: it reads files. */
+static int s_legacyPend;
+
+int Cd_LegacyNoAsk(void) { return cd_exists(CD_QOL_NOASK); }
+
+void Cd_SetLegacyNoAsk(void)
+{
+    FILE* f = fopen(CD_QOL_NOASK, "w");
+
+    if (f != NULL)
+    {
+        fputs("The QoL character pack offer was turned off (Don't ask again). Delete to be asked again.\n", f);
+        fclose(f);
+    }
+}
+
+/* Replaced once already: a pack turned back on after that (the old
+ * launcher can) is the player's choice and is not offered again. */
+static int cd_legacy_done(const char* id)
+{
+    char* t = cd_read_all(CD_MIGRATED, 1 << 20);
+    char* l;
+    int   done = 0;
+
+    if (t == NULL)
+        return 0;
+    for (l = strtok(t, "\r\n"); l != NULL && !done; l = strtok(NULL, "\r\n"))
+        done = strcmp(l, id) == 0;
+    free(t);
+    return done;
+}
 
 int Cd_OldJojoNoAsk(void) { return cd_exists(CD_JOJO_NOASK); }
 
@@ -1668,9 +1702,10 @@ static int cd_legacy_entry(const char* glb, const char* hero)
     return -1;
 }
 
-static void cd_migrate_legacy(void)
+/* `queue` 0 only reports whether a pack is waiting to be replaced. */
+static int cd_migrate_legacy_pass(int queue)
 {
-    int i, j;
+    int i, j, pending = 0;
 
     for (i = 0; i < CD_LEGACY_COUNT; i++)
     {
@@ -1684,8 +1719,12 @@ static void cd_migrate_legacy(void)
         int                 pc = 0;
 #endif
 
-        if (!ports && !pc)
+        if ((!ports && !pc) || cd_legacy_done(L->id))
             continue;
+#if defined(CD_HAS_LAUNCHER_MODS)
+        if (pc && !mod.enabled)
+            continue;
+#endif
         snprintf(off, sizeof(off), CD_OFF_DIR "/%s", L->id);
         for (j = 0; L->heroes[j] != NULL; j++)
         {
@@ -1705,6 +1744,11 @@ static void cd_migrate_legacy(void)
             }
             if (!src[0] || (idx = cd_legacy_entry(src, h)) < 0)
                 continue;
+            if (!queue)
+            {
+                pending = 1;
+                break;
+            }
             r = cd_record_by_id(s_cat[idx].id);
             snprintf(p, sizeof(p), CD_DL_DIR "/%s.glb", r ? r->hero : "");
             if (r == NULL || !cd_exists(p))
@@ -1730,7 +1774,7 @@ static void cd_migrate_legacy(void)
                 remove(p);
             }
         }
-        if (waiting > 0)
+        if (!queue || waiting > 0)
             continue;
         if (ports)
             cd_qol_unmark(L->id);
@@ -1751,6 +1795,29 @@ static void cd_migrate_legacy(void)
         cd_persist();
         SH_DBG("[CHARADL] QoL pack %s replaced by its Additional Characters downloads", L->id);
     }
+    return pending;
+}
+
+static void cd_migrate_legacy(void)
+{
+    if (s_legacyGo)
+        cd_migrate_legacy_pass(1);
+    else
+        s_legacyPend = cd_migrate_legacy_pass(0);
+}
+
+int Cd_LegacyPending(void)
+{
+    return s_catState == CD_CAT_READY && !s_legacyGo && s_legacyPend;
+}
+
+void Cd_UpdateLegacy(void)
+{
+    if (s_catState != CD_CAT_READY)
+        return;
+    s_legacyGo = 1;
+    cd_records_load();
+    cd_migrate_legacy_pass(1);
 }
 
 void Cd_Tick(void)
