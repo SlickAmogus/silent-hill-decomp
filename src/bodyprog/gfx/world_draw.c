@@ -1633,6 +1633,13 @@ void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12
     }
 
     timer = CLAMP(timer, Q12(0.0f), Q12(1.0f));
+#ifdef SH_PC_PORT
+    /* The Larval Stalker's completed fade is invisible, not a stationary
+     * corpse. Its slot deliberately survives until the normal distance-based
+     * cleanup; do not let enhanced lighting/fog keep drawing that spent model. */
+    if (charaId == Chara_LarvalStalker && timer == Q12(1.0f))
+        return;
+#endif
 
     // Something to do with items held by player.
     if (charaId == Chara_Harry)
