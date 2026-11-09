@@ -38,6 +38,8 @@ void  Pc_SkinChara_End(void* chara, void* ot, int shift, int hideHead);
 int   Pc_SkinChara_KeepsStockPart(void* chara, const char partName[8], int bone);
 /* Reads Character Face Animation's models now rather than on first sight. */
 void  Pc_SkinChara_PreloadBuiltins(void);
+/* The model files changed on disk: forget which ones were not found. */
+void  Pc_SkinChara_FilesChanged(void);
 /* Transforms and lights a replaced part into the scratch slots without drawing
  * it, for a kept part that reads its seam vertices from there
  * (bodyprog_80055028.c). */

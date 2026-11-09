@@ -131,6 +131,14 @@ void Game_WarmBoot(void) // 0x80034264
         g_PcFreezeReleasePending = 0;
     }
     Pc_PauseMenu_Reset();
+    /* A reset out of Character Select (the pad's reset combo, quit to title)
+     * never ran its close: it stayed "open", drawn over the next game. */
+    {
+        extern int  Pc_CharaSelect_IsOpen(void);
+        extern void Pc_CharaSelect_Close(void);
+        if (Pc_CharaSelect_IsOpen())
+            Pc_CharaSelect_Close();
+    }
 #endif
 
     DrawSync(SyncMode_Wait);
