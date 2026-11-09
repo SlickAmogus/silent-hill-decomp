@@ -2597,6 +2597,49 @@ static bool Pc_BoatCabinDepthActive(void)
            g_SavegamePtr->mapIdx == MapIdx_MAP6_S01 && g_SavegamePtr->mapRoomIdx == 19;
 }
 
+static bool Pc_SewerStatueHallDepthModel(const s_ModelHeader* model)
+{
+    static const struct { char name[8]; u8 vertices; u8 primitives; } stock[] = {
+        {"YUKA00_B", 25, 16}, {"YUKA10_B", 23, 14}, {"YUKA11_B", 25, 16},
+        {"YUKA03", 20, 12}, {"KABEL_FA", 65, 50},
+        {"KABE00_B", 52, 36}, {"KABE01_B", 65, 48}, {"KABE66_B", 26, 12},
+        {"KABE55_B", 66, 50}, {"KABE55_B", 65, 48}, {"KABE02_B", 66, 50},
+        {"ACH2_BAC", 65, 48}, {"ACH3_BAC", 52, 36}, {"ACH5_BAC", 52, 36},
+        {"ACH30", 52, 36}
+    };
+    s32 i;
+    if (g_GameWork.gameState != GameState_InGame || g_SavegamePtr == NULL ||
+        g_SavegamePtr->mapIdx != MapIdx_MAP6_S03 || model->meshCount != 1 || model->meshHdrs == NULL)
+        return false;
+    /* These floor gratings and curved wall feet meet at Y=0. Keep both
+     * families on the same depth path so the wall cannot paint over the floor. */
+    for (i = 0; i < ARRAY_SIZE(stock); i++)
+        if (memcmp(model->name.str, stock[i].name, 8) == 0 &&
+            model->meshHdrs[0].vertexCount == stock[i].vertices &&
+            model->meshHdrs[0].primitiveCount == stock[i].primitives)
+            return true;
+    return false;
+}
+
+static bool Pc_SewerStatueDepthModel(const s_ModelHeader* model)
+{
+    const s_MeshHeader* mesh;
+    if (g_GameWork.gameState != GameState_InGame || g_SavegamePtr == NULL ||
+        g_SavegamePtr->mapIdx != MapIdx_MAP6_S03 || model->meshCount != 1 || model->meshHdrs == NULL)
+        return false;
+    mesh = model->meshHdrs;
+    /* Both halves of every repeated retaining ring must resolve against
+     * each other and the separate body, not their coarse painter buckets. */
+    return ((memcmp(model->name.str, "SKIN1\0\0\0", 8) == 0 ||
+             memcmp(model->name.str, "SKIN2\0\0\0", 8) == 0) &&
+            mesh->vertexCount == 22 && mesh->primitiveCount == 10) ||
+           (memcmp(model->name.str, "BODY1_", 6) == 0 && mesh->vertexCount == 83 &&
+            (mesh->primitiveCount == 110 || mesh->primitiveCount == 101)) ||
+           (memcmp(model->name.str, "BODY2_", 6) == 0 &&
+            ((mesh->vertexCount == 34 && mesh->primitiveCount == 44) ||
+             (mesh->vertexCount == 32 && mesh->primitiveCount == 37)));
+}
+
 static bool Pc_LakesidePipeDepthModel(const s_ModelHeader* model)
 {
     const s_MeshHeader* mesh;
@@ -3044,6 +3087,10 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat
                 /* Resolve the buried pipework with the enclosing lakeside
                  * wall and paving, not against flat OT bucket depths. */
                 if (Pc_LakesidePipeDepthModel(modelHdr))
+                    g_PsxActorDepth = 1;
+                if (Pc_SewerStatueDepthModel(modelHdr))
+                    g_PsxActorDepth = 1;
+                if (Pc_SewerStatueHallDepthModel(modelHdr))
                     g_PsxActorDepth = 1;
                 /* Room depth alone retains flat per-polygon world depths.
                  * The cabin's frames, door and floor need the existing
@@ -7219,6 +7266,10 @@ static int Pc_FarModelEligible(const s_ModelHeader* modelHdr)
     if (Pc_WideLm_IsWide(modelHdr))
         return 0;
     if (Pc_BoatCabinDepthActive())
+        return 0;
+    if (Pc_SewerStatueDepthModel(modelHdr))
+        return 0;
+    if (Pc_SewerStatueHallDepthModel(modelHdr))
         return 0;
     if (Pc_PierRailingDepthModel(modelHdr) || Pc_LighthouseGroundDepthModel(modelHdr) ||
         Pc_LakesidePipeDepthModel(modelHdr) || Pc_TownPlanterDepthModel(modelHdr) ||
