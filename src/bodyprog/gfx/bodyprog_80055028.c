@@ -2597,6 +2597,84 @@ static bool Pc_BoatCabinDepthActive(void)
            g_SavegamePtr->mapIdx == MapIdx_MAP6_S01 && g_SavegamePtr->mapRoomIdx == 19;
 }
 
+static bool Pc_LakesidePipeDepthModel(const s_ModelHeader* model)
+{
+    const s_MeshHeader* mesh;
+    if (g_GameWork.gameState != GameState_InGame || g_SavegamePtr == NULL ||
+        g_SavegamePtr->mapIdx != MapIdx_MAP6_S00 || model->meshCount != 1 || model->meshHdrs == NULL)
+        return false;
+    mesh = model->meshHdrs;
+    return (memcmp(model->name.str, "PIPE3_BA", 8) == 0 && mesh->vertexCount == 30 && mesh->primitiveCount == 18) ||
+           (memcmp(model->name.str, "PIPE4_BA", 8) == 0 && mesh->vertexCount == 19 && mesh->primitiveCount == 14) ||
+           (memcmp(model->name.str, "PIPE5_BA", 8) == 0 && mesh->vertexCount == 20 && mesh->primitiveCount == 15) ||
+           (memcmp(model->name.str, "PIPE6_BA", 8) == 0 && mesh->vertexCount == 30 && mesh->primitiveCount == 12) ||
+           (memcmp(model->name.str, "MOTO_5_B", 8) == 0 && mesh->vertexCount == 32 && mesh->primitiveCount == 28) ||
+           ((memcmp(model->name.str, "MOTO_9_B", 8) == 0 ||
+             memcmp(model->name.str, "MOTO_10_", 8) == 0 ||
+             memcmp(model->name.str, "MOTO_11_", 8) == 0) && mesh->vertexCount == 35 && mesh->primitiveCount == 24) ||
+           ((memcmp(model->name.str, "RSUG06_B", 8) == 0 ||
+             memcmp(model->name.str, "RSUG07_B", 8) == 0 ||
+             memcmp(model->name.str, "RSUG08_B", 8) == 0) && mesh->vertexCount == 20 && mesh->primitiveCount == 12) ||
+           (memcmp(model->name.str, "RSUG02_B", 8) == 0 && mesh->vertexCount == 81 && mesh->primitiveCount == 64);
+}
+
+static bool Pc_LighthouseGroundDepthModel(const s_ModelHeader* model)
+{
+    const s_MeshHeader* mesh;
+    if (g_GameWork.gameState != GameState_InGame || g_SavegamePtr == NULL ||
+        g_SavegamePtr->mapIdx != MapIdx_MAP6_S00 || model->meshHdrs == NULL)
+        return false;
+    mesh = model->meshHdrs;
+    if (memcmp(model->name.str, "RSU2001\0", 8) == 0)
+        return model->meshCount == 6 && mesh->vertexCount == 91 && mesh->primitiveCount == 57;
+    if (model->meshCount != 1)
+        return false;
+    return (memcmp(model->name.str, "2022_3_B", 8) == 0 && mesh->vertexCount == 56 && mesh->primitiveCount == 42) ||
+           (memcmp(model->name.str, "2022_15_", 8) == 0 && mesh->vertexCount == 40 && mesh->primitiveCount == 19) ||
+           (memcmp(model->name.str, "RSU2002\0", 8) == 0 && mesh->vertexCount == 86 && mesh->primitiveCount == 53) ||
+           (memcmp(model->name.str, "2011_0_N", 8) == 0 && mesh->vertexCount == 24 && mesh->primitiveCount == 15) ||
+           (memcmp(model->name.str, "2011_1_N", 8) == 0 && mesh->vertexCount == 54 && mesh->primitiveCount == 40) ||
+           (memcmp(model->name.str, "2011_7_N", 8) == 0 && mesh->vertexCount == 36 && mesh->primitiveCount == 25) ||
+           (memcmp(model->name.str, "2011_8_N", 8) == 0 && mesh->vertexCount == 30 && mesh->primitiveCount == 20);
+}
+
+static bool Pc_PierRailingDepthModel(const s_ModelHeader* model)
+{
+    const s_MeshHeader* mesh;
+    if (g_GameWork.gameState != GameState_InGame || g_SavegamePtr == NULL ||
+        g_SavegamePtr->mapIdx != MapIdx_MAP6_S00 || model->meshCount != 1 || model->meshHdrs == NULL)
+        return false;
+    mesh = model->meshHdrs;
+    return ((memcmp(model->name.str, "1601_1_N", 8) == 0 ||
+             memcmp(model->name.str, "1601_6_N", 8) == 0 ||
+             memcmp(model->name.str, "1601_7_N", 8) == 0) &&
+            mesh->vertexCount == 16 && mesh->primitiveCount == 10) ||
+           (memcmp(model->name.str, "1601_5_N", 8) == 0 && mesh->vertexCount == 16 && mesh->primitiveCount == 11) ||
+           (memcmp(model->name.str, "1611_1_H", 8) == 0 && mesh->vertexCount == 36 && mesh->primitiveCount == 24) ||
+           (memcmp(model->name.str, "1611_2_H", 8) == 0 && mesh->vertexCount == 20 && mesh->primitiveCount == 12) ||
+           (memcmp(model->name.str, "1611_40_", 8) == 0 && mesh->vertexCount == 12 && mesh->primitiveCount == 6) ||
+           (memcmp(model->name.str, "1611_41_", 8) == 0 && mesh->vertexCount == 36 && mesh->primitiveCount == 18) ||
+           (memcmp(model->name.str, "1611_13_", 8) == 0 && mesh->vertexCount == 79 && mesh->primitiveCount == 68);
+}
+
+static bool Pc_TownBenchDepthModel(const s_ModelHeader* model)
+{
+    return g_GameWork.gameState == GameState_InGame && g_SavegamePtr != NULL &&
+           g_SavegamePtr->mapIdx == MapIdx_MAP6_S00 &&
+           memcmp(model->name.str, "BENCHI1\0", 8) == 0 &&
+           model->meshCount == 1 && model->meshHdrs != NULL &&
+           model->meshHdrs[0].vertexCount == 89 && model->meshHdrs[0].primitiveCount == 78;
+}
+
+static bool Pc_TownPlanterDepthModel(const s_ModelHeader* model)
+{
+    return g_GameWork.gameState == GameState_InGame && g_SavegamePtr != NULL &&
+           g_SavegamePtr->mapIdx == MapIdx_MAP6_S00 &&
+           memcmp(model->name.str, "KADAN1\0\0", 8) == 0 &&
+           model->meshCount == 1 && model->meshHdrs != NULL &&
+           model->meshHdrs[0].vertexCount == 32 && model->meshHdrs[0].primitiveCount == 27;
+}
+
 static bool Pc_BoatGangwayDepthModel(const s_ModelHeader* model)
 {
     /* The same visible dock spans player rooms 15/16. Gate by model
@@ -2795,8 +2873,11 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat
 #ifdef SH_PC_PORT
     /* Static cabin pieces and separately submitted trim must use the same
      * world-to-screen origin. Do not round each object's camera-relative
-     * translation independently before projecting its vertices. */
-    if (Pc_BoatCabinDepthActive() && worldMat != NULL && viewMat != NULL)
+     * translation independently before projecting its vertices. The adjacent
+     * lighthouse ground strips also share an edge but have separate origins;
+     * preserve that edge when depth testing exposes their projection mismatch. */
+    if ((Pc_BoatCabinDepthActive() || Pc_LighthouseGroundDepthModel(modelHdr)) &&
+        worldMat != NULL && viewMat != NULL)
     {
         extern int PGXP_MatrixLookup(const MATRIX*, double*);
         extern int PGXP_MatrixLookupTranslation(const MATRIX*, double*);
@@ -2946,6 +3027,23 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat
                 if (Pc_MotelRoom9WallModel(modelHdr))
                     g_PsxActorDepth = 1;
                 if (Pc_BoatGangwayDepthModel(modelHdr))
+                    g_PsxActorDepth = 1;
+                /* Resolve the planter's narrow rim against its walls and fill. */
+                if (Pc_TownPlanterDepthModel(modelHdr))
+                    g_PsxActorDepth = 1;
+                /* Keep the narrow metal supports behind the wooden seat. */
+                if (Pc_TownBenchDepthModel(modelHdr))
+                    g_PsxActorDepth = 1;
+                /* Keep the pier deck from painting over the railing's feet. */
+                if (Pc_PierRailingDepthModel(modelHdr))
+                    g_PsxActorDepth = 1;
+                /* Resolve the lighthouse grass against the raised edging and
+                 * stair assembly, rather than letting a later ground face win. */
+                if (Pc_LighthouseGroundDepthModel(modelHdr))
+                    g_PsxActorDepth = 1;
+                /* Resolve the buried pipework with the enclosing lakeside
+                 * wall and paving, not against flat OT bucket depths. */
+                if (Pc_LakesidePipeDepthModel(modelHdr))
                     g_PsxActorDepth = 1;
                 /* Room depth alone retains flat per-polygon world depths.
                  * The cabin's frames, door and floor need the existing
@@ -3402,6 +3500,19 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
         }
 
 #ifdef SH_PC_PORT
+        /* The outer paving extends five units past X=1024 into the coplanar
+         * lighthouse lawn. True depth exposes a camera-dependent tie along
+         * that narrow strip. End only these authored paving vertices at the
+         * common edge; leave the grass and the raised edging untouched. */
+        if (Pc_LighthouseGroundDepthModel(modelHdr) &&
+            memcmp(modelHdr->name.str, "RSU2002\0", 8) == 0 &&
+            vertOffset == 0 && normalOffset == 0)
+        {
+            s32 i;
+            for (i = 0; i < curMeshHdr->vertexCount; i++)
+                if (curMeshHdr->verticesXy[i].vx == 1029 && curMeshHdr->verticesXy[i].vy == 0)
+                    scratchData->screenXy_0[i].vx = 1024;
+        }
         /* Conform these two paper sheets to their bent host panel, rather
          * than translating the entire sheet away from the fence. Work in
          * world Y/Z because POSTER instances rotate within the fence plane. */
@@ -7108,6 +7219,10 @@ static int Pc_FarModelEligible(const s_ModelHeader* modelHdr)
     if (Pc_WideLm_IsWide(modelHdr))
         return 0;
     if (Pc_BoatCabinDepthActive())
+        return 0;
+    if (Pc_PierRailingDepthModel(modelHdr) || Pc_LighthouseGroundDepthModel(modelHdr) ||
+        Pc_LakesidePipeDepthModel(modelHdr) || Pc_TownPlanterDepthModel(modelHdr) ||
+        Pc_TownBenchDepthModel(modelHdr))
         return 0;
     /* The cache bypasses the room-local scratch corrections above. */
     if (Pc_MotelRoom9WallModel(modelHdr))
