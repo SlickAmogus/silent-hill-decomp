@@ -777,16 +777,22 @@ static s16 cs_py(int y) { return (s16)(cs_interlaced() ? (y - 112) * 2 : (y - 11
 
 /* The inventory's blue double frame (Gfx_Results_Save): (96,96,255) outside,
  * (32,32,255) two pixels in. */
-static void cs_line(int x0, int y0, int x1, int y1, int inner)
+static void cs_line_rgb(int x0, int y0, int x1, int y1, u8 r, u8 g, u8 b)
 {
     LINE_F2* line = (LINE_F2*)GsOUT_PACKET_P;
-    u8       rg   = inner ? Q8_COLOR(0.125f) : Q8_COLOR(0.375f);
 
     setLineF2(line);
-    setRGB0(line, rg, rg, 0xFF);
+    setRGB0(line, r, g, b);
     setXY2(line, cs_px(x0), cs_py(y0), cs_px(x1), cs_py(y1));
     addPrim(&g_OrderingTable2[g_ActiveBufferIdx].org[CS_OT_LINE], line);
     GsOUT_PACKET_P = (PACKET*)(line + 1);
+}
+
+static void cs_line(int x0, int y0, int x1, int y1, int inner)
+{
+    u8 rg = inner ? Q8_COLOR(0.125f) : Q8_COLOR(0.375f);
+
+    cs_line_rgb(x0, y0, x1, y1, rg, rg, 0xFF);
 }
 
 static void cs_frame(int x0, int y0, int x1, int y1)
@@ -928,7 +934,8 @@ void Pc_CharaSelect_Draw(void)
 
     Ct_DrawCentered(160, CS_HEADING_Y, 1, StringColorId_White, "Character Select");
     Nm_RuleDraw(CS_COL1_X0, CS_PREV_X1, CS_RULE_Y, 0);
-    cs_line(CS_DIV1_X, CS_RULE_Y, CS_DIV1_X, CS_ARROW_DN_Y + 6, 1);
+    /* Nm_RuleDraw's grey, so the divider reads as part of the rule. */
+    cs_line_rgb(CS_DIV1_X, CS_RULE_Y, CS_DIV1_X, CS_ARROW_DN_Y + 6, 128, 128, 128);
     cs_frame(CS_PREV_X0, CS_PREV_Y0, CS_PREV_X1, CS_PREV_Y1);
 
     cs_rows_draw();

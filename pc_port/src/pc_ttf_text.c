@@ -435,14 +435,31 @@ void Pc_TtfText_Queue(int x, int y, int tall, int colorId, const char* utf8, int
     snprintf(l->text, sizeof(l->text), "%s", utf8);
 }
 
+/* Lines are baked at the picture's vertical scale but placed through its
+ * horizontal one, which differs (224 lines fill a 4:3 picture; the wide menu
+ * adds its pixel aspect): this turns a native-pixel width into the 320-space
+ * units it is drawn across, so a measured line is exactly as wide as drawn. */
+static float tt_x_units_per_px(void)
+{
+    extern int   g_PsxWideMenu;
+    extern float PsyX_WideMenuMargin(void);
+    int   pic[4];
+    float wideM;
+
+    PsyX_GetDisplayViewport(&pic[0], &pic[1], &pic[2], &pic[3]);
+    if (pic[2] <= 0 || pic[3] <= 0)
+        return 1.0f;
+    wideM = g_PsxWideMenu ? PsyX_WideMenuMargin() : 0.0f;
+    return ((float)pic[3] / TT_NATIVE_H) / ((float)pic[2] / (TT_NATIVE_W + 2.0f * wideM));
+}
+
 int Pc_TtfText_Width(const char* utf8, int tall)
 {
     if (s_fontState == 0)
         tt_fonts_init();
     if (s_fontState != 1 || utf8 == NULL)
         return 0;
-    /* Native units: the measure is taken at the native pixel height itself. */
-    return (int)(tt_measure(utf8, tall ? TT_TALL_PX : TT_SMALL_PX) + 0.5f);
+    return (int)(tt_measure(utf8, tall ? TT_TALL_PX : TT_SMALL_PX) * tt_x_units_per_px() + 0.5f);
 }
 
 static void tt_color(int colorId, float* rgb)
@@ -558,7 +575,7 @@ void Pc_TtfText_Draw(void)
     {
         const s_TtLine* l      = &s_show[i];
         float           natPx  = l->tall ? TT_TALL_PX : TT_SMALL_PX;
-        float           natW   = tt_measure(l->text, natPx);
+        float           natW   = tt_measure(l->text, natPx) * (sy / sx);
         float           fit    = 1.0f;
         int             pxH;
         s_TtBake*       b;
