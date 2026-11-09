@@ -138,9 +138,9 @@ static int     s_modelsRow = -1;
 static char s_files[CS_MAX_MODELS][CS_TOKEN_MAX];
 static int  s_fileCount;
 
-/* Music: the results track while the screen is open, as the online lobby
- * plays it. Under the title menu nothing pumps the BGM state machine, so the
- * screen does; in game the gameplay state keeps doing it. */
+/* Music: the results track while the screen is open from the title menu, as
+ * the online lobby plays it; nothing pumps the BGM state machine there, so the
+ * screen does. Over a game in progress the map's own music keeps playing. */
 static int      s_prevBgm = -1;
 static int      s_musicStep;
 
@@ -471,8 +471,15 @@ extern int g_PcMenuMusicCall;
 
 static void cs_music_start(void)
 {
-    s_prevBgm   = g_GameWork.bgmIdx;
+    s_prevBgm   = -1;
     s_musicStep = 0;
+    /* Over a game in progress (F10, or pause -> Options) the screen leaves
+     * the music alone: taking it over stopped the map's music for as long as
+     * the screen was open, and the results track never started there. */
+    if (g_GameWork.gameState == GameState_InGame ||
+        (g_GameWork.gameState == GameState_OptionScreen && g_GameWork.gameStatePrev == GameState_InGame))
+        return;
+    s_prevBgm   = g_GameWork.bgmIdx;
     g_PcMenuMusicOwner = 1;
     if (s_prevBgm == BgmTrackIdx_5)
     {
