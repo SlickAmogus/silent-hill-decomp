@@ -32,8 +32,10 @@
 #include "lang_quick.h"
 #include "sh_log.h"
 
-#define CD_GARBAGE 16
-#define CD_TEXT_MAX 256
+#define CD_GARBAGE 32
+#define CD_TEXT_MAX 512
+/* Lines a message may wrap to. */
+#define CD_MSG_LINES 8
 
 /* ------------------------------------------------------------------ */
 /* State                                                               */
@@ -45,8 +47,8 @@ static Uint32 s_phaseStart;
 #define CD_OPEN_MS  180u
 #define CD_CLOSE_MS 140u
 
-static int  s_sel;          /* 0 = Yes, 1 = No, 2 = the third button */
-static int  s_btnCount = 2;
+static int  s_sel;          /* 0 = Yes (or OK), 1 = No, 2 = the third button */
+static int  s_btnCount = 2; /* 1 = OK alone */
 static char s_third[CD_TEXT_MAX];
 static char s_title[CD_TEXT_MAX];
 static char s_message[CD_TEXT_MAX];
@@ -68,10 +70,17 @@ static int            s_fontsTried;
 static int            s_fontsScript = -1;
 
 /* Baked text, keyed to the pixel size it was baked at (re-baked on resize). */
-static GLuint s_texTitle, s_texMsg, s_texYes, s_texNo, s_texHint, s_texThird;
-static int    s_titleW, s_titleH, s_msgW, s_msgH, s_yesW, s_yesH, s_noW, s_noH, s_hintW, s_hintH;
+static GLuint s_texTitle, s_texYes, s_texNo, s_texHint, s_texThird;
+static int    s_titleW, s_titleH, s_yesW, s_yesH, s_noW, s_noH, s_hintW, s_hintH;
 static int    s_thirdW, s_thirdH;
 static int    s_bakedForPx;
+/* The message, a texture per wrapped line; s_msgW / s_msgH are the block's. */
+static GLuint s_texLine[CD_MSG_LINES];
+static int    s_lineW[CD_MSG_LINES], s_lineH[CD_MSG_LINES], s_lineCount;
+static int    s_msgW, s_msgH, s_msgBaked;
+static float  s_bakedWrapW;
+/* A baked line is 1.4 em tall; wrapped lines step by this share of it. */
+#define CD_LINE_STEP 0.86f
 
 /* The game's arrow pointer, decoded from VRAM once. The overlay composites
  * above the PSX frame, so the PSX-drawn cursor would sit under the dialog. */
@@ -268,7 +277,36 @@ static void cd_fonts_init(void)
     SH_DBG("[CONFIRM] no usable font - text disabled");
 }
 
-/* Rasterize one line of ASCII to a white-coverage RGBA texture. */
+/* Pen width of a line already in visual order. */
+static float cd_advance(const char* vis, float px)
+{
+    float       scale = stbtt_ScaleForPixelHeight(&s_font, px), x = 0.0f;
+    const char* p     = vis;
+    int         prev  = 0;
+
+    while (*p)
+    {
+        int cp = (int)Pc_LangUtf8Next(&p), adv, lsb;
+
+        if (prev)
+            x += stbtt_GetCodepointKernAdvance(&s_font, prev, cp) * scale;
+        stbtt_GetCodepointHMetrics(&s_font, cp, &adv, &lsb);
+        x += adv * scale;
+        prev = cp;
+    }
+    return x;
+}
+
+static float cd_measure(const char* text, float px)
+{
+    char visual[1024];
+
+    if (!s_fontOk || !text || !text[0])
+        return 0.0f;
+    return cd_advance(Pc_LangVisual(text, visual, (int)sizeof(visual)), px);
+}
+
+/* Rasterize one line to a white-coverage RGBA texture. */
 static GLuint cd_bake(const char* text, float px, int* outW, int* outH)
 {
     const char* p;
@@ -285,9 +323,12 @@ static GLuint cd_bake(const char* text, float px, int* outW, int* outH)
     scale = stbtt_ScaleForPixelHeight(&s_font, px);
     stbtt_GetFontVMetrics(&s_font, &asc, &desc, &gap);
 
-    W = (int)(px * 0.62f * (float)strlen(text)) + 8 * pad;
+    /* The line's own width: a guess from its byte count ran past the texture
+     * limit for long lines and for scripts of two and three bytes a letter,
+     * and such a line was then not drawn at all. */
+    W = (int)ceilf(cd_advance(text, px)) + 8 * pad;
     H = (int)ceilf(px * 1.4f) + 2 * pad;
-    if (W <= 0 || H <= 0 || W > 4096 || H > 512)
+    if (W <= 0 || H <= 0 || W > 8192 || H > 512)
         return 0;
 
     cov     = (unsigned char*)calloc((size_t)W * H, 1);
@@ -352,6 +393,86 @@ static GLuint cd_bake(const char* text, float px, int* outW, int* outH)
     return tex;
 }
 
+static void cd_emit_line(char* line, float px)
+{
+    size_t n = strlen(line);
+
+    while (n > 0 && line[n - 1] == ' ')
+        line[--n] = '\0';
+    if (n == 0 || s_lineCount >= CD_MSG_LINES)
+        return;
+    s_texLine[s_lineCount] = cd_bake(line, px, &s_lineW[s_lineCount], &s_lineH[s_lineCount]);
+    if (s_texLine[s_lineCount] == 0)
+        return;
+    if (s_lineW[s_lineCount] > s_msgW)
+        s_msgW = s_lineW[s_lineCount];
+    s_msgH += s_lineCount == 0 ? s_lineH[0] : (int)((float)s_lineH[s_lineCount] * CD_LINE_STEP);
+    s_lineCount++;
+}
+
+/* The message, wrapped to `wrapW` pixels. As one line a longer question ran
+ * out of the panel and off both sides of the screen, and past a texture width
+ * showed no text at all: at 4K that was every question the character menus
+ * ask. Breaks fall on spaces, or after any CJK character (no spaces there);
+ * each line is put in visual order on its own, so Arabic wraps right. */
+static void cd_bake_message(float px, float wrapW)
+{
+    char        line[CD_TEXT_MAX];
+    const char* p = s_message;
+    int         n = 0, brk = -1, brkSkip = 0;
+
+    s_lineCount = 0;
+    s_msgW = s_msgH = 0;
+    line[0] = '\0';
+    while (*p != '\0' && s_lineCount < CD_MSG_LINES)
+    {
+        const char* q   = p;
+        int         cp  = (int)Pc_LangUtf8Next(&q);
+        int         len = (int)(q - p);
+
+        if (len <= 0)
+            break;
+        if (cp == '\n')
+        {
+            cd_emit_line(line, px);
+            n = 0;
+            brk = -1;
+            line[0] = '\0';
+            p = q;
+            continue;
+        }
+        if (n + len >= (int)sizeof(line) - 1)
+            break;
+        memcpy(line + n, p, (size_t)len);
+        n += len;
+        line[n] = '\0';
+        p = q;
+        if (cd_measure(line, px) > wrapW && (brk > 0 || n > len))
+        {
+            char rest[CD_TEXT_MAX];
+            int  cut = brk > 0 ? brk : n - len;
+
+            snprintf(rest, sizeof(rest), "%s", line + (brk > 0 ? brk + brkSkip : n - len));
+            line[cut] = '\0';
+            cd_emit_line(line, px);
+            n = (int)strlen(rest);
+            memcpy(line, rest, (size_t)n + 1);
+            brk = -1;
+        }
+        else if (cp == ' ')
+        {
+            brk     = n - len;
+            brkSkip = len;
+        }
+        else if (cp >= 0x2E80)
+        {
+            brk     = n;
+            brkSkip = 0;
+        }
+    }
+    cd_emit_line(line, px);
+}
+
 static void cd_build_white(void)
 {
     unsigned char one[4] = { 255, 255, 255, 255 };
@@ -361,8 +482,16 @@ static void cd_build_white(void)
 
 static void cd_free_text(void)
 {
+    int i;
+
     cd_retire(s_texTitle); s_texTitle = 0;
-    cd_retire(s_texMsg);   s_texMsg   = 0;
+    for (i = 0; i < CD_MSG_LINES; i++)
+    {
+        cd_retire(s_texLine[i]);
+        s_texLine[i] = 0;
+    }
+    s_lineCount = 0;
+    s_msgBaked  = 0;
     cd_retire(s_texYes);   s_texYes   = 0;
     cd_retire(s_texNo);    s_texNo    = 0;
     cd_retire(s_texHint);  s_texHint  = 0;
@@ -411,6 +540,21 @@ void Pc_ConfirmDialog_Open3(const char* title, const char* message, const char* 
     snprintf(s_title, sizeof(s_title), "%s", up);
     snprintf(s_third, sizeof(s_third), "%s", third ? Pc_LangQuick(third) : "");
     s_btnCount = s_third[0] ? 3 : 2;
+}
+
+/* A notice: the message and OK. Update answers PC_CONFIRM_YES for OK and
+ * PC_CONFIRM_NO for Cancel; either way it is closed. */
+void Pc_ConfirmDialog_OpenOk(const char* title, const char* message)
+{
+    char up[CD_TEXT_MAX];
+
+    if (s_phase == CD_OPENING || s_phase == CD_SHOWN)
+        return;
+    Pc_ConfirmDialog_Open(NULL, message);
+    Pc_LangUtf8Upper(title ? Pc_LangQuick(title) : "", up, (int)sizeof(up));
+    snprintf(s_title, sizeof(s_title), "%s", up);
+    s_btnCount = 1;
+    s_sel      = 0;
 }
 
 static void cd_close(void)
@@ -487,7 +631,7 @@ int Pc_ConfirmDialog_Update(int left, int right, int confirm, int cancel)
 void Pc_ConfirmDialog_Draw(void)
 {
     GLint vp[4];
-    float vpW, vpH, panelW, panelH, panelL, panelR, panelT, panelB;
+    float vpW, vpH, panelW, panelH, panelL, panelR, panelT, panelB, base, wrapW, room;
     float titleH, hintH, pad, btnW, btnH, btnGap, btnT, btnB, btnL[3], dim = 1.0f;
     int   px, b;
 
@@ -544,23 +688,32 @@ void Pc_ConfirmDialog_Draw(void)
     }
 
     /* Layout (viewport px, origin bottom-left). Sized off the viewport height
-     * so it scales with resolution; width stretches to fit the message. */
-    panelH = 0.26f * vpH;
-    titleH = panelH * 0.22f;
-    hintH  = panelH * 0.16f;
-    pad    = panelH * 0.16f;
-    px     = (int)(panelH * 0.15f);
+     * so it scales with resolution; the width stretches to the message's
+     * widest line and the height to its line count. `base` is the one-line
+     * panel every fixed part is cut from. */
+    base   = 0.26f * vpH;
+    titleH = base * 0.22f;
+    hintH  = base * 0.16f;
+    pad    = base * 0.16f;
+    px     = (int)(base * 0.15f);
     if (px < 8) px = 8;
+    wrapW = 0.60f * vpW;
+    if (wrapW > 0.90f * vpW - 2.0f * pad) wrapW = 0.90f * vpW - 2.0f * pad;
 
-    if (s_bakedForPx != px || s_textDirty)
+    if (s_bakedForPx != px || s_textDirty || s_bakedWrapW != wrapW)
     {
         cd_free_text();
         s_bakedForPx = px;
+        s_bakedWrapW = wrapW;
         s_textDirty  = 0;
     }
     if (!s_texTitle) s_texTitle = cd_bake(s_title,   (float)(int)(titleH * 0.50f), &s_titleW, &s_titleH);
-    if (!s_texMsg)   s_texMsg   = cd_bake(s_message, (float)px,                    &s_msgW,   &s_msgH);
-    if (!s_texYes)   s_texYes   = cd_bake(Pc_LangQuick("Yes"), (float)px,                    &s_yesW,   &s_yesH);
+    if (!s_msgBaked)
+    {
+        cd_bake_message((float)px, wrapW);
+        s_msgBaked = 1;
+    }
+    if (!s_texYes)   s_texYes   = cd_bake(Pc_LangQuick(s_btnCount == 1 ? "OK" : "Yes"), (float)px, &s_yesW, &s_yesH);
     if (!s_texNo)    s_texNo    = cd_bake(Pc_LangQuick("No"), (float)px,                    &s_noW,    &s_noH);
     if (!s_texThird && s_btnCount == 3)
         s_texThird = cd_bake(s_third, (float)px, &s_thirdW, &s_thirdH);
@@ -591,18 +744,23 @@ void Pc_ConfirmDialog_Draw(void)
     }
     if (panelW < (float)s_hintW + 2.0f * pad) panelW = (float)s_hintW + 2.0f * pad;
     if (panelW > 0.90f * vpW) panelW = 0.90f * vpW;
+    /* One line sits in the room between the rule and the buttons; more lines
+     * make the panel that much taller. */
+    room   = base * 0.34f;
+    panelH = base + ((float)s_msgH > room - base * 0.10f ? (float)s_msgH - (room - base * 0.10f) : 0.0f);
+    if (panelH > 0.94f * vpH) panelH = 0.94f * vpH;
     panelL = (vpW - panelW) * 0.5f;
     panelR = panelL + panelW;
     panelB = (vpH - panelH) * 0.5f;
     panelT = panelB + panelH;
 
-    /* Two equal buttons centred in the lower half, above the hint line. */
-    btnH   = panelH * 0.20f;
+    /* Equal buttons centred above the hint line. */
+    btnH   = base * 0.20f;
     btnW   = panelW * 0.22f;
     btnGap = panelW * 0.06f;
     if (s_btnCount == 3 && btnW < (float)s_thirdW + pad)
         btnW = (float)s_thirdW + pad;
-    btnB   = panelB + hintH + panelH * 0.08f;
+    btnB   = panelB + hintH + base * 0.08f;
     btnT   = btnB + btnH;
     btnL[0] = (vpW - ((float)s_btnCount * btnW + (float)(s_btnCount - 1) * btnGap)) * 0.5f;
     for (b = 1; b < s_btnCount; b++)
@@ -660,14 +818,19 @@ void Pc_ConfirmDialog_Draw(void)
         cd_quad(s_texTitle, NX(tx), NY(ty), NX(tx + s_titleW), NY(ty - s_titleH), 1.0f, 0.93f, 0.86f, dim);
     }
 
-    /* Message, centred between the rule and the buttons. */
-    if (s_texMsg)
+    /* Message: its lines, each centred, the block between the rule and the buttons. */
+    if (s_lineCount > 0)
     {
-        float top = panelT - titleH;
-        float mid = (top + btnT) * 0.5f;
-        float tx  = panelL + (panelW - (float)s_msgW) * 0.5f;
-        float ty  = mid + (float)s_msgH * 0.5f;
-        cd_quad(s_texMsg, NX(tx), NY(ty), NX(tx + s_msgW), NY(ty - s_msgH), 0.92f, 0.92f, 0.95f, dim);
+        float y = ((panelT - titleH) + btnT) * 0.5f + (float)s_msgH * 0.5f;
+        int   k;
+
+        for (k = 0; k < s_lineCount; k++)
+        {
+            float tx = panelL + (panelW - (float)s_lineW[k]) * 0.5f;
+
+            cd_quad(s_texLine[k], NX(tx), NY(y), NX(tx + s_lineW[k]), NY(y - s_lineH[k]), 0.92f, 0.92f, 0.95f, dim);
+            y -= (float)s_lineH[k] * CD_LINE_STEP;
+        }
     }
 
     /* Buttons: the selected one gets the rust fill, the other a faint outline. */

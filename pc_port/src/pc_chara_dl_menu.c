@@ -54,7 +54,10 @@ static int s_fl, s_fr;
 #define M_INFO_Y1  182
 
 enum { P_HUB, P_DOWN, P_LOCAL, P_PICK };
-enum { R_HEADER, R_ITEM, R_STOCK, R_PLAYAS };
+enum { R_HEADER, R_ITEM, R_STOCK, R_PLAYAS, R_ALL };
+/* Above this many triangles a model is flagged as heavy. */
+#define M_HEAVY_TRIS 45000
+#define M_PEND_ALL   (-100000) /* s_pendingIdx: the Download All / Remove All row */
 #define M_CAST_GROUP (-2)  /* the picker's built-in Play As cast, Harry only */
 
 #define M_MAX_ROWS 2048
@@ -93,7 +96,8 @@ enum { D_NONE, D_REPLACE, D_JOJO, D_RESTART, D_INFO, D_QOL };
 static int       s_dialog;
 static NmConfirm s_confirm;
 static int       s_pendingIdx;   /* D_REPLACE: catalog index or -(cat+1) */
-static char      s_dialogText[160];
+static char      s_dialogText[512];
+static int       s_allRemove;    /* the pending All action removes */
 
 /* Picker. */
 static char s_pickStock[16];
@@ -104,7 +108,10 @@ static char s_pickFile[64];
 static int  s_pickStockChosen;
 
 static int s_restartShown;
-static int s_wasBusy;
+/* The lists the rows were built from (Cd_CatalogGen / Cd_LocalGen). */
+static int  s_seenCat, s_seenLocal;
+static int  s_selType;
+static char s_selKey[CD_FILE_MAX + 8];
 static int s_jojoAsked;   /* the update offer is made once per visit */
 
 static int s_qolAsked;    /* the QoL pack offer: once per visit too */
@@ -305,6 +312,13 @@ static void m_build(void)
             if (strcmp(expName[i], s_cats[c].name) == 0 && (s_page != P_LOCAL || expanded[i][1] == s_cats[c].group))
                 s_cats[c].expanded = expanded[i][0];
 
+    if (s_page == P_DOWN && Cd_CatalogCount() > 0)
+    {
+        s_rows[s_rowCount].type = R_ALL;
+        s_rows[s_rowCount].cat  = -1;
+        s_rows[s_rowCount].idx  = -1;
+        s_rowCount++;
+    }
     if (s_page == P_PICK && s_rowCount < M_MAX_ROWS)
     {
         s_rows[s_rowCount].type = R_STOCK;
@@ -385,6 +399,48 @@ static int m_down_item_state(int idx)
     return Cd_IsDownloaded(Cd_CatalogGet(idx)) ? 1 : 0;
 }
 
+static int m_current(int idx)
+{
+    const CdEntry* e = Cd_CatalogGet(idx);
+
+    return Cd_IsDownloaded(e) && !Cd_NeedsUpdate(e);
+}
+
+static int m_all_installed(void)
+{
+    int i;
+
+    for (i = 0; i < Cd_CatalogCount(); i++)
+        if (!m_current(i))
+            return 0;
+    return Cd_CatalogCount() > 0;
+}
+
+/* The row the cursor is on, by what it is: kept across a rebuild, where row
+ * numbers and list indices both move. */
+static void m_row_key(const MRow* r, char* out, int outSz)
+{
+    out[0] = '\0';
+    if (r->type == R_HEADER)
+        snprintf(out, (size_t)outSz, "%s", s_cats[r->cat].name);
+    else if (r->type == R_ITEM && s_page == P_DOWN)
+        snprintf(out, (size_t)outSz, "%s", Cd_CatalogGet(r->idx)->id);
+    else if (r->type == R_ITEM)
+        snprintf(out, (size_t)outSz, "%s", Cd_LocalGet(r->idx)->hero);
+    else if (r->type == R_PLAYAS)
+        snprintf(out, (size_t)outSz, "%d", r->idx);
+}
+
+static void m_sel_remember(void)
+{
+    s_selType   = -1;
+    s_selKey[0] = '\0';
+    if (s_page == P_HUB || s_rowCount == 0 || s_scroll.sel < 0 || s_scroll.sel >= s_rowCount)
+        return;
+    s_selType = s_rows[s_scroll.sel].type;
+    m_row_key(&s_rows[s_scroll.sel], s_selKey, (int)sizeof(s_selKey));
+}
+
 static int m_cat_state(int c)
 {
     int i, on = 0, all = 0;
@@ -402,6 +458,10 @@ static int m_cat_state(int c)
         {
             all++;
             on += m_down_item_state(i);
+            /* One waiting for its update leaves the series part done, so
+             * the box's next press updates it, not removes the series. */
+            if (m_down_item_state(i) && !m_current(i))
+                all++;
         }
     return on == 0 ? 0 : (on == all ? 1 : 2);
 }
@@ -481,12 +541,15 @@ static void m_toggle_category(int c, int confirmed)
     int i, all = 1, packed = 0;
 
     for (i = 0; i < Cd_CatalogCount(); i++)
-        if (strcmp(Cd_CatalogGet(i)->category, s_cats[c].name) == 0 && !Cd_IsDownloaded(Cd_CatalogGet(i)))
+        if (strcmp(Cd_CatalogGet(i)->category, s_cats[c].name) == 0 && !m_current(i))
         {
             all = 0;
-            if (Cd_PackCopy(Cd_CatalogGet(i)) >= 0)
+            if (!Cd_IsDownloaded(Cd_CatalogGet(i)) && Cd_PackCopy(Cd_CatalogGet(i)) >= 0)
                 packed++;
         }
+    /* "Yes, download them" downloads, whatever finished meanwhile. */
+    if (confirmed)
+        all = 0;
     if (!all && packed > 0 && !confirmed)
     {
         char n[16], tmpl[512];
@@ -512,6 +575,51 @@ static void m_toggle_category(int c, int confirmed)
     s_changed = 1;
 }
 
+/* The row at the top of the download page: everything not installed (or out
+ * of date), or with all of it installed, everything off again. */
+static void m_all_toggle(int confirmed)
+{
+    int i, packed = 0, remove = confirmed ? s_allRemove : m_all_installed();
+
+    if (remove)
+    {
+        if (!confirmed)
+        {
+            s_allRemove  = 1;
+            s_pendingIdx = M_PEND_ALL;
+            s_dialog     = D_REPLACE;
+            Pc_ConfirmDialog_Open3("Additional Characters", Ct_Tr("Remove all downloaded characters?"), NULL);
+            return;
+        }
+        for (i = 0; i < Cd_CatalogCount(); i++)
+            Cd_QueueRemove(i);
+        s_changed = 1;
+        return;
+    }
+    for (i = 0; i < Cd_CatalogCount(); i++)
+        if (!Cd_IsDownloaded(Cd_CatalogGet(i)) && Cd_PackCopy(Cd_CatalogGet(i)) >= 0)
+            packed++;
+    if (packed > 0 && !confirmed)
+    {
+        char n[16], tmpl[512];
+
+        snprintf(n, sizeof(n), "%d", packed);
+        snprintf(tmpl, sizeof(tmpl), "%s",
+                 Ct_Tr("{a} of these characters are already installed from packs. The downloads will be used instead. Download them?"));
+        m_fill4(s_dialogText, (int)sizeof(s_dialogText), tmpl, n, NULL, NULL, NULL);
+        s_allRemove  = 0;
+        s_pendingIdx = M_PEND_ALL;
+        s_dialog     = D_REPLACE;
+        Pc_ConfirmDialog_Open3("Additional Characters", s_dialogText, NULL);
+        return;
+    }
+    SD_Call(Sfx_MenuConfirm);
+    for (i = 0; i < Cd_CatalogCount(); i++)
+        if (!m_current(i))
+            Cd_QueueInstall(i);
+    s_changed = 1;
+}
+
 static void m_local_toggle(int row)
 {
     const MRow* r = &s_rows[row];
@@ -532,12 +640,9 @@ static void m_local_toggle(int row)
         int            i;
 
         /* Downloads come off one at a time; packs switch as a whole. */
+        (void)i;
         if (l->source == CD_SRC_DOWNLOAD)
-        {
-            for (i = 0; i < Cd_CatalogCount(); i++)
-                if (SDL_strcasecmp(Cd_CatalogGet(i)->hero, l->hero) == 0)
-                    Cd_QueueRemove(i);
-        }
+            Cd_QueueRemoveLocal(r->idx);
         else
             Cd_SetGroupEnabled(l->group, !Cd_GroupGet(l->group)->enabled);
         s_changed = 1;
@@ -573,6 +678,11 @@ static void m_activate_row(int row)
 {
     const MRow* r = &s_rows[row];
 
+    if (r->type == R_ALL)
+    {
+        m_all_toggle(0);
+        return;
+    }
     if (s_page == P_PICK && r->type != R_HEADER)
     {
         m_pick(row);
@@ -666,6 +776,8 @@ void Cdm_Open(int page, const char* stock, const char* current, int stockCharaId
         m_set_page(P_HUB);
         Cd_CatalogRefresh();
     }
+    s_seenCat   = Cd_CatalogGen();
+    s_seenLocal = Cd_LocalGen();
 }
 
 int Cdm_IsOpen(void) { return s_open; }
@@ -742,7 +854,7 @@ static int m_dialog_update(const NmInput* in)
 
     if (s_dialog == D_RESTART || s_dialog == D_INFO)
     {
-        if (in->confirm || in->cancel || in->mouseLeft)
+        if (Pc_ConfirmDialog_Update(in->left, in->right, in->confirm, in->cancel || in->mouseRight) != PC_CONFIRM_NONE)
         {
             SD_Call(Sfx_MenuConfirm);
             s_dialog = D_NONE;
@@ -759,7 +871,9 @@ static int m_dialog_update(const NmInput* in)
         s_dialog = D_NONE;
         if (r == PC_CONFIRM_YES)
         {
-            if (s_pendingIdx >= 0)
+            if (s_pendingIdx == M_PEND_ALL)
+                m_all_toggle(1);
+            else if (s_pendingIdx >= 0)
                 m_install(s_pendingIdx, 1);
             else
                 m_toggle_category(-s_pendingIdx - 1, 1);
@@ -819,16 +933,50 @@ int Cdm_Update(const NmInput* in)
 
     if (!s_open)
         return 0;
+    m_sel_remember();
     Cd_Tick();
-    /* A job finishing (or the list arriving) changes what the rows show. */
-    if (s_wasBusy && !Cd_Busy() && s_page != P_HUB && s_page != P_PICK)
-        m_build();
-    s_wasBusy = Cd_Busy();
+    /* Any job ends in a rescan and a new list renumbers its entries: the rows
+     * hold indices into both, so they are rebuilt the moment either moves.
+     * Rebuilt only when the queue went from busy to idle, a job that ran
+     * whole inside one tick (unticking a download) left them stale, and the
+     * next draw read past the list. */
+    if (Cd_CatalogGen() != s_seenCat || Cd_LocalGen() != s_seenLocal)
+    {
+        int catMoved = Cd_CatalogGen() != s_seenCat;
+
+        s_seenCat   = Cd_CatalogGen();
+        s_seenLocal = Cd_LocalGen();
+        s_changed   = 1;
+        if (catMoved && s_dialog == D_REPLACE)
+        {
+            Pc_ConfirmDialog_Cancel();
+            s_dialog = D_NONE;
+        }
+        if (s_page != P_HUB)
+        {
+            int i;
+
+            m_build();
+            for (i = 0; i < s_rowCount && s_selType >= 0; i++)
+            {
+                char key[sizeof(s_selKey)];
+
+                if (s_rows[i].type != s_selType)
+                    continue;
+                m_row_key(&s_rows[i], key, (int)sizeof(key));
+                if (strcmp(key, s_selKey) == 0)
+                {
+                    NmScroll_Select(&s_scroll, i);
+                    break;
+                }
+            }
+        }
+    }
     if (Cd_RestartAdvised() && !Cd_Busy() && !s_restartShown && s_dialog == D_NONE)
     {
         s_restartShown = 1;
-        snprintf(s_dialogText, sizeof(s_dialogText), "%s", Ct_Tr("Restart the game to use the updated characters."));
         s_dialog = D_RESTART;
+        Pc_ConfirmDialog_OpenOk("Additional Characters", Ct_Tr("Restart the game to use the updated characters."));
     }
     if (s_page == P_HUB && s_dialog == D_NONE && !s_jojoAsked && Cd_OldJojoPending() && !Cd_OldJojoNoAsk())
     {
@@ -884,7 +1032,9 @@ int Cdm_Update(const NmInput* in)
             s_hubSel = (s_hubSel + 1) % 3;
         if (s_hubSel != old)
             SD_Call(Sfx_MenuMove);
-        if (in->confirm || (in->mouseLeft && hit != -1))
+        if (in->mouseLeft && hit != -1 && hit != -3)
+            s_hubSel = (hit == -2) ? 2 : hit;
+        if (in->confirm || (in->mouseLeft && hit != -1 && hit != -3))
         {
             SD_Call(Sfx_MenuConfirm);
             if (s_hubSel == 2)
@@ -939,7 +1089,7 @@ int Cdm_Update(const NmInput* in)
             m_build();
             return 1;
         }
-        if (box || s_page == P_PICK || (s_rows[hit].type == R_HEADER && s_page == P_PICK))
+        if (box || s_page == P_PICK || s_rows[hit].type == R_ALL)
             m_activate_row(hit);
         else if (s_rows[hit].type == R_HEADER)
         {
@@ -954,7 +1104,8 @@ int Cdm_Update(const NmInput* in)
         if (hit == -2)
             s_onBack = 1;
         else if (hit == -3)
-            s_onPreviewBtn = 1;
+            s_onPreviewBtn = s_scroll.sel < s_rowCount && s_rows[s_scroll.sel].type == R_ITEM &&
+                             !Cd_PreviewFile(s_rows[s_scroll.sel].idx);
         else
         {
             NmScroll_Select(&s_scroll, hit);
@@ -1038,9 +1189,19 @@ int Cdm_Update(const NmInput* in)
         }
         if (s_onPreviewBtn)
         {
-            SD_Call(Sfx_MenuConfirm);
-            Cd_QueuePreview(s_rows[s_scroll.sel].idx);
             s_onPreviewBtn = 0;
+            if (s_scroll.sel < s_rowCount && s_rows[s_scroll.sel].type == R_ITEM)
+            {
+                SD_Call(Sfx_MenuConfirm);
+                Cd_QueuePreview(s_rows[s_scroll.sel].idx);
+            }
+            return 1;
+        }
+        /* No list: confirm asks for it again. */
+        if (s_page == P_DOWN && Cd_CatalogState() == CD_CAT_FAILED)
+        {
+            SD_Call(Sfx_MenuConfirm);
+            Cd_CatalogFetch();
             return 1;
         }
         if (s_rowCount > 0)
@@ -1080,6 +1241,14 @@ static void m_rows_draw(void)
             int cur = s_pickCur[0] == '*' && strcmp(s_pickCur + 1, Pc_PlayAs_Name(r->idx)) == 0;
             snprintf(label, sizeof(label), "%s%s", Ct_Name(Pc_PlayAs_Label(r->idx)), cur ? "  *" : "");
             m_text(x, y, color, label, M_LIST_X1 - x, sel);
+            continue;
+        }
+        if (r->type == R_ALL)
+        {
+            char up[96];
+
+            Pc_LangUtf8Upper(Ct_Tr(m_all_installed() ? "Remove All" : "Download All"), up, (int)sizeof(up));
+            m_text(x, y, color, up, M_LIST_X1 - x, sel);
             continue;
         }
         if (r->type == R_STOCK)
@@ -1152,7 +1321,7 @@ static void m_info_draw(void)
 {
     const MRow* r;
     char        name[96] = "", game[96] = "", ver[32] = "", author[96] = "";
-    int         x0 = M_PREV_X0 + 8, x1 = M_PREV_X1 - 8, mid = (x0 + x1) / 2 + 12;
+    int         x0 = M_PREV_X0 + 8, x1 = M_PREV_X1 - 8, mid = (x0 + x1) / 2 + 12, tris = 0;
 
     if (s_rowCount == 0 || s_scroll.sel >= s_rowCount)
         return;
@@ -1162,6 +1331,15 @@ static void m_info_draw(void)
         snprintf(name, sizeof(name), "%s", Ct_Tr(s_cats[r->cat].name));
         if (s_page == P_LOCAL && Cd_GroupGet(s_cats[r->cat].group)->author[0])
             snprintf(author, sizeof(author), "%s", Cd_GroupGet(s_cats[r->cat].group)->author);
+    }
+    else if (r->type == R_ALL)
+    {
+        int i, have = 0;
+
+        for (i = 0; i < Cd_CatalogCount(); i++)
+            have += m_current(i);
+        snprintf(name, sizeof(name), "%s", Ct_Tr(m_all_installed() ? "Remove All" : "Download All"));
+        snprintf(game, sizeof(game), "%d / %d", have, Cd_CatalogCount());
     }
     else if (r->type == R_STOCK)
     {
@@ -1182,17 +1360,44 @@ static void m_info_draw(void)
         snprintf(game, sizeof(game), "%s", e->category);
         snprintf(ver, sizeof(ver), "v%s", e->version[0] ? e->version : "1");
         snprintf(author, sizeof(author), "%s", e->author);
+        tris = e->tris;
     }
     else
     {
         const CdLocal* l = Cd_LocalGet(r->idx);
         snprintf(name, sizeof(name), "%s", l->name);
         snprintf(game, sizeof(game), "%s", l->category);
+        int            i;
+
         if (l->version[0])
             snprintf(ver, sizeof(ver), "v%s", l->version);
         snprintf(author, sizeof(author), "%s", l->author);
+        for (i = 0; i < Cd_CatalogCount(); i++)
+            if (SDL_strcasecmp(Cd_CatalogGet(i)->hero, l->hero) == 0)
+                tris = Cd_CatalogGet(i)->tris;
     }
     (void)mid;
+    /* A heavy model, said in the free corner right of the details: a ringed
+     * "!" and a line in red, the short form where the long one would run
+     * into the series name. */
+    if (tris > M_HEAVY_TRIS)
+    {
+        static const signed char ring[8][2] = { { -2, -5 }, { 2, -5 }, { 5, -2 }, { 5, 2 }, { 2, 5 }, { -2, 5 }, { -5, 2 }, { -5, -2 } };
+        const char* w    = Ct_Tr("High poly, may impact performance");
+        int         room = x1 - (x0 + Ct_SmallWidth(game) + 22), ww = Ct_SmallWidth(w), wx, cx, cy = M_INFO_Y0 + 9 + 4, k;
+
+        if (ww > room)
+        {
+            w  = Ct_Tr("High poly");
+            ww = Ct_SmallWidth(w);
+        }
+        wx = x1 - ww;
+        cx = wx - 9;
+        for (k = 0; k < 8; k++)
+            m_line(cx + ring[k][0], cy + ring[k][1], cx + ring[(k + 1) % 8][0], cy + ring[(k + 1) % 8][1], 0xE0, 0x18, 0x18);
+        m_small(cx - 1, M_INFO_Y0 + 9, StringColorId_Red, "!", 0);
+        m_small(wx, M_INFO_Y0 + 9, StringColorId_Red, w, ww);
+    }
     {
         char top[160];
 
@@ -1238,7 +1443,7 @@ static void m_dialog_draw(void)
     int cx = (s_fl + s_fr) / 2;
 
     /* The two offers are the shared message box, drawn by its own hook. */
-    if (s_dialog == D_NONE || s_dialog == D_JOJO || s_dialog == D_QOL || s_dialog == D_REPLACE)
+    if (s_dialog == D_NONE || s_dialog == D_JOJO || s_dialog == D_QOL || s_dialog == D_REPLACE || s_dialog == D_RESTART)
         return;
     m_small(s_fl + 16, 104, StringColorId_White, s_dialogText, M_W - 32);
     if (s_dialog == D_RESTART || s_dialog == D_INFO)
@@ -1266,7 +1471,7 @@ static void m_dialog_draw(void)
 
 void Cdm_Close(void)
 {
-    if (s_dialog == D_JOJO || s_dialog == D_QOL || s_dialog == D_REPLACE)
+    if (s_dialog != D_NONE)
         Pc_ConfirmDialog_Cancel();
     s_dialog = D_NONE;
     s_open   = 0;
@@ -1326,7 +1531,11 @@ void Cdm_Draw(int fieldL, int fieldR)
         if (s_page == P_DOWN && Cd_CatalogState() == CD_CAT_LOADING && Cd_CatalogCount() == 0)
             m_text(M_LIST_X0, M_LIST_Y, StringColorId_LightGrey, Ct_Tr("Loading the list..."), M_LIST_X1 - M_LIST_X0, 0);
         else if (s_page == P_DOWN && Cd_CatalogState() == CD_CAT_FAILED)
+        {
             m_text(M_LIST_X0, M_LIST_Y, StringColorId_LightGrey, Ct_Tr("Could not reach the list."), M_LIST_X1 - M_LIST_X0, 0);
+            m_text(M_LIST_X0, M_LIST_Y + M_PITCH, s_onBack ? StringColorId_White : StringColorId_Gold, Ct_Tr("Try again"),
+                   M_LIST_X1 - M_LIST_X0, 0);
+        }
         else if (s_rowCount == 0)
             m_text(M_LIST_X0, M_LIST_Y, StringColorId_LightGrey, Ct_Tr("Nothing here yet."), M_LIST_X1 - M_LIST_X0, 0);
         else
@@ -1341,7 +1550,8 @@ void Cdm_Draw(int fieldL, int fieldR)
         char line[160];
         int  x = m_back_right() + 12;
 
-        if (prog >= 0.0f && Cd_Busy())
+        /* Desktop transfers report nothing until they are in: no "0%". */
+        if (prog > 0.0f && Cd_Busy())
             snprintf(line, sizeof(line), "%s %d%%", status, (int)(prog * 100.0f));
         else
             snprintf(line, sizeof(line), "%s", status);
