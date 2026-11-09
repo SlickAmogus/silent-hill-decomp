@@ -47,7 +47,7 @@ static int          s_showing;
  * highlighted this long: the mouse sweeps over a dozen rows in a moment, and
  * loading each one it touched hitched the menu. Models already held show at
  * once, as does the first one after the screen opens. */
-#define CP_DWELL_MS 1000
+#define CP_DWELL_MS 500
 static char         s_wantKey[128];
 static Uint32       s_wantSince;
 static int          s_pending;
