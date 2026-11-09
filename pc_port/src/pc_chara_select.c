@@ -476,8 +476,7 @@ static void cs_music_start(void)
     /* Over a game in progress (F10, or pause -> Options) the screen leaves
      * the music alone: taking it over stopped the map's music for as long as
      * the screen was open, and the results track never started there. */
-    if (!(g_GameWork.gameState == GameState_OptionScreen && g_GameWork.gameStatePrev == GameState_MainMenu) &&
-        g_GameWork.gameState != GameState_MainMenu)
+    if (!(g_GameWork.gameState == GameState_OptionScreen && g_GameWork.gameStatePrev == GameState_MainMenu))
         return;
     s_prevBgm   = g_GameWork.bgmIdx;
     g_PcMenuMusicOwner = 1;
