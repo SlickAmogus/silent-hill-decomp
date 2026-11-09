@@ -125,6 +125,48 @@ static int PlayAs_SwapCmp(const void* a, const void* b)
     return strcmp(((const PcPlayAsChara*)a)->name, ((const PcPlayAsChara*)b)->name);
 }
 
+/* base= and female= from a swap's ini. base names a built-in row (cheryl,
+ * lisa...): the swap then plays in that character's slot -- its model under
+ * the skin, so its size, bind offsets and held-item fit -- instead of Harry's.
+ * For characters built small, like Cheryl. */
+static void PlayAs_IniBase(const char* dir, const char* file, char* base, size_t baseSize, int* female)
+{
+    char  path[320], line[160];
+    FILE* f;
+
+    base[0] = '\0';
+    *female = 0;
+    snprintf(path, sizeof(path), "%s/%s.ini", dir, file);
+    if ((f = fopen(path, "r")) == NULL)
+        return;
+    while (fgets(line, sizeof(line), f) != NULL)
+    {
+        char* eq = strchr(line, '=');
+        char* k = line;
+        char* v;
+        char* e;
+
+        if (eq == NULL || line[0] == '#' || line[0] == ';')
+            continue;
+        *eq = '\0';
+        v = eq + 1;
+        while (*k == ' ' || *k == '\t') k++;
+        for (e = eq - 1; e >= k && (*e == ' ' || *e == '\t'); e--) *e = '\0';
+        while (*v == ' ' || *v == '\t') v++;
+        for (e = v + strlen(v) - 1; e >= v && (*e == ' ' || *e == '\t' || *e == '\r' || *e == '\n'); e--) *e = '\0';
+        if (strcasecmp(k, "base") == 0)
+        {
+            size_t i;
+            for (i = 0; v[i] && i < baseSize - 1; i++)
+                base[i] = (char)((v[i] >= 'A' && v[i] <= 'Z') ? v[i] + 32 : v[i]);
+            base[i] = '\0';
+        }
+        else if (strcasecmp(k, "female") == 0)
+            *female = atoi(v) != 0;
+    }
+    fclose(f);
+}
+
 static int PlayAs_Roster(void)
 {
     /* The load order: a download keeps its name over a file in load/CHARA. */
@@ -179,8 +221,26 @@ static int PlayAs_Roster(void)
         s_playable[s_playCount].label = sw->label;
         s_playable[s_playCount].charaId = Chara_Harry;
         s_playable[s_playCount].skinFile = sw->file;
+        {
+            char base[24];
+            int  female, b;
+
+            PlayAs_IniBase(dirs[di], sw->file, base, sizeof(base), &female);
+            for (b = 0; base[0] && b < PLAYAS_BUILTIN; b++)
+                if (strcmp(s_builtin[b].name, base) == 0)
+                {
+                    memcpy(s_playable[s_playCount].hideParts, s_builtin[b].hideParts,
+                           sizeof(s_playable[0].hideParts));
+                    s_playable[s_playCount].charaId = s_builtin[b].charaId;
+                    break;
+                }
+            if (base[0] && b == PLAYAS_BUILTIN)
+                SH_DBG("[PLAYAS] %s: base=%s is not a built-in character, using Harry", n, base);
+            s_playable[s_playCount].female = (u8)female;
+        }
+        SH_DBG("[PLAYAS] %s swap %s -> PLAYAS %s",
+               s_playable[s_playCount].charaId == Chara_Harry ? "Harry" : "based", n, sw->name);
         s_playCount++;
-        SH_DBG("[PLAYAS] Harry swap %s -> PLAYAS %s", n, sw->name);
     }
     closedir(d);
     }
