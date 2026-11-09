@@ -1032,7 +1032,7 @@ void Pc_CharaSelect_Draw(void)
 
         if (Pc_CharaSelect_PreviewTarget(&file) != NULL && !Pc_CharaPreview_Showing())
             Ct_DrawCentered((CS_PREV_X0 + CS_PREV_X1) / 2, (CS_PREV_Y0 + CS_PREV_Y1) / 2 - 8, 1,
-                            StringColorId_DarkGrey, "No preview");
+                            StringColorId_DarkGrey, Pc_CharaPreview_Pending() ? "..." : "No preview");
     }
 
     if (s_status[0] != '\0' && SDL_GetTicks() < s_statusUntil)

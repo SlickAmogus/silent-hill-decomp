@@ -11,6 +11,9 @@ extern "C" {
 void Pc_CharaPreview_Draw(void);
 /* The last frame drew a model, so the screens leave their placeholder off. */
 int  Pc_CharaPreview_Showing(void);
+/* The highlighted model is not in memory yet and is waiting out the dwell
+ * before it is loaded: the screens say so in place of "no preview". */
+int  Pc_CharaPreview_Pending(void);
 
 #ifdef __cplusplus
 }
