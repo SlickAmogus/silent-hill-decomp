@@ -7,6 +7,7 @@
 #include <string.h>
 #include <SDL_scancode.h>
 #include <SDL_keyboard.h>
+#include <SDL_version.h>
 #include <SDL_timer.h>
 #include <SDL_mouse.h>     /* console pointer + click-drag selection */
 #include <SDL_clipboard.h> /* console Ctrl+C / Ctrl+V */
@@ -599,11 +600,16 @@ static void Console_Paste(void)
 /* Typed characters come from SDL_TEXTINPUT, i.e. Windows' own WM_CHAR, so they
  * follow the active keyboard layout (QWERTZ's Y and Z, AltGr symbols). NULL is
  * PsyCross's Backspace notification; the console handles Backspace itself. */
+static int s_textEver;   /* a text event has arrived this session */
+static int s_textFrame;  /* characters delivered since the last update */
+
 static void Console_OnText(const char* s)
 {
     if (s == NULL || !g_PcConsoleInputActive)
         return;
+    s_textEver = 1;
     for (; *s; s++) {
+        s_textFrame++;
         unsigned char c = (unsigned char)*s;
         if (c < 32 || c > 126)
             continue;
@@ -628,13 +634,71 @@ static void Console_SyncTextInput(void)
     int        focused   = SDL_GetKeyboardFocus() != NULL;
 
     if (g_PcConsoleInputActive != s_on || (s_on && focused && !s_focused)) {
+        SDL_version v;
+
         g_cfg_gameOnTextInput = Console_OnText;
+        SDL_GetVersion(&v);
         SDL_StopTextInput();
-        if (g_PcConsoleInputActive)
+        if (g_PcConsoleInputActive) {
+            /* On SDL3 (the SDL2.dll beside the exe is sdl2-compat, which
+             * reports a patch level of 50 and up) nothing is typed unless text
+             * input is started: the event state alone, which real SDL2
+             * honours, delivers no characters there, and the console took no
+             * keyboard input at all. */
+            if (v.patch >= 50)
+                SDL_StartTextInput();
             SDL_EventState(SDL_TEXTINPUT, SDL_ENABLE);
+        }
         s_on = g_PcConsoleInputActive;
     }
     s_focused = focused;
+}
+
+/* Should text events not arrive at all (a backend that needs something else
+ * again, a browser that sends none), typing still works: until the first one
+ * is seen, a printable key that went down with no character delivered for it
+ * is taken from the key itself, in its layout's letter. */
+static void Console_KeyFallback(const Uint8* ks, const unsigned char* prev, int consoleSc)
+{
+    static const char shifted[] = ")!@#$%^&*(";
+    int sc, shift = ks[SDL_SCANCODE_LSHIFT] || ks[SDL_SCANCODE_RSHIFT];
+    int got = s_textFrame;
+
+    s_textFrame = 0;
+    if (s_textEver || got > 0 || !g_PcConsoleInputActive || ks[SDL_SCANCODE_LCTRL] || ks[SDL_SCANCODE_RCTRL] ||
+        ks[SDL_SCANCODE_LALT] || ks[SDL_SCANCODE_RALT])
+        return;
+    for (sc = SDL_SCANCODE_A; sc <= SDL_SCANCODE_SLASH; sc++) {
+        SDL_Keycode k;
+        char        c[2] = { 0, 0 };
+
+        if (!ks[sc] || prev[sc] || (sc >= SDL_SCANCODE_RETURN && sc <= SDL_SCANCODE_TAB))
+            continue;
+        if (sc == consoleSc)
+            continue;
+        k = SDL_GetKeyFromScancode((SDL_Scancode)sc);
+        if (k < 32 || k > 126)
+            continue;
+        c[0] = (char)k;
+        if (shift && k >= '0' && k <= '9')
+            c[0] = shifted[k - '0'];
+        else if (shift && k == '-')
+            c[0] = '_';
+        else if (shift && k == '=')
+            c[0] = '+';
+        else if (shift && k == '/')
+            c[0] = '?';
+        else if (shift && k == ';')
+            c[0] = ':';
+        else if (shift && k == 39)
+            c[0] = 34;
+        {
+            int ever = s_textEver;
+            Console_OnText(c);
+            s_textEver  = ever;
+            s_textFrame = 0;
+        }
+    }
 }
 
 /* PsyCross asks SDL for a CORE profile context (PsyX_render.cpp), and these
@@ -1694,6 +1758,8 @@ void DbgOverlay_Update(void)
             Console_CopySelection();
         if (ctrl && ks[SDL_SCANCODE_V] && !s_prev_keys[SDL_SCANCODE_V])
             Console_Paste();
+
+        Console_KeyFallback(ks, s_prev_keys, (int)SDL_GetScancodeFromName(g_PcConfig.keyConsole[0] ? g_PcConfig.keyConsole : "`"));
 
         /* Backspace hold-repeats like a text editor: one delete on the press
          * edge, then after a short delay a steady 25/sec while held (faster
