@@ -2870,7 +2870,11 @@ void* Pc_SkinChara_Begin(s_Skeleton* skel, const void* boneCoords)
         /* A play-as Harry swap loads its own file; one that is gone or broken
          * falls back to HERO.glb, then to the stock model. Every other
          * character takes Character Select's choice the same way. */
-        const char* pick = (strcmp(name, "HERO") == 0) ? s_heroFile : Pc_SkinChara_CharaFile(name);
+        /* The player's own model wears the Play As choice whichever
+         * character's model it is (a base= swap plays in Cheryl's, say);
+         * that character's own row is for the NPC. */
+        int heroLm = lm == g_WorldGfxWork.harryModel.lmHdr;
+        const char* pick = (heroLm || strcmp(name, "HERO") == 0) ? s_heroFile : Pc_SkinChara_CharaFile(name);
         int stock = strcmp(pick, "-") == 0;
 
         if (pick[0] != '\0' && !stock)
@@ -3493,8 +3497,10 @@ static float Skin_MouthWeight(PcSkinChara* ch)
     /* A line with no speaker on record falls back to the voice's pitch. Every
      * stock character now has a face, so for them only the player takes that
      * guess; two women in a scene would otherwise both mouth one line. */
-    mine = speaker != NULL ? strcmp(speaker, ch->def->voice != NULL ? ch->def->voice : ch->name) == 0
-                           : female == ch->def->femaleVoice && (!ch->native || ch->isPlayer);
+    /* The player speaks Harry's lines in whichever body: a base= swap
+     * wears Cheryl's model but still says what Harry says. */
+    mine = speaker != NULL ? strcmp(speaker, ch->isPlayer ? "HERO" : ch->def->voice != NULL ? ch->def->voice : ch->name) == 0
+                           : (ch->isPlayer ? female == ch->female : female == ch->def->femaleVoice) && (!ch->native || ch->isPlayer);
     if (level > 0.0f && mine && !(s_rd.active && ch->isPlayer))
         target = level;
     rate = target > ch->mouth ? 30.0f : 14.0f;
