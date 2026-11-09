@@ -43,6 +43,33 @@ static int          s_matCount;
 static PcSkinPreviewMat s_mats[CP_MAX_MATS];
 static float        s_yaw;
 static int          s_showing;
+/* A model not yet in memory is loaded only once its row has stayed
+ * highlighted this long: the mouse sweeps over a dozen rows in a moment, and
+ * loading each one it touched hitched the menu. Models already held show at
+ * once, as does the first one after the screen opens. */
+#define CP_DWELL_MS 1000
+static char         s_wantKey[128];
+static Uint32       s_wantSince;
+static int          s_pending;
+static int          s_opened;
+
+static int cp_dwell_ok(const char* key, int cached)
+{
+    Uint32 now = SDL_GetTicks();
+
+    if (strcmp(key, s_wantKey) != 0)
+    {
+        snprintf(s_wantKey, sizeof(s_wantKey), "%s", key);
+        s_wantSince = now;
+    }
+    if (cached || !s_opened || now - s_wantSince >= CP_DWELL_MS)
+    {
+        s_opened = 1;
+        return 1;
+    }
+    s_pending = 1;
+    return 0;
+}
 /* The stock model when no swap is chosen: built off the disc once per pick. */
 static IlmPreview   s_ilm;
 static int          s_ilmId = -1;
@@ -283,6 +310,13 @@ static int cp_stock_sync(void)
     s_modelKey[0] = '\0';
     if (id <= 0)
         return 0;
+    {
+        char key[32];
+
+        snprintf(key, sizeof(key), "stock|%d", id);
+        if (!cp_dwell_ok(key, id == s_ilmId))
+            return 0;
+    }
     if (id != s_ilmId)
     {
         GLint prevTex = 0;
@@ -339,9 +373,12 @@ static int cp_model_sync(void)
     {
         s_model = NULL;
         s_modelKey[0] = '\0';
+        s_wantKey[0] = '\0';
         return 0;
     }
     snprintf(key, sizeof(key), "%s|%s", target, file);
+    if (!cp_dwell_ok(key, strcmp(key, s_modelKey) == 0 || Pc_SkinChara_PreviewCached(target, file)))
+        return 0;
     if (strcmp(key, s_modelKey) != 0)
     {
         snprintf(s_modelKey, sizeof(s_modelKey), "%s", key);
@@ -367,6 +404,11 @@ int Pc_CharaPreview_Showing(void)
     return s_showing;
 }
 
+int Pc_CharaPreview_Pending(void)
+{
+    return s_pending;
+}
+
 void Pc_CharaPreview_Draw(void)
 {
     GLint     prevProg = 0, prevVao = 0, prevBuf = 0, prevTex = 0, prevUnit = 0, prevFbo = 0;
@@ -381,9 +423,12 @@ void Pc_CharaPreview_Draw(void)
     float     cx, cy, cz, height, dist, f, aspect, cs, sn, light[3];
 
     s_showing = 0;
+    s_pending = 0;
     if (!Pc_CharaSelect_IsOpen())
     {
         s_lastMs = 0;
+        s_opened = 0;
+        s_wantKey[0] = '\0';
         return;
     }
     if (!s_glReady) cp_gl_init();

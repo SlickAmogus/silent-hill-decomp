@@ -67,6 +67,8 @@ const char* Pc_SkinChara_CharaFile(const char* name);
  * ranges and GL textures. */
 typedef struct { unsigned texture; int first, count; } PcSkinPreviewMat;
 void* Pc_SkinChara_PreviewLoad(const char* name, const char* file);
+/* That call would return at once: the file is already loaded for that slot. */
+int   Pc_SkinChara_PreviewCached(const char* name, const char* file);
 int   Pc_SkinChara_PreviewMesh(void* ch, const float** stream, int* cornerCount,
                                PcSkinPreviewMat* mats, int maxMats, float bounds[6]);
 
