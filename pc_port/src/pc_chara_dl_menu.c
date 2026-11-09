@@ -1418,7 +1418,8 @@ static void m_preview_panel(void)
     /* A category row has nothing to show: its name is in the details. */
     if (Cdm_PreviewTarget(&file) != NULL && s_rows[s_scroll.sel].type == R_ITEM && !Pc_CharaPreview_Showing() &&
         Cd_Busy() == 0)
-        Nm_TextDrawCentered(cx, (M_PREV_Y0 + M_BTN_Y) / 2 - 8, NM_TEXT_TALL, StringColorId_DarkGrey, "?");
+        Nm_TextDrawCentered(cx, (M_PREV_Y0 + M_BTN_Y) / 2 - 8, NM_TEXT_TALL, StringColorId_DarkGrey,
+                            Pc_CharaPreview_Pending() ? "..." : "?");
     if (s_page == P_DOWN && s_rowCount > 0 && s_rows[s_scroll.sel].type == R_ITEM &&
         !Cd_PreviewFile(s_rows[s_scroll.sel].idx))
     {

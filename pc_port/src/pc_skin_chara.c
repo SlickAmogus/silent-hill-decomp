@@ -3988,6 +3988,19 @@ void Pc_SkinChara_ApplyLighting(u32 handle, unsigned int program)
 /* The model `file` fitted to the character whose stock model is `name`:
  * loaded through the same entry the game would use, so the preview shows the
  * scale and rest fit the character will get. NULL when it cannot load. */
+int Pc_SkinChara_PreviewCached(const char* name, const char* file)
+{
+    int i;
+
+    if (name == NULL || file == NULL || !file[0])
+        return 0;
+    for (i = 0; i < s_charaCount; i++)
+        if (s_chara[i].file[0] != '\0' && strcmp(s_chara[i].file, file) == 0 && s_chara[i].def != NULL &&
+            strcmp(s_chara[i].def->name, name) == 0 && s_chara[i].state == 1)
+            return 1;
+    return 0;
+}
+
 void* Pc_SkinChara_PreviewLoad(const char* name, const char* file)
 {
     const PcSkinRestDef* def = NULL;
