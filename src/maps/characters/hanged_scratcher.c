@@ -1497,7 +1497,20 @@ void HangedScratcher_CollisionUpdate(s_SubCharacter* scratcher)
             keyframeIdx0   = relKeyframeIdx - ((relKeyframeIdx > 0) ? 1 : 0) - ((relKeyframeIdx >= 4) ? 1 : 0) - ((relKeyframeIdx >= 5) ? 1 : 0);
             keyframeIdx1   = relKeyframeIdx - ((relKeyframeIdx >= 3) ? 1 : 0) - ((relKeyframeIdx >= 4) ? 1 : 0) - ((relKeyframeIdx >= 8) ? 1 : 0);
 
+#ifdef SH_PC_PORT
+            /* PSX laid the next two keyframes immediately after this array.
+             * They are separate C objects on PC: indexing past the array
+             * reads unrelated data instead of the authored continuation. */
+            {
+                s_Keyframe* first = keyframeIdx0 < 5 ? &sharedData_800D9A00_5_s00[keyframeIdx0] :
+                                    keyframeIdx0 == 5 ? &sharedData_800D9A64_5_s00 : &sharedData_800D9A78_5_s00[0];
+                s_Keyframe* next = keyframeIdx1 < 5 ? &sharedData_800D9A00_5_s00[keyframeIdx1] :
+                                   keyframeIdx1 == 5 ? &sharedData_800D9A64_5_s00 : &sharedData_800D9A78_5_s00[0];
+                Collision_CharaCollisionSet(scratcher, first, next);
+            }
+#else
             Collision_CharaCollisionSet(scratcher, &sharedData_800D9A00_5_s00[keyframeIdx0], &sharedData_800D9A00_5_s00[keyframeIdx1]);
+#endif
             break;
 
         case ANIM_STATUS(HangedScratcherAnim_11, false):
@@ -1518,7 +1531,16 @@ void HangedScratcher_CollisionUpdate(s_SubCharacter* scratcher)
             keyframeIdx0   = relKeyframeIdx - ((relKeyframeIdx >= 2) ? 1 : 0) - ((relKeyframeIdx >= 8) ? 1 : 0);
             keyframeIdx1   = (relKeyframeIdx + 1) - ((relKeyframeIdx > 0) ? 1 : 0) - ((relKeyframeIdx >= 7) ? 1 : 0) - ((relKeyframeIdx >= 8) ? 1 : 0);
 
+#ifdef SH_PC_PORT
+            /* The final falling pose is the standalone keyframe at 9AF0,
+             * not element six of this six-element array. A bogus radius here
+             * lets the dying enemy fall through the floor before snapping up. */
+            Collision_CharaCollisionSet(scratcher,
+                keyframeIdx0 < 6 ? &sharedData_800D9A78_5_s00[keyframeIdx0] : &sharedData_800D9AF0_5_s00,
+                keyframeIdx1 < 6 ? &sharedData_800D9A78_5_s00[keyframeIdx1] : &sharedData_800D9AF0_5_s00);
+#else
             Collision_CharaCollisionSet(scratcher, &sharedData_800D9A78_5_s00[keyframeIdx0], &sharedData_800D9A78_5_s00[keyframeIdx1]);
+#endif
             break;
 
         case ANIM_STATUS(HangedScratcherAnim_15, false):
