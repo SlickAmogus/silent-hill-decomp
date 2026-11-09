@@ -1210,7 +1210,9 @@ static void m_preview_panel(void)
     int         cx = (M_PREV_X0 + M_PREV_X1) / 2;
 
     m_frame(M_PREV_X0, M_PREV_Y0, M_PREV_X1, M_PREV_Y1);
-    if (Cdm_PreviewTarget(&file) != NULL && !Pc_CharaPreview_Showing() && Cd_Busy() == 0)
+    /* A category row has nothing to show: its name is in the details. */
+    if (Cdm_PreviewTarget(&file) != NULL && s_rows[s_scroll.sel].type == R_ITEM && !Pc_CharaPreview_Showing() &&
+        Cd_Busy() == 0)
         Nm_TextDrawCentered(cx, (M_PREV_Y0 + M_BTN_Y) / 2 - 8, NM_TEXT_TALL, StringColorId_DarkGrey, "?");
     if (s_page == P_DOWN && s_rowCount > 0 && s_rows[s_scroll.sel].type == R_ITEM &&
         !Cd_PreviewFile(s_rows[s_scroll.sel].idx))
@@ -1320,7 +1322,7 @@ void Cdm_Draw(int fieldL, int fieldR)
     }
     else
     {
-        m_line(M_DIV_X, M_RULE_Y, M_DIV_X, M_ARROW_DN_Y + 6, Q8_COLOR(0.125f), Q8_COLOR(0.125f), 0xFF);
+        m_line(M_DIV_X, M_RULE_Y, M_DIV_X, M_ARROW_DN_Y + 6, 128, 128, 128);
         if (s_page == P_DOWN && Cd_CatalogState() == CD_CAT_LOADING && Cd_CatalogCount() == 0)
             m_text(M_LIST_X0, M_LIST_Y, StringColorId_LightGrey, Ct_Tr("Loading the list..."), M_LIST_X1 - M_LIST_X0, 0);
         else if (s_page == P_DOWN && Cd_CatalogState() == CD_CAT_FAILED)
