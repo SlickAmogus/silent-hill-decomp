@@ -2597,6 +2597,67 @@ static bool Pc_BoatCabinDepthActive(void)
            g_SavegamePtr->mapIdx == MapIdx_MAP6_S01 && g_SavegamePtr->mapRoomIdx == 19;
 }
 
+static bool Pc_ParkWheelDepthModel(const s_ModelHeader* model)
+{
+    static const struct { char name[8]; u8 vertices; u8 primitives; } stock[] = {
+        {"IRON1", 82, 84}, {"IRON2", 12, 8}, {"IRON3", 12, 8},
+        {"IRON2RE_", 12, 7}, {"IRON3RE_", 12, 7},
+        {"IRON4RE_", 28, 24}, {"IRON5", 28, 24}, {"IRON5REV", 28, 24},
+        {"IRON6", 28, 24}, {"IRON6REV", 28, 24},
+        {"IRON7_BA", 28, 24}, {"IRON8_BA", 28, 24}, {"IRON9_BA", 28, 24},
+        {"FW1_BACK", 55, 42}, {"FW2_BACK", 12, 6}, {"FW3WIR_H", 54, 30},
+        {"FWBOX1_B", 97, 93}, {"FWBOX2_B", 97, 93}
+    };
+    s32 i;
+    if (g_GameWork.gameState != GameState_InGame || g_SavegamePtr == NULL ||
+        g_SavegamePtr->mapIdx != MapIdx_MAP6_S04 || model->meshCount != 1 || model->meshHdrs == NULL)
+        return false;
+    /* Resolve the stationary braces and their reverse faces together with
+     * the separate rotating wheel/carriage assemblies. */
+    for (i = 0; i < ARRAY_SIZE(stock); i++)
+        if (memcmp(model->name.str, stock[i].name, 8) == 0 &&
+            model->meshHdrs[0].vertexCount == stock[i].vertices &&
+            model->meshHdrs[0].primitiveCount == stock[i].primitives)
+            return true;
+    return false;
+}
+
+static bool Pc_ParkSupportDepthModel(const s_ModelHeader* model)
+{
+    static const struct { char name[8]; u8 meshes; u8 vertices[2]; u8 primitives[2]; } stock[] = {
+        {"IRONTW_N", 2, {97,98}, {59,60}},
+        {"IRONTW1_", 2, {89,85}, {50,47}},
+        {"IRONTW2_", 2, {97,68}, {51,37}},
+        {"IRONTW4_", 2, {88,93}, {47,53}},
+        {"IRONUN1_", 1, {64,0}, {40,0}},
+        {"IRONUN2_", 1, {64,0}, {40,0}},
+        {"IRONUN3_", 1, {58,0}, {34,0}},
+        {"IRONUN4_", 1, {52,0}, {28,0}},
+        {"IRONUN5_", 1, {42,0}, {20,0}},
+        {"IRONUN6_", 1, {52,0}, {28,0}},
+        {"IRONUN7_", 1, {48,0}, {24,0}},
+        {"IRONUN8_", 1, {36,0}, {16,0}}
+    };
+    s32 i, mesh;
+    if (g_GameWork.gameState != GameState_InGame || g_SavegamePtr == NULL ||
+        g_SavegamePtr->mapIdx != MapIdx_MAP6_S04 || model->meshHdrs == NULL)
+        return false;
+    /* The diagonal braces and junction plates span separate meshes/models.
+     * Resolve the complete stock support family, not a single visible beam. */
+    for (i = 0; i < ARRAY_SIZE(stock); i++)
+    {
+        if (memcmp(model->name.str, stock[i].name, 8) != 0 || model->meshCount != stock[i].meshes)
+            continue;
+        for (mesh = 0; mesh < model->meshCount; mesh++)
+            if (model->meshHdrs[mesh].vertexCount != stock[i].vertices[mesh] ||
+                model->meshHdrs[mesh].primitiveCount != stock[i].primitives[mesh])
+                break;
+        if (mesh == model->meshCount)
+            return true;
+    }
+    return false;
+}
+
 static bool Pc_SewerStatueHallDepthModel(const s_ModelHeader* model)
 {
     static const struct { char name[8]; u8 vertices; u8 primitives; } stock[] = {
@@ -3097,6 +3158,10 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat
                  * per-vertex depth path as well, restored after this draw. */
                 if (Pc_BoatCabinDepthActive())
                     g_PsxActorDepth = 1;
+                if (Pc_ParkSupportDepthModel(modelHdr))
+                    g_PsxActorDepth = 1;
+                if (Pc_ParkWheelDepthModel(modelHdr))
+                    g_PsxActorDepth = 1;
                 func_80057344(modelInfo, otTag, arg2, viewMat);
                 g_PsxActorDepth = prevActorDepth;
                 s_pcBenchHedgeLate = prevBenchHedgeLate;
@@ -3532,6 +3597,41 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
             drawMesh = &visibleMesh;
         else if (Pc_MotelReceptionDoorVisibleMesh(modelHdr, curMeshHdr, &visibleMesh, visiblePrimitives, doorXy, doorZ))
             drawMesh = &visibleMesh;
+        /* Omit only the internal meeting caps of the
+         * horizontal and diagonal supports. Their world planes overlap at
+         * this joint; retain all exterior wall and lattice faces. */
+        if (drawMesh == curMeshHdr && Pc_ParkWheelDepthModel(modelHdr) &&
+            vertOffset == 0 && normalOffset == 0)
+        {
+            s32 skip = -1;
+            static const u8 horizontalCap[4] = {7, 3, 5, 1};
+            static const u8 diagonalCap[4] = {5, 4, 11, 10};
+            static const u8 oppositeHorizontalCap[4] = {3, 7, 1, 5};
+            static const u8 oppositeDiagonalCap[4] = {4, 5, 10, 11};
+            if (memcmp(modelHdr->name.str, "IRON3RE_", 8) == 0 &&
+                memcmp(curMeshHdr->primitives[0].field_C, horizontalCap, 4) == 0)
+                skip = 0;
+            if (memcmp(modelHdr->name.str, "IRON5\0\0\0", 8) == 0 &&
+                memcmp(curMeshHdr->primitives[21].field_C, diagonalCap, 4) == 0)
+                skip = 21;
+            if (memcmp(modelHdr->name.str, "IRON2RE_", 8) == 0 &&
+                memcmp(curMeshHdr->primitives[6].field_C, oppositeHorizontalCap, 4) == 0)
+                skip = 6;
+            if (memcmp(modelHdr->name.str, "IRON6\0\0\0", 8) == 0 &&
+                memcmp(curMeshHdr->primitives[21].field_C, oppositeDiagonalCap, 4) == 0)
+                skip = 21;
+            if (skip >= 0)
+            {
+                s32 face, count = 0;
+                for (face = 0; face < curMeshHdr->primitiveCount; face++)
+                    if (face != skip)
+                        visiblePrimitives[count++] = curMeshHdr->primitives[face];
+                visibleMesh = *curMeshHdr;
+                visibleMesh.primitives = visiblePrimitives;
+                visibleMesh.primitiveCount = count;
+                drawMesh = &visibleMesh;
+            }
+        }
 #endif
         if (vertOffset != 0 || normalOffset != 0)
         {
@@ -3547,6 +3647,45 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
         }
 
 #ifdef SH_PC_PORT
+        /* All three FW3 brace tips stop 1-2 geometry units short of their
+         * FW1 junction edges. Both models share the same instance transform.
+         * Match only these six authored tip points in scratch, including
+         * duplicate vertices used by end faces; retain UVs and resident data. */
+        if (Pc_ParkWheelDepthModel(modelHdr) && memcmp(modelHdr->name.str, "FW3WIR_H", 8) == 0 &&
+            curMeshHdr == modelHdr->meshHdrs && vertOffset == 0 && normalOffset == 0)
+        {
+            static const s16 tipFace[4][3] = {
+                {-33, -422, 13}, {-33, -422, -13}, {0, -346, 13}, {0, -346, -13}
+            };
+            static const s16 tips[][4] = {
+                /* source Y/Z, matching FW1 Y/Z (X is always zero). */
+                {-346, 13, -345, 14}, {-346, -13, -345, -14},
+                {-375, -359, -375, -360}, {-371, -334, -370, -333},
+                {-458, -696, -458, -698}, {-450, -672, -449, -671}
+            };
+            const s_Primitive* face = &curMeshHdr->primitives[28];
+            s32 i, j;
+            bool matches = true;
+            for (i = 0; i < 4; i++)
+            {
+                s32 idx = face->field_C[i];
+                if (idx >= curMeshHdr->vertexCount ||
+                    curMeshHdr->verticesXy[idx].vx != tipFace[i][0] ||
+                    curMeshHdr->verticesXy[idx].vy != tipFace[i][1] ||
+                    curMeshHdr->verticesZ[idx] != tipFace[i][2])
+                    matches = false;
+            }
+            if (matches)
+                for (i = 0; i < curMeshHdr->vertexCount; i++)
+                    for (j = 0; j < ARRAY_SIZE(tips); j++)
+                        if (curMeshHdr->verticesXy[i].vx == 0 &&
+                            curMeshHdr->verticesXy[i].vy == tips[j][0] &&
+                            curMeshHdr->verticesZ[i] == tips[j][1])
+                        {
+                            scratchData->screenXy_0[i].vy = tips[j][2];
+                            scratchData->field_18C[i] = tips[j][3];
+                        }
+        }
         /* The outer paving extends five units past X=1024 into the coplanar
          * lighthouse lawn. True depth exposes a camera-dependent tie along
          * that narrow strip. End only these authored paving vertices at the
@@ -7266,6 +7405,8 @@ static int Pc_FarModelEligible(const s_ModelHeader* modelHdr)
     if (Pc_WideLm_IsWide(modelHdr))
         return 0;
     if (Pc_BoatCabinDepthActive())
+        return 0;
+    if (Pc_ParkSupportDepthModel(modelHdr) || Pc_ParkWheelDepthModel(modelHdr))
         return 0;
     if (Pc_SewerStatueDepthModel(modelHdr))
         return 0;
