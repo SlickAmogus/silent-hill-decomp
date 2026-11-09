@@ -33,6 +33,7 @@ typedef struct
     char      sha256[65];
     long long glbSize;            /* the model inside, to recognise a copy of it */
     unsigned  glbCrc;
+    int       tris;               /* triangle count, 0 when the list does not say */
 } CdEntry;
 
 /* Where a local character came from. */
@@ -64,9 +65,12 @@ typedef struct
 
 /* ---- catalog ----------------------------------------------------------- */
 enum { CD_CAT_NONE, CD_CAT_LOADING, CD_CAT_READY, CD_CAT_FAILED };
-void           Cd_CatalogFetch(void);         /* once per session unless forced */
+/* Fetches the list unless it is here or on its way; after a failure, tries
+ * again. */
+void           Cd_CatalogFetch(void);
 /* Once per visit to the menu: fetches the list again. The list already shown
- * stays until the new one lands, and stays if the fetch fails. */
+ * stays until the new one lands, and stays if the fetch fails. With none yet
+ * this session, the one saved from the last good fetch is shown meanwhile. */
 void           Cd_CatalogRefresh(void);
 /* "Don't ask again" on the old jojo670 pack offer. */
 int            Cd_OldJojoNoAsk(void);
@@ -79,11 +83,17 @@ int            Cd_LegacyNoAsk(void);
 void           Cd_SetLegacyNoAsk(void);
 int            Cd_CatalogState(void);
 int            Cd_CatalogCount(void);
+/* Bumped when a new list takes over: catalog indices held from before are
+ * stale (the core moves its own; a screen rebuilds its rows). */
+int            Cd_CatalogGen(void);
 const CdEntry* Cd_CatalogGet(int i);
 
 /* ---- local ------------------------------------------------------------- */
 void           Cd_LocalScan(void);
 int            Cd_LocalCount(void);
+/* Bumped by every scan (one follows each job): local and group indices held
+ * from before are stale. */
+int            Cd_LocalGen(void);
 const CdLocal* Cd_LocalGet(int i);
 int            Cd_GroupCount(void);
 const CdGroup* Cd_GroupGet(int i);
@@ -116,6 +126,8 @@ void Cd_DisplayName(const char* hero, char* out, int outSz);
 /* ---- jobs (one at a time, queued) -------------------------------------- */
 void Cd_QueueInstall(int catalogIdx);
 void Cd_QueueRemove(int catalogIdx);
+/* A download, by its local index: needs no list, so it works offline. */
+void Cd_QueueRemoveLocal(int localIdx);
 void Cd_QueuePreview(int catalogIdx);
 void Cd_SetGroupEnabled(int group, int enabled);
 int  Cd_Busy(void);

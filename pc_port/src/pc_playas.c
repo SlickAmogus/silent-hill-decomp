@@ -1089,7 +1089,9 @@ void Pc_PlayAs_Rescan(void)
             s_current = i;
             return;
         }
-    s_current = 0;
+    /* -1 first: SetByIndex applies nothing when the index is already current,
+     * and a removed swap then stayed on Harry with the row reading HARRY. */
+    s_current = -1;
     Pc_PlayAs_SetByIndex(0, 1);
 }
 

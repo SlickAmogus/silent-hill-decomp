@@ -89,7 +89,9 @@ static int cd_copy(const char* from, const char* to)
         if (fwrite(buf, 1, n, b) != n)
             ok = 0;
     fclose(a);
-    fclose(b);
+    /* A full disk can surface only when the last block is flushed. */
+    if (fclose(b) != 0)
+        ok = 0;
     return ok;
 }
 
@@ -334,6 +336,9 @@ static char* cd_read_all(const char* path, long long maxBytes)
 static CdEntry s_cat[CD_MAX_ENTRIES];
 static int     s_catCount;
 static int     s_catState;
+/* A fetched list is parsed here and only then takes the place of s_cat. */
+static CdEntry s_catNew[CD_MAX_ENTRIES];
+static int     s_catGen;
 
 static void cd_cat_field(void* ctx, const char* k, const char* v)
 {
@@ -350,25 +355,36 @@ static void cd_cat_field(void* ctx, const char* k, const char* v)
     else if (strcmp(k, "sha256") == 0)   snprintf(e->sha256, sizeof(e->sha256), "%s", v);
     else if (strcmp(k, "glb_size") == 0) e->glbSize = atoll(v);
     else if (strcmp(k, "glb_crc32") == 0) e->glbCrc = (unsigned)strtoul(v, NULL, 16);
+    else if (strcmp(k, "tris") == 0)     e->tris = atoi(v);
 }
 
-/* Off the net: anything that could escape the folders is dropped. */
+/* Off the net: anything that could escape the folders is dropped, and so is
+ * anything that would break a line of the records file. */
 static int cd_safe_name(const char* s)
 {
+    const char* c;
+
+    for (c = s; *c != '\0'; c++)
+        if ((unsigned char)*c < 0x20 || *c == ':')
+            return 0;
     return s[0] != '\0' && strchr(s, '/') == NULL && strchr(s, '\\') == NULL && strstr(s, "..") == NULL;
 }
 
-static int cd_parse_catalog(const char* json)
+/* Parses a list into out[]: the count, or 0 when the text is not a whole
+ * list. A transfer cut short ends inside the array, and its first half would
+ * otherwise replace the list. The list on screen is never touched here. */
+static int cd_parse_catalog(const char* json, CdEntry* out, int max)
 {
     const char* p = strstr(json, "\"characters\"");
+    int         n = 0, i;
 
-    s_catCount = 0;
     if (p == NULL || (p = strchr(p, '[')) == NULL)
         return 0;
     p++;
-    while (*p && s_catCount < CD_MAX_ENTRIES)
+    for (;;)
     {
         CdEntry e;
+        char*   c;
 
         while (*p && *p != '{' && *p != ']')
             p++;
@@ -376,20 +392,29 @@ static int cd_parse_catalog(const char* json)
             break;
         memset(&e, 0, sizeof(e));
         p = cd_json_object(p, cd_cat_field, &e);
-        if (e.id[0] && cd_safe_name(e.file) && cd_safe_name(e.hero) && SDL_strncasecmp(e.hero, "HERO", 4) == 0)
-        {
-            if (e.name[0] == '\0')
-                cd_name_from_file(e.hero, e.name, sizeof(e.name));
-            if (e.category[0] == '\0')
-                snprintf(e.category, sizeof(e.category), "Other");
-            s_cat[s_catCount++] = e;
-        }
+        if (!cd_safe_name(e.id) || !cd_safe_name(e.file) || !cd_safe_name(e.hero) ||
+            SDL_strncasecmp(e.hero, "HERO", 4) != 0)
+            continue;
+        /* Ids key the records, the previews and the queue: one entry each. */
+        for (i = 0; i < n && strcmp(out[i].id, e.id) != 0; i++)
+            ;
+        if (i < n || n >= max)
+            continue;
+        for (c = e.version; *c != '\0'; c++)
+            if ((unsigned char)*c < 0x20)
+                *c = ' ';
+        if (e.name[0] == '\0')
+            cd_name_from_file(e.hero, e.name, sizeof(e.name));
+        if (e.category[0] == '\0')
+            snprintf(e.category, sizeof(e.category), "Other");
+        out[n++] = e;
     }
-    return s_catCount;
+    return *p == ']' ? n : 0;
 }
 
 int Cd_CatalogState(void) { return s_catState; }
 int Cd_CatalogCount(void) { return s_catCount; }
+int Cd_CatalogGen(void) { return s_catGen; }
 const CdEntry* Cd_CatalogGet(int i) { return (i >= 0 && i < s_catCount) ? &s_cat[i] : NULL; }
 
 /* ------------------------------------------------------------------------ */
@@ -508,10 +533,12 @@ int Cd_NeedsUpdate(const CdEntry* e)
 
 static CdLocal s_local[CD_MAX_LOCAL];
 static int     s_localCount;
+static int     s_localGen;
 static CdGroup s_groups[CD_MAX_GROUPS];
 static int     s_groupCount;
 
 int            Cd_LocalCount(void) { return s_localCount; }
+int            Cd_LocalGen(void) { return s_localGen; }
 const CdLocal* Cd_LocalGet(int i) { return (i >= 0 && i < s_localCount) ? &s_local[i] : NULL; }
 int            Cd_GroupCount(void) { return s_groupCount; }
 const CdGroup* Cd_GroupGet(int i) { return (i >= 0 && i < s_groupCount) ? &s_groups[i] : NULL; }
@@ -852,6 +879,7 @@ static void cd_launcher_set_enabled(const char* modName, int enabled)
 #endif
 
 static void cd_migrate_downloads(void);
+static int  cd_crc_file(const char* path, long long* size, unsigned* crc);
 
 const char* Cd_ResolveBase(const char* base, char* out, int outSz)
 {
@@ -877,9 +905,54 @@ void Cd_LocalScan(void)
 
     s_localCount = 0;
     s_groupCount = 0;
+    s_localGen++;
     cd_records_load();
 
     cd_migrate_downloads();
+
+    /* A model in the downloads folder with no record (the records file was
+     * lost, or the folder came from another install) still loads ahead of
+     * everything, yet was listed nowhere. Its catalog entry takes it back, so
+     * it is shown and can be updated or removed: as that entry's current
+     * build when the model is byte for byte the list's, as an older one
+     * otherwise. */
+    if (s_catCount > 0)
+    {
+        int adopted = 0;
+
+        n = cd_list_heroes(CD_DL_DIR, heroes, CD_MAX_LOCAL);
+        for (i = 0; i < n && s_recCount < CD_MAX_ENTRIES; i++)
+        {
+            if (cd_record_by_hero(heroes[i]) != NULL)
+                continue;
+            for (j = 0; j < s_catCount; j++)
+                if (cd_ieq(s_cat[j].hero, heroes[i]) && cd_record_by_id(s_cat[j].id) == NULL)
+                {
+                    CdRecord* r = &s_rec[s_recCount++];
+                    char      path[320], ver[16];
+                    long long size = 0;
+                    unsigned  crc = 0;
+                    int       same;
+
+                    snprintf(path, sizeof(path), CD_DL_DIR "/%s.glb", heroes[i]);
+                    same = cd_crc_file(path, &size, &crc) && s_cat[j].glbSize > 0 && size == s_cat[j].glbSize &&
+                           crc == s_cat[j].glbCrc;
+                    snprintf(path, sizeof(path), CD_DL_DIR "/%s.ini", heroes[i]);
+                    cd_ini_meta_path(path, NULL, 0, NULL, 0, NULL, 0, ver, sizeof(ver));
+                    memset(r, 0, sizeof(*r));
+                    snprintf(r->id, sizeof(r->id), "%s", s_cat[j].id);
+                    snprintf(r->version, sizeof(r->version), "%s", same ? s_cat[j].version : (ver[0] ? ver : "0"));
+                    snprintf(r->sha256, sizeof(r->sha256), "%s", same && s_cat[j].sha256[0] ? s_cat[j].sha256 : "-");
+                    snprintf(r->hero, sizeof(r->hero), "%s", heroes[i]);
+                    SH_DBG("[CHARADL] %s had no record: taken back as %s (%s)", heroes[i], r->id,
+                           same ? "current" : "to update");
+                    adopted++;
+                    break;
+                }
+        }
+        if (adopted)
+            cd_records_save();
+    }
 
     /* Downloads first: they are what loads, and cd_local_add marks every later
      * copy of the same file as shadowed. Grouped by category. */
@@ -1006,12 +1079,18 @@ void Cd_LocalScan(void)
 /* ------------------------------------------------------------------------ */
 /* jobs                                                                      */
 
-enum { CD_JOB_CATALOG, CD_JOB_INSTALL, CD_JOB_REMOVE, CD_JOB_PREVIEW, CD_JOB_GROUP_ON, CD_JOB_GROUP_OFF };
+enum { CD_JOB_CATALOG, CD_JOB_INSTALL, CD_JOB_REMOVE, CD_JOB_PREVIEW, CD_JOB_GROUP_ON, CD_JOB_GROUP_OFF,
+       CD_JOB_REMOVE_FILE };
 
 typedef struct
 {
-    int kind;
-    int arg;
+    int  kind;
+    int  arg;                /* catalog index */
+    /* Group jobs name their group by what it is: every job ends in a rescan,
+     * and one that drops a group (the last download of a category removed)
+     * renumbers the rest, so an index queued earlier toggled its neighbour. */
+    int  gsrc;
+    char gkey[CD_NAME_MAX];
 } CdJob;
 
 static CdJob         s_jobs[CD_MAX_JOBS];
@@ -1037,18 +1116,36 @@ const char* Cd_Status(float* progress)
     return s_status;
 }
 
-static void cd_push(int kind, int arg)
+static void cd_push_job(int kind, int arg, int gsrc, const char* gkey)
 {
     int i, next = (s_jobTail + 1) % CD_MAX_JOBS;
 
     for (i = s_jobHead; i != s_jobTail; i = (i + 1) % CD_MAX_JOBS)
-        if (s_jobs[i].kind == kind && s_jobs[i].arg == arg)
+        if (s_jobs[i].kind == kind && s_jobs[i].arg == arg && s_jobs[i].gsrc == gsrc &&
+            strcmp(s_jobs[i].gkey, gkey) == 0)
             return;
     if (next == s_jobHead)
         return;
     s_jobs[s_jobTail].kind = kind;
     s_jobs[s_jobTail].arg  = arg;
+    s_jobs[s_jobTail].gsrc = gsrc;
+    snprintf(s_jobs[s_jobTail].gkey, sizeof(s_jobs[0].gkey), "%s", gkey);
     s_jobTail = next;
+}
+
+static void cd_push(int kind, int arg)
+{
+    cd_push_job(kind, arg, 0, "");
+}
+
+static int cd_group_find(int source, const char* key)
+{
+    int i;
+
+    for (i = 0; i < s_groupCount; i++)
+        if (s_groups[i].source == source && strcmp(s_groups[i].key, key) == 0)
+            return i;
+    return -1;
 }
 
 #if defined(__EMSCRIPTEN__)
@@ -1172,12 +1269,35 @@ static void cd_allow_loose(void)
     }
 }
 
-/* Unpacks the zip's load/CHARA files into `dir`; the glb base into heroOut. */
+static int cd_zip_ext_ok(const char* dot)
+{
+    static const char* const ok[] = { ".glb", ".gltf", ".bin", ".ini", ".png", ".jpg", ".jpeg", ".dds" };
+    int                      i;
+
+    for (i = 0; i < (int)(sizeof(ok) / sizeof(ok[0])); i++)
+        if (cd_ieq(dot, ok[i]))
+            return 1;
+    return 0;
+}
+
+#define CD_ZIP_MAX_FILES 32
+
+/* Unpacks the zip's load/CHARA files into `dir`; the glb base into heroOut.
+ * Every file is unpacked to memory first, its CRC checked, and only a zip
+ * that is good all through is written. Unpacked straight to disk, a damaged
+ * download left half a model in the downloads folder, where it replaced the
+ * working copy and loaded ahead of a pack's. */
 static int cd_unzip_chara(const char* zipPath, const char* dir, int glbOnly, char* heroOut, int heroSz)
 {
+    struct
+    {
+        char   name[128];
+        void*  data;
+        size_t size;
+    } f[CD_ZIP_MAX_FILES];
     mz_zip_archive zip;
     mz_uint        i, n;
-    int            wrote = 0, ok = 1;
+    int            count = 0, ok = 1, k;
 
     memset(&zip, 0, sizeof(zip));
     if (!mz_zip_reader_init_file(&zip, zipPath, 0))
@@ -1185,9 +1305,10 @@ static int cd_unzip_chara(const char* zipPath, const char* dir, int glbOnly, cha
     n = mz_zip_reader_get_num_files(&zip);
     for (i = 0; i < n && ok; i++)
     {
-        char        name[512], dest[400];
-        const char* base;
-        const char* dot;
+        mz_zip_archive_file_stat st;
+        char                     name[512];
+        const char*              base;
+        const char*              dot;
 
         if (mz_zip_reader_is_file_a_directory(&zip, i))
             continue;
@@ -1196,22 +1317,47 @@ static int cd_unzip_chara(const char* zipPath, const char* dir, int glbOnly, cha
             continue;
         base = strrchr(name, '/') + 1;
         dot  = strrchr(base, '.');
-        if (!base[0] || dot == NULL)
+        if (dot == NULL || !cd_safe_name(base) || !cd_zip_ext_ok(dot))
             continue;
         if (glbOnly && !cd_ieq(dot, ".glb") && !cd_ieq(dot, ".ini"))
             continue;
-        snprintf(dest, sizeof(dest), "%s/%s", dir, base);
-        if (!mz_zip_reader_extract_to_file(&zip, i, dest, 0))
-            ok = 0;
-        else
+        if (count >= CD_ZIP_MAX_FILES || strlen(base) >= sizeof(f[0].name) || !mz_zip_reader_file_stat(&zip, i, &st))
         {
-            wrote++;
-            if (heroOut && (cd_ieq(dot, ".glb") || cd_ieq(dot, ".gltf")))
-                cd_hero_base(base, heroOut, heroSz);
+            ok = 0;
+            break;
         }
+        f[count].data = NULL;
+        f[count].size = 0;
+        if (st.m_uncomp_size > 0 &&
+            (f[count].data = mz_zip_reader_extract_to_heap(&zip, i, &f[count].size, 0)) == NULL)
+        {
+            ok = 0;
+            break;
+        }
+        snprintf(f[count].name, sizeof(f[count].name), "%s", base);
+        count++;
     }
     mz_zip_reader_end(&zip);
-    return ok && wrote > 0;
+    for (k = 0; k < count && ok; k++)
+    {
+        char        dest[400];
+        const char* dot = strrchr(f[k].name, '.');
+        FILE*       out;
+
+        snprintf(dest, sizeof(dest), "%s/%s", dir, f[k].name);
+        out = fopen(dest, "wb");
+        if (out == NULL || (f[k].size > 0 && fwrite(f[k].data, 1, f[k].size, out) != f[k].size))
+            ok = 0;
+        if (out != NULL && fclose(out) != 0)
+            ok = 0;
+        if (!ok)
+            remove(dest);
+        else if (heroOut && (cd_ieq(dot, ".glb") || cd_ieq(dot, ".gltf")))
+            cd_hero_base(f[k].name, heroOut, heroSz);
+    }
+    for (k = 0; k < count; k++)
+        mz_free(f[k].data);
+    return ok && count > 0;
 }
 
 static void cd_persist(void)
@@ -1335,27 +1481,62 @@ static void cd_finish_install(const CdEntry* e)
     cd_records_save();
     cd_old_jojo_step_aside(hero[0] ? hero : e->hero);
     cd_allow_loose();
+    /* The installed file is the preview from here on: the copy fetched for
+     * the preview is spare. */
+    {
+        char p[320];
+
+        snprintf(p, sizeof(p), CD_PREVIEW_DIR "/%s.glb", e->hero);
+        remove(p);
+        snprintf(p, sizeof(p), CD_PREVIEW_DIR "/%s.ini", e->hero);
+        remove(p);
+        if (e >= s_cat && e < s_cat + s_catCount)
+            s_previewReady[e - s_cat][0] = '\0';
+    }
     cd_persist();
     snprintf(s_status, sizeof(s_status), "%s", Pc_LangQuickFill("Installed {name}", "{name}", e->name));
     SH_DBG("[CHARADL] installed %s (%s %s)", e->id, e->hero, e->version);
 }
 
-static void cd_do_remove(const CdEntry* e)
+static void cd_remove_record(CdRecord* r, const char* name)
 {
-    CdRecord* r = cd_record_by_id(e->id);
-    char      p[320];
+    char p[320], id[CD_ID_MAX];
 
-    if (r == NULL)
-        return;
+    snprintf(id, sizeof(id), "%s", r->id);
     snprintf(p, sizeof(p), CD_DL_DIR "/%s.glb", r->hero);
     remove(p);
     snprintf(p, sizeof(p), CD_DL_DIR "/%s.ini", r->hero);
     remove(p);
-    cd_record_drop(e->id);
+    cd_record_drop(id);
     cd_records_save();
     cd_persist();
-    snprintf(s_status, sizeof(s_status), "%s", Pc_LangQuickFill("Removed {name}", "{name}", e->name));
-    SH_DBG("[CHARADL] removed %s", e->id);
+    snprintf(s_status, sizeof(s_status), "%s", Pc_LangQuickFill("Removed {name}", "{name}", name));
+    SH_DBG("[CHARADL] removed %s", id);
+}
+
+static void cd_do_remove(const CdEntry* e)
+{
+    CdRecord* r = cd_record_by_id(e->id);
+
+    if (r != NULL)
+        cd_remove_record(r, e->name);
+}
+
+/* By its file: the Installed page takes a download off whether or not the
+ * list is here (offline, or an entry the list no longer has). */
+static void cd_do_remove_file(const char* hero)
+{
+    CdRecord* r = cd_record_by_hero(hero);
+    int       li = Cd_LocalFind(hero);
+    char      name[CD_NAME_MAX];
+
+    if (r == NULL)
+        return;
+    if (li >= 0)
+        snprintf(name, sizeof(name), "%s", s_local[li].name);
+    else
+        cd_name_from_file(hero, name, sizeof(name));
+    cd_remove_record(r, name);
 }
 
 static void cd_finish_preview(int idx)
@@ -1478,27 +1659,44 @@ static void cd_group_toggle(int g, int enabled)
                  Pc_LangQuickFill(enabled ? "{name} enabled" : "{name} disabled", "{name}", s_groups[g].name));
 }
 
+static void cd_catalog_cache_load(void);
+
 void Cd_CatalogFetch(void)
 {
     if (s_catState == CD_CAT_LOADING || s_catState == CD_CAT_READY)
         return;
+    cd_catalog_cache_load();
     s_catState = CD_CAT_LOADING;
     cd_push(CD_JOB_CATALOG, 0);
 }
 
 void Cd_CatalogRefresh(void)
 {
-    /* Queued jobs hold catalog indices, which a new list could reorder. */
-    if (s_catState == CD_CAT_LOADING || Cd_Busy())
+    if (s_catState == CD_CAT_LOADING)
         return;
+    cd_catalog_cache_load();
     s_catState = CD_CAT_LOADING;
     cd_push(CD_JOB_CATALOG, 0);
 }
 
-void Cd_QueueInstall(int idx)  { if (s_catState != CD_CAT_LOADING && idx >= 0 && idx < s_catCount) cd_push(CD_JOB_INSTALL, idx); }
-void Cd_QueueRemove(int idx)   { if (s_catState != CD_CAT_LOADING && idx >= 0 && idx < s_catCount) cd_push(CD_JOB_REMOVE, idx); }
-void Cd_QueuePreview(int idx)  { if (s_catState != CD_CAT_LOADING && idx >= 0 && idx < s_catCount && !Cd_PreviewFile(idx)) cd_push(CD_JOB_PREVIEW, idx); }
-void Cd_SetGroupEnabled(int g, int enabled) { cd_push(enabled ? CD_JOB_GROUP_ON : CD_JOB_GROUP_OFF, g); }
+/* A job may be queued while the list is refreshing: cd_catalog_adopt moves
+ * its index onto the new list. Refused then, a tick made in the first second
+ * of a visit did nothing at all. */
+void Cd_QueueInstall(int idx)  { if (idx >= 0 && idx < s_catCount) cd_push(CD_JOB_INSTALL, idx); }
+void Cd_QueueRemove(int idx)   { if (idx >= 0 && idx < s_catCount) cd_push(CD_JOB_REMOVE, idx); }
+void Cd_QueuePreview(int idx)  { if (idx >= 0 && idx < s_catCount && !Cd_PreviewFile(idx)) cd_push(CD_JOB_PREVIEW, idx); }
+
+void Cd_QueueRemoveLocal(int localIdx)
+{
+    if (localIdx >= 0 && localIdx < s_localCount && s_local[localIdx].source == CD_SRC_DOWNLOAD)
+        cd_push_job(CD_JOB_REMOVE_FILE, 0, 0, s_local[localIdx].hero);
+}
+
+void Cd_SetGroupEnabled(int g, int enabled)
+{
+    if (g >= 0 && g < s_groupCount)
+        cd_push_job(enabled ? CD_JOB_GROUP_ON : CD_JOB_GROUP_OFF, 0, s_groups[g].source, s_groups[g].key);
+}
 
 int Cd_OldJojoPending(void)
 {
@@ -1828,6 +2026,150 @@ void Cd_UpdateLegacy(void)
     cd_migrate_legacy_pass(1);
 }
 
+/* ------------------------------------------------------------------------ */
+/* the list: adopting a new one, the saved copy                              */
+
+#define CD_CATALOG_CACHE "gamedata/chara_catalog.json"
+
+/* A preview fetched in an earlier session is still that entry's model while
+ * its size is the list's: it need not be downloaded again. One that no
+ * longer matches is an older build, and goes. */
+static void cd_previews_from_disk(void)
+{
+    int i;
+
+    for (i = 0; i < s_catCount; i++)
+    {
+        char        p[320];
+        struct stat st;
+
+        if (s_previewReady[i][0])
+            continue;
+        snprintf(p, sizeof(p), CD_PREVIEW_DIR "/%s.glb", s_cat[i].hero);
+        if (stat(p, &st) != 0)
+            continue;
+        if (s_cat[i].glbSize > 0 && (long long)st.st_size == s_cat[i].glbSize)
+            snprintf(s_previewReady[i], sizeof(s_previewReady[i]), "../../.chr_preview/%s", s_cat[i].hero);
+        else
+        {
+            remove(p);
+            snprintf(p, sizeof(p), CD_PREVIEW_DIR "/%s.ini", s_cat[i].hero);
+            remove(p);
+        }
+    }
+}
+
+/* Takes the list parsed into s_catNew. Whatever held an index into the old
+ * one follows its entry by id: the previews already fetched (they were
+ * forgotten on every visit, and asked for again), and the jobs queued behind
+ * this fetch. */
+static void cd_catalog_adopt(int n)
+{
+    static short         map[CD_MAX_ENTRIES];
+    static char          prev[CD_MAX_ENTRIES][CD_FILE_MAX + 24];
+    static unsigned char tried[CD_MAX_ENTRIES];
+    int                  i, k, out;
+
+    memset(prev, 0, sizeof(prev));
+    memset(tried, 0, sizeof(tried));
+    for (i = 0; i < s_catCount; i++)
+    {
+        map[i] = -1;
+        for (k = 0; k < n; k++)
+            if (strcmp(s_cat[i].id, s_catNew[k].id) == 0)
+            {
+                map[i] = (short)k;
+                /* A preview is of one build of the model. */
+                if (strcmp(s_cat[i].sha256, s_catNew[k].sha256) == 0)
+                    memcpy(prev[k], s_previewReady[i], sizeof(prev[0]));
+                tried[k] = s_legacyTried[i];
+                break;
+            }
+    }
+    memcpy(s_previewReady, prev, sizeof(prev));
+    memcpy(s_legacyTried, tried, sizeof(tried));
+    out = s_jobHead;
+    for (i = s_jobHead; i != s_jobTail; i = (i + 1) % CD_MAX_JOBS)
+    {
+        CdJob j = s_jobs[i];
+
+        if (j.kind == CD_JOB_INSTALL || j.kind == CD_JOB_REMOVE || j.kind == CD_JOB_PREVIEW)
+        {
+            if (j.arg < 0 || j.arg >= s_catCount || map[j.arg] < 0)
+                continue;
+            j.arg = map[j.arg];
+        }
+        s_jobs[out] = j;
+        out = (out + 1) % CD_MAX_JOBS;
+    }
+    s_jobTail = out;
+    memcpy(s_cat, s_catNew, sizeof(s_cat[0]) * (size_t)n);
+    s_catCount = n;
+    s_catGen++;
+    cd_previews_from_disk();
+}
+
+/* The last list that arrived whole. The menu has it to show at once, before
+ * the fetch answers, and still has it when the release cannot be reached:
+ * one 504 from GitHub used to leave the page with no list at all. */
+static void cd_catalog_cache_save(const char* json)
+{
+    FILE* f = fopen(CD_CATALOG_CACHE, "wb");
+
+    if (f != NULL)
+    {
+        fwrite(json, 1, strlen(json), f);
+        fclose(f);
+    }
+}
+
+static void cd_catalog_cache_load(void)
+{
+    char* json;
+    int   n;
+
+    if (s_catCount > 0 || cd_is_dir(CD_TEST_DIR))
+        return;
+    json = cd_read_all(CD_CATALOG_CACHE, 2 * 1024 * 1024);
+    n    = json ? cd_parse_catalog(json, s_catNew, CD_MAX_ENTRIES) : 0;
+    free(json);
+    if (n <= 0)
+        return;
+    cd_catalog_adopt(n);
+    cd_records_load();
+    cd_migrate_legacy();
+    SH_DBG("[CHARADL] catalog: %d characters from the saved list", n);
+}
+
+/* ------------------------------------------------------------------------ */
+/* the queue                                                                 */
+
+#define CD_NET_TRIES 3
+
+static int    s_jobTries;   /* attempts of the transfer in flight */
+static int    s_retryWait;  /* between two attempts */
+static Uint32 s_retryAt;
+static Uint32 s_tryStart;
+
+/* A failure worth another try: the server's own trouble (GitHub answers 502
+ * and 504 now and then and is fine a second later), or no answer at all when
+ * that came back quickly. One that took its whole timeout is not tried
+ * again: three of those would hold the queue for minutes. */
+static int cd_try_again(const CdJob* j)
+{
+    int st = s_netStatus;
+
+    if (s_jobTries >= CD_NET_TRIES || cd_is_dir(CD_TEST_DIR))
+        return 0;
+    if (st == 408 || st == 425 || st == 429 || (st >= 500 && st <= 599))
+        return 1;
+    if (st <= 0)
+        return SDL_GetTicks() - s_tryStart < 10000u;
+    /* Cut short: the size is not the list's. */
+    return (j->kind == CD_JOB_INSTALL || j->kind == CD_JOB_PREVIEW) && st >= 200 && st < 300 &&
+           s_cat[j->arg].size > 0 && s_netGot > 0 && s_netGot != s_cat[j->arg].size;
+}
+
 void Cd_Tick(void)
 {
     CdJob* j;
@@ -1839,45 +2181,84 @@ void Cd_Tick(void)
         j = &s_jobs[s_jobHead];
         if (j->kind == CD_JOB_REMOVE)
         {
-            cd_do_remove(&s_cat[j->arg]);
+            if (j->arg >= 0 && j->arg < s_catCount)
+                cd_do_remove(&s_cat[j->arg]);
             s_jobHead = (s_jobHead + 1) % CD_MAX_JOBS;
             Cd_LocalScan();
             return;
         }
         if (j->kind == CD_JOB_GROUP_ON || j->kind == CD_JOB_GROUP_OFF)
         {
-            cd_group_toggle(j->arg, j->kind == CD_JOB_GROUP_ON);
+            cd_group_toggle(cd_group_find(j->gsrc, j->gkey), j->kind == CD_JOB_GROUP_ON);
             s_jobHead = (s_jobHead + 1) % CD_MAX_JOBS;
             Cd_LocalScan();
             return;
         }
+        if (j->kind == CD_JOB_REMOVE_FILE)
+        {
+            cd_do_remove_file(j->gkey);
+            s_jobHead = (s_jobHead + 1) % CD_MAX_JOBS;
+            Cd_LocalScan();
+            return;
+        }
+        if (j->kind != CD_JOB_CATALOG && (j->arg < 0 || j->arg >= s_catCount))
+        {
+            s_jobHead = (s_jobHead + 1) % CD_MAX_JOBS;
+            return;
+        }
         cd_job_begin(j);
         s_jobRunning = 1;
+        s_jobTries   = 1;
+        s_retryWait  = 0;
+        s_tryStart   = SDL_GetTicks();
+        return;
+    }
+    j = &s_jobs[s_jobHead];
+    if (s_retryWait)
+    {
+        if ((Sint32)(SDL_GetTicks() - s_retryAt) < 0)
+            return;
+        s_retryWait = 0;
+        s_jobTries++;
+        s_tryStart = SDL_GetTicks();
+        cd_job_begin(j);
         return;
     }
     if (!cd_net_poll())
         return;
-    j = &s_jobs[s_jobHead];
+    if (cd_try_again(j))
+    {
+        SH_DBG("[CHARADL] job %d: status %d, trying again (%d of %d)", j->kind, s_netStatus, s_jobTries + 1,
+               CD_NET_TRIES);
+        remove(s_netPath);
+        s_retryAt   = SDL_GetTicks() + (s_jobTries == 1 ? 1000u : 3000u);
+        s_retryWait = 1;
+        return;
+    }
     switch (j->kind)
     {
     case CD_JOB_CATALOG:
     {
         char* json = (s_netStatus >= 200 && s_netStatus < 300) ? cd_read_all(s_netPath, 2 * 1024 * 1024) : NULL;
+        int   n    = json ? cd_parse_catalog(json, s_catNew, CD_MAX_ENTRIES) : 0;
 
-        if (json != NULL && cd_parse_catalog(json) > 0)
+        if (n > 0)
         {
+            cd_catalog_adopt(n);
+            cd_catalog_cache_save(json);
             s_catState = CD_CAT_READY;
-            memset(s_previewReady, 0, sizeof(s_previewReady));
             cd_records_load();
             cd_migrate_legacy();
         }
         else
+            /* The list already here (this session's, or the saved one) stays. */
             s_catState = s_catCount > 0 ? CD_CAT_READY : CD_CAT_FAILED;
         free(json);
         remove(s_netPath);
         snprintf(s_status, sizeof(s_status), "%s",
                  s_catState == CD_CAT_FAILED ? Pc_LangQuick("The character list could not be downloaded") : "");
-        SH_DBG("[CHARADL] catalog: status %d, %d characters", s_netStatus, s_catCount);
+        SH_DBG("[CHARADL] catalog: status %d, %d characters%s", s_netStatus, s_catCount,
+               n > 0 ? "" : s_catCount > 0 ? " (kept the list already here)" : "");
         Cd_LocalScan();
         break;
     }

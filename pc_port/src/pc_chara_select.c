@@ -476,8 +476,8 @@ static void cs_music_start(void)
     /* Over a game in progress (F10, or pause -> Options) the screen leaves
      * the music alone: taking it over stopped the map's music for as long as
      * the screen was open, and the results track never started there. */
-    if (g_GameWork.gameState == GameState_InGame ||
-        (g_GameWork.gameState == GameState_OptionScreen && g_GameWork.gameStatePrev == GameState_InGame))
+    if (!(g_GameWork.gameState == GameState_OptionScreen && g_GameWork.gameStatePrev == GameState_MainMenu) &&
+        g_GameWork.gameState != GameState_MainMenu)
         return;
     s_prevBgm   = g_GameWork.bgmIdx;
     g_PcMenuMusicOwner = 1;
@@ -674,6 +674,23 @@ int Pc_CharaSelect_Update(const NmInput* inRaw)
         loc.mouseX = s_fieldL + (loc.mouseX * CS_FIELD_W) / 320;
     cs_music_tick();
 
+    /* Downloads carry on with the Additional Characters pages closed (they
+     * used to stall until one was opened again), and whenever the files on
+     * disk change the rows here and Play As pick them up: a character that
+     * finished after its page was left could not be chosen until a restart. */
+    {
+        static int s_seenLocal = -1;
+
+        if (!Cdm_IsOpen())
+            Cd_Tick();
+        if (Cd_LocalGen() != s_seenLocal)
+        {
+            s_seenLocal = Cd_LocalGen();
+            Pc_SkinChara_FilesChanged();
+            cs_rescan();
+        }
+    }
+
     if (Cdm_IsOpen())
     {
         const char* file;
@@ -829,6 +846,68 @@ static void cs_shade(int x0, int y0, int x1, int y1)
     Gfx_Primitive2dTextureSet(0, 0, CS_OT_SHADE, 2);
 }
 
+/* A faint grid running off to a vanishing point, floor and ceiling, its rungs
+ * drifting toward the viewer: depth behind the flat menu. Added to the shade's
+ * bucket BEFORE the shade, so it draws after it (over the darkened world in
+ * game) and under every line and letter of the menu. */
+static void cs_grid_draw(void)
+{
+    enum { RAILS = 14, RUNGS = 14 };
+    const float focal = 166.0f, gridY = 1.4f, gridW = 9.0f, depth = 40.0f, zNear = 2.2f;
+    const float halfW = (float)(s_fieldR - s_fieldL) * 0.5f + 4.0f;
+    const float step  = depth / (float)RUNGS;
+    const float scroll = (float)(SDL_GetTicks() % 100000u) * 0.0012f;
+    const float off   = scroll - step * (float)(int)(scroll / step);
+    int         side, i;
+
+    for (side = -1; side <= 1; side += 2)
+    {
+        for (i = 0; i < RAILS; i++)
+        {
+            float    t  = (float)i / (float)(RAILS - 1);
+            float    x  = -gridW + 2.0f * gridW * t;
+            float    ax = x < 0.0f ? -x : x;
+            float    z0 = ax * focal / halfW;
+            float    e  = 1.0f - (t * 2.0f - 1.0f) * (t * 2.0f - 1.0f);
+            int      c  = (int)(10.0f + 22.0f * e);
+            LINE_G2* ln = (LINE_G2*)GsOUT_PACKET_P;
+
+            if (z0 < zNear)
+                z0 = zNear;
+            setLineG2(ln);
+            setRGB0(ln, c, c + c / 6, c * 2);
+            setRGB1(ln, 0, 0, 0);
+            setXY2(ln, cs_px(160 + (int)(x * focal / z0)), cs_py(112 + side * (int)(gridY * focal / z0)),
+                   cs_px(160 + (int)(x * focal / depth)), cs_py(112 + side * (int)(gridY * focal / depth)));
+            addPrim(&g_OrderingTable2[g_ActiveBufferIdx].org[CS_OT_SHADE], ln);
+            GsOUT_PACKET_P = (PACKET*)(ln + 1);
+        }
+        for (i = 0; i < RUNGS; i++)
+        {
+            float    z = zNear + (float)i * step - off;
+            float    w, near_;
+            int      c, y, xw;
+            LINE_F2* ln;
+
+            if (z < zNear)
+                z += depth;
+            near_ = 1.0f - z / (depth + zNear);
+            c     = (int)(30.0f * near_ * near_);
+            if (c < 2)
+                continue;
+            w  = gridW * focal / z;
+            xw = (int)(w > halfW ? halfW : w);
+            y  = 112 + side * (int)(gridY * focal / z);
+            ln = (LINE_F2*)GsOUT_PACKET_P;
+            setLineF2(ln);
+            setRGB0(ln, c, c + c / 6, c * 2);
+            setXY2(ln, cs_px(160 - xw), cs_py(y), cs_px(160 + xw), cs_py(y));
+            addPrim(&g_OrderingTable2[g_ActiveBufferIdx].org[CS_OT_SHADE], ln);
+            GsOUT_PACKET_P = (PACKET*)(ln + 1);
+        }
+    }
+}
+
 static void cs_back_draw(int selected)
 {
     int x = CS_BACK_X + NM_BULLET_TEXT_DX;
@@ -928,6 +1007,7 @@ void Pc_CharaSelect_Draw(void)
         return;
     cs_field_update();
 
+    cs_grid_draw();
     if (g_GameWork.gameState == GameState_InGame)
         cs_shade(s_fieldL, 0, s_fieldR, 224);
     else
