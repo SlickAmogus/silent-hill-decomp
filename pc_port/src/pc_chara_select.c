@@ -669,6 +669,9 @@ int Pc_CharaSelect_Update(const NmInput* inRaw)
         return 0;
     cs_field_update();
     loc = *inRaw;
+    /* Everything left of the preview is list, here and on the download
+     * pages; the preview takes its own drags, to turn the model. */
+    NmInput_TouchDragScroll(&loc, CS_PITCH, (320 * 62) / 100);
     if (loc.mouseOk)
         loc.mouseX = s_fieldL + (loc.mouseX * CS_FIELD_W) / 320;
     cs_music_tick();
