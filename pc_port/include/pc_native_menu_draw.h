@@ -56,6 +56,12 @@ void Nm_SpriteDraw(int x, int y, int w, int h, u16 clut, u8 rgb);
 
 void NmInput_FromGame(NmInput* out);
 
+/** Touch on a scrolling list, for screens written for a mouse: a finger that
+ * drags scrolls (as wheel notches, a row per `pitch`) and clicks nothing, and
+ * one that lifts where it landed is the click, at where it landed. Touches
+ * landing at or right of `xMax` (320-wide space) are left as they came. */
+void NmInput_TouchDragScroll(NmInput* in, int pitch, int xMax);
+
 /* (x, y) is the first visible row's label; the heading sits centred above it. */
 void NmPage_Draw(const NmPage* p, int x, int y, int pitch, int valueX);
 /* Draws nothing while the prompt is closed. */
