@@ -1110,7 +1110,7 @@ static void Pc_EnsureModFolders(void)
 
     fputs("Manually installed mods go here.\n"
           "\n"
-          "Mods are on by default. Options > Graphics > Load Mods turns\n"
+          "Mods are on by default. Load Mods (last Options page) turns\n"
           "them off. Restart the game after adding or removing files.\n"
           "\n"
           "gamedata/load/<FOLDER>/<NAME>\n"
