@@ -40,19 +40,26 @@ html, body {
 	-webkit-touch-callout: none;
 }
 #launcher {
-	position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+	/* Top-aligned, with the card's own auto margins centring it when it fits.
+	 * Centred by the flex container, a card taller than the window had its top
+	 * pushed above the scroll area: the title and the disc box were cut off and
+	 * no amount of scrolling reached them. */
+	position: fixed; inset: 0; display: flex; align-items: flex-start; justify-content: center;
 	padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
 	background:
 		radial-gradient(ellipse at 50% 35%, rgba(120, 112, 100, 0.18), transparent 60%),
 		radial-gradient(ellipse at 50% 120%, rgba(126, 27, 20, 0.22), transparent 55%),
 		var(--bg);
-	overflow-y: auto; z-index: 10;
+	overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; z-index: 10;
 }
 #launcher.hidden { display: none; }
 .card {
 	width: 100%; max-width: 30rem; background: var(--panel); border: 1px solid var(--line);
 	padding: 1.6rem 1.5rem 1.3rem; box-shadow: 0 10px 50px rgba(0,0,0,.6);
+	margin: auto;
 }
+/* A desktop window is landscape, like the game: use some of the width. */
+@media (min-width: 900px) { .card { max-width: 44rem; } }
 h1 {
 	font-family: Georgia, "Times New Roman", serif; font-weight: normal;
 	letter-spacing: .12em; text-transform: uppercase; font-size: 1.7rem;
