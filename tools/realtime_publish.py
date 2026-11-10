@@ -65,7 +65,9 @@ WIN_ZIP_PREFIX = "SHPC_rt-"
 # config.cfg comes from source. The launcher is carried into the zip for direct
 # downloads but kept out of the manifest, so the launcher never updates itself
 # from a realtime build.
-CARRY_EXCLUDE = {"CHANGELOG.md", "config.cfg"}
+# gamedata/decal.png moved to gamedata/image/; the last official release still
+# lists the old path, and carrying it shipped the texture twice.
+CARRY_EXCLUDE = {"CHANGELOG.md", "config.cfg", "gamedata/decal.png"}
 ZIP_ONLY = {LAUNCHER_NAME}
 
 RELEASE_NOTES = """Automatic builds of every push, for players who want changes as soon as they land instead of waiting for a release. This page always has just the newest build of each platform; older ones are under [Realtime history]({history_url}).
