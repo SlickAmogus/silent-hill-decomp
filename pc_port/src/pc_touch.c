@@ -1051,6 +1051,13 @@ static int Tc_SoloOwnPos(int b)
     return b == TB_NO;
 }
 
+/* The one rule for whether Fire is on screen, for the draw loop and the hit
+ * test alike. */
+static int Tc_FireShown(void)
+{
+    return !g_PcConfig.oneButtonCombat && s_Buttons[TB_AIM].holdFrames > 0;
+}
+
 static int Tc_HitButton(float x, float y, float aspect)
 {
     int i;
@@ -1062,6 +1069,15 @@ static int Tc_HitButton(float x, float y, float aspect)
         if (Tc_CornerOnly(i) || Tc_ScreenOnly(i))
             continue;
         if ((i == TB_QSAVE || i == TB_QLOAD) && !Tc_QuickButtonsOn())
+            continue;
+        /* Fire is only there while Aim is held, and the draw loop hides it the
+         * rest of the time; the hit test did not. Its circle is a fifth of the
+         * screen's height across, in the steering corner, so a thumb landing
+         * inside it was a press of a button nobody could see and never
+         * reached the stick: with the stick pinned there the middle of the
+         * ring was dead and it only answered to a touch beside it, and with
+         * the floating stick a landing in that corner did nothing. */
+        if (i == TB_FIRE && !Tc_FireShown())
             continue;
 
         float dx = (x - s_Buttons[i].cx) * aspect;
@@ -1169,6 +1185,21 @@ static void Tc_PlaceCamButton(float aspect)
 {
     s_Buttons[TB_CAM].cx = s_Buttons[TB_MENU].cx + (0.135f / aspect);
     s_Buttons[TB_CAM].cy = s_Buttons[TB_MENU].cy;
+
+    /* Fire's own corner is where the pinned stick lives. With that style it
+     * stands directly above the ring instead, so while aiming the thumb has
+     * both: the stick still takes a touch in its middle, and Fire is a short
+     * reach up from it. */
+    if (Tc_FixedStick())
+    {
+        s_Buttons[TB_FIRE].cx = TC_FIXED_STICK_CX;
+        s_Buttons[TB_FIRE].cy = TC_FIXED_STICK_CY - TC_STICK_RADIUS - s_Buttons[TB_FIRE].r - 0.020f;
+    }
+    else
+    {
+        s_Buttons[TB_FIRE].cx = 0.095f;
+        s_Buttons[TB_FIRE].cy = 0.760f;
+    }
 }
 
 /* Aim is up by any route: the left double tap, the context Aim button, or
@@ -2680,9 +2711,7 @@ void Pc_Touch_Draw(void)
             continue;
 
         /* Fire appears with the gun and goes away with it. */
-        if (i == TB_FIRE &&
-            (mode != TC_MODE_GAMEPLAY || g_PcConfig.oneButtonCombat ||
-             s_Buttons[TB_AIM].holdFrames <= 0))
+        if (i == TB_FIRE && (mode != TC_MODE_GAMEPLAY || !Tc_FireShown()))
             continue;
 
         if (mode != TC_MODE_GAMEPLAY)
