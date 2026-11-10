@@ -4104,6 +4104,7 @@ void MainLoop(void) // 0x80032EE0
                    g_SavegamePtr->mapRoomIdx == 19)) ||
                  (g_SavegamePtr->mapIdx == MapIdx_MAP6_S01 && g_SavegamePtr->mapRoomIdx == 19) ||
                  (g_SavegamePtr->mapIdx == MapIdx_MAP7_S00 && g_SavegamePtr->mapRoomIdx == 1) ||
+                 (g_SavegamePtr->mapIdx == MapIdx_MAP7_S01 && g_SavegamePtr->mapRoomIdx == 8) ||
                  (g_SavegamePtr->mapIdx == MapIdx_MAP6_S04 &&
                   (g_SavegamePtr->mapRoomIdx == 1 || g_SavegamePtr->mapRoomIdx == 2)) ||
                  (g_SavegamePtr->mapIdx == MapIdx_MAP6_S03 &&

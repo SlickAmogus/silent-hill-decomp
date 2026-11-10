@@ -273,6 +273,27 @@ static void Pc_ParkShadowPacket(void* prim)
 }
 
 static bool s_pcMotelReceptionDoor;
+static const s_MeshHeader* s_pcNowhereLadderMesh = NULL;
+
+static bool Pc_NowhereLadderPacket(const s_GteScratchData* scratch)
+{
+    s32 k;
+    if (s_pcNowhereLadderMesh == NULL)
+        return false;
+    for (k = 0; k < 4; k++)
+    {
+        s32 index = (&scratch->field_380.s_0.field_10)[k];
+        const DVECTOR* xy;
+        if (index >= s_pcNowhereLadderMesh->vertexCount)
+            return false;
+        xy = &s_pcNowhereLadderMesh->verticesXy[index];
+        if (xy->vx < 525 || xy->vx > 815 || xy->vy < -557 || xy->vy > -409 ||
+            s_pcNowhereLadderMesh->verticesZ[index] < -110 ||
+            s_pcNowhereLadderMesh->verticesZ[index] > 819)
+            return false;
+    }
+    return true;
+}
 
 static bool Pc_MotelReceptionDoorPacketDepth(const s_GteScratchData* scratch)
 {
@@ -305,6 +326,8 @@ static void Pc_FarOtAdd(void* prim, u32 key)
 
 #define SH_ADDPRIM_MESH(tag, sd, shift, prim)                                    \
     do {                                                                        \
+        int prevPacketDepth = g_PsxActorDepth;                                   \
+        if (Pc_NowhereLadderPacket(sd)) g_PsxActorDepth = 2;                      \
         Pc_ParkShadowPacket(prim);                                               \
         if (g_PsxActorDepth || Pc_MotelReceptionDoorPacketDepth(sd))              \
             PsyX_SetNextPrimSzActor((sd)->field_18C[(sd)->field_380.s_0.field_10], \
@@ -323,6 +346,7 @@ static void Pc_FarOtAdd(void* prim, u32 key)
                     ? (sd)->field_380.s_0.field_12 : (sd)->field_380.s_0.field_13])); \
         else                                                                    \
             addPrim(&(tag)[((sd)->field_380.s_0.field_18 >> (shift)) >> 2], (prim)); \
+        g_PsxActorDepth = prevPacketDepth;                                       \
     } while (0)
 extern int  g_PsxActorDepth;
 extern void PsyX_SetNextPrimSzActor(unsigned short s0, unsigned short s1, unsigned short s2,
@@ -2740,6 +2764,63 @@ static bool Pc_NowhereStartingRoomDepthModel(const s_ModelHeader* model)
     return false;
 }
 
+static bool Pc_NowhereCarpetDepthModel(const s_ModelHeader* model)
+{
+    static const struct { char name[8]; u8 meshes; u8 counts[4][2]; } stock[] = {
+        {"NULL3_BA", 4, {{97,65},{97,66},{94,60},{59,32}}},
+        {"NULL5_BA", 3, {{87,63},{86,62},{71,54}}}
+    };
+    s32 i, mesh;
+    if (g_GameWork.gameState != GameState_InGame || g_SavegamePtr == NULL ||
+        g_SavegamePtr->mapIdx != MapIdx_MAP7_S01 || model->meshHdrs == NULL)
+        return false;
+    /* These complete assemblies contain the carpet skin and its floor.
+     * Their different triangle grids need perspective-correct fragment depth,
+     * not screen-linear interpolation of the vertices' view Z. */
+    for (i = 0; i < ARRAY_SIZE(stock); i++)
+    {
+        if (memcmp(model->name.str, stock[i].name, 8) != 0 || model->meshCount != stock[i].meshes)
+            continue;
+        for (mesh = 0; mesh < model->meshCount; mesh++)
+            if (model->meshHdrs[mesh].vertexCount != stock[i].counts[mesh][0] ||
+                model->meshHdrs[mesh].primitiveCount != stock[i].counts[mesh][1])
+                break;
+        if (mesh == model->meshCount)
+            return true;
+    }
+    return false;
+}
+
+static bool Pc_NowhereLadderModel(const s_ModelHeader* model)
+{
+    static const s16 rail[4][3] = {
+        {742,-557,355},{742,-557,-110},{742,-539,355},{742,-539,-110}
+    };
+    static const u8 counts[11][2] = {
+        {90,71},{94,71},{86,55},{97,67},{98,59},{92,57},
+        {96,64},{88,64},{76,72},{74,54},{41,34}
+    };
+    s32 i;
+    if (g_GameWork.gameState != GameState_InGame || g_SavegamePtr == NULL ||
+        g_SavegamePtr->mapIdx != MapIdx_MAP7_S01 ||
+        memcmp(model->name.str, "BOSS\0\0\0\0", 8) != 0 || model->meshCount != 11 ||
+        model->meshHdrs == NULL || model->vertexOffset != 0 || model->normalOffset != 0)
+        return false;
+    for (i = 0; i < 11; i++)
+        if (model->meshHdrs[i].vertexCount != counts[i][0] ||
+            model->meshHdrs[i].primitiveCount != counts[i][1])
+            return false;
+    for (i = 0; i < 4; i++)
+    {
+        const s_MeshHeader* mesh = &model->meshHdrs[1];
+        s32 index = mesh->primitives[6].field_C[i];
+        if (index >= mesh->vertexCount || mesh->verticesXy[index].vx != rail[i][0] ||
+            mesh->verticesXy[index].vy != rail[i][1] || mesh->verticesZ[index] != rail[i][2])
+            return false;
+    }
+    return true;
+}
+
 static bool Pc_ParkWheelDepthModel(const s_ModelHeader* model)
 {
     static const struct { char name[8]; u8 vertices; u8 primitives; } stock[] = {
@@ -3126,7 +3207,8 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat
      * The Nowhere save pad is a separate object resting on the room's table;
      * use the same origin for both rather than rounding their motion apart. */
     if ((Pc_BoatCabinDepthActive() || Pc_LighthouseGroundDepthModel(modelHdr) ||
-         Pc_NowhereStartingRoomDepthModel(modelHdr)) &&
+         Pc_NowhereStartingRoomDepthModel(modelHdr) ||
+         Pc_NowhereCarpetDepthModel(modelHdr) || Pc_NowhereLadderModel(modelHdr)) &&
         worldMat != NULL && viewMat != NULL)
     {
         extern int PGXP_MatrixLookup(const MATRIX*, double*);
@@ -3308,6 +3390,8 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat
                     g_PsxActorDepth = 1;
                 if (Pc_NowhereStartingRoomDepthModel(modelHdr))
                     g_PsxActorDepth = 1;
+                if (Pc_NowhereCarpetDepthModel(modelHdr))
+                    g_PsxActorDepth = 2; /* Opt in to perspective-correct fragment depth. */
                 if (Pc_ParkWheelDepthModel(modelHdr))
                     g_PsxActorDepth = 1;
                 func_80057344(modelInfo, otTag, arg2, viewMat);
@@ -4086,7 +4170,12 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
                 func_80057B7C(drawMesh, vertOffset, scratchData, mat);
                 t1 = SDL_GetPerformanceCounter();
                 s_pcMotelReceptionDoor = Pc_MotelReceptionDoorDepthModel(modelHdr) && curMeshHdr == modelHdr->meshHdrs;
+                /* Only the high rails inside this mixed furniture model opt in. */
+                s_pcNowhereLadderMesh = Pc_NowhereLadderModel(modelHdr) &&
+                    (curMeshHdr == &modelHdr->meshHdrs[1] || curMeshHdr == &modelHdr->meshHdrs[3])
+                    ? curMeshHdr : NULL;
                 Gfx_MeshDraw(drawMesh, scratchData, otTag, arg2);
+                s_pcNowhereLadderMesh = NULL;
                 s_pcMotelReceptionDoor = false;
                 g_wmTXform += (double)(t1 - t0) * f;
                 g_wmTMesh  += (double)(SDL_GetPerformanceCounter() - t1) * f;
@@ -4102,7 +4191,12 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
 
 #ifdef SH_PC_PORT
         s_pcMotelReceptionDoor = Pc_MotelReceptionDoorDepthModel(modelHdr) && curMeshHdr == modelHdr->meshHdrs;
+        /* Only the high rails inside this mixed furniture model opt in. */
+        s_pcNowhereLadderMesh = Pc_NowhereLadderModel(modelHdr) &&
+            (curMeshHdr == &modelHdr->meshHdrs[1] || curMeshHdr == &modelHdr->meshHdrs[3])
+            ? curMeshHdr : NULL;
         Gfx_MeshDraw(drawMesh, scratchData, otTag, arg2);
+        s_pcNowhereLadderMesh = NULL;
         s_pcMotelReceptionDoor = false;
 #else
         Gfx_MeshDraw(curMeshHdr, scratchData, otTag, arg2);
@@ -7570,6 +7664,8 @@ static int Pc_FarModelEligible(const s_ModelHeader* modelHdr)
     if (Pc_BoatCabinDepthActive())
         return 0;
     if (Pc_NowhereStartingRoomDepthModel(modelHdr))
+        return 0;
+    if (Pc_NowhereCarpetDepthModel(modelHdr) || Pc_NowhereLadderModel(modelHdr))
         return 0;
     if (Pc_ParkSupportDepthModel(modelHdr) || Pc_ParkWheelDepthModel(modelHdr))
         return 0;
