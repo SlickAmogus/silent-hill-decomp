@@ -974,12 +974,9 @@ int Cdm_Update(const NmInput* in)
             }
         }
     }
-    if (Cd_RestartAdvised() && !Cd_Busy() && !s_restartShown && s_dialog == D_NONE)
-    {
-        s_restartShown = 1;
-        s_dialog = D_RESTART;
-        Pc_ConfirmDialog_OpenOk("Additional Characters", Ct_Tr("Restart the game to use the updated characters."));
-    }
+    /* No restart notice: an updated model is read again where it is next
+     * drawn (Pc_SkinChara_FilesChanged). */
+    (void)s_restartShown;
     if (s_page == P_HUB && s_dialog == D_NONE && !s_jojoAsked && Cd_OldJojoPending() && !Cd_OldJojoNoAsk())
     {
         s_jojoAsked = 1;

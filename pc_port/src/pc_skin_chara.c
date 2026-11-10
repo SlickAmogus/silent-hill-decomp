@@ -13,6 +13,7 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <sys/stat.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -481,6 +482,8 @@ typedef struct
     char        file[96]; /* the glTF it came from: HERO, HERO_CJ */
     char        base[200]; /* its path without the extension, for the ini */
     u32         lastUse;  /* SDL ticks it was last asked for */
+    long long   srcSig;   /* its model and settings files as they were when read */
+    int         stale;    /* those files changed since: read again once no frame can still draw it */
     int         previewOnly; /* loaded by the Character Select preview, not yet by the game */
     const PcSkinRestDef* def;
     int         state; /* 0 untried, 1 ready, -1 none */
@@ -2706,6 +2709,31 @@ static PcSkinChara* Skin_Evictable(void)
     return best;
 }
 
+/* Size and time of the files a model was read from. */
+static long long Skin_SourceSig(const char* base)
+{
+    static const char* const ext[3] = { "glb", "gltf", "ini" };
+    long long   sig = 0;
+    int         k;
+
+    for (k = 0; k < 3; k++)
+    {
+        char        path[224];
+        struct stat st;
+
+        snprintf(path, sizeof(path), "%s.%s", base, ext[k]);
+        if (stat(path, &st) == 0)
+            sig = sig * 1000003LL + (long long)st.st_size * 31LL + (long long)st.st_mtime + k + 1;
+    }
+    return sig;
+}
+
+/* A model whose files changed is dropped and read again the next time it is
+ * asked for -- but only once it has gone unasked for this long, so no frame
+ * already handed to the renderer still points into it. Meanwhile its
+ * character draws stock. */
+#define SKIN_STALE_HOLD_MS 250
+
 static PcSkinChara* Skin_Entry(const char* name, const char* file, const char* base, const PcSkinRestDef* def)
 {
     char path[224], resolved[200];
@@ -2720,6 +2748,18 @@ static PcSkinChara* Skin_Entry(const char* name, const char* file, const char* b
     for (i = 0; i < s_charaCount && ch == NULL; i++)
         if (strcmp(s_chara[i].file, file) == 0 && s_chara[i].def == def)
             ch = &s_chara[i];
+    /* Read from another folder than the one that now wins (a download lands
+     * over a pack's copy): as stale as a changed file. */
+    if (ch != NULL && ch->state == 1 && ch->file[0] != '@' && strcmp(ch->base, base) != 0)
+        ch->stale = 1;
+    if (ch != NULL && ch->stale)
+    {
+        if (SDL_GetTicks() - ch->lastUse < SKIN_STALE_HOLD_MS)
+            return NULL;
+        SH_DBG("[SKIN] %s changed on disk: reading it again", ch->file);
+        Skin_Release(ch);
+        ch = NULL;
+    }
     for (i = 0; ch == NULL && i < s_missingCount; i++)
         if (strcmp(s_missing[i], file) == 0)
             return NULL;
@@ -2759,7 +2799,10 @@ static PcSkinChara* Skin_Entry(const char* name, const char* file, const char* b
                 ch->state = 1;
         }
         if (ch->state == 1)
+        {
             Skin_LoadSettings(ch, base);
+            ch->srcSig = Skin_SourceSig(base);
+        }
         else
         {
             /* Only the slot just taken can fail here: hand it back and
@@ -2793,16 +2836,14 @@ void Pc_SkinChara_FilesChanged(void)
     int i;
 
     s_missingCount = 0;
-    /* Models only the preview holds are read again: after an update the
-     * preview kept showing the old file's model under the new version's
-     * name. One the game itself has drawn stays until a restart. */
+    /* A model whose own files changed is read again where it is next used
+     * (Skin_Entry), in the menus and in a game alike: after an update the old
+     * file's model stayed in memory under the new version's name, and only a
+     * restart cleared it. */
     for (i = 0; i < s_charaCount; i++)
-        if (s_chara[i].previewOnly && s_chara[i].file[0] != 0)
-        {
-            if ((void*)&s_chara[i] == s_prevStreamFor)
-                s_prevStreamFor = NULL;
-            Skin_Release(&s_chara[i]);
-        }
+        if (s_chara[i].state == 1 && s_chara[i].file[0] != 0 && s_chara[i].file[0] != '@' &&
+            Skin_SourceSig(s_chara[i].base) != s_chara[i].srcSig)
+            s_chara[i].stale = 1;
     s_filesGen++;
 }
 
