@@ -4117,6 +4117,25 @@ void* Pc_SkinChara_PreviewLoad(const char* name, const char* file)
 static float* s_prevStream;
 static int    s_prevStreamCap;
 static float  s_prevBounds[6];
+static float  s_prevPoseR[PC_SKIN_BONES][9];
+static float  s_prevPoseT[PC_SKIN_BONES][3];
+static int    s_prevPosed;      /* an animation pose is set */
+static int    s_prevPoseDirty;  /* the stream is of another pose */
+
+void Pc_SkinChara_PreviewPose(const float (*rot)[9], const float (*pos)[3])
+{
+    if (rot == NULL || pos == NULL)
+    {
+        if (s_prevPosed)
+            s_prevPoseDirty = 1;
+        s_prevPosed = 0;
+        return;
+    }
+    memcpy(s_prevPoseR, rot, sizeof(s_prevPoseR));
+    memcpy(s_prevPoseT, pos, sizeof(s_prevPoseT));
+    s_prevPosed     = 1;
+    s_prevPoseDirty = 1;
+}
 
 /* Poses `chp` on its target's rest table (the standing pose the game fits it
  * to) and writes one flat triangle stream in game space, 8 floats per corner:
@@ -4137,9 +4156,9 @@ int Pc_SkinChara_PreviewMesh(void* chp, const float** stream, int* cornerCount,
         need += ch->mats[m].triCount * 3;
     if (need == 0)
         return 0;
-    if (s_prevStreamFor == chp && s_prevStream != NULL)
+    if (s_prevStreamFor == chp && s_prevStream != NULL && !s_prevPoseDirty)
     {
-        /* Posed once per model: the stream is static, the viewer turns it. */
+        /* Posed once per model and pose: the viewer turns the stream. */
         *stream      = s_prevStream;
         *cornerCount = s_prevStreamCap;
         for (m = 0; m < ch->matCount && outMats < maxMats; m++)
@@ -4154,10 +4173,11 @@ int Pc_SkinChara_PreviewMesh(void* chp, const float** stream, int* cornerCount,
         return outMats;
     }
 
+    s_prevPoseDirty = 0;
     for (b = 0; b < PC_SKIN_BONES; b++)
     {
-        for (k = 0; k < 9; k++) ch->rv[b][k] = ch->def->rest[b].R[k] / 4096.0f;
-        for (k = 0; k < 3; k++) ch->tv[b][k] = (float)ch->def->rest[b].T[k];
+        for (k = 0; k < 9; k++) ch->rv[b][k] = s_prevPosed ? s_prevPoseR[b][k] : ch->def->rest[b].R[k] / 4096.0f;
+        for (k = 0; k < 3; k++) ch->tv[b][k] = s_prevPosed ? s_prevPoseT[b][k] : (float)ch->def->rest[b].T[k];
     }
     for (v = 0; v < ch->vertCount; v++)
     {
