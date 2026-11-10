@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "pc_bind_core.h"
+#include "pc_binds.h"
 #include "pc_config.h"
 #include "sh_log.h"
 
@@ -61,13 +62,38 @@ static int bc_ieq(const char* a, const char* b)
     return *a == *b;
 }
 
+/* Below the game's own rows come the console command binds (pc_binds.c), one
+ * row per command: a key in the first column, a controller input in the
+ * third. They belong to neither scheme and no reset touches them. */
+static int bc_cmd_row(int row)
+{
+    return (row >= BC_ROWS && row < BC_ROWS + PcBinds_RowCount()) ? row - BC_ROWS : -1;
+}
+
 int BindCore_RowCount(void)
 {
-    return BC_ROWS;
+    return BC_ROWS + PcBinds_RowCount();
 }
 
 const BcRow* BindCore_Row(int row)
 {
+    /* A few at once: callers read a row's fields while asking for another's. */
+    static BcRow s_cmd[4];
+    static int   s_next;
+    const int    cmd = bc_cmd_row(row);
+
+    if (cmd >= 0)
+    {
+        BcRow* r = &s_cmd[s_next++ & 3];
+
+        r->label        = PcBinds_RowLabel(cmd);
+        r->key[BC_KB1]  = "command";
+        r->key[BC_KB2]  = NULL;
+        r->key[BC_PAD1] = "command";
+        r->key[BC_PAD2] = NULL;
+        r->flags        = BCF_GLOBAL;
+        return r;
+    }
     return (row >= 0 && row < BC_ROWS) ? &s_rows[row] : NULL;
 }
 
@@ -88,6 +114,8 @@ int BindCore_Unbound(const char* v)
 
 const char* BindCore_Value(int row, int col)
 {
+    if (bc_cmd_row(row) >= 0)
+        return (col == BC_KB1 || col == BC_PAD1) ? PcBinds_RowValue(bc_cmd_row(row), col == BC_PAD1) : NULL;
     if (row < 0 || row >= BC_ROWS || col < 0 || col >= BC_COLS || s_rows[row].key[col] == NULL)
         return NULL;
     return PcConfig_BindField(s_rows[row].key[col], s_scheme, NULL);
@@ -102,6 +130,8 @@ int BindCore_RowEnabled(int row)
 
 int BindCore_CellUsable(int row, int col)
 {
+    if (bc_cmd_row(row) >= 0)
+        return col == BC_KB1 || col == BC_PAD1;
     return row >= 0 && row < BC_ROWS && col >= 0 && col < BC_COLS && s_rows[row].key[col] != NULL &&
            BindCore_RowEnabled(row);
 }
@@ -124,11 +154,24 @@ static void bc_cfg_key(const char* key, int perScheme, char* out, size_t outSize
 
 void BindCore_Set(int row, int col, const char* value)
 {
-    const char* key       = s_rows[row].key[col];
+    const char* key;
     int         perScheme = 0;
-    char*       field     = PcConfig_BindField(key, s_scheme, &perScheme);
+    char*       field;
     char        cfgKey[64];
 
+    if (bc_cmd_row(row) >= 0)
+    {
+        if (col == BC_KB1 || col == BC_PAD1)
+        {
+            PcBinds_RowSet(bc_cmd_row(row), col == BC_PAD1, value);
+            SH_DBG("[BINDS] command row %d %s = %s", bc_cmd_row(row), col == BC_PAD1 ? "pad" : "key", value ? value : "NONE");
+        }
+        return;
+    }
+    if (row < 0 || row >= BC_ROWS || col < 0 || col >= BC_COLS || s_rows[row].key[col] == NULL)
+        return;
+    key   = s_rows[row].key[col];
+    field = PcConfig_BindField(key, s_scheme, &perScheme);
     if (field == NULL)
         return;
     snprintf(field, 24, "%s", value);
@@ -186,7 +229,8 @@ int BindCore_IsDuplicate(int row, int col)
 
     if (BindCore_Unbound(v))
         return 0;
-    for (r = 0; r < BC_ROWS; r++)
+    /* Command rows too: a key that also moves Harry is worth showing. */
+    for (r = 0; r < BindCore_RowCount(); r++)
     {
         if (!BindCore_RowEnabled(r))
             continue;

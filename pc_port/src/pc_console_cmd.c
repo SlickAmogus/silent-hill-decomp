@@ -30,6 +30,8 @@
  *                             collision except the ground
  *   BIND <key> <cmds>    - run one or more console commands from a key;
  *                          BIND LIST / UNBIND <key> / UNBINDALL
+ *                          BIND pad:<input> <cmd> (controller) / ADDCONTROL <cmd> / REMOVECONTROL <cmd>
+ *   NEXTGUN / NEXTMELEE    - next owned gun / melee weapon (works with the weapon raised)
  *   ABOUT                - PC port credits (same block the staff roll appends)
  *   PCCREDITS [0|1]      - toggle that block in the staff roll (persists)
  *   LOGA / LOGB          - stamp an incremental A#/B# position mark
@@ -1584,6 +1586,15 @@ void Pc_ConsoleExec(const char* line)
             push_lines(DEBUG_PAGE1, (int)(sizeof(DEBUG_PAGE1) / sizeof(DEBUG_PAGE1[0])));
     } else if (strcmp(cmd, "AMBSFX") == 0) {
         cmd_ambsfx(arg);
+    } else if (strcmp(cmd, "NEXTGUN") == 0 || strcmp(cmd, "NEXTMELEE") == 0) {
+        extern const char* Pc_NextWeaponRequest(int guns);
+        const char* why = Pc_NextWeaponRequest(cmd[4] == 'G');
+        if (why != NULL)
+            cprintf("%s", why);
+    } else if (strcmp(cmd, "ADDCONTROL") == 0) {
+        PcBinds_CmdAddControl(arg);
+    } else if (strcmp(cmd, "REMOVECONTROL") == 0) {
+        PcBinds_CmdRemoveControl(arg);
     } else if (strcmp(cmd, "BIND") == 0) {
         PcBinds_CmdBind(arg);
     } else if (strcmp(cmd, "UNBIND") == 0) {

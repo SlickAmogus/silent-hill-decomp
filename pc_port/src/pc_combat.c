@@ -371,6 +371,107 @@ void Pc_CycleWeapons(void)
     }
 }
 
+/* nextgun / nextmelee: the next owned weapon of one kind.
+ *
+ * Unlike Cycle Weapons this also works with the weapon raised, and shows it
+ * happening. The equip itself is only safe with the arms down (it reloads the
+ * weapon's tables), so a raised weapon is lowered first by holding the aim
+ * input off, the swap is made at the bottom, and the new one comes up: by the
+ * player's own held aim, or, with the weapon down, by a moment of aim fed in
+ * so the new weapon is seen raised and lowered. The game's own aim animation
+ * is the animation. */
+enum { NW_IDLE, NW_LOWER, NW_SHOW };
+#define NW_LOWER_MAX 90 /* frames to wait for the arms to come down */
+#define NW_SHOW_LEN  14 /* frames of fed-in aim after an unraised swap */
+
+static int s_nwPhase;
+static int s_nwFrames;
+static u8  s_nwTarget;
+
+static u8 Pc_NextWeaponOfKind(int guns)
+{
+    static const u8 gunOrder[]   = { InvItemId_Handgun, InvItemId_Shotgun, InvItemId_HuntingRifle, InvItemId_HyperBlaster };
+    static const u8 meleeOrder[] = { InvItemId_KitchenKnife, InvItemId_SteelPipe, InvItemId_Hammer, InvItemId_Axe,
+                                     InvItemId_Chainsaw, InvItemId_Katana, InvItemId_RockDrill };
+    const u8* order = guns ? gunOrder : meleeOrder;
+    const s32 n     = guns ? (s32)sizeof(gunOrder) : (s32)sizeof(meleeOrder);
+    s32       cur   = -1, i, k;
+
+    for (i = 0; i < n; i++)
+        if (order[i] == g_SavegamePtr->equippedWeapon) { cur = i; break; }
+    for (k = 1; k <= n; k++)
+    {
+        const u8 id = order[(cur + k + n) % n];
+
+        if (id != g_SavegamePtr->equippedWeapon && Pc_FindItemSlot(id) != NO_VALUE)
+            return id;
+    }
+    return 0;
+}
+
+/* NULL when the switch is under way, else why not, for the console. */
+const char* Pc_NextWeaponRequest(int guns)
+{
+    u8 id;
+
+    if (g_SavegamePtr == NULL || g_GameWork.gameState != GameState_InGame ||
+        g_SysWork.sysState != SysState_Gameplay || g_Player_DisableControl)
+        return "not now";
+    if (s_nwPhase != NW_IDLE)
+        return NULL;
+    id = Pc_NextWeaponOfKind(guns);
+    if (id == 0)
+        return guns ? "no other gun" : "no other melee weapon";
+    s_nwTarget = id;
+    s_nwPhase  = NW_LOWER;
+    s_nwFrames = 0;
+    return NULL;
+}
+
+/* Run from Pc_ExtraActionsUpdate, ahead of the player's own input read. */
+static void Pc_NextWeaponUpdate(void)
+{
+    const u16 aimBtn = g_GameWorkPtr->config.controllerConfig.aim;
+
+    if (s_nwPhase == NW_IDLE)
+        return;
+    if (g_SavegamePtr == NULL || g_GameWork.gameState != GameState_InGame ||
+        g_SysWork.sysState != SysState_Gameplay || g_Player_DisableControl)
+    {
+        s_nwPhase = NW_IDLE;
+        return;
+    }
+    if (s_nwPhase == NW_LOWER)
+    {
+        if (Pc_ActionSafe())
+        {
+            const s32 slot = Pc_FindItemSlot(s_nwTarget);
+            const int held = (g_Controller0->heldBtnFlags & aimBtn) != 0;
+
+            if (slot != NO_VALUE)
+                Pc_EquipWeapon(s_nwTarget, slot);
+            /* Aim already held brings it up by itself. */
+            s_nwPhase  = (slot != NO_VALUE && !held) ? NW_SHOW : NW_IDLE;
+            s_nwFrames = 0;
+            return;
+        }
+        /* A swing, a shot or a reload finishes first; an aim is let go of. */
+        g_Controller0->heldBtnFlags    &= ~aimBtn;
+        g_Controller0->clickedBtnFlags &= ~aimBtn;
+        if (++s_nwFrames > NW_LOWER_MAX)
+            s_nwPhase = NW_IDLE;
+        return;
+    }
+    if (++s_nwFrames > NW_SHOW_LEN)
+    {
+        s_nwPhase = NW_IDLE;
+        return;
+    }
+    if (s_nwFrames == 1)
+        g_Controller0->clickedBtnFlags |= aimBtn;
+    g_Controller0->heldBtnFlags |= aimBtn;
+}
+
 /* Direct-number and scroll controls share the port's native equip routine. */
 static const u8 s_quickWeaponOrder[] = {
     InvItemId_KitchenKnife, InvItemId_SteelPipe, InvItemId_Handgun,
@@ -704,6 +805,8 @@ void Pc_ExtraActionsUpdate(void)
     int cycleClicked, healClicked, qtClicked, sch;
 
     g_PcInputFrame++; /* frame identity for the edge caches — see g_PcInputFrame */
+
+    Pc_NextWeaponUpdate();
 
     static int          s_actGen = -1;
     if (s_padCycle[0] == -2 || s_actGen != g_PcBindsGen) {
