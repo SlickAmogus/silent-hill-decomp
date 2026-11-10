@@ -2781,9 +2781,29 @@ static PcSkinChara* Skin_Entry(const char* name, const char* file, const char* b
  * turned on): a model that was not there may be now. Without this a character
  * chosen before its file was installed stayed on the stock model until a
  * restart. */
+static int s_filesGen;
+
+int Pc_SkinChara_FilesGen(void)
+{
+    return s_filesGen;
+}
+
 void Pc_SkinChara_FilesChanged(void)
 {
+    int i;
+
     s_missingCount = 0;
+    /* Models only the preview holds are read again: after an update the
+     * preview kept showing the old file's model under the new version's
+     * name. One the game itself has drawn stays until a restart. */
+    for (i = 0; i < s_charaCount; i++)
+        if (s_chara[i].previewOnly && s_chara[i].file[0] != 0)
+        {
+            if ((void*)&s_chara[i] == s_prevStreamFor)
+                s_prevStreamFor = NULL;
+            Skin_Release(&s_chara[i]);
+        }
+    s_filesGen++;
 }
 
 /* Character Face Animation's models, read up front: parsing a glTF and its

@@ -188,7 +188,7 @@ typedef struct {
                            * one-vblank wait. (config key: menu_fps_unlock) */
     int lowHealthGlow;    /* 1 = pulsing red edge glow while health is low (config key: low_health_glow); off by default */
     int bulletDecals;     /* 1 = bullet-hole decals where player gunfire hits world geometry
-                           * (gamedata/decal.png; up to 64 FIFO, cleared on map load)
+                           * (gamedata/image/decal.png; up to 64 FIFO, cleared on map load)
                            * (config key: bullet_decals) */
     int gamepadIcons;     /* e_GlyphSet: 0 Auto, 1 PS Classic, 2 PS Modern, 3 Xbox, 4 Nintendo, 5 Steam
                            * (gamedata/icons/input_glyphs.png; config key: gamepad_icons) */

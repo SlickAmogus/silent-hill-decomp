@@ -60,7 +60,7 @@ s_PcConfig g_PcConfig = {
                          * Cursor and repeat speeds on those screens are per-frame, so a
                          * 240Hz menu moved them four times too fast (reported). */
     .lowHealthGlow = 0, /* 1=pulsing red edge glow below 20 hp (SH2 remake style); off by default */
-    .bulletDecals = 0, /* 1=bullet-hole decals at player gunshot impacts (gamedata/decal.png); off by default */
+    .bulletDecals = 0, /* 1=bullet-hole decals at player gunshot impacts (gamedata/image/decal.png); off by default */
     .gamepadIcons = GLYPH_SET_AUTO,
     .globalCharaPool = 1, /* 1=all chara assets resident PC-side + chara_global.dll AI backfill (SPAWN anything anywhere) */
     .worldVisibility = 1,
