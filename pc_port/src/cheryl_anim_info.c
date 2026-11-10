@@ -21,3 +21,4 @@ s_AnimInfo CHERYL_ANIM_INFOS[] = {
     /* [6] Run blend    */ { Anim_BlendLinear,  6, 0, 7,        {  20480 }, NO_VALUE, 34 },
     /* [7] Run play     */ { Anim_PlaybackLoop, 7, 0, NO_VALUE, { 122880 }, 34,       55 },
 };
+const int CHERYL_ANIM_INFO_COUNT = (int)(sizeof(CHERYL_ANIM_INFOS) / sizeof(CHERYL_ANIM_INFOS[0]));

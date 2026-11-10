@@ -72,6 +72,11 @@ static u8* ip_read(int idx, int* outSize)
     return Pc_LangReadDiscFile(g_FileTable[idx].startSector, (unsigned)*outSize);
 }
 
+unsigned char* Pc_IlmPreview_ReadFile(int idx, int* outSize)
+{
+    return ip_read(idx, outSize);
+}
+
 /* ---- ANM rest pose (Anim_BoneInit + Vw_CoordHierarchyMatrixCompute) ------ */
 
 typedef struct
