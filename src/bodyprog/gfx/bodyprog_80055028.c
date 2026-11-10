@@ -2710,6 +2710,36 @@ static bool Pc_BoatCabinDepthActive(void)
            g_SavegamePtr->mapIdx == MapIdx_MAP6_S01 && g_SavegamePtr->mapRoomIdx == 19;
 }
 
+static bool Pc_NowhereStartingRoomDepthModel(const s_ModelHeader* model)
+{
+    static const struct { char name[8]; u8 meshes; u8 counts[9][2]; } stock[] = {
+        {"NL", 9, {{97,54},{97,66},{94,64},{93,58},{96,61},{86,72},{72,62},{76,62},{28,22}}},
+        {"NU_BACK", 8, {{97,70},{97,70},{94,64},{82,60},{90,66},{73,56},{84,48},{40,27}}},
+        {"NU_BACK0", 4, {{92,45},{92,61},{96,52},{48,34}}},
+        {"NL_NEAR", 2, {{86,44},{52,26}}},
+        {"PAD_NEAR", 1, {{21,16}}}
+    };
+    s32 i, mesh;
+    if (g_GameWork.gameState != GameState_InGame || g_SavegamePtr == NULL ||
+        g_SavegamePtr->mapIdx != MapIdx_MAP7_S00 || g_SavegamePtr->mapRoomIdx != 1 ||
+        model->meshHdrs == NULL)
+        return false;
+    /* Keep the room shell, furniture and save pad on the same depth path.
+     * Independent flat polygon depths slice through their narrow components. */
+    for (i = 0; i < ARRAY_SIZE(stock); i++)
+    {
+        if (memcmp(model->name.str, stock[i].name, 8) != 0 || model->meshCount != stock[i].meshes)
+            continue;
+        for (mesh = 0; mesh < model->meshCount; mesh++)
+            if (model->meshHdrs[mesh].vertexCount != stock[i].counts[mesh][0] ||
+                model->meshHdrs[mesh].primitiveCount != stock[i].counts[mesh][1])
+                break;
+        if (mesh == model->meshCount)
+            return true;
+    }
+    return false;
+}
+
 static bool Pc_ParkWheelDepthModel(const s_ModelHeader* model)
 {
     static const struct { char name[8]; u8 vertices; u8 primitives; } stock[] = {
@@ -3092,8 +3122,11 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat
      * world-to-screen origin. Do not round each object's camera-relative
      * translation independently before projecting its vertices. The adjacent
      * lighthouse ground strips also share an edge but have separate origins;
-     * preserve that edge when depth testing exposes their projection mismatch. */
-    if ((Pc_BoatCabinDepthActive() || Pc_LighthouseGroundDepthModel(modelHdr)) &&
+     * preserve that edge when depth testing exposes their projection mismatch.
+     * The Nowhere save pad is a separate object resting on the room's table;
+     * use the same origin for both rather than rounding their motion apart. */
+    if ((Pc_BoatCabinDepthActive() || Pc_LighthouseGroundDepthModel(modelHdr) ||
+         Pc_NowhereStartingRoomDepthModel(modelHdr)) &&
         worldMat != NULL && viewMat != NULL)
     {
         extern int PGXP_MatrixLookup(const MATRIX*, double*);
@@ -3272,6 +3305,8 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat
                 if (Pc_BoatCabinDepthActive())
                     g_PsxActorDepth = 1;
                 if (Pc_ParkSupportDepthModel(modelHdr))
+                    g_PsxActorDepth = 1;
+                if (Pc_NowhereStartingRoomDepthModel(modelHdr))
                     g_PsxActorDepth = 1;
                 if (Pc_ParkWheelDepthModel(modelHdr))
                     g_PsxActorDepth = 1;
@@ -7533,6 +7568,8 @@ static int Pc_FarModelEligible(const s_ModelHeader* modelHdr)
     if (Pc_WideLm_IsWide(modelHdr))
         return 0;
     if (Pc_BoatCabinDepthActive())
+        return 0;
+    if (Pc_NowhereStartingRoomDepthModel(modelHdr))
         return 0;
     if (Pc_ParkSupportDepthModel(modelHdr) || Pc_ParkWheelDepthModel(modelHdr))
         return 0;
