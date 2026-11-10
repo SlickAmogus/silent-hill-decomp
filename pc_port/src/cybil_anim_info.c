@@ -80,3 +80,4 @@ s_AnimInfo CYBIL_ANIM_INFOS[] = {
     { Anim_BlendLinear,  ANIM_STATUS(CybilAnim_31, false), false, ANIM_STATUS(CybilAnim_31, true),  { Q12(5.0f)   }, NO_VALUE, 356 },
     { Anim_PlaybackLoop, ANIM_STATUS(CybilAnim_31, true),  false, NO_VALUE,                          { Q12(2.0f)   }, 356,      371 }
 };
+const int CYBIL_ANIM_INFO_COUNT = (int)(sizeof(CYBIL_ANIM_INFOS) / sizeof(CYBIL_ANIM_INFOS[0]));
