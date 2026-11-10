@@ -4,7 +4,7 @@
 #ifndef PC_MENU_IMAGE_H
 #define PC_MENU_IMAGE_H
 
-enum { PC_MENU_IMAGE_BUTTON_WIDE, PC_MENU_IMAGE_WARNING, PC_MENU_IMAGE_COUNT };
+enum { PC_MENU_IMAGE_BUTTON_WIDE, PC_MENU_IMAGE_WARNING, PC_MENU_IMAGE_CHECKMARK, PC_MENU_IMAGE_COUNT };
 
 /* Corners in the caller's primitive space (already offset for the menu OT).
  * shade is the vertex colour, 128 = the image as drawn. Returns 0 when the
