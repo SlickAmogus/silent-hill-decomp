@@ -72,6 +72,7 @@ static int   s_rightDown, s_prevRight, s_rightEdge;
 static int   s_puzzleFrames; /* >0 while a free-cursor puzzle is on screen */
 static int   s_havePrev;
 static int   s_moved;        /* mouse moved this frame */
+static int   s_realMouse;    /* a mouse, not a finger, moved the pointer last */
 static int   s_prevMx = -1, s_prevMy = -1;
 
 /* Who drives the puzzle cursor: whichever of stick, mouse and touchpad moved
@@ -862,13 +863,21 @@ void Pc_MouseCursor_GlDraw(void)
     {
         extern int Pc_Touch_UsedRecently(void);
         if (Pc_Touch_UsedRecently() || Pc_MouseCursor_TouchDriving())
+        {
+            s_realMouse = 0;
             return;
+        }
     }
 #if defined(__ANDROID__) || defined(SH_IOS)
     /* Before the first touch there is nothing to be "recent" yet, and on a
      * phone the pointer starts parked at 0,0. Nothing here has a mouse unless
-     * one is plugged in, so stay hidden until a real one moves the pointer. */
-    if (!s_moved)
+     * one is plugged in, so stay hidden until a real one moves the pointer.
+     * Latched: s_moved is this frame's movement only, and testing it directly
+     * drew the arrow on moving frames alone, so it blinked while moving and
+     * vanished at rest. A touch drops the latch again. */
+    if (s_moved)
+        s_realMouse = 1;
+    if (!s_realMouse)
         return;
 #endif
 
