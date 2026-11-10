@@ -11,6 +11,7 @@
 #include "bodyprog/sys/joy.h"
 #include "sh_log.h"
 #include "pc_config.h"
+#include "pc_bind_input.h"
 #include "control_style.h"
 #include <PsyX/PsyX_public.h> /* PsyX_LookupGameControllerMapping / RawControllerBindHeld */
 
@@ -204,7 +205,7 @@ void Pc_ControlStyleUpdate(void)
         sc[1] = &g_PcConfig.altcam;
         for (i = 0; i < 2; i++)
         {
-            scCam[i] = SDL_GetScancodeFromName(sc[i]->keyChangeCam);
+            scCam[i] = (SDL_Scancode)BindInput_Code(sc[i]->keyChangeCam);
             scPad[i] = (sc[i]->padChangeCam[0])
                            ? (int)PsyX_LookupGameControllerMapping(sc[i]->padChangeCam, SDL_CONTROLLER_BUTTON_INVALID)
                            : SDL_CONTROLLER_BUTTON_INVALID;
@@ -219,7 +220,7 @@ void Pc_ControlStyleUpdate(void)
     keys   = SDL_GetKeyboardState(NULL);
     {
         int sch = g_DebugThirdPersonCam ? 1 : 0; /* which scheme's Change-Camera bind is live */
-        curKey = (keys && scCam[sch] != SDL_SCANCODE_UNKNOWN) ? keys[scCam[sch]] : 0;
+        curKey = keys ? BindInput_CodeHeld((int)scCam[sch]) : 0;
         curPad = PsyX_RawControllerBindHeld(scPad[sch]); /* physical controller only */
     }
 

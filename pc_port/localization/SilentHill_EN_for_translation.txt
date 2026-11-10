@@ -8446,3 +8446,288 @@ TR:
 [MAP7_S03.99]
 EN: ~J0(1.0) Go. ~E
 TR: 
+
+[QUICK.Character_Select]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Character Select
+TR: 
+
+[QUICK.Additional_Characters...]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Additional Characters...
+TR: 
+
+[QUICK.Additional_Characters]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Additional Characters
+TR: 
+
+[QUICK.No_preview]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: No preview
+TR: 
+
+[QUICK.Could_not_load_that_model]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Could not load that model
+TR: 
+
+[QUICK.Back]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Back
+TR: 
+
+[QUICK.OK]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: OK
+TR: 
+
+[QUICK.Original_model]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Original model
+TR: 
+
+[QUICK.Silent_Hill_1_cast]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Silent Hill 1 cast
+TR: 
+
+[QUICK.Other]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Other
+TR: 
+
+[QUICK.Replace_your_installed_{name}?]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Replace your installed {name}?
+TR: 
+
+[QUICK.Replace_{n}_installed_file(s)_in_{name}?]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Replace {n} installed file(s) in {name}?
+TR: 
+
+[QUICK.Restart_the_game_to_use_the_updated_characters.]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Restart the game to use the updated characters.
+TR: 
+
+[QUICK.Newer_versions_of_jojo670's_characters_are_available._Update_them?]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Newer versions of jojo670's characters are available. Update them?
+TR: 
+
+[QUICK.(update)]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: (update)
+TR: 
+
+[QUICK.Download_Preview]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Download Preview
+TR: 
+
+[QUICK.Downloadable_Characters]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Downloadable Characters
+TR: 
+
+[QUICK.Installed_Characters]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Installed Characters
+TR: 
+
+[QUICK.Choose_a_Model]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Choose a Model
+TR: 
+
+[QUICK.Downloadable]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Downloadable
+TR: 
+
+[QUICK.Locally_installed]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Locally installed
+TR: 
+
+[QUICK.Loading_the_list...]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Loading the list...
+TR: 
+
+[QUICK.Could_not_reach_the_list.]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Could not reach the list.
+TR: 
+
+[QUICK.Nothing_here_yet.]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Nothing here yet.
+TR: 
+
+[QUICK.Fetching_the_character_list...]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Fetching the character list...
+TR: 
+
+[QUICK.Downloading_{name}...]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Downloading {name}...
+TR: 
+
+[QUICK.Downloading_the_preview_of_{name}...]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Downloading the preview of {name}...
+TR: 
+
+[QUICK.Installed_{name}]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Installed {name}
+TR: 
+
+[QUICK.Removed_{name}]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Removed {name}
+TR: 
+
+[QUICK.{name}:_download_failed]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: {name}: download failed
+TR: 
+
+[QUICK.{name}:_could_not_install]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: {name}: could not install
+TR: 
+
+[QUICK.{name}:_preview_failed]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: {name}: preview failed
+TR: 
+
+[QUICK.The_character_list_could_not_be_downloaded]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: The character list could not be downloaded
+TR: 
+
+[QUICK.{name}_enabled]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: {name} enabled
+TR: 
+
+[QUICK.{name}_disabled]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: {name} disabled
+TR: 
+
+[QUICK.Harry]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Harry
+TR: 
+
+[QUICK.Cybil]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Cybil
+TR: 
+
+[QUICK.Monster_Cybil]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Monster Cybil
+TR: 
+
+[QUICK.Lisa]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Lisa
+TR: 
+
+[QUICK.Bloody_Lisa]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Bloody Lisa
+TR: 
+
+[QUICK.Dahlia]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Dahlia
+TR: 
+
+[QUICK.Kaufmann]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Kaufmann
+TR: 
+
+[QUICK.Cheryl]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Cheryl
+TR: 
+
+[QUICK.Alessa]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Alessa
+TR: 
+
+[QUICK.Ghost_Alessa]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Ghost Alessa
+TR: 
+
+[QUICK.Incubator]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Incubator
+TR: 
+
+[QUICK.Ghost_Doctor]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Ghost Doctor
+TR: 
+
+[QUICK.Puppet_Nurse]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Puppet Nurse
+TR: 
+
+[QUICK.Puppet_Doctor]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Puppet Doctor
+TR: 
+
+[QUICK.(custom_copy_in_use)]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: (custom copy in use)
+TR: 
+
+[QUICK.Don't_ask_again]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Don't ask again
+TR: 
+
+[QUICK.Your_QoL_character_packs_are_now_part_of_Additional_Characters._Download_the_new_versions?]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Your QoL character packs are now part of Additional Characters. Download the new versions?
+TR: 
+
+[QUICK.Load_Preview]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: Load Preview
+TR: 
+
+[QUICK.(download_in_use)]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: (download in use)
+TR: 
+
+[QUICK.no_version]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: no version
+TR: 
+
+[QUICK.{a}_is_already_installed_from_{b}_({c})._The_download_({d})_will_be_used_instead._Download_it?]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: {a} is already installed from {b} ({c}). The download ({d}) will be used instead. Download it?
+TR: 
+
+[QUICK.{a}_of_these_characters_are_already_installed_from_packs._The_downloads_will_be_used_instead._Download_them?]
+NOTE: Character Select / Additional Characters. Keep {name} and {n} as they are
+EN: {a} of these characters are already installed from packs. The downloads will be used instead. Download them?
+TR: 

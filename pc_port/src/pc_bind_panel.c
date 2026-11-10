@@ -628,9 +628,11 @@ static GLuint bp_bake(const char* text, float px, int* outW, int* outH)
     int   asc, desc, gap, W, H, i, pad = 1, prev = 0;
     unsigned char *cov, *rgba, *scratch;
     GLuint tex;
+    char   visual[1024];
 
     if (!s_fontOk || !text || !text[0] || px < 4.0f)
         return 0;
+    text = Pc_LangVisual(text, visual, (int)sizeof(visual));
 
     scale = stbtt_ScaleForPixelHeight(&s_font, px);
     stbtt_GetFontVMetrics(&s_font, &asc, &desc, &gap);
@@ -739,6 +741,8 @@ void Pc_BindPanel_Draw(void)
     float vpW, vpH, panelW, panelH, panelL, panelR, panelT, panelB, dim = 1.0f;
     float pad, titleH, subH, headH, footH, rowH, listT, listB, listL, listR;
     float colX[BC_COLS + 2];
+    float colL[BC_COLS + 1], colR[BC_COLS + 1];
+    const int rtl = (Pc_LangQuickScript() == LANG_QUICK_SCRIPT_ARABIC);
     int   pxTitle, pxRow, pxSmall, padType, i, c, shown;
     const char* padName;
     char  line[384];
@@ -846,6 +850,12 @@ void Pc_BindPanel_Draw(void)
     colX[1] = listL + (listR - listL) * 0.26f;
     for (c = 1; c <= BC_COLS; c++)
         colX[c + 1] = colX[1] + (listR - colX[1]) * ((float)c / (float)BC_COLS);
+    /* RTL mirrors the table about the list's centre: Action on the right. */
+    for (c = 0; c <= BC_COLS; c++)
+    {
+        colL[c] = rtl ? listL + listR - colX[c + 1] : colX[c];
+        colR[c] = rtl ? listL + listR - colX[c] : colX[c + 1];
+    }
 
     padName = PsyX_Pad_ConnectedControllerName();
     padType = PsyX_Pad_ConnectedControllerType();
@@ -875,6 +885,9 @@ void Pc_BindPanel_Draw(void)
 #define TEXT_AT(t_, x_, yMid_, r_, g_, b_) \
     do { const BpText* _t = (t_); if (_t) { float _y = (yMid_) + (float)_t->h * 0.5f; \
         bp_quad(_t->tex, NX(x_), NY(_y), NX((x_) + _t->w), NY(_y - _t->h), (r_), (g_), (b_), dim); } } while (0)
+/* Text from the reading direction's starting edge: left x in LTR, right x in RTL. */
+#define TEXT_LEAD(t_, l_, rr_, yMid_, r_, g_, b_) \
+    do { const BpText* _s = (t_); if (_s) TEXT_AT(_s, rtl ? (rr_) - (float)_s->w : (l_), yMid_, r_, g_, b_); } while (0)
 
     /* Backdrop, panel, title band. */
     bp_quad(s_texWhite, NX(0.0f), NY(vpH), NX(vpW), NY(0.0f), 0.0f, 0.0f, 0.0f, 0.66f * dim);
@@ -895,12 +908,12 @@ void Pc_BindPanel_Draw(void)
                                                             "{camera}", Pc_LangQuick(Pc_ControlStyleLabel(s_style))));
     else
         snprintf(line, sizeof(line), "%s", Pc_LangQuick("Editing: classic camera binds"));
-    TEXT_AT(bp_text(line, pxSmall), listL, panelT - titleH - subH * 0.5f, 0.92f, 0.86f, 0.78f);
+    TEXT_LEAD(bp_text(line, pxSmall), listL, listR, panelT - titleH - subH * 0.5f, 0.92f, 0.86f, 0.78f);
     if (padName != NULL)
         snprintf(line, sizeof(line), "%s", Pc_LangQuickFill("Controller: {name}", "{name}", padName));
     else
         snprintf(line, sizeof(line), "%s", Pc_LangQuick("Controller: none connected"));
-    TEXT_AT(bp_text(line, pxSmall), listL, panelT - titleH - subH * 1.5f,
+    TEXT_LEAD(bp_text(line, pxSmall), listL, listR, panelT - titleH - subH * 1.5f,
             padName ? 0.72f : 0.60f, padName ? 0.84f : 0.60f, padName ? 0.72f : 0.62f);
 
     /* Column headings. */
@@ -908,7 +921,8 @@ void Pc_BindPanel_Draw(void)
         static const char* heads[BC_COLS + 1] = { "Action", "Keyboard", "Keyboard 2", "Controller", "Controller 2" };
         float hy = panelT - titleH - 2.0f * subH - headH * 0.5f;
         for (c = 0; c <= BC_COLS; c++)
-            TEXT_AT(bp_text(Pc_LangQuick(heads[c]), pxRow), colX[c] + pad * 0.4f, hy, 0.62f, 0.62f, 0.68f);
+            TEXT_LEAD(bp_text(Pc_LangQuick(heads[c]), pxRow), colL[c] + pad * 0.4f, colR[c] - pad * 0.4f, hy,
+                      0.62f, 0.62f, 0.68f);
         bp_quad(s_texWhite, NX(listL), NY(listT + 1.0f), NX(listR), NY(listT), 1.0f, 1.0f, 1.0f, 0.14f * dim);
     }
 
@@ -950,12 +964,13 @@ void Pc_BindPanel_Draw(void)
 
         {
             float lc = enabled ? 0.88f : 0.42f;
-            TEXT_AT(bp_text(Pc_LangQuick(BindCore_Row(i)->label), pxRow), colX[0] + pad * 0.4f, ym, lc, lc * 0.97f, lc * 0.94f);
+            TEXT_LEAD(bp_text(Pc_LangQuick(BindCore_Row(i)->label), pxRow), colL[0] + pad * 0.4f, colR[0] - pad * 0.4f, ym,
+                      lc, lc * 0.97f, lc * 0.94f);
         }
 
         for (c = 0; c < BC_COLS; c++)
         {
-            float       cl = colX[c + 1], cr = colX[c + 2];
+            float       cl = colL[c + 1], cr = colR[c + 1];
             int         selCell = selRow && (c == s_col);
             const char* txt;
             float       r = 0.86f, g = 0.86f, b = 0.90f;
@@ -986,15 +1001,17 @@ void Pc_BindPanel_Draw(void)
             {
                 r = r * 0.3f + 0.7f; g = g * 0.3f + 0.7f; b = b * 0.3f + 0.7f;
             }
-            TEXT_AT(bp_text(txt, pxRow), cl + pad * 0.4f, ym, r, g, b);
+            TEXT_LEAD(bp_text(txt, pxRow), cl + pad * 0.4f, cr - pad * 0.4f, ym, r, g, b);
         }
     }
 
     /* Scroll hints. */
     if (s_scroll > 0)
-        TEXT_AT(bp_text(Pc_LangQuick("more above"), pxSmall), listR - pad * 4.0f, listT + headH * 0.5f, 0.55f, 0.55f, 0.60f);
+        TEXT_LEAD(bp_text(Pc_LangQuick("more above"), pxSmall), listR - pad * 4.0f, listL + pad * 4.0f, listT + headH * 0.5f,
+                  0.55f, 0.55f, 0.60f);
     if (s_scroll + s_visRows < BP_ROW_COUNT)
-        TEXT_AT(bp_text(Pc_LangQuick("more below"), pxSmall), listR - pad * 4.0f, listB - pxSmall * 0.6f, 0.55f, 0.55f, 0.60f);
+        TEXT_LEAD(bp_text(Pc_LangQuick("more below"), pxSmall), listR - pad * 4.0f, listL + pad * 4.0f, listB - pxSmall * 0.6f,
+                  0.55f, 0.55f, 0.60f);
 
     /* Footer: what the keys do right now. */
     {
@@ -1025,18 +1042,19 @@ void Pc_BindPanel_Draw(void)
             hint  = line;
             hint2 = Pc_LangQuick("Mouse: click a bind to change it, right-click to clear. Orange = used twice.");
         }
-        TEXT_AT(bp_text(hint, pxRow), panelL + pad, panelB + footH * 0.62f, 0.90f, 0.88f, 0.84f);
+        TEXT_LEAD(bp_text(hint, pxRow), panelL + pad, panelR - pad, panelB + footH * 0.62f, 0.90f, 0.88f, 0.84f);
         if (hint2)
-            TEXT_AT(bp_text(hint2, pxSmall), panelL + pad, panelB + footH * 0.24f, 0.62f, 0.62f, 0.68f);
+            TEXT_LEAD(bp_text(hint2, pxSmall), panelL + pad, panelR - pad, panelB + footH * 0.24f, 0.62f, 0.62f, 0.68f);
     }
 
     /* Publish geometry for Update's mouse hit-test. */
     s_vpW = vpW; s_vpH = vpH;
-    for (c = 0; c <= BC_COLS; c++) { s_geoColL[c] = colX[c]; s_geoColR[c] = colX[c + 1]; }
+    for (c = 0; c <= BC_COLS; c++) { s_geoColL[c] = colL[c]; s_geoColR[c] = colR[c]; }
     s_geoListL = listL;
     s_geoListR = listR;
     s_geoValid = (s_phase == BP_SHOWN);
 
+#undef TEXT_LEAD
 #undef TEXT_AT
 #undef NX
 #undef NY

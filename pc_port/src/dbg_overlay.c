@@ -7,6 +7,7 @@
 #include <string.h>
 #include <SDL_scancode.h>
 #include <SDL_keyboard.h>
+#include <SDL_version.h>
 #include <SDL_timer.h>
 #include <SDL_mouse.h>     /* console pointer + click-drag selection */
 #include <SDL_clipboard.h> /* console Ctrl+C / Ctrl+V */
@@ -599,11 +600,16 @@ static void Console_Paste(void)
 /* Typed characters come from SDL_TEXTINPUT, i.e. Windows' own WM_CHAR, so they
  * follow the active keyboard layout (QWERTZ's Y and Z, AltGr symbols). NULL is
  * PsyCross's Backspace notification; the console handles Backspace itself. */
+static int s_textEver;   /* a text event has arrived this session */
+static int s_textFrame;  /* characters delivered since the last update */
+
 static void Console_OnText(const char* s)
 {
     if (s == NULL || !g_PcConsoleInputActive)
         return;
+    s_textEver = 1;
     for (; *s; s++) {
+        s_textFrame++;
         unsigned char c = (unsigned char)*s;
         if (c < 32 || c > 126)
             continue;
@@ -628,13 +634,71 @@ static void Console_SyncTextInput(void)
     int        focused   = SDL_GetKeyboardFocus() != NULL;
 
     if (g_PcConsoleInputActive != s_on || (s_on && focused && !s_focused)) {
+        SDL_version v;
+
         g_cfg_gameOnTextInput = Console_OnText;
+        SDL_GetVersion(&v);
         SDL_StopTextInput();
-        if (g_PcConsoleInputActive)
+        if (g_PcConsoleInputActive) {
+            /* On SDL3 (the SDL2.dll beside the exe is sdl2-compat, which
+             * reports a patch level of 50 and up) nothing is typed unless text
+             * input is started: the event state alone, which real SDL2
+             * honours, delivers no characters there, and the console took no
+             * keyboard input at all. */
+            if (v.patch >= 50)
+                SDL_StartTextInput();
             SDL_EventState(SDL_TEXTINPUT, SDL_ENABLE);
+        }
         s_on = g_PcConsoleInputActive;
     }
     s_focused = focused;
+}
+
+/* Should text events not arrive at all (a backend that needs something else
+ * again, a browser that sends none), typing still works: until the first one
+ * is seen, a printable key that went down with no character delivered for it
+ * is taken from the key itself, in its layout's letter. */
+static void Console_KeyFallback(const Uint8* ks, const unsigned char* prev, int consoleSc)
+{
+    static const char shifted[] = ")!@#$%^&*(";
+    int sc, shift = ks[SDL_SCANCODE_LSHIFT] || ks[SDL_SCANCODE_RSHIFT];
+    int got = s_textFrame;
+
+    s_textFrame = 0;
+    if (s_textEver || got > 0 || !g_PcConsoleInputActive || ks[SDL_SCANCODE_LCTRL] || ks[SDL_SCANCODE_RCTRL] ||
+        ks[SDL_SCANCODE_LALT] || ks[SDL_SCANCODE_RALT])
+        return;
+    for (sc = SDL_SCANCODE_A; sc <= SDL_SCANCODE_SLASH; sc++) {
+        SDL_Keycode k;
+        char        c[2] = { 0, 0 };
+
+        if (!ks[sc] || prev[sc] || (sc >= SDL_SCANCODE_RETURN && sc <= SDL_SCANCODE_TAB))
+            continue;
+        if (sc == consoleSc)
+            continue;
+        k = SDL_GetKeyFromScancode((SDL_Scancode)sc);
+        if (k < 32 || k > 126)
+            continue;
+        c[0] = (char)k;
+        if (shift && k >= '0' && k <= '9')
+            c[0] = shifted[k - '0'];
+        else if (shift && k == '-')
+            c[0] = '_';
+        else if (shift && k == '=')
+            c[0] = '+';
+        else if (shift && k == '/')
+            c[0] = '?';
+        else if (shift && k == ';')
+            c[0] = ':';
+        else if (shift && k == 39)
+            c[0] = 34;
+        {
+            int ever = s_textEver;
+            Console_OnText(c);
+            s_textEver  = ever;
+            s_textFrame = 0;
+        }
+    }
 }
 
 /* PsyCross asks SDL for a CORE profile context (PsyX_render.cpp), and these
@@ -1581,7 +1645,11 @@ void DbgOverlay_Update(void)
      * command would fire whatever its letters are bound to. */
     {
         extern int g_PcQuickOptionsActive;
-        if (!s_console_open && !g_PcQuickOptionsActive)
+        /* Not under the screens that bind keys: the key being tried there
+         * would run whatever it is already bound to. */
+        extern int Pc_BindPanel_IsOpen(void);
+        extern int Pc_ControlsScreen_IsOpen(void);
+        if (!s_console_open && !g_PcQuickOptionsActive && !Pc_BindPanel_IsOpen() && !Pc_ControlsScreen_IsOpen())
             PcBinds_Update(ks);
     }
 
@@ -1694,6 +1762,8 @@ void DbgOverlay_Update(void)
             Console_CopySelection();
         if (ctrl && ks[SDL_SCANCODE_V] && !s_prev_keys[SDL_SCANCODE_V])
             Console_Paste();
+
+        Console_KeyFallback(ks, s_prev_keys, (int)SDL_GetScancodeFromName(g_PcConfig.keyConsole[0] ? g_PcConfig.keyConsole : "`"));
 
         /* Backspace hold-repeats like a text editor: one delete on the press
          * edge, then after a short delay a steady 25/sec while held (faster
@@ -1956,9 +2026,19 @@ void DbgOverlay_Update(void)
         extern int Pc_ControlsScreen_IsOpen(void);
         extern int Pc_AchScreen_IsOpen(void);
         extern int Pc_TitleAchievementsActive(void);
+        /* Character Select backs out on Escape too (its pages, then the screen
+         * itself). Opened through Options, that same press also reached this
+         * and warm-reset the game under it: out of the pause menu, that threw
+         * the player's game away. The screen closes on the press, so the pass
+         * after it was last seen open is covered as well. */
+        extern int Pc_CharaSelect_IsOpen(void);
+        static int s_charaSelWas = 0;
+        const int  charaSelNow   = Pc_CharaSelect_IsOpen();
+        const int  charaSelEsc   = charaSelNow || s_charaSelWas;
+        s_charaSelWas = charaSelNow;
         if (cur_exit && !s_prev_exit && !g_PcConsoleInputActive && !g_PcQuickOptionsActive &&
             !Pc_BindPanel_IsOpen() && !Pc_ControlsScreen_IsOpen() && !Pc_AchScreen_IsOpen() &&
-            !Pc_TitleAchievementsActive()) {
+            !Pc_TitleAchievementsActive() && !charaSelEsc) {
             /* The brightness screen owns the whole display (its calibration bar is
              * drawn outside the normal menu path), so warm-resetting out of it left
              * the bar on screen over the title. Back out to the options list the
@@ -2006,10 +2086,10 @@ void DbgOverlay_Update(void)
         int    curBS, anyEn, changed, n;
 
         /* In FPS mode, [ / ] tune the separate FPS flashlight set (dimmer/tighter). */
-        en[0] = (g_PsyX_UsePerPixelFlashlight != 0); vp[0] = g_PcFpsCam ? &g_PsyX_FlashlightIntensityFps : &g_PsyX_FlashlightIntensity; vmax[0] = 3.0f; vkey[0] = g_PcFpsCam ? "flashlight_intensity_fps" : "flashlight_intensity"; vlbl[0] = g_PcFpsCam ? "flashlight (fps)" : "flashlight";
+        en[0] = (g_PsyX_UsePerPixelFlashlight != 0); vp[0] = g_PcFpsCam ? &g_PsyX_FlashlightIntensityFps : &g_PsyX_FlashlightIntensity; vmax[0] = 6.0f; vkey[0] = g_PcFpsCam ? "flashlight_intensity_fps" : "flashlight_intensity"; vlbl[0] = g_PcFpsCam ? "flashlight (fps)" : "flashlight";
         en[1] = (g_cfg_postProcess != 0);            vp[1] = &g_cfg_postProcessIntensity; vmax[1] = 1.0f; vkey[1] = "post_process_intensity"; vlbl[1] = "post-process";
         en[2] = (g_cfg_tonemap != 0);                vp[2] = &g_cfg_tonemapIntensity;     vmax[2] = 1.0f; vkey[2] = "tonemap_intensity";      vlbl[2] = "tonemap";
-        en[3] = (g_PsyX_UsePerPixelFlashlight != 0); vp[3] = g_PcFpsCam ? &g_PsyX_FlashlightSizeFps : &g_PsyX_FlashlightSize; vmax[3] = 3.0f; vkey[3] = g_PcFpsCam ? "flashlight_size_fps" : "flashlight_size"; vlbl[3] = g_PcFpsCam ? "flashlight size (fps)" : "flashlight size";
+        en[3] = (g_PsyX_UsePerPixelFlashlight != 0); vp[3] = g_PcFpsCam ? &g_PsyX_FlashlightSizeFps : &g_PsyX_FlashlightSize; vmax[3] = 5.0f; vkey[3] = g_PcFpsCam ? "flashlight_size_fps" : "flashlight_size"; vlbl[3] = g_PcFpsCam ? "flashlight size (fps)" : "flashlight size";
 
         /* Keys are user-bindable (launcher: Keyboard Controls). Defaults [ / ] /
          * \ ; resolved from config each frame so a rebind takes effect live. A
@@ -2086,6 +2166,10 @@ void DbgOverlay_Render(void)
      * textures, with its own state save/restore), so it lives here rather than
      * inside the shared panel state block below — and above the early-out, or
      * it would never run during normal gameplay. */
+    /* Run-time English on native menus over a disc font with no Latin cells
+     * (pc_ttf_text.c); before the toast so a popup stays on top of it. */
+    { extern void Pc_TtfText_Draw(void); Pc_TtfText_Draw(); }
+
     { extern void Pc_RaToast_Draw(void); Pc_RaToast_Draw(); }
 
     /* Free camera controls panel, same self-contained-GL arrangement. */
@@ -2110,6 +2194,10 @@ void DbgOverlay_Render(void)
     { extern void Pc_BindPanel_Draw(void); Pc_BindPanel_Draw(); }
 
     { extern void Pc_ConfirmDialog_Draw(void); Pc_ConfirmDialog_Draw(); }
+
+    /* Character Select's turning model, composited into the native screen's
+     * preview frame. */
+    { extern void Pc_CharaPreview_Draw(void); Pc_CharaPreview_Draw(); }
 
     /* Mouse pointer above every panel. Before the early-out below, which skips
      * the rest of this function on nearly every frame. */

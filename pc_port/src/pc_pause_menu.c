@@ -6,6 +6,7 @@
 #include "bodyprog/sound/sound_system.h"
 #include "bodyprog/text/text_draw.h"
 #include "sh_log.h"
+#include "pc_config.h"
 #include "pc_mouse_cursor.h"
 #include "pc_native_menu_draw.h"
 #include "pc_pause_menu.h"
@@ -15,16 +16,36 @@
 #include "pc_rando.h"
 
 extern int g_PsxPresentLastFrame;
+/* Set when the pause resumes the game; MainLoop swallows all pad input until
+ * every button that could have resumed it is released. A mouse click on
+ * CONTINUE also reaches the pad as the bound button a frame later (the
+ * keyboard/mouse-to-pad emulation lags), where it would act in the world:
+ * pick up, open, examine whatever Harry faced. */
+int g_PcPauseSwallowInput = 0;
 extern int g_PsxFreezeCaptureHold;
 extern int g_PcFreezeReleasePending;
 extern void PsyX_SPUAL_SetKeyOnMasterExempt(int on);
 
 #define PM_HEADER_Y  64
 #define PM_ROW_Y     96
-#define PM_ROW_PITCH 20 /* the title's MAINMENU_ROW_PITCH */
 #define PM_CONFIRM_Y 104
 #define PM_ANSWER_DY 24
 #define PM_TEXT_H    16
+
+/* The rows under PAUSED draw at 75% with the title's 20 px pitch shrunk to
+ * match; the heading and the confirm prompt stay full size. The 12x16 glyphs
+ * were drawn for 320x224, and shrinking them below 480 lines of render
+ * height (or at native PSX resolution) breaks them up, so those keep the
+ * original size and spacing. */
+static s32 RowScale(void)
+{
+    return (g_PcConfig.nativeResolution || g_PcConfig.windowHeight < 480) ? Q12(1.0f) : Q12(0.75f);
+}
+
+static int RowPitch(void)
+{
+    return (RowScale() == Q12(1.0f)) ? 20 : 15;
+}
 
 static const char* const s_RowLabels[PM_ROW_COUNT] = { "CONTINUE", "QUICK_MENU", "SAVE", "LOAD", "OPTION", "EXIT" };
 static const char* const s_AnswerLabels[2]         = { "YES", "NO" };
@@ -42,24 +63,33 @@ static int    s_quickMenuPending;
 /* SAVE, LOAD or EXIT -> Yes chosen; carried out once the fade-out is black. */
 static PmAction s_fadeAct;
 
-/* Centred the way MainMenu_MainTextDraw centres the title rows. */
-static int MarkedLabelX(int cx, const char* label)
+static int Scaled(int v, s32 scale)
 {
-    return cx - ((Nm_TextWidth(label) + Nm_TextWidth("[")) / 2);
+    return (v * scale) >> 12;
 }
 
-static void MarkedLabelDraw(int cx, int y, int color, const char* label, int sel)
+/* Centred the way MainMenu_MainTextDraw centres the title rows. */
+static int MarkedLabelX(int cx, const char* label, s32 scale)
+{
+    return cx - (Scaled(Nm_TextWidth(label) + Nm_TextWidth("["), scale) / 2);
+}
+
+/* Each string scales about its own start, so the starts are laid out from
+ * the scaled widths. */
+static void MarkedLabelDraw(int cx, int y, int color, const char* label, int sel, s32 scale)
 {
     const char* mark = sel ? "[" : "_";
-    int         x    = MarkedLabelX(cx, label);
+    int         x    = MarkedLabelX(cx, label, scale);
 
+    Pc_StringScaleSet(scale);
     Nm_TextDraw(x, y, NM_TEXT_TALL, color, mark);
-    x += Nm_TextWidth(mark);
+    x += Scaled(Nm_TextWidth(mark), scale);
     Nm_TextDraw(x, y, NM_TEXT_TALL, color, label);
     if (sel)
     {
-        Nm_TextDraw(x + Nm_TextWidth(label), y, NM_TEXT_TALL, color, "]");
+        Nm_TextDraw(x + Scaled(Nm_TextWidth(label), scale), y, NM_TEXT_TALL, color, "]");
     }
+    Pc_StringScaleSet(Q12(1.0f));
 }
 
 void Pc_PauseMenu_ConfirmDraw(const char* question, int yes, int y)
@@ -70,7 +100,7 @@ void Pc_PauseMenu_ConfirmDraw(const char* question, int yes, int y)
     for (i = 0; i < 2; i++)
     {
         MarkedLabelDraw(s_AnswerCx[i], y + PM_ANSWER_DY, StringColorId_White, s_AnswerLabels[i],
-                        (i == 0) ? (yes != 0) : (yes == 0));
+                        (i == 0) ? (yes != 0) : (yes == 0), Q12(1.0f));
     }
 }
 
@@ -86,7 +116,7 @@ int Pc_PauseMenu_ConfirmHover(const NmInput* in, int y)
     for (i = 0; i < 2; i++)
     {
         const char* label = s_AnswerLabels[i];
-        int         x     = MarkedLabelX(s_AnswerCx[i], label);
+        int         x     = MarkedLabelX(s_AnswerCx[i], label, Q12(1.0f));
         int         w     = Nm_TextWidth("[") + Nm_TextWidth(label) + Nm_TextWidth("]");
 
         if (in->mouseX >= x && in->mouseX < x + w)
@@ -120,6 +150,7 @@ void Pc_PauseMenu_Reset(void)
         SD_Call(4);
     }
     PsyX_SPUAL_SetKeyOnMasterExempt(0);
+    Nm_TextBucketMark2d(0);
     s_returnPending        = 0;
     g_PsxFreezeCaptureHold = 0;
     s_open                 = 0;
@@ -163,6 +194,8 @@ static void PauseMenu_Draw(void)
     unsigned mask = PmMenu_EnabledMask(&s_menu);
     int      i;
 
+    Nm_TextBucketMark2d(1);
+
     if (s_menu.confirm.open)
     {
         Pc_PauseMenu_ConfirmDraw("RETURN_TO_THE_TITLE_SCREEN?", s_menu.confirm.yes, PM_CONFIRM_Y);
@@ -176,9 +209,9 @@ static void PauseMenu_Draw(void)
 
     for (i = 0; i < PM_ROW_COUNT; i++)
     {
-        MarkedLabelDraw(160, PM_ROW_Y + (i * PM_ROW_PITCH),
+        MarkedLabelDraw(160, PM_ROW_Y + (i * RowPitch()),
                         (mask & (1u << i)) ? StringColorId_White : StringColorId_DarkGrey,
-                        s_RowLabels[i], i == s_menu.sel);
+                        s_RowLabels[i], i == s_menu.sel, RowScale());
     }
 }
 
@@ -209,6 +242,7 @@ static void PauseMenu_Leave(PmAction act)
     s_returnPending        = 1;
     g_PsxFreezeCaptureHold = 1;
     s_open                 = 0;
+    Nm_TextBucketMark2d(0);
     SH_DBG("[PAUSE] -> %s", s_RowLabels[s_menu.sel]);
     if (act == PM_ACT_OPTION)
     {
@@ -285,7 +319,7 @@ void Pc_PauseMenu_Update(void)
     }
     else
     {
-        hoverRow = Pc_MouseCursor_MenuRowHover(PM_ROW_Y, PM_ROW_PITCH, PM_ROW_COUNT,
+        hoverRow = Pc_MouseCursor_MenuRowHover(PM_ROW_Y, RowPitch(), PM_ROW_COUNT,
                                                (1u << PM_ROW_COUNT) - 1u, NULL);
     }
 
@@ -319,6 +353,7 @@ void Pc_PauseMenu_Update(void)
              * SysState_GamePaused_Update set this tick. Hand the
              * release to MainLoop, which waits for a tick that drew. */
             g_PcFreezeReleasePending = 1;
+            g_PcPauseSwallowInput    = 1;
             Pc_PauseMenu_Reset();
             s_quickMenuPending = (act == PM_ACT_QUICK_MENU);
             SH_DBG("[PAUSE] resume%s", s_quickMenuPending ? " -> quick menu" : "");

@@ -473,6 +473,14 @@ void GameBoot_GameStartup(void) // 0x80034964
 s32    g_PcLoadScreenPaceVblanks = 2;
 s32    g_PcLoadScreenMinVblanks  = 180;
 q19_12 g_PcLoadScreenDt          = 0;
+/* Screen steps taken so far. Screen_BackgroundMotionBlur picks its 127/128
+ * modulation off this instead of the vblank count while the screen is paced:
+ * steps land every g_PcLoadScreenPaceVblanks vblanks, so at the default 2 the
+ * vblank parity is the same on every step and the trail would either decay on
+ * every step or never. The console decays on about every other frame it draws
+ * (every other vblank at 60 fps, at random when a load stretches its frames),
+ * and every other step is that in steps. */
+s32    g_PcLoadScreenStep        = 0;
 
 static s32 s_pcLoadScreenStartVb = NO_VALUE;
 static s32 s_pcLoadScreenStepVb  = NO_VALUE;
@@ -515,6 +523,7 @@ static void Pc_LoadScreenClockTick(void)
     {
         g_PcLoadScreenDt      = (Q12(1.0f) * MIN(elapsed, 2)) / 60;
         s_pcLoadScreenStepVb  = now;
+        g_PcLoadScreenStep++;
     }
     else
     {
@@ -535,6 +544,14 @@ static void Pc_LoadScreenReset(void)
 {
     s_pcLoadScreenStartVb = NO_VALUE;
     s_pcLoadScreenStepVb  = NO_VALUE;
+    g_PcLoadScreenStep    = 0;
+}
+
+/* True while the PlayerRun screen runs on its own step clock rather than once
+ * per presented frame. */
+bool Pc_LoadScreenPaced(void)
+{
+    return Pc_LoadScreenIsPlayerRun() && g_PcLoadScreenPaceVblanks > 1;
 }
 #endif
 

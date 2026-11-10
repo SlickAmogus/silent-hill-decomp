@@ -108,6 +108,9 @@ jobs:
               fi
             done
           done
+          # SDL3 through sdl2-compat (pc_port/sdl/README.md): its SDL2.dll is the
+          # compat shim and replaces the MinGW SDL2.dll copied above.
+          cp pc_port/sdl/*.dll "$STAGE/"
           echo "Bundled runtime DLLs:"; ls "$STAGE"/*.dll
 
       - name: Upload artifact

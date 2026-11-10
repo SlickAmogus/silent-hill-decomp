@@ -13,6 +13,7 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <sys/stat.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -30,12 +31,14 @@
 #include "main/fileinfo.h"
 
 #include "cgltf.h"
+#include <SDL.h>
 
 #include "PsyX/PsyX_render.h"
 #include "psx/gtereg.h"
 #include "psx/libgpu.h"
 #include "psyq/libgs.h"
 #include "hires_override.h"
+#include "pc_chara_dl.h"
 #include "pc_config.h"
 #include "pc_lipsync.h"
 #include "pc_pplit.h"
@@ -56,9 +59,11 @@ extern s_WorldEnvWork g_WorldEnvWork;
 #define PC_SKIN_BONES     18
 /* Loaded models: every play-as swap (PLAYAS_SWAP_MAX is 32) and a replacement
  * for each character can all be in use in one session. */
-#define PC_SKIN_MAX_CHARA 64
+#define PC_SKIN_MAX_CHARA 255
 /* Files looked for and not found, kept apart so they never take a slot. */
-#define PC_SKIN_MAX_MISSING 128
+#define PC_SKIN_MAX_MISSING 1024
+/* Models the Character Select preview keeps besides the one it shows. */
+#define SKIN_PREVIEW_KEEP 4
 #define PC_SKIN_MAX_MATS  32
 #define PC_SKIN_MAX_JOINTS 256
 #define PC_SKIN_INFL      4
@@ -474,8 +479,12 @@ typedef struct
 typedef struct
 {
     char        name[16]; /* the model it replaces: HERO, SIBYL */
-    char        file[32]; /* the glTF it came from: HERO, HERO_CJ */
-    char        base[96]; /* its path without the extension, for the ini */
+    char        file[96]; /* the glTF it came from: HERO, HERO_CJ */
+    char        base[200]; /* its path without the extension, for the ini */
+    u32         lastUse;  /* SDL ticks it was last asked for */
+    long long   srcSig;   /* its model and settings files as they were when read */
+    int         stale;    /* those files changed since: read again once no frame can still draw it */
+    int         previewOnly; /* loaded by the Character Select preview, not yet by the game */
     const PcSkinRestDef* def;
     int         state; /* 0 untried, 1 ready, -1 none */
     const void* instKey[PC_SKIN_INST]; /* the instance's bone coords */
@@ -533,9 +542,11 @@ typedef struct
 
 static PcSkinChara s_chara[PC_SKIN_MAX_CHARA];
 /* The play-as Harry swap's file base (HERO_CJ), or empty for HERO itself. */
-static char        s_heroFile[32];
+static char        s_heroFile[96];
 static int         s_charaCount;
-static char        s_missing[PC_SKIN_MAX_MISSING][32];
+/* As wide as a file token: cut at 32, a longer name that failed never matched
+ * its own entry, so the model was read and refused again on every frame. */
+static char        s_missing[PC_SKIN_MAX_MISSING][96];
 static int         s_missingCount;
 
 /* ---------------------------------------------------------------- math */
@@ -2102,7 +2113,13 @@ static int Skin_Load(PcSkinChara* ch, const char* path)
             anchor[0][0] = anchor[0][1] = anchor[0][2] = 0.0f;
             continue;
         }
-        if (b == 5 || b == 9)
+        /* Only where the model's shoulder is the broader one (see s_pinned).
+         * A narrower model's shoulder moves out onto the game's instead: left
+         * where it was, the game's pivot fell inside its upper arm, so the top
+         * of the sleeve swung up into a spike as the arm came down, the elbow
+         * bent a hand's width down the forearm and the sleeve, stretched to
+         * make up the difference, ran out past the wrist. */
+        if ((b == 5 || b == 9) && fabsf(anchor[b - 1][0]) >= fabsf((float)ch->def->rest[b - 1].T[0]))
             anchor[b][0] -= anchor[b - 1][0] - ch->def->rest[b - 1].T[0];
         if (s_childA[b] >= 0)
         {
@@ -2208,7 +2225,8 @@ static int Skin_Load(PcSkinChara* ch, const char* path)
         /* Hips and knees keep the model's own spacing: pulling a knee onto the
          * game's (narrower) knee while the foot stayed put bowed the shins
          * outward. A leg swings about X, so the X offset costs nothing. */
-        else if (b == 4 || b == 8 || b == 12 || b == 13 || b == 15 || b == 16)
+        else if (b == 12 || b == 13 || b == 15 || b == 16 ||
+                 ((b == 4 || b == 8) && fabsf(anchor[b][0]) >= fabsf((float)ch->def->rest[b].T[0])))
             anchor[b][0] = ch->def->rest[b].T[0];
     }
     /* Native parts are posed by the rest frame itself, so every bone keeps it
@@ -2402,7 +2420,7 @@ static int Skin_ModelPath(const s_LmHeader* lm, char* name, size_t nameSize, cha
 /* <NAME>.ini beside the model holds what the mesh cannot say about itself. */
 static void Skin_LoadSettings(PcSkinChara* ch, const char* base)
 {
-    char path[112], line[128];
+    char path[224], line[128];
     FILE* f;
 
     ch->brightness = 100;
@@ -2626,29 +2644,149 @@ static int Skin_PickInstance(PcSkinChara* ch, const void* boneCoords)
 }
 
 /* The entry for one glTF, loaded on first use. */
+static void*  s_prevStreamFor;
+
+/* Frees a model and hands its slot back (file[0] == 0 marks it free). Only
+ * for one no frame still in flight can draw: Skin_Evictable's idle rule. */
+static void Skin_Release(PcSkinChara* ch)
+{
+    int m, k, i, b;
+
+    for (m = 0; m < ch->matCount; m++)
+    {
+        PcSkinMat* mat = &ch->mats[m];
+
+        for (k = 0; k < 4; k++)
+        {
+            unsigned char** rgba;
+            int *w, *h;
+            u32* tex;
+
+            Skin_MapFields(mat, k, &rgba, &w, &h, &tex);
+            if (*tex != 0 && mat->texFrom[k] < 0)
+                HiresOverride_DeleteTexture(*tex);
+            free(*rgba);
+        }
+        free(mat->tris);
+        free(mat->corner);
+        free(mat->src);
+        free(mat->uv);
+        for (i = 0; i < PC_SKIN_INST; i++)
+            for (b = 0; b < 2; b++)
+            {
+                free(mat->out[i][b]);
+                free(mat->idx[i][b]);
+            }
+    }
+    for (b = 0; b < PC_SKIN_BONES; b++)
+        free(ch->byBone[b]);
+    for (k = 0; k < PC_SKIN_MORPH_COUNT; k++)
+    {
+        free(ch->morph[k].v);
+        free(ch->morph[k].d);
+    }
+    free(ch->verts);
+    free(ch->color);
+    free(ch->pos);
+    free(ch->scr);
+    free(ch->ok);
+    if (s_prevStreamFor == ch)
+        s_prevStreamFor = NULL;
+    memset(ch, 0, sizeof(*ch));
+}
+
+/* The model asked for longest ago, if that was over two seconds back: well
+ * past any frame still queued to draw it. The preview's current model is
+ * never one (the preview holds it across frames without asking again). */
+static PcSkinChara* Skin_Evictable(void)
+{
+    PcSkinChara* best = NULL;
+    u32          now  = SDL_GetTicks();
+    int          i;
+
+    for (i = 0; i < s_charaCount; i++)
+    {
+        PcSkinChara* c = &s_chara[i];
+
+        if (c->file[0] == '\0' || c->file[0] == '@' || (void*)c == s_prevStreamFor || now - c->lastUse < 2000)
+            continue;
+        if (best == NULL || c->lastUse < best->lastUse)
+            best = c;
+    }
+    return best;
+}
+
+/* Size and time of the files a model was read from. */
+static long long Skin_SourceSig(const char* base)
+{
+    static const char* const ext[3] = { "glb", "gltf", "ini" };
+    long long   sig = 0;
+    int         k;
+
+    for (k = 0; k < 3; k++)
+    {
+        char        path[224];
+        struct stat st;
+
+        snprintf(path, sizeof(path), "%s.%s", base, ext[k]);
+        if (stat(path, &st) == 0)
+            sig = sig * 1000003LL + (long long)st.st_size * 31LL + (long long)st.st_mtime + k + 1;
+    }
+    return sig;
+}
+
+/* A model whose files changed is dropped and read again the next time it is
+ * asked for -- but only once it has gone unasked for this long, so no frame
+ * already handed to the renderer still points into it. Meanwhile its
+ * character draws stock. */
+#define SKIN_STALE_HOLD_MS 250
+
 static PcSkinChara* Skin_Entry(const char* name, const char* file, const char* base, const PcSkinRestDef* def)
 {
-    char path[128];
+    char path[224], resolved[200];
     PcSkinChara* ch = NULL;
     int i;
 
+    base = Cd_ResolveBase(base, resolved, (int)sizeof(resolved));
+
+    /* One file per target character: the fit (scale, anchors, rest swing) is
+     * computed against `def`, so the same glb standing in for two characters
+     * needs two entries. */
     for (i = 0; i < s_charaCount && ch == NULL; i++)
-        if (strcmp(s_chara[i].file, file) == 0)
+        if (strcmp(s_chara[i].file, file) == 0 && s_chara[i].def == def)
             ch = &s_chara[i];
+    /* Read from another folder than the one that now wins (a download lands
+     * over a pack's copy): as stale as a changed file. */
+    if (ch != NULL && ch->state == 1 && ch->file[0] != '@' && strcmp(ch->base, base) != 0)
+        ch->stale = 1;
+    if (ch != NULL && ch->stale)
+    {
+        if (SDL_GetTicks() - ch->lastUse < SKIN_STALE_HOLD_MS)
+            return NULL;
+        SH_DBG("[SKIN] %s changed on disk: reading it again", ch->file);
+        Skin_Release(ch);
+        ch = NULL;
+    }
     for (i = 0; ch == NULL && i < s_missingCount; i++)
         if (strcmp(s_missing[i], file) == 0)
             return NULL;
     if (ch == NULL)
     {
+        for (i = 0; i < s_charaCount && ch == NULL; i++)
+            if (s_chara[i].file[0] == '\0')
+                ch = &s_chara[i];
+        if (ch == NULL && s_charaCount < PC_SKIN_MAX_CHARA)
+            ch = &s_chara[s_charaCount++];
+        if (ch == NULL && (ch = Skin_Evictable()) != NULL)
+            Skin_Release(ch);
         /* Full, a model is refused and the character draws stock -- which
          * play-as swaps did once every stock character looked for a
          * replacement and each miss kept a slot. */
-        if (s_charaCount >= PC_SKIN_MAX_CHARA)
+        if (ch == NULL)
         {
             SH_DBG("[SKIN] no room for %s (%d models loaded)", file, s_charaCount);
             return NULL;
         }
-        ch = &s_chara[s_charaCount++];
         memset(ch, 0, sizeof(*ch));
         snprintf(ch->name, sizeof(ch->name), "%s", name);
         snprintf(ch->file, sizeof(ch->file), "%s", file);
@@ -2668,7 +2806,10 @@ static PcSkinChara* Skin_Entry(const char* name, const char* file, const char* b
                 ch->state = 1;
         }
         if (ch->state == 1)
+        {
             Skin_LoadSettings(ch, base);
+            ch->srcSig = Skin_SourceSig(base);
+        }
         else
         {
             /* Only the slot just taken can fail here: hand it back and
@@ -2677,10 +2818,40 @@ static PcSkinChara* Skin_Entry(const char* name, const char* file, const char* b
                 snprintf(s_missing[s_missingCount++], sizeof(s_missing[0]), "%s", file);
             if (ch == &s_chara[s_charaCount - 1])
                 s_charaCount--;
+            else
+                ch->file[0] = '\0';
             return NULL;
         }
     }
+    ch->lastUse = SDL_GetTicks();
     return ch;
+}
+
+/* The files on disk changed (a download landed, one was removed, a pack was
+ * turned on): a model that was not there may be now. Without this a character
+ * chosen before its file was installed stayed on the stock model until a
+ * restart. */
+static int s_filesGen;
+
+int Pc_SkinChara_FilesGen(void)
+{
+    return s_filesGen;
+}
+
+void Pc_SkinChara_FilesChanged(void)
+{
+    int i;
+
+    s_missingCount = 0;
+    /* A model whose own files changed is read again where it is next used
+     * (Skin_Entry), in the menus and in a game alike: after an update the old
+     * file's model stayed in memory under the new version's name, and only a
+     * restart cleared it. */
+    for (i = 0; i < s_charaCount; i++)
+        if (s_chara[i].state == 1 && s_chara[i].file[0] != 0 && s_chara[i].file[0] != '@' &&
+            Skin_SourceSig(s_chara[i].base) != s_chara[i].srcSig)
+            s_chara[i].stale = 1;
+    s_filesGen++;
 }
 
 /* Character Face Animation's models, read up front: parsing a glTF and its
@@ -2705,11 +2876,47 @@ void Pc_SkinChara_SetHeroFile(const char* file)
     snprintf(s_heroFile, sizeof(s_heroFile), "%s", file != NULL ? file : "");
 }
 
+/* Character Select's per-character choice, keyed by the stock model's name
+ * (SIBYL, LISA...): a file base in gamedata/load/CHARA, "-" for the stock
+ * model even when NAME.glb is installed, or empty for the old automatic rule
+ * (NAME.glb if present). Harry's own choice goes through Play As instead. */
+static struct { char name[16]; char file[96]; } s_charaFile[32];
+static int s_charaFileCount;
+
+void Pc_SkinChara_SetCharaFile(const char* name, const char* file)
+{
+    int i;
+
+    if (name == NULL || !name[0])
+        return;
+    for (i = 0; i < s_charaFileCount; i++)
+        if (strcmp(s_charaFile[i].name, name) == 0)
+            break;
+    if (i == s_charaFileCount)
+    {
+        if (i >= (int)(sizeof(s_charaFile) / sizeof(s_charaFile[0])))
+            return;
+        s_charaFileCount++;
+        snprintf(s_charaFile[i].name, sizeof(s_charaFile[i].name), "%s", name);
+    }
+    snprintf(s_charaFile[i].file, sizeof(s_charaFile[i].file), "%s", file != NULL ? file : "");
+}
+
+const char* Pc_SkinChara_CharaFile(const char* name)
+{
+    int i;
+
+    for (i = 0; i < s_charaFileCount; i++)
+        if (strcmp(s_charaFile[i].name, name) == 0)
+            return s_charaFile[i].file;
+    return "";
+}
+
 void* Pc_SkinChara_Begin(s_Skeleton* skel, const void* boneCoords)
 {
     const s_ModelHeader* hdr;
     const s_LmHeader* lm = NULL;
-    char name[16], base[96], path[112];
+    char name[16], base[200], path[224];
     PcSkinChara* ch = NULL;
     const PcSkinRestDef* def = NULL;
     int i;
@@ -2740,26 +2947,34 @@ void* Pc_SkinChara_Begin(s_Skeleton* skel, const void* boneCoords)
     if (g_PcConfig.allowLooseFiles)
     {
         /* A play-as Harry swap loads its own file; one that is gone or broken
-         * falls back to HERO.glb, then to the stock model. */
-        if (strcmp(name, "HERO") == 0 && s_heroFile[0] != '\0')
+         * falls back to HERO.glb, then to the stock model. Every other
+         * character takes Character Select's choice the same way. */
+        /* The player's own model wears the Play As choice whichever
+         * character's model it is (a base= swap plays in Cheryl's, say);
+         * that character's own row is for the NPC. */
+        int heroLm = lm == g_WorldGfxWork.harryModel.lmHdr;
+        const char* pick = (heroLm || strcmp(name, "HERO") == 0) ? s_heroFile : Pc_SkinChara_CharaFile(name);
+        int stock = strcmp(pick, "-") == 0;
+
+        if (pick[0] != '\0' && !stock)
         {
-            char dir[96], *slash;
+            char dir[200], *slash;
             snprintf(dir, sizeof(dir), "%s", base);
             slash = strrchr(dir, '/');
             if (slash != NULL)
             {
                 *slash = '\0';
-                snprintf(path, sizeof(path), "%s/%s", dir, s_heroFile);
-                ch = Skin_Entry(name, s_heroFile, path, def);
+                snprintf(path, sizeof(path), "%s/%s", dir, pick);
+                ch = Skin_Entry(name, pick, path, def);
                 if (ch != NULL && ch->state != 1)
                     ch = NULL;
             }
         }
-        if (ch == NULL)
+        if (ch == NULL && !stock)
             ch = Skin_Entry(name, name, base, def);
-        if ((ch == NULL || ch->state != 1) && def->alt != NULL)
+        if ((ch == NULL || ch->state != 1) && !stock && def->alt != NULL)
         {
-            char altBase[96], *slash;
+            char altBase[200], *slash;
             snprintf(altBase, sizeof(altBase), "%s", base);
             slash = strrchr(altBase, '/');
             if (slash != NULL)
@@ -2783,9 +2998,10 @@ void* Pc_SkinChara_Begin(s_Skeleton* skel, const void* boneCoords)
         return NULL;
     if (ch->state != 1 || !Skin_PickInstance(ch, boneCoords))
         return NULL;
+    ch->previewOnly = 0;
     memset(ch->have, 0, sizeof(ch->have));
     memset(ch->lit, 0, sizeof(ch->lit));
-    ch->isPlayer = (lm == g_WorldGfxWork.harryModel.lmHdr);
+    ch->isPlayer = (lm == g_WorldGfxWork.harryModel.lmHdr || boneCoords == (const void*)g_SysWork.playerBoneCoords);
     return ch;
 }
 
@@ -3360,8 +3576,10 @@ static float Skin_MouthWeight(PcSkinChara* ch)
     /* A line with no speaker on record falls back to the voice's pitch. Every
      * stock character now has a face, so for them only the player takes that
      * guess; two women in a scene would otherwise both mouth one line. */
-    mine = speaker != NULL ? strcmp(speaker, ch->def->voice != NULL ? ch->def->voice : ch->name) == 0
-                           : female == ch->def->femaleVoice && (!ch->native || ch->isPlayer);
+    /* The player speaks Harry's lines in whichever body: a base= swap
+     * wears Cheryl's model but still says what Harry says. */
+    mine = speaker != NULL ? strcmp(speaker, ch->isPlayer ? "HERO" : ch->def->voice != NULL ? ch->def->voice : ch->name) == 0
+                           : (ch->isPlayer ? female == ch->female : female == ch->def->femaleVoice) && (!ch->native || ch->isPlayer);
     if (level > 0.0f && mine && !(s_rd.active && ch->isPlayer))
         target = level;
     rate = target > ch->mouth ? 30.0f : 14.0f;
@@ -3553,6 +3771,12 @@ void Pc_SkinChara_End(void* chara, void* otp, int shift, int hideHead)
         return;
     Skin_Ragdoll(ch);
     beam = 1.0f - ch->beamPct / 100.0f;
+    /* The player's +2 self-beam flag, as func_8003DA9C sets for the stock body. */
+    if (ch->isPlayer)
+    {
+        extern int g_PcFlashlightDirOverridden;
+        beam = (g_PcFlashlightDirOverridden ? 1.0f : beam) + 2.0f;
+    }
     PsyX_GetDrawEnvOffset(&offX, &offY);
     for (v = 0; v < ch->vertCount; v++)
     {
@@ -3825,4 +4049,216 @@ void Pc_SkinChara_ApplyLighting(u32 handle, unsigned int program)
         glBindTexture(GL_TEXTURE_2D, mat->otexture);
         glActiveTexture(GL_TEXTURE0);
     }
+}
+
+/* ---- Character Select preview -------------------------------------- */
+
+/* The model `file` fitted to the character whose stock model is `name`:
+ * loaded through the same entry the game would use, so the preview shows the
+ * scale and rest fit the character will get. NULL when it cannot load. */
+int Pc_SkinChara_PreviewCached(const char* name, const char* file)
+{
+    int i;
+
+    if (name == NULL || file == NULL || !file[0])
+        return 0;
+    for (i = 0; i < s_charaCount; i++)
+        if (s_chara[i].file[0] != '\0' && strcmp(s_chara[i].file, file) == 0 && s_chara[i].def != NULL &&
+            strcmp(s_chara[i].def->name, name) == 0 && s_chara[i].state == 1)
+            return 1;
+    return 0;
+}
+
+void* Pc_SkinChara_PreviewLoad(const char* name, const char* file)
+{
+    const PcSkinRestDef* def = NULL;
+    PcSkinChara*         ch;
+    char                 base[200];
+    int                  i;
+
+    if (name == NULL || file == NULL || !file[0])
+        return NULL;
+    for (i = 0; i < (int)(sizeof(s_restDefs) / sizeof(s_restDefs[0])); i++)
+        if (strcmp(name, s_restDefs[i].name) == 0)
+            def = &s_restDefs[i];
+    if (def == NULL)
+        return NULL;
+    snprintf(base, sizeof(base), "gamedata/load/CHARA/%s", file);
+    /* Browsing keeps the last few models it showed, so stepping back and
+     * forth between rows (or Cybil and Monster Cybil, one file fitted twice)
+     * costs nothing; older ones are freed, so a list of any length still
+     * holds only that many. Freeing every other model at once reloaded and
+     * re-decoded a 40k-vertex model on each step back. */
+    for (;;)
+    {
+        PcSkinChara* oldest = NULL;
+        int          held = 0;
+
+        for (i = 0; i < s_charaCount; i++)
+        {
+            PcSkinChara* c = &s_chara[i];
+
+            if (!c->previewOnly || c->file[0] == '\0' || (strcmp(c->file, file) == 0 && c->def == def))
+                continue;
+            held++;
+            if (oldest == NULL || c->lastUse < oldest->lastUse)
+                oldest = c;
+        }
+        if (held < SKIN_PREVIEW_KEEP || oldest == NULL)
+            break;
+        Skin_Release(oldest);
+    }
+    {
+        int fresh = 1;
+
+        for (i = 0; i < s_charaCount; i++)
+            if (s_chara[i].file[0] != '\0' && strcmp(s_chara[i].file, file) == 0 && s_chara[i].def == def)
+                fresh = 0;
+        ch = Skin_Entry(name, file, base, def);
+        if (ch != NULL && fresh)
+            ch->previewOnly = 1;
+    }
+    return (ch != NULL && ch->state == 1) ? ch : NULL;
+}
+
+static float* s_prevStream;
+static int    s_prevStreamCap;
+static float  s_prevBounds[6];
+static float  s_prevPoseR[PC_SKIN_BONES][9];
+static float  s_prevPoseT[PC_SKIN_BONES][3];
+static int    s_prevPosed;      /* an animation pose is set */
+static int    s_prevPoseDirty;  /* the stream is of another pose */
+
+void Pc_SkinChara_PreviewPose(const float (*rot)[9], const float (*pos)[3])
+{
+    if (rot == NULL || pos == NULL)
+    {
+        if (s_prevPosed)
+            s_prevPoseDirty = 1;
+        s_prevPosed = 0;
+        return;
+    }
+    memcpy(s_prevPoseR, rot, sizeof(s_prevPoseR));
+    memcpy(s_prevPoseT, pos, sizeof(s_prevPoseT));
+    s_prevPosed     = 1;
+    s_prevPoseDirty = 1;
+}
+
+/* Poses `chp` on its target's rest table (the standing pose the game fits it
+ * to) and writes one flat triangle stream in game space, 8 floats per corner:
+ * x y z, outward normal, u v. The stream is the loader's and stays valid until
+ * the next call with another model. Materials come back as ranges into it.
+ * bounds = min x y z, max x y z. Returns the material count, 0 when nothing
+ * can be drawn. */
+int Pc_SkinChara_PreviewMesh(void* chp, const float** stream, int* cornerCount,
+                             PcSkinPreviewMat* mats, int maxMats, float bounds[6])
+{
+    PcSkinChara* ch = (PcSkinChara*)chp;
+    int          b, v, m, k, need = 0, n = 0, outMats = 0;
+    float*       o;
+
+    if (ch == NULL || ch->state != 1 || ch->vertCount == 0)
+        return 0;
+    for (m = 0; m < ch->matCount; m++)
+        need += ch->mats[m].triCount * 3;
+    if (need == 0)
+        return 0;
+    if (s_prevStreamFor == chp && s_prevStream != NULL && !s_prevPoseDirty)
+    {
+        /* Posed once per model and pose: the viewer turns the stream. */
+        *stream      = s_prevStream;
+        *cornerCount = s_prevStreamCap;
+        for (m = 0; m < ch->matCount && outMats < maxMats; m++)
+        {
+            mats[outMats].texture = Skin_MapTexture(ch, m, SKIN_MAP_BASE);
+            mats[outMats].first   = n;
+            mats[outMats].count   = ch->mats[m].triCount * 3;
+            n += mats[outMats].count;
+            outMats++;
+        }
+        for (k = 0; k < 6; k++) bounds[k] = s_prevBounds[k];
+        return outMats;
+    }
+
+    s_prevPoseDirty = 0;
+    for (b = 0; b < PC_SKIN_BONES; b++)
+    {
+        for (k = 0; k < 9; k++) ch->rv[b][k] = s_prevPosed ? s_prevPoseR[b][k] : ch->def->rest[b].R[k] / 4096.0f;
+        for (k = 0; k < 3; k++) ch->tv[b][k] = s_prevPosed ? s_prevPoseT[b][k] : (float)ch->def->rest[b].T[k];
+    }
+    for (v = 0; v < ch->vertCount; v++)
+    {
+        const PcSkinVert* sv = &ch->verts[v];
+        float p[3] = { 0, 0, 0 }, ws = 0;
+        int q;
+
+        for (q = 0; q < sv->n; q++)
+        {
+            float oo[3];
+            M3_MulV(ch->rv[sv->bone[q]], sv->l[q], oo);
+            for (k = 0; k < 3; k++) p[k] += sv->w[q] * (oo[k] + ch->tv[sv->bone[q]][k]);
+            ws += sv->w[q];
+        }
+        for (k = 0; k < 3; k++) ch->pos[v * 3 + k] = ws > 0 ? p[k] / ws : 0;
+    }
+
+    if (need > s_prevStreamCap || s_prevStream == NULL)
+    {
+        float* grown = (float*)realloc(s_prevStream, (size_t)need * 8 * sizeof(float));
+        if (grown == NULL)
+            return 0;
+        s_prevStream = grown;
+    }
+    s_prevStreamCap = need;
+    s_prevStreamFor = chp;
+    o = s_prevStream;
+    for (k = 0; k < 3; k++) { s_prevBounds[k] = 1e9f; s_prevBounds[3 + k] = -1e9f; }
+    for (m = 0; m < ch->matCount; m++)
+    {
+        const PcSkinMat* mat = &ch->mats[m];
+        int t;
+
+        if (outMats < maxMats)
+        {
+            mats[outMats].texture = Skin_MapTexture(ch, m, SKIN_MAP_BASE);
+            mats[outMats].first   = n;
+            mats[outMats].count   = mat->triCount * 3;
+            outMats++;
+        }
+        for (t = 0; t < mat->triCount; t++)
+        {
+            int c;
+            for (c = 0; c < 3; c++)
+            {
+                u32               vi = mat->tris[t].v[c];
+                const PcSkinVert* sv = &ch->verts[vi];
+                float             nl[3], nw[3];
+
+                nl[0] = (float)sv->gteNormal.vx;
+                nl[1] = (float)sv->gteNormal.vy;
+                nl[2] = (float)sv->gteNormal.vz;
+                M3_MulV(ch->rv[sv->dom], nl, nw);
+                o[0] = ch->pos[vi * 3];
+                o[1] = ch->pos[vi * 3 + 1];
+                o[2] = ch->pos[vi * 3 + 2];
+                /* The ILM convention points normals inward. */
+                o[3] = -nw[0];
+                o[4] = -nw[1];
+                o[5] = -nw[2];
+                o[6] = mat->tris[t].uv[c][0];
+                o[7] = mat->tris[t].uv[c][1];
+                for (k = 0; k < 3; k++)
+                {
+                    if (o[k] < s_prevBounds[k])     s_prevBounds[k]     = o[k];
+                    if (o[k] > s_prevBounds[3 + k]) s_prevBounds[3 + k] = o[k];
+                }
+                o += 8;
+                n++;
+            }
+        }
+    }
+    *stream      = s_prevStream;
+    *cornerCount = n;
+    for (k = 0; k < 6; k++) bounds[k] = s_prevBounds[k];
+    return outMats;
 }

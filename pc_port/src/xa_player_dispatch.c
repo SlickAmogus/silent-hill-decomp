@@ -64,7 +64,11 @@ int Xa_IsVoiceAudioDraining(void)
 
 int XaPlayer_FileAudible(void)
 {
+#if defined(SH_NO_OPENAL)
+    return PcSoftwareXa_FileAudible();
+#else
     return PcAudioConfig_UsesSoftwareSpu()
         ? PcSoftwareXa_FileAudible()
         : PcLegacyXa_FileAudible();
+#endif
 }

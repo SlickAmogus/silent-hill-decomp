@@ -3,6 +3,8 @@
 #ifdef SH_PC_PORT
 
 bool PC_PlayerManualReloadRequested(void);
+/* 1 = a dry fire on an empty clip starts a reload (auto_reload, or a touchscreen). */
+int  Pc_AutoReloadEnabled(void);
 
 /* Latched manual-reload request. Set on the bind's rising edge (sampled every
  * frame in Pc_ExtraActionsUpdate, weapon/ammo conditions checked at press time)

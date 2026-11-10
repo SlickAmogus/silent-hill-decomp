@@ -31,7 +31,10 @@ typedef enum _OptionsMenuState
 #ifdef SH_PC_PORT
     OptionsMenuState_EnterPcOptions    = 16, /** PC: entering PC options menu. */
     OptionsMenuState_PcOptions         = 17, /** PC: in PC options menu. */
-    OptionsMenuState_LeavePcOptions    = 18  /** PC: leaving PC options menu. */
+    OptionsMenuState_LeavePcOptions    = 18, /** PC: leaving PC options menu. */
+    OptionsMenuState_EnterCharaSelect  = 19, /** PC: fading out of PC options into Character Select. */
+    OptionsMenuState_CharaSelect       = 20, /** PC: in Character Select. */
+    OptionsMenuState_LeaveCharaSelect  = 21  /** PC: fading out of Character Select back to PC options. */
 #endif
 } e_OptionsMenuState;
 

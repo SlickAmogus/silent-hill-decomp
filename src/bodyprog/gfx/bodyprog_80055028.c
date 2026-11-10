@@ -67,14 +67,19 @@ static s16 Pc_OverlayQuadHalfW(void)
  * synthesises `int f()` at the call site and then rejects the real
  * definition as a conflicting type; GCC only warns. */
 void func_80057228(MATRIX* mat, s32 alpha, SVECTOR* arg2, VECTOR3* arg3);
-/* When culling is disabled, ignore fog-based draw distance clamp.
- * PSX uses fogFarDistance as a draw distance optimization (don't render
- * what fog fully hides). On PC we want everything to render and let
- * fog visually obscure it instead of culling geometry. The shader fog now
- * dissolves fully-fogged geometry to exactly the void colour (PsyCross
- * GPU_DITHERING_NO_VCOLOR fades dither/quantize with fog), so drawing past
- * the fog plane no longer leaves a shade-off band -- no distance cull needed. */
-#define FOG_FAR_DIST() (g_PcConfig.disableCulling ? 0x7FFFFFFF : g_WorldEnvWork.fog.farDistance)
+/* The fog far plane stays a draw-distance cap with culling off. The GTE
+ * depth-cue byte saturates there, and the fragment shader multiplies it by the
+ * fog strength, so at strength >= 1 every face whose NEAREST vertex is past
+ * the plane (PC_FACE_CULL_DEPTH / PC_OBJ_CULL_DEPTH) is already the void
+ * colour: dropping it changes no pixel. Lifting the cap instead drew the whole
+ * resident grid out to the ~61u hard limit fully fogged -- pure overdraw that
+ * an immediate-mode GPU pays in full (3.5 fps on an Intel HD 3000 at 960x720
+ * on the streets). The lift was for a shade-off band at the plane, which the
+ * nearest-vertex rule removed. disable_culling keeps what its name promises,
+ * the screen-edge and PVS gates below and in vw_calc.c. Below strength 1 the
+ * fog never covers, so the far geometry must draw (Pc_LongViewActive). */
+extern float g_PsyX_FogStrength;
+#define FOG_FAR_DIST() (g_PcConfig.disableCulling ? Pc_WorldVisCap(g_WorldEnvWork.fog.farDistance) : g_WorldEnvWork.fog.farDistance)
 
 /* Per-poly far drop. The base 0x79C shifted by (shift+2) is ~61u, and it -- not
  * chunk residency, not the cull predicate -- is what actually ends the view:
@@ -161,7 +166,7 @@ static s32 s_pcOtTagBase = 0;
 #define SH_WHOLEMAP_FARCAP(cap)                                                 \
     do {                                                                        \
         if (Pc_WholeMapDrawActive())                                            \
-            (cap) = 0x7FFFFFFF;                                                 \
+            (cap) = Pc_WorldVisCap(cap);                                        \
     } while (0)
 /* STRICT `< 0`, not `<= 0`: wrapped far depths (>=128u) are always negative
  * (SZ3 saturates at 0xFFFF before a second s16 wrap), while a poly fully
@@ -965,6 +970,45 @@ s32 func_80055490(SVECTOR* arg0) // 0x80055490
     return g_WorldEnvWork.field_54;
 }
 
+#ifdef SH_PC_PORT
+/* The light the game itself set up this frame, before the port's first-person
+ * and follow-aim overrides (func_800554C4). */
+static SVECTOR s_PcFlStockDir;
+static VECTOR3 s_PcFlStockPos;
+int            g_PcFlashlightDirOverridden = 0;
+static int     s_PcFlOverridden = 0;
+
+static SVECTOR s_PcFlSavedDir;
+static VECTOR3 s_PcFlSavedPos;
+static int     s_PcFlSwapped = 0;
+
+/* Around the player's own draw (skeleton, skinned replacement, held item) the
+ * flashlight goes back to the game's light. The beam leaves his chest, so a
+ * redirected one pitched up or down sweeps across his head or legs from inches
+ * away -- the per-vertex spot term saturates there -- and the first-person eye
+ * origin sits inside his head. The game's own light lights him as on the PSX,
+ * chest glow included; the world keeps the redirected beam. */
+void Pc_FlashlightPlayerBegin(void)
+{
+    if (s_PcFlSwapped || !s_PcFlOverridden)
+        return;
+    s_PcFlSavedDir = g_WorldEnvWork.field_58;
+    s_PcFlSavedPos = g_WorldEnvWork.field_60;
+    g_WorldEnvWork.field_58 = s_PcFlStockDir;
+    g_WorldEnvWork.field_60 = s_PcFlStockPos;
+    s_PcFlSwapped = 1;
+}
+
+void Pc_FlashlightPlayerEnd(void)
+{
+    if (!s_PcFlSwapped)
+        return;
+    g_WorldEnvWork.field_58 = s_PcFlSavedDir;
+    g_WorldEnvWork.field_60 = s_PcFlSavedPos;
+    s_PcFlSwapped = 0;
+}
+#endif
+
 void func_800554C4(s32 arg0, s16 arg1, GsCOORDINATE2* coord0, GsCOORDINATE2* coord1, SVECTOR* rot, q19_12 x, q19_12 y, q19_12 z, s_WaterZone* waterZones) // 0x800554C4
 {
     MATRIX   mat;
@@ -1037,6 +1081,7 @@ void func_800554C4(s32 arg0, s16 arg1, GsCOORDINATE2* coord0, GsCOORDINATE2* coo
         extern VECTOR3 g_PcFpsEyePos;
         extern VECTOR3 g_PcFlashlightShadowWorld;
         extern int     Pc_ScriptOwnsScene(void);
+        extern int     g_DebugThirdPersonCam;
         /* Only aim the flashlight from the FPS eye when the FPS camera is
          * ACTUALLY the view — i.e. NOT while a script/cutscene owns the scene.
          * Pc_ScriptOwnsScene() is the same predicate that stands the FPS camera
@@ -1053,12 +1098,80 @@ void func_800554C4(s32 arg0, s16 arg1, GsCOORDINATE2* coord0, GsCOORDINATE2* coo
          * with the eye. The shadow map uses this (not the eye) so FPS shadows land
          * where third person shows them; in TPS it just mirrors field_60. */
         g_PcFlashlightShadowWorld = g_WorldEnvWork.field_60;
+        s_PcFlStockDir    = g_WorldEnvWork.field_58;
+        s_PcFlStockPos    = g_WorldEnvWork.field_60;
+        g_PcFlashlightDirOverridden = 0;
+        s_PcFlOverridden = 0;
+        /* flashlight_follow_aim_fps off: the eye stays the origin, so the beam still
+         * starts where the player sees from, but it points along Harry's torso as
+         * the game aims it instead of turning with the view. The two fields are
+         * independent inputs to every consumer below (cone, per-vertex light,
+         * flare), so the origin can move without the direction. */
         if (fpsViewActive && g_SysWork.field_2388.isFlashlightOn_15)
         {
-            g_WorldEnvWork.field_58.vx = g_PcFpsViewFwd.vx;
-            g_WorldEnvWork.field_58.vy = g_PcFpsViewFwd.vy;
-            g_WorldEnvWork.field_58.vz = g_PcFpsViewFwd.vz;
-            g_WorldEnvWork.field_60    = g_PcFpsEyePos;
+            if (g_PcConfig.flashlightFollowAimFps)
+            {
+                g_WorldEnvWork.field_58.vx = g_PcFpsViewFwd.vx;
+                g_WorldEnvWork.field_58.vy = g_PcFpsViewFwd.vy;
+                g_WorldEnvWork.field_58.vz = g_PcFpsViewFwd.vz;
+                g_PcFlashlightDirOverridden = 1;
+            }
+            g_WorldEnvWork.field_60 = g_PcFpsEyePos;
+            s_PcFlOverridden = 1;
+        }
+        /* Thirdperson / Over-the-Shoulder: the beam stays at Harry's chest. While
+         * a weapon is readied it follows the camera's aim; otherwise it keeps the
+         * yaw the game gives it (Harry's facing) and takes only the camera's
+         * pitch, so it still tilts up and down but faces the camera whenever
+         * Harry does -- following the yaw too hid the lens flare and threw the
+         * beam back across his own body in 2D controls. Same scripted-scene and
+         * torso-light gates as first person. */
+        else if (g_PcConfig.flashlightFollowAim && g_DebugThirdPersonCam && !g_PcFpsCam &&
+                 !Pc_ScriptOwnsScene() && g_SysWork.field_2388.isFlashlightOn_15 &&
+                 coord1 == &g_SysWork.playerBoneCoords[HarryBone_Torso])
+        {
+            extern VECTOR3 g_PcAltCamViewFwd;
+            extern u16     g_Player_IsAiming;
+
+            if (g_SysWork.playerCombat.isAiming || g_Player_IsAiming)
+            {
+                g_WorldEnvWork.field_58.vx = g_PcAltCamViewFwd.vx;
+                g_WorldEnvWork.field_58.vy = g_PcAltCamViewFwd.vy;
+                g_WorldEnvWork.field_58.vz = g_PcAltCamViewFwd.vz;
+            }
+            else
+            {
+                float cy = (float)g_PcAltCamViewFwd.vy / 4096.0f;
+                float hx = (float)g_WorldEnvWork.field_58.vx;
+                float hz = (float)g_WorldEnvWork.field_58.vz;
+                float hl = sqrtf(hx * hx + hz * hz);
+                float len = sqrtf(hx * hx + hz * hz +
+                                  (float)g_WorldEnvWork.field_58.vy * (float)g_WorldEnvWork.field_58.vy);
+                float h;
+
+                /* The direction's length is the beam's strength in the per-vertex
+                 * light (func_80057228 scales by it), so only its angle changes. */
+                if (len < 64.0f)
+                    len = 4096.0f;
+                /* A beam pointing straight up or down has no yaw of its own. */
+                if (hl < 64.0f)
+                {
+                    hx = (float)g_PcAltCamViewFwd.vx;
+                    hz = (float)g_PcAltCamViewFwd.vz;
+                    hl = sqrtf(hx * hx + hz * hz);
+                }
+                if (cy > 1.0f) cy = 1.0f;
+                if (cy < -1.0f) cy = -1.0f;
+                h = sqrtf(1.0f - cy * cy) * len;
+                if (hl > 0.0f)
+                {
+                    g_WorldEnvWork.field_58.vx = (s16)(hx / hl * h);
+                    g_WorldEnvWork.field_58.vz = (s16)(hz / hl * h);
+                    g_WorldEnvWork.field_58.vy = (s16)(cy * len);
+                }
+            }
+            g_PcFlashlightDirOverridden = 1;
+            s_PcFlOverridden = 1;
         }
     }
 #endif
@@ -3574,6 +3687,11 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
 #endif
     vertOffset   = modelHdr->vertexOffset;
     normalOffset = modelHdr->normalOffset;
+#ifdef SH_PC_PORT
+    /* World meshes may cast flashlight shadows from semi-transparent
+     * surfaces (PsyX_GPU.cpp, g_PsyX_SemiShadowCast); effects never do. */
+    { extern int g_PsyX_SemiShadowCast; g_PsyX_SemiShadowCast = 1; }
+#endif
 
     gte_lddqa(g_WorldEnvWork.field_4C);
     gte_lddqb_0();
@@ -3955,7 +4073,9 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
         Gfx_MeshDraw(curMeshHdr, scratchData, otTag, arg2);
 #endif
     }
-
+#ifdef SH_PC_PORT
+    { extern int g_PsyX_SemiShadowCast; g_PsyX_SemiShadowCast = 0; }
+#endif
 }
 
 void func_800574D4(s_MeshHeader* meshHdr, s_GteScratchData* scratchData) // 0x800574D4
@@ -5850,6 +5970,11 @@ void func_8005A21C(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
         return;
     }
 #endif
+#ifdef SH_PC_PORT
+    /* World meshes may cast flashlight shadows from semi-transparent
+     * surfaces (PsyX_GPU.cpp, g_PsyX_SemiShadowCast); effects never do. */
+    { extern int g_PsyX_SemiShadowCast; g_PsyX_SemiShadowCast = 1; }
+#endif
 
 #ifdef SH_PC_PORT
     /* Characters are fogged by the SHADER: the prim builder below attaches
@@ -5927,6 +6052,9 @@ void func_8005A21C(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
 
         func_8005AC50(curMeshHdr, (s_GteScratchData2*)scratchData, otTag, (s32)(intptr_t)arg2);
     }
+#ifdef SH_PC_PORT
+    { extern int g_PsyX_SemiShadowCast; g_PsyX_SemiShadowCast = 0; }
+#endif
 }
 
 #ifdef SH_PC_PORT

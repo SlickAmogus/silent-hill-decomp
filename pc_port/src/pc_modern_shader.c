@@ -165,7 +165,7 @@ int Pc_ModernShader_SkinLit(void)
 #define PC_SKIN_BEAMSPEC_AT "\t\t\t\tvec3 fl = u_flColor * (cone * atten * ndl * shadow);\n"
 #define PC_SKIN_BEAMSPEC \
     "\t\t\t\tvec3 fl = u_flColor * (cone * atten * ndl * shadow);\n" \
-    "\t\t\t\tif (u_skinLit > 0) fragColor.rgb += min(SkinGGX(skN, skV, L, skF0, skRough) * u_flColor * (cone * atten * shadow * 3.14159 * (1.0 - clamp(v_fade, 0.0, 1.0))), vec3(1.5));\n"
+    "\t\t\t\tif (u_skinLit > 0) fragColor.rgb += min(SkinGGX(skN, skV, L, skF0, skRough) * u_flColor * (cone * atten * shadow * 3.14159 * (1.0 - clamp(flFade, 0.0, 1.0))), vec3(1.5));\n"
 #define PC_SKIN_EMISSIVE_AT "\t\tfloat fogAmt = clamp(v_fogAmount * u_fogStrength, 0.0, 1.0);\n"
 #define PC_SKIN_EMISSIVE \
     "\t\tif (u_skinEmissiveOn > 0) fragColor.rgb += texture2D(u_skinEmissiveTex, tc).rgb * u_skinEmissive;\n" \

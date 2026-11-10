@@ -33,10 +33,14 @@
 #include "pc_dpad_icons.h"
 #include "pc_bind_input.h"
 #include "pc_bind_panel.h"
+#include "pc_chara_select.h"
+#include "pc_native_menu_draw.h"
 #include "pc_mouse_cursor.h"
 #include "pc_config.h"
 #include "lang_text.h"
 #include "pc_cheats.h"
+#include "pc_confirm_dialog.h"
+#include "pc_reset_settings.h"
 #include "control_style.h"
 #include "lang_quick.h"
 #include "sh_log.h"
@@ -70,7 +74,8 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_TPSRESTX, QO_X_TPSRESTY, QO_X_TPSAIMX, QO_X_TPSAIMY,
        QO_X_OTSRESTX, QO_X_OTSRESTY, QO_X_OTSAIMX, QO_X_OTSAIMY,
        QO_X_DREAMSTR, QO_X_DREAMBLUR, QO_X_DPADMOVE, QO_X_CROSSHAIRSTYLE,
-       QO_X_LINEGAP, QO_X_CHARALIGHT, QO_X_PPLIGHT, QO_X_HEROLIGHT, QO_X_HEROLIGHTFL, QO_X_FACEANIM };
+       QO_X_LINEGAP, QO_X_CHARALIGHT, QO_X_PPLIGHT, QO_X_HEROLIGHT, QO_X_HEROLIGHTFL, QO_X_FACEANIM,
+       QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD, QO_X_WORLDVIS, QO_X_FLASHAIM };
 extern const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz);
 extern void        PcOpt_QuickExtraAdjust(int which, int dir);
 extern void        PcOpt_QuickViewReset(int mode);
@@ -120,8 +125,9 @@ static const QoRowDef s_pageGfx1[] = {
     { ROW_OPT,   "post_process",         0, NULL },
     { ROW_OPT,   "tonemap",              0, NULL },
     { ROW_OPT,   "fog_strength",         0, NULL },
+    { ROW_EXTRA, NULL, QO_X_WORLDVIS,       "World Visibility" },  /* fog below 1.0 only: qo_gfx1_page */
     { ROW_OPT,   "bullet_decals",        0, NULL },
-    { ROW_EXTRA, NULL, QO_X_FACEANIM,       "Character Face Animation" },
+    { ROW_EXTRA, NULL, QO_X_FACEANIM,       "Character Face Animation (WIP)" },
     /* Frame cap, beside Weather_Rate: both decide how fast the world ticks. */
     { ROW_OPT,   "fps_cap",              0, NULL },  /* FPS_Limit */
     { ROW_OPT,   "weather_sim_hz",       0, NULL },  /* Weather_Rate: 30 or 60 Hz */
@@ -133,7 +139,8 @@ static const QoRowDef s_pageGfx2[] = {
     { ROW_OPT,   "flashlight_mode",      0, NULL },
     { ROW_OPT,   "flashlight_intensity", 0, NULL },
     { ROW_OPT,   "flashlight_size",      0, NULL },
-    { ROW_EXTRA, NULL, QO_X_SHADOW,         "Shadow Resolution" },
+    { ROW_EXTRA, NULL, QO_X_FLASHAIM,       "Flashlight Follows Aim" },
+    { ROW_EXTRA, NULL, QO_X_SHADOW,        "Shadow Resolution" },
     { ROW_EXTRA, NULL, QO_X_DREAMBLUR,      "Dream Blur" },  /* not in the PC Options table: that page is full */
     { ROW_EXTRA, NULL, QO_X_DREAMSTR,       "Dream Blur Strength" },
     { ROW_EXTRA, NULL, QO_X_CHARALIGHT,     "Addon Character Lighting" },
@@ -155,7 +162,7 @@ static const QoRowDef s_pageHud[] = {
     /* Quick menu only: crosshair_style has no row in the PC Options table and
      * does not get one, that page keeps its slack for the next HUD setting. */
     { ROW_EXTRA, NULL, QO_X_CROSSHAIRSTYLE,  "Crosshair Style" },
-    { ROW_OPT,   "text_size",            0, NULL },
+    { ROW_EXTRA, NULL, QO_X_CROSSHAIRMELEE,  "Hide Crosshair for Melee" },
     { ROW_OPT,   "low_health_glow",      0, NULL },
     QO_NAV_ROW,
     QO_CLOSE_ROW,
@@ -183,6 +190,7 @@ static const QoRowDef s_pageControls[] = {
     { ROW_OPT,   "aim_assist",             0, NULL },
     { ROW_EXTRA, NULL, QO_X_QUICK_WEAPONS, "Quick Weapon Switching" },
     { ROW_EXTRA, NULL, QO_X_DPADMOVE,        "Disable D-pad for Movement" },
+    { ROW_EXTRA, NULL, QO_X_AUTORELOAD,      "Auto Reload" },
     { ROW_ACTION, NULL, QO_A_KEYBINDS,       "Edit Keybinds" },
     QO_NAV_ROW,
     QO_CLOSE_ROW,
@@ -366,6 +374,35 @@ static const QoRowDef* qo_cheat_page(int cpage, int actions, int* count)
     return s_cheatRows[cpage][actions];
 }
 
+/* World Visibility only exists below fog 1.0, where the fog plane no longer
+ * ends the view, so the page drops the row otherwise. */
+static const QoRowDef* qo_gfx1_page(int* count)
+{
+    static QoRowDef s_noWv[sizeof(s_pageGfx1) / sizeof(s_pageGfx1[0])];
+    static int      s_noWvCount = 0, s_lastShow = -1;
+    int             show = g_PcConfig.fogStrength < 1.0f;
+    int             i;
+
+    if (show != s_lastShow)
+    {
+        s_lastShow      = show;
+        s_viewRowsDirty = 1;
+    }
+    if (show)
+    {
+        *count = (int)(sizeof(s_pageGfx1) / sizeof(s_pageGfx1[0]));
+        return s_pageGfx1;
+    }
+    if (s_noWvCount == 0)
+    {
+        for (i = 0; i < (int)(sizeof(s_pageGfx1) / sizeof(s_pageGfx1[0])); i++)
+            if (!(s_pageGfx1[i].kind == ROW_EXTRA && s_pageGfx1[i].extra == QO_X_WORLDVIS))
+                s_noWv[s_noWvCount++] = s_pageGfx1[i];
+    }
+    *count = s_noWvCount;
+    return s_noWv;
+}
+
 enum { QO_PG_GFX1 = 0, QO_PG_GFX2, QO_PG_HUD, QO_PG_AUDIO, QO_PG_VIEW,
        QO_PG_CHEATS1, QO_PG_CHEATS2, QO_PG_DEBUG1, QO_PG_DEBUG2, QO_PG_CONTROLS };
 
@@ -384,7 +421,7 @@ static const QoRowDef* qo_page_rows(int page, int* count)
         case QO_PG_DEBUG1:   return qo_cheat_page(PC_CHEATS_PAGE_DEBUG,  0, count);
         case QO_PG_DEBUG2:   return qo_cheat_page(PC_CHEATS_PAGE_DEBUG,  1, count);
         case QO_PG_CONTROLS: return QO_TABLE(s_pageControls);
-        default:             return QO_TABLE(s_pageGfx1);
+        default:             return qo_gfx1_page(count);
     }
 }
 
@@ -427,6 +464,12 @@ static int            s_fontsScript = -1; /* Pc_LangQuickScript the face was pic
 /* Baked text, re-baked when the pixel size or the page changes; values are
  * re-baked whenever their text changes. */
 static GLuint s_texTitle, s_texHint, s_texHint2;
+/* The touch reset button: a ring and an R, drawn only while touch drives the
+ * menu; s_resetBtn is its centre and radius in viewport px for Update. */
+static GLuint s_texResetRing, s_texResetR;
+static int    s_resetRingW, s_resetRingH, s_resetRW, s_resetRH;
+static float  s_resetBtn[3];
+static int    s_hintResetMode = -1;
 static int    s_titleW, s_titleH, s_hintW, s_hintH, s_hint2W, s_hint2H;
 /* The Previous / Next row, in pieces so the mouse glyphs sit inline. */
 enum { QO_NAV_PREV = 0, QO_NAV_SLASH, QO_NAV_NEXT, QO_NAV_DEST, QO_NAV_ICON_R, QO_NAV_ICON_L,
@@ -454,6 +497,7 @@ static float s_geoListT, s_geoRowPitch, s_geoRowH, s_geoPanelL, s_geoPanelR;
  * Update's hit-test the same way the row geometry is. */
 static float s_panelOfsX, s_panelOfsY;
 static float s_geoTitleB, s_geoTitleT;
+static float s_geoPanelB; /* with s_geoTitleT, the panel's vertical extent */
 static int   s_dragging;
 static float s_dragLastX, s_dragLastY;
 static int   s_geoRows;
@@ -966,9 +1010,11 @@ static GLuint qo_bake_once(const char* text, float px, int* outW, int* outH, int
     int   asc, desc, gap, W, H, i, pad = 1, prev = 0, stride;
     unsigned char *cov, *rgba, *scratch;
     GLuint tex;
+    char   visual[1024];
 
     if (!s_fontOk || !text || !text[0] || px < 4.0f)
         return 0;
+    text = Pc_LangVisual(text, visual, (int)sizeof(visual));
 
     scale = stbtt_ScaleForPixelHeight(&s_font, px);
     stbtt_GetFontVMetrics(&s_font, &asc, &desc, &gap);
@@ -1216,6 +1262,8 @@ static void qo_free_text(void)
     qo_retire(s_texTitle); s_texTitle = 0;
     qo_retire(s_texHint);  s_texHint  = 0;
     qo_retire(s_texHint2); s_texHint2 = 0;
+    qo_retire(s_texResetRing); s_texResetRing = 0;
+    qo_retire(s_texResetR);    s_texResetR    = 0;
     for (i = 0; i < QO_NAV_N; i++)
     {
         qo_retire(s_texNav[i]); s_texNav[i] = 0;
@@ -1444,6 +1492,8 @@ void Pc_QuickOptions_Close(void)
      * menu's Update, so closing the menu under it left it on screen with
      * nothing able to close it. Whatever closes the menu closes it too. */
     Pc_BindPanel_Close();
+    Pc_CharaSelect_Close();
+    Pc_ConfirmDialog_Cancel();
     s_phase      = QO_CLOSING;
     s_phaseStart = SDL_GetTicks();
 }
@@ -1452,7 +1502,7 @@ void Pc_QuickOptions_Toggle(void)
 {
     /* The keybind panel owns the keyboard while it is up -- F10 may be the
      * very key being bound -- so the toggle does nothing until it closes. */
-    if (Pc_BindPanel_IsOpen())
+    if (Pc_BindPanel_IsOpen() || Pc_CharaSelect_IsOpen())
         return;
     if (s_phase == QO_CLOSED || s_phase == QO_CLOSING)
         qo_open();
@@ -1672,9 +1722,57 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
         Pc_BindPanel_Update();
         return;
     }
+    /* Character Select is a native screen drawn over the frozen world from
+     * MainLoop; it takes the pad straight from g_Controller0, which the host
+     * zeroes only after this returns. */
+    if (Pc_CharaSelect_IsOpen())
+    {
+        NmInput in;
+
+        NmInput_FromGame(&in);
+        if (!Pc_CharaSelect_Update(&in))
+            Pc_CharaSelect_Close();
+        return;
+    }
 
     if (s_phase != QO_SHOWN) /* ignore input while animating in/out */
         return;
+
+    /* Reset all settings: R, both triggers, or the touch button, then the same
+     * Yes/No as PC Options. The dialog reads the pointer itself. */
+    Pc_ResetSettings_Track();
+    if (Pc_ConfirmDialog_IsOpen())
+    {
+        extern void Pc_Options_ResetToDefaults(void);
+        int res = Pc_ConfirmDialog_Update(left, right, confirm, close);
+        if (res == PC_CONFIRM_YES)
+        {
+            qo_beep(Sfx_MenuConfirm);
+            Pc_Options_ResetToDefaults();
+        }
+        else if (res == PC_CONFIRM_NO)
+            qo_beep(Sfx_MenuCancel);
+        return;
+    }
+    {
+        int   tapped = 0;
+        float tx, ty;
+
+        if (Pc_ResetSettings_InputMode() == PC_INPUT_TOUCH && s_resetBtn[2] > 0.0f &&
+            Pc_MouseCursor_LeftClicked() && Pc_MouseCursor_ViewportPos(&tx, &ty))
+        {
+            float dx = tx * s_vpW - s_resetBtn[0], dy = (1.0f - ty) * s_vpH - s_resetBtn[1];
+            tapped = dx * dx + dy * dy <= s_resetBtn[2] * s_resetBtn[2] * 1.6f;
+        }
+        if (tapped)
+            Pc_ResetSettings_TouchRequest();
+        if (Pc_ResetSettings_RequestEdge())
+        {
+            qo_beep(Sfx_MenuMove);
+            Pc_ConfirmDialog_Open("RESET SETTINGS", "Reset all settings to their defaults?");
+            return;
+        }
+    }
 
     /* Dropdown open: it owns every input until it closes. */
     if (s_ddRow >= 0 && s_ddRow < nRows && qo_row_is_list(&rows[s_ddRow]))
@@ -1801,10 +1899,13 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
             if (mMoved) s_sel = row;
             if (mClick)
             {
+                float mid = (s_geoPanelL + s_geoPanelR) * 0.5f;
+
                 s_sel = row;
-                if (qo_row_is_list(&rows[row]) && mpx > (s_geoPanelL + s_geoPanelR) * 0.5f)
+                if (qo_row_is_list(&rows[row]) &&
+                    (Pc_LangQuickScript() == LANG_QUICK_SCRIPT_ARABIC ? mpx < mid : mpx > mid))
                 {
-                    /* Right half of a list row: open the dropdown on the value. */
+                    /* The value half of a list row (left in RTL): open the dropdown on the value. */
                     s_ddRow    = row;
                     s_ddSel    = Pc_Cheats_ListGet(rows[row].cpage, rows[row].extra);
                     s_ddScroll = s_ddSel - QO_DD_VISIBLE / 2;
@@ -1818,6 +1919,14 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
             { s_sel = row; qo_activate(&rows[row], -1); }
             if (wheel && QO_IS_VALUE_ROW(rows[row].kind))
                 qo_activate(&rows[row], wheel > 0 ? +1 : -1);
+        }
+        else if ((mClick || mRClick) && !s_dragging &&
+                 !(inX && py >= s_geoPanelB && py <= s_geoTitleT))
+        {
+            /* A click beside the panel turns the page, the way the page row
+             * does: left forward, right back. */
+            qo_set_page(s_page + (mClick ? 1 : -1));
+            qo_beep(Sfx_MenuMove);
         }
     }
 
@@ -1890,6 +1999,7 @@ void Pc_QuickOptions_Draw(void)
     int   nRows;
     const QoRowDef* rows = qo_page_rows(s_page, &nRows);
     int   px, i;
+    const int rtl = (Pc_LangQuickScript() == LANG_QUICK_SCRIPT_ARABIC);
 
     GLint  prevProg = 0, prevVao = 0, prevBuf = 0, prevTex = 0, prevUnit = GL_TEXTURE0, prevAlign = 4;
     GLint  prevSrcRgb = GL_ONE, prevDstRgb = GL_ZERO, prevSrcA = GL_ONE, prevDstA = GL_ZERO;
@@ -1898,8 +2008,9 @@ void Pc_QuickOptions_Draw(void)
 
     if (s_phase == QO_CLOSED)
         return;
-    /* The keybind panel stands in for this menu while it is open. */
-    if (Pc_BindPanel_IsOpen())
+    /* The keybind panel and the character screen stand in for this menu
+     * while they are open. */
+    if (Pc_BindPanel_IsOpen() || Pc_CharaSelect_IsOpen())
         return;
 
     glGetIntegerv(GL_VIEWPORT, vp);
@@ -2077,6 +2188,11 @@ void Pc_QuickOptions_Draw(void)
     /* Controls footer, on two lines: as one it had to shrink to fit the panel
      * and came out too small to read. Both lines share one size, scaled down
      * once only if the wider of them still overflows. */
+    if (s_texHint && s_hintResetMode != Pc_ResetSettings_InputMode())
+    {
+        qo_retire(s_texHint);  s_texHint  = 0;
+        qo_retire(s_texHint2); s_texHint2 = 0;
+    }
     if (!s_texHint)
     {
         char  hint[384], hint2[384], key[64];
@@ -2088,9 +2204,10 @@ void Pc_QuickOptions_Draw(void)
         BindInput_KeyLabel(g_PcConfig.keyQuickOptions[0] ? g_PcConfig.keyQuickOptions : "F10", key, sizeof(key));
         snprintf(hint, sizeof(hint), "%s    %s    %s", Pc_LangQuick("Up/Down select"),
                  Pc_LangQuick("Left/Right adjust"), Pc_LangQuick("Q/E or PgUp/PgDn page"));
-        snprintf(hint2, sizeof(hint2), "%s    %s    %s", Pc_LangQuick("Drag the title to move"),
+        s_hintResetMode = Pc_ResetSettings_InputMode();
+        snprintf(hint2, sizeof(hint2), "%s    %s    %s    %s", Pc_LangQuick("Drag the title to move"),
                  Pc_LangQuickFill("{key} or Esc close", "{key}", key),
-                 Pc_LangQuick("* needs restart"));
+                 Pc_LangQuick(Pc_ResetSettings_Hint()), Pc_LangQuick("* needs restart"));
         s_texHint  = qo_bake(hint,  (float)hpx, &s_hintW,  &s_hintH);
         s_texHint2 = qo_bake(hint2, (float)hpx, &s_hint2W, &s_hint2H);
         widest = (s_hintW > s_hint2W) ? s_hintW : s_hint2W;
@@ -2113,6 +2230,7 @@ void Pc_QuickOptions_Draw(void)
     s_geoListT = listT; s_geoRowPitch = rowPitch; s_geoRowH = rowH;
     s_geoPanelL = panelL; s_geoPanelR = panelR; s_geoRows = nRows;
     s_geoTitleT = panelT; s_geoTitleB = panelT - titleH;
+    s_geoPanelB = panelB;
 
     qo_build_white();
 
@@ -2168,7 +2286,7 @@ void Pc_QuickOptions_Draw(void)
         float rowTop = listT - (float)i * rowPitch;
         float rowMid = rowTop - rowH * 0.5f;
         float tH, tY;
-        char  txt[64];
+        char  txt[160]; /* Arabic labels run past 64 bytes; a cut there splits a UTF-8 letter */
 
         if (i == s_sel)
             qo_quad(s_texWhite, NX(panelL + 4.0f), NY(rowTop), NX(panelR - 4.0f), NY(rowTop - rowH),
@@ -2191,14 +2309,15 @@ void Pc_QuickOptions_Draw(void)
             }
             if (s_texLabel[i])
             {
+                float lx = rtl ? panelR - pad - (float)s_labelW[i] : panelL + pad;
                 tH = (float)s_labelH[i]; tY = rowMid + tH * 0.5f;
-                qo_quad(s_texLabel[i], NX(panelL + pad), NY(tY), NX(panelL + pad + s_labelW[i]), NY(tY - tH),
+                qo_quad(s_texLabel[i], NX(lx), NY(tY), NX(lx + s_labelW[i]), NY(tY - tH),
                         0.92f, 0.92f, 0.95f, dim);
             }
             if (s_texValue[i])
             {
                 float vg = (i == s_sel) ? 1.0f : 0.85f;
-                float vr = panelR - pad - (float)s_valueW[i];
+                float vr = rtl ? panelL + pad : panelR - pad - (float)s_valueW[i];
                 tH = (float)s_valueH[i]; tY = rowMid + tH * 0.5f;
                 qo_quad(s_texValue[i], NX(vr), NY(tY), NX(vr + s_valueW[i]), NY(tY - tH),
                         vg, vg * 0.85f, vg * 0.45f, dim);
@@ -2208,12 +2327,21 @@ void Pc_QuickOptions_Draw(void)
         {
             /* [R] Previous  /  Next [L]    (previous page  /  next page),
              * centred as one line, each piece on the row's middle. */
-            const int order[] = { s_navPadIcons ? QO_NAV_PAD_L : QO_NAV_ICON_R, QO_NAV_PREV, QO_NAV_SLASH,
-                                  QO_NAV_NEXT, s_navPadIcons ? QO_NAV_PAD_R : QO_NAV_ICON_L, QO_NAV_DEST };
-            const float gap[] = { 0.30f, 0.45f, 0.45f, 0.30f, 0.90f, 0.0f };
+            const int ltrOrder[] = { s_navPadIcons ? QO_NAV_PAD_L : QO_NAV_ICON_R, QO_NAV_PREV, QO_NAV_SLASH,
+                                     QO_NAV_NEXT, s_navPadIcons ? QO_NAV_PAD_R : QO_NAV_ICON_L, QO_NAV_DEST };
+            const float ltrGap[] = { 0.30f, 0.45f, 0.45f, 0.30f, 0.90f, 0.0f };
+            int   order[6];
+            float gap[6];
             float total = 0.0f, x;
             int   k;
 
+            /* RTL reads the same row from the right edge, so the pieces go in
+             * reverse with each gap still between the same two pieces. */
+            for (k = 0; k < 6; k++)
+            {
+                order[k] = rtl ? ltrOrder[5 - k] : ltrOrder[k];
+                gap[k]   = rtl ? (k < 5 ? ltrGap[4 - k] : 0.0f) : ltrGap[k];
+            }
             for (k = 0; k < 6; k++)
                 total += (float)s_navW[order[k]] + gap[k] * (float)s_navPx;
             x = panelL + (panelW - total) * 0.5f;
@@ -2260,6 +2388,46 @@ void Pc_QuickOptions_Draw(void)
         qo_quad(s_texHint2, NX(hx), NY(hy), NX(hx + s_hint2W), NY(hy - s_hint2H), 0.7f, 0.7f, 0.75f, dim);
     }
 
+    s_resetBtn[2] = 0.0f;
+    if (Pc_ResetSettings_InputMode() == PC_INPUT_TOUCH)
+    {
+        /* In the title band's right end: a tap there is never a drag, since a
+         * tap opens the dialog before the drag code runs. */
+        float r  = titleH * 0.36f;
+        float cx = panelR - titleH * 0.6f, cy = panelT - titleH * 0.5f;
+        int   d  = (int)(r * 2.0f);
+
+        if (d < 8) d = 8;
+        if (s_texResetRing && s_resetRingW != d)
+        {
+            qo_retire(s_texResetRing); s_texResetRing = 0;
+            qo_retire(s_texResetR);    s_texResetR    = 0;
+        }
+        if (!s_texResetRing)
+        {
+            enum { RING_SRC = 64 };
+            static unsigned char ring[RING_SRC * RING_SRC];
+            int x, y;
+
+            for (y = 0; y < RING_SRC; y++)
+                for (x = 0; x < RING_SRC; x++)
+                {
+                    float fx = (float)x + 0.5f - RING_SRC * 0.5f, fy = (float)y + 0.5f - RING_SRC * 0.5f;
+                    float dist = sqrtf(fx * fx + fy * fy);
+                    ring[y * RING_SRC + x] = (dist <= RING_SRC * 0.5f - 1.0f && dist >= RING_SRC * 0.5f - 6.0f) ? 255
+                                           : (dist < RING_SRC * 0.5f - 6.0f ? 70 : 0);
+                }
+            s_texResetRing = qo_bake_icon(ring, RING_SRC, d, &s_resetRingW, &s_resetRingH);
+            s_texResetR    = qo_bake("R", r * 1.1f, &s_resetRW, &s_resetRH);
+        }
+        qo_quad(s_texResetRing, NX(cx - r), NY(cy + r), NX(cx + r), NY(cy - r), 0.92f, 0.92f, 0.95f, dim);
+        qo_quad(s_texResetR, NX(cx - s_resetRW * 0.5f), NY(cy + s_resetRH * 0.5f),
+                NX(cx + s_resetRW * 0.5f), NY(cy - s_resetRH * 0.5f), 0.92f, 0.92f, 0.95f, dim);
+        s_resetBtn[0] = cx;
+        s_resetBtn[1] = cy;
+        s_resetBtn[2] = r;
+    }
+
     /* Dropdown list over the value column of its row, on top of the rows. */
     s_ddShown = 0;
     if (s_ddRow >= 0 && s_ddRow < nRows && qo_row_is_list(&rows[s_ddRow]))
@@ -2278,8 +2446,8 @@ void Pc_QuickOptions_Draw(void)
             }
             s_ddTexKey = key;
         }
-        float ddL = panelL + panelW * 0.5f;
-        float ddR = panelR - 4.0f;
+        float ddL = rtl ? panelL + 4.0f : panelL + panelW * 0.5f;
+        float ddR = rtl ? panelL + panelW * 0.5f : panelR - 4.0f;
         float ddTop = listT - (float)(s_ddRow + 1) * rowPitch + rowPitch * 0.08f;
         float ddH = rowH;
         int   k;
@@ -2304,7 +2472,8 @@ void Pc_QuickOptions_Draw(void)
             if (s_ddTex[e])
             {
                 float ty = et - (ddH - (float)s_ddH[e]) * 0.5f;
-                qo_quad(s_ddTex[e], NX(ddL + 10.0f), NY(ty), NX(ddL + 10.0f + s_ddW[e]), NY(ty - s_ddH[e]),
+                float tx = rtl ? ddR - 10.0f - (float)s_ddW[e] : ddL + 10.0f;
+                qo_quad(s_ddTex[e], NX(tx), NY(ty), NX(tx + s_ddW[e]), NY(ty - s_ddH[e]),
                         e == s_ddSel ? 1.0f : 0.85f, 0.9f, 0.9f, dim);
             }
         }

@@ -106,6 +106,7 @@ namespace SilentHillPC_Launcher
 
         public  string ModsDir         { get { return Path.Combine(_gameRoot, "mods"); } }
         private string GamedataDir     { get { return Path.Combine(_gameRoot, "gamedata"); } }
+        public string GameRoot         { get { return _gameRoot; } }
         private string TexturemodsDir  { get { return Path.Combine(GamedataDir, "texturemods"); } }
         private string LoadDir         { get { return Path.Combine(GamedataDir, "load"); } }
         private string FmvDir          { get { return Path.Combine(GamedataDir, "FMV"); } }
@@ -931,6 +932,9 @@ namespace SilentHillPC_Launcher
             // 3) Deploy library mods (Gameplay, Load, FMV, TotalConversion, Preset)
             if (report != null) report(0, 0, Loc.T("Deploying mods…"));
             var plan = BuildDeployPlan(result);
+            // Read first: it moves downloads still sitting in load\CHARA out of the
+            // way of the undeploy below.
+            CharacterCatalog.ReadRecords(_gameRoot);
             var keep = new HashSet<string>(plan.Keys.Select(Rel), StringComparer.OrdinalIgnoreCase);
             var old  = ReadManifest();
             Undeploy(keep);
@@ -1202,7 +1206,32 @@ namespace SilentHillPC_Launcher
                 catch (Exception ex) { result.Warnings.Add(m.Label + ": " + ex.Message); }
             }
 
+            // Downloads load after load\CHARA, so every mod's file of the same name wins
+            // over one -- except jojo670's old unversioned pack, which the downloads
+            // replace: its copy of a downloaded character is not deployed.
+            var downloaded = CharacterCatalog.DownloadedRels(_gameRoot);
+            var oldJojoRoots = loadMods.Where(IsOldJojoPack)
+                                       .Select(m => DeploySourceRoot(m.LibraryPath, ModType.Load)).ToList();
+            foreach (var dst in plan.Keys.ToList())
+                if (downloaded.Contains(Rel(dst)) &&
+                    oldJojoRoots.Any(r => plan[dst].StartsWith(r, StringComparison.OrdinalIgnoreCase)))
+                    plan.Remove(dst);
+
             return plan;
+        }
+
+        /// <summary>jojo670's Additional Characters from before the catalog: modinfo id
+        /// additionalcharacters, his name as author, and no version line.</summary>
+        private static bool IsOldJojoPack(ModEntry m)
+        {
+            if (!string.Equals(m.ModInfoId, "additionalcharacters", StringComparison.OrdinalIgnoreCase)) return false;
+            Dictionary<string, string> info;
+            try { info = ReadModInfo(m); } catch { return false; }
+            string v;
+            if (info == null) return false;
+            bool his = (info.TryGetValue("author", out v) && v.IndexOf("jojo670", StringComparison.OrdinalIgnoreCase) >= 0) ||
+                       (m.Author ?? "").IndexOf("jojo670", StringComparison.OrdinalIgnoreCase) >= 0;
+            return his && !(info.TryGetValue("version", out v) && !string.IsNullOrWhiteSpace(v));
         }
 
         private static void PlanTree(string src, string dstRoot, Dictionary<string, string> plan,

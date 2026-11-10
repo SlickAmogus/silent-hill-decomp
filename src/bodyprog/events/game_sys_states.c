@@ -28,6 +28,7 @@ extern s_WorldEnvWork g_WorldEnvWork;
 #include "pc_pick.h"
 #include "pc_dark_harry.h"
 #include "pc_pause_menu.h"
+#include "lang_ar.h"
 #endif
 #include "bodyprog/events/radio.h"
 #include "bodyprog/demo.h"
@@ -281,6 +282,25 @@ void GameState_InGame_Update(void) // 0x80038BD4
     Demo_DemoRandSeedRestore();
 
     D_800A9A0C = ScreenFade_IsFinished() && Fs_QueueChunksLoad();
+
+#ifdef SH_PC_PORT
+    /* The world is projected live from here on this frame (world objects,
+     * Harry, the NPCs, then Gfx_InGameDraw). MainLoop sets the GTE anchor and
+     * the take-screen flag AFTER the state update, so on the first live frame
+     * after a pickup prompt both still held the item screen's values from the
+     * frozen frame before: Harry and the NPCs were projected 8 rows up (only
+     * the world chunks re-assert the anchor, in Gfx_InGameDraw), and the
+     * per-poly screen-edge cull solved its width with the take screen's pixel
+     * aspect, dropping the outermost polys -- the dark strips at the sides.
+     * Both are put back before anything live is projected. */
+    if (!(g_SysWork.bgmStatusFlags & BgmStatusFlag_Pause))
+    {
+        extern int g_PsxItemTakeActive;
+        extern s32 Pc_WorldAnchorOfy(void);
+        g_PsxItemTakeActive = 0;
+        SetGeomOffset(0, Pc_WorldAnchorOfy());
+    }
+#endif
 
     if (!(g_SysWork.bgmStatusFlags & BgmStatusFlag_Pause) && g_MapOverlayHdr.updateWorldObjects != NULL)
     {
@@ -1620,7 +1640,11 @@ void SysState_GameOver_Update(void) // 0x8003A52C
             SysWork_StateStepIncrement(0);
 
         case 3:
+#ifdef SH_PC_PORT
+            Gfx_StringSetPosition(PC_AR_USA(190, SCREEN_POSITION_X(32.5f)), SCREEN_POSITION_Y(43.5f));
+#else
             Gfx_StringSetPosition(SCREEN_POSITION_X(32.5f), SCREEN_POSITION_Y(43.5f));
+#endif
             Gfx_StringDraw("\aGAME_OVER", DEFAULT_MAP_MESSAGE_LENGTH);
 #ifdef SH_PC_PORT
             /* field_28 counts RENDERED frames against a 30fps-authored hold
@@ -1648,7 +1672,11 @@ void SysState_GameOver_Update(void) // 0x8003A52C
             break;
 
         case 4:
+#ifdef SH_PC_PORT
+            Gfx_StringSetPosition(PC_AR_USA(190, SCREEN_POSITION_X(32.5f)), SCREEN_POSITION_Y(43.5f));
+#else
             Gfx_StringSetPosition(SCREEN_POSITION_X(32.5f), SCREEN_POSITION_Y(43.5f));
+#endif
             Gfx_StringDraw("\aGAME_OVER", DEFAULT_MAP_MESSAGE_LENGTH);
             SysWork_StateStepIncrementAfterFade(2, true, 0, Q12(2.0f), false);
             break;

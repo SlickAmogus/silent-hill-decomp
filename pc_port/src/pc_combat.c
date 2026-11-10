@@ -11,6 +11,7 @@
 #include "bodyprog/collision/ray.h"
 #include "pc_combat.h"
 #include "pc_config.h"
+#include "pc_bind_input.h"
 #include "bodyprog/item_screens.h"
 #include "sh_log.h"      /* SH_DBG */
 #include "dbg_overlay.h" /* DbgOverlay_ToastLine — quick-heal result line */
@@ -93,7 +94,7 @@ bool PC_KeyboardKeyClicked(int sdlScancode)
         s_keys[slot]  = sdlScancode;
         /* Seed prev with current held state — if the key is already down
          * when first queried, that's NOT a rising edge. */
-        s_prev[slot]  = g_sdlKeyboardState[sdlScancode] != 0;
+        s_prev[slot]  = BindInput_CodeHeld(sdlScancode) != 0;
         s_edge[slot]  = false;
         s_frame[slot] = g_PcInputFrame;
         return false;
@@ -102,7 +103,7 @@ bool PC_KeyboardKeyClicked(int sdlScancode)
     /* Resample only once per frame (per slot). Other call sites in the
      * same frame get the cached edge result. */
     if (s_frame[slot] != g_PcInputFrame) {
-        bool nowHeld = g_sdlKeyboardState[sdlScancode] != 0;
+        bool nowHeld = BindInput_CodeHeld(sdlScancode) != 0;
         s_edge[slot] = nowHeld && !s_prev[slot];
         s_prev[slot] = nowHeld;
         s_frame[slot] = g_PcInputFrame;
@@ -167,8 +168,8 @@ static void Pc_ReloadBindsResolve(void)
     sc[0] = &g_PcConfig.classic;
     sc[1] = &g_PcConfig.altcam;
     for (i = 0; i < 2; i++) {
-        s_kbReload[i]  = SDL_GetScancodeFromName(sc[i]->keyReload);
-        s_kbReload2[i] = SDL_GetScancodeFromName(sc[i]->keyReload2);
+        s_kbReload[i]  = (SDL_Scancode)BindInput_Code(sc[i]->keyReload);
+        s_kbReload2[i] = (SDL_Scancode)BindInput_Code(sc[i]->keyReload2);
         s_padReload[i] = (sc[i]->padReload[0] != '\0')
                           ? (int)PsyX_LookupGameControllerMapping(sc[i]->padReload, SDL_CONTROLLER_BUTTON_INVALID)
                           : SDL_CONTROLLER_BUTTON_INVALID;
@@ -211,6 +212,19 @@ static q19_12 s_reloadLatchT = 0;
 bool PC_PlayerManualReloadRequested(void)
 {
     return g_PcReloadRequest != 0;
+}
+
+/* Off, the reload button is the only way to reload. A touchscreen has no
+ * reload button, so touch controls keep the dry-fire reload whatever the
+ * setting. */
+int Pc_AutoReloadEnabled(void)
+{
+#if defined(__ANDROID__) || defined(SH_IOS) || defined(__EMSCRIPTEN__)
+    extern int Pc_Touch_Active(void);
+    if (Pc_Touch_Active())
+        return 1;
+#endif
+    return g_PcConfig.autoReload != 0;
 }
 
 static void Pc_ManualReloadSample(int sch)
@@ -356,6 +370,107 @@ void Pc_CycleWeapons(void)
         s32 slot = Pc_FindItemSlot(order[idx]);
         if (slot != NO_VALUE) { Pc_EquipWeapon(order[idx], slot); return; }
     }
+}
+
+/* nextgun / nextmelee: the next owned weapon of one kind.
+ *
+ * Unlike Cycle Weapons this also works with the weapon raised, and shows it
+ * happening. The equip itself is only safe with the arms down (it reloads the
+ * weapon's tables), so a raised weapon is lowered first by holding the aim
+ * input off, the swap is made at the bottom, and the new one comes up: by the
+ * player's own held aim, or, with the weapon down, by a moment of aim fed in
+ * so the new weapon is seen raised and lowered. The game's own aim animation
+ * is the animation. */
+enum { NW_IDLE, NW_LOWER, NW_SHOW };
+#define NW_LOWER_MAX 90 /* frames to wait for the arms to come down */
+#define NW_SHOW_LEN  14 /* frames of fed-in aim after an unraised swap */
+
+static int s_nwPhase;
+static int s_nwFrames;
+static u8  s_nwTarget;
+
+static u8 Pc_NextWeaponOfKind(int guns)
+{
+    static const u8 gunOrder[]   = { InvItemId_Handgun, InvItemId_Shotgun, InvItemId_HuntingRifle, InvItemId_HyperBlaster };
+    static const u8 meleeOrder[] = { InvItemId_KitchenKnife, InvItemId_SteelPipe, InvItemId_Hammer, InvItemId_Axe,
+                                     InvItemId_Chainsaw, InvItemId_Katana, InvItemId_RockDrill };
+    const u8* order = guns ? gunOrder : meleeOrder;
+    const s32 n     = guns ? (s32)sizeof(gunOrder) : (s32)sizeof(meleeOrder);
+    s32       cur   = -1, i, k;
+
+    for (i = 0; i < n; i++)
+        if (order[i] == g_SavegamePtr->equippedWeapon) { cur = i; break; }
+    for (k = 1; k <= n; k++)
+    {
+        const u8 id = order[(cur + k + n) % n];
+
+        if (id != g_SavegamePtr->equippedWeapon && Pc_FindItemSlot(id) != NO_VALUE)
+            return id;
+    }
+    return 0;
+}
+
+/* NULL when the switch is under way, else why not, for the console. */
+const char* Pc_NextWeaponRequest(int guns)
+{
+    u8 id;
+
+    if (g_SavegamePtr == NULL || g_GameWork.gameState != GameState_InGame ||
+        g_SysWork.sysState != SysState_Gameplay || g_Player_DisableControl)
+        return "not now";
+    if (s_nwPhase != NW_IDLE)
+        return NULL;
+    id = Pc_NextWeaponOfKind(guns);
+    if (id == 0)
+        return guns ? "no other gun" : "no other melee weapon";
+    s_nwTarget = id;
+    s_nwPhase  = NW_LOWER;
+    s_nwFrames = 0;
+    return NULL;
+}
+
+/* Run from Pc_ExtraActionsUpdate, ahead of the player's own input read. */
+static void Pc_NextWeaponUpdate(void)
+{
+    const u16 aimBtn = g_GameWorkPtr->config.controllerConfig.aim;
+
+    if (s_nwPhase == NW_IDLE)
+        return;
+    if (g_SavegamePtr == NULL || g_GameWork.gameState != GameState_InGame ||
+        g_SysWork.sysState != SysState_Gameplay || g_Player_DisableControl)
+    {
+        s_nwPhase = NW_IDLE;
+        return;
+    }
+    if (s_nwPhase == NW_LOWER)
+    {
+        if (Pc_ActionSafe())
+        {
+            const s32 slot = Pc_FindItemSlot(s_nwTarget);
+            const int held = (g_Controller0->heldBtnFlags & aimBtn) != 0;
+
+            if (slot != NO_VALUE)
+                Pc_EquipWeapon(s_nwTarget, slot);
+            /* Aim already held brings it up by itself. */
+            s_nwPhase  = (slot != NO_VALUE && !held) ? NW_SHOW : NW_IDLE;
+            s_nwFrames = 0;
+            return;
+        }
+        /* A swing, a shot or a reload finishes first; an aim is let go of. */
+        g_Controller0->heldBtnFlags    &= ~aimBtn;
+        g_Controller0->clickedBtnFlags &= ~aimBtn;
+        if (++s_nwFrames > NW_LOWER_MAX)
+            s_nwPhase = NW_IDLE;
+        return;
+    }
+    if (++s_nwFrames > NW_SHOW_LEN)
+    {
+        s_nwPhase = NW_IDLE;
+        return;
+    }
+    if (s_nwFrames == 1)
+        g_Controller0->clickedBtnFlags |= aimBtn;
+    g_Controller0->heldBtnFlags |= aimBtn;
 }
 
 /* Direct-number and scroll controls share the port's native equip routine. */
@@ -692,6 +807,8 @@ void Pc_ExtraActionsUpdate(void)
 
     g_PcInputFrame++; /* frame identity for the edge caches — see g_PcInputFrame */
 
+    Pc_NextWeaponUpdate();
+
     static int          s_actGen = -1;
     if (s_padCycle[0] == -2 || s_actGen != g_PcBindsGen) {
         const ControlScheme* sc[2];
@@ -700,9 +817,9 @@ void Pc_ExtraActionsUpdate(void)
         sc[0] = &g_PcConfig.classic;
         sc[1] = &g_PcConfig.altcam;
         for (i = 0; i < 2; i++) {
-            s_kbCycle[i]  = SDL_GetScancodeFromName(sc[i]->keyCycleWeapons);
-            s_kbHeal[i]   = SDL_GetScancodeFromName(sc[i]->keyQuickHeal);
-            s_kbQt[i]     = SDL_GetScancodeFromName(sc[i]->keyQuickTurn);
+            s_kbCycle[i]  = (SDL_Scancode)BindInput_Code(sc[i]->keyCycleWeapons);
+            s_kbHeal[i]   = (SDL_Scancode)BindInput_Code(sc[i]->keyQuickHeal);
+            s_kbQt[i]     = (SDL_Scancode)BindInput_Code(sc[i]->keyQuickTurn);
             s_padCycle[i] = (sc[i]->padCycleWeapons[0] != '\0') ? (int)PsyX_LookupGameControllerMapping(sc[i]->padCycleWeapons, SDL_CONTROLLER_BUTTON_INVALID) : SDL_CONTROLLER_BUTTON_INVALID;
             s_padHeal[i]  = (sc[i]->padQuickHeal[0]    != '\0') ? (int)PsyX_LookupGameControllerMapping(sc[i]->padQuickHeal, SDL_CONTROLLER_BUTTON_INVALID)    : SDL_CONTROLLER_BUTTON_INVALID;
             s_padQt[i]    = (sc[i]->padQuickTurn[0]    != '\0') ? (int)PsyX_LookupGameControllerMapping(sc[i]->padQuickTurn, SDL_CONTROLLER_BUTTON_INVALID)    : SDL_CONTROLLER_BUTTON_INVALID;
@@ -782,13 +899,13 @@ void Pc_RearLookUpdate(void)
         sc[0] = &g_PcConfig.classic;
         sc[1] = &g_PcConfig.altcam;
         for (i = 0; i < 2; i++) {
-            s_kb[i]  = SDL_GetScancodeFromName(sc[i]->keyRearLook);
+            s_kb[i]  = (SDL_Scancode)BindInput_Code(sc[i]->keyRearLook);
             s_pad[i] = (sc[i]->padRearLook[0] != '\0') ? (int)PsyX_LookupGameControllerMapping(sc[i]->padRearLook, SDL_CONTROLLER_BUTTON_INVALID) : SDL_CONTROLLER_BUTTON_INVALID;
         }
     }
     sch  = g_DebugThirdPersonCam ? 1 : 0;
     keys = SDL_GetKeyboardState(NULL);
-    held = ((keys && s_kb[sch] != SDL_SCANCODE_UNKNOWN && keys[s_kb[sch]]) ||
+    held = ((keys && BindInput_CodeHeld((int)s_kb[sch])) ||
             (s_pad[sch] >= 0 && PsyX_RawControllerButtonHeld(s_pad[sch])));
 
     /* TPS/OTS only (not FPS, not classic), gameplay only; cleared otherwise so it

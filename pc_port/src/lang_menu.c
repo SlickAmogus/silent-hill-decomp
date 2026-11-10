@@ -2,6 +2,7 @@
 #include "lang_text.h"
 #include "lang_pack.h"
 #include "lang_ru.h"
+#include "lang_ar.h"
 #include "lang_jpn.h"
 #include "pc_kanji.h"
 
@@ -477,6 +478,15 @@ const char* Pc_LangMenuText(const char* str)
         return jp ? jp : str;
     }
 
+    /* An Arabic disc likewise: its own UI text where the disc has it, the
+     * port's Arabic otherwise, and never a Latin column or pack, which would
+     * draw as unrelated letter forms. */
+    if (Pc_ArActive())
+    {
+        const char* ar = Pc_ArMenuText(str);
+        return ar ? ar : str;
+    }
+
     /* A Russian fan-translated disc wins over the language setting: its font
      * has no Latin letters left, so English (or German, or Polish) menus are
      * unreadable on it no matter what the config says. */
@@ -568,7 +578,7 @@ int Pc_LangMenuTextWidth(const char* str)
             width += FONT_12X16_SPACE_SIZE;
             continue;
         }
-        if (c == '\v')
+        if (c == '\v' && !Pc_ArRtl())
         {
             width += 10;
             continue;
@@ -590,7 +600,10 @@ int Pc_LangMenuTextWidth(const char* str)
             continue;
         }
 
-        if (c == '!')
+        if (Pc_ArRtl())
+        {
+        }
+        else if (c == '!')
             c = '\\';
         else if (c == '&')
             c = '^';

@@ -32,16 +32,23 @@ void Pc_LangUtf8Upper(const char* in, char* out, int outSize);
 unsigned int Pc_LangUtf8Next(const char** pp);
 
 /* Which script the overlays' text is in: 0 Latin/Cyrillic, 1 Japanese,
- * 2 Chinese. Latin for a CJK language when this system has no face for it
- * (the overlays then show English). An overlay re-picks its font when this
- * changes. */
+ * 2 Chinese, 3 Arabic. Latin for a CJK or Arabic language when this system has
+ * no face for it (the overlays then show English). An overlay re-picks its
+ * font when this changes. */
 #define LANG_QUICK_SCRIPT_LATIN    0
 #define LANG_QUICK_SCRIPT_JAPANESE 1
 #define LANG_QUICK_SCRIPT_CHINESE  2
+#define LANG_QUICK_SCRIPT_ARABIC   3
 int Pc_LangQuickScript(void);
 
-/* The TrueType faces to try, best first, for that script: the verified CJK
- * face if there is one, then the Latin ones. Returns the count. */
+/* The TrueType faces to try, best first, for that script: the verified CJK or
+ * Arabic face if there is one, then the Latin ones. Returns the count. */
 int Pc_LangQuickFontPaths(const char** out, int max);
+
+/* A finished overlay line in the order its glyphs go left to right: Arabic is
+ * shaped into Presentation Forms-B and the line laid out right to left, with
+ * Latin and number runs kept left to right inside it. Returns `in` itself when
+ * it holds no Arabic, else `buf` (needs ~1.5x the input bytes). */
+const char* Pc_LangVisual(const char* in, char* buf, int bufSize);
 
 #endif

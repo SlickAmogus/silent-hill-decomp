@@ -4,6 +4,7 @@
 #include "main/fsqueue.h"
 #include <stdlib.h>
 #include "lang_ru.h"
+#include "lang_ar.h"
 #include "pc_title_style.h"
 
 #include <string.h> /* memcpy */
@@ -372,6 +373,30 @@ int Font_MapChar(unsigned int charCode, s_GlyphEmit emits[2])
                      * letter (only A-acute/E-acute/A-O-U-diaeresis have real
                      * bases; the rest degrade to '*' exactly like retail). */
                     int base;
+
+                    /* The PAL Arabic patch edits three constants of this
+                     * scheme in its BODYPROG: every mark comes from cell 119,
+                     * and 0xCD (not 0xD6) gets a real base, 'I'. */
+                    if (Pc_ArDisc() == AR_DISC_PAL_AHMED)
+                    {
+                        switch (charCode)
+                        {
+                            case 0xC1:
+                            case 0xC4: base = 'A' - GLYPH_TABLE_ASCII_OFFSET; break;
+                            case 0xC9: base = 'E' - GLYPH_TABLE_ASCII_OFFSET; break;
+                            case 0xCD: base = 'I' - GLYPH_TABLE_ASCII_OFFSET; break;
+                            case 0xDC: base = 'U' - GLYPH_TABLE_ASCII_OFFSET; break;
+                            default:   base = '*' - GLYPH_TABLE_ASCII_OFFSET; break;
+                        }
+
+                        emits[0].cell    = 119;
+                        emits[0].dy      = -3;
+                        emits[0].advance = 0;
+                        emits[1].cell    = base;
+                        emits[1].dy      = 0;
+                        emits[1].advance = layout->glyphWidths[base];
+                        return 2;
+                    }
 
                     switch (charCode)
                     {

@@ -213,6 +213,7 @@ VECTOR3 g_TpsCamFwd = { 0, 0, Q12(1.0f) };
  * between his arms. Captured via the L cam-pos log key or the numpad tuner. */
 extern int g_PcFpsCam;
 VECTOR3 g_PcFpsOffset = { -29, -6836, 919 }; /* FPS eye BASELINE in Harry's BODY frame (all weapons); vx=right, vy=up(neg), vz=forward. Head-follow sway rides on top. */
+VECTOR3 g_PcAltCamViewFwd = { 0, 0, 4096 }; /* TPS/OTS view-forward, WORLD space Q12, for the flashlight_follow_aim beam */
 VECTOR3 g_PcFpsViewFwd = { 0, 0, 4096 };     /* FPS view-forward, WORLD space Q12; published each FPS frame for the head-mounted flashlight */
 VECTOR3 g_PcFpsEyePos  = { 0, 0, 0 };        /* FPS eye WORLD pos (Q19.12); flashlight origin in FPS */
 VECTOR3 g_PcFlashlightShadowWorld = { 0, 0, 0 }; /* physical flashlight WORLD pos (Q19.12), captured before the FPS eye-override; drives the shadow-map light so FPS shadows match third person */
@@ -658,7 +659,11 @@ static void Pc_TpsCamera_Apply(void)
          * accumulator (below) so the view doesn't jump when the console closes. */
         extern int g_PcConsoleInputActive;
         extern int g_PcQuickOptionsActive;
-        int frozen = g_PcConsoleInputActive || g_PcQuickOptionsActive;
+        /* A presented freeze-frame (pickup prompt, map message, pause) is a
+         * frozen view too: turning the camera under it moved the world the
+         * player then came back to. */
+        extern int g_PsxPresentLastFrame;
+        int frozen = g_PcConsoleInputActive || g_PcQuickOptionsActive || g_PsxPresentLastFrame;
 
         SDL_GetRelativeMouseState(&mdx, &mdy);
         if (frozen) { mdx = 0; mdy = 0; }
@@ -702,8 +707,8 @@ static void Pc_TpsCamera_Apply(void)
         }
 
         g_TpsCamYaw = Q12_ANGLE_NORM_U(g_TpsCamYaw + Q12_ANGLE(360.0f));
-        /* Tighter clamp on the look-down side so the camera doesn't rise far
-         * over Harry's head. */
+        /* Look-down stops at 50 degrees so the orbit doesn't rise far over
+         * Harry's head. */
         if (g_PcFpsCam) {
             /* First-person: allow looking down at the legs / up toward the sky,
              * but stay short of straight up/down so the forward vector + the
@@ -724,7 +729,7 @@ static void Pc_TpsCamera_Apply(void)
                     g_TpsCamYaw = Q12_ANGLE_NORM_U(tp_hr->rotation.vy - Q12_ANGLE(90.0f) + Q12_ANGLE(360.0f));
             }
         } else {
-            if (g_TpsCamPitch < -Q12_ANGLE(40.0f)) g_TpsCamPitch = -Q12_ANGLE(40.0f);
+            if (g_TpsCamPitch < -Q12_ANGLE(50.0f)) g_TpsCamPitch = -Q12_ANGLE(50.0f);
             if (g_TpsCamPitch >  Q12_ANGLE(50.0f)) g_TpsCamPitch =  Q12_ANGLE(50.0f);
         }
     }
@@ -1037,6 +1042,9 @@ static void Pc_TpsCamera_Apply(void)
             tpLookAt.vx = tpCamPos.vx + (s32)((s64)TP_LOOKAT_DIST * fwdX >> 12);
             tpLookAt.vy = anchorY     + (s32)((s64)TP_LOOKAT_DIST * fwdY >> 12);
             tpLookAt.vz = tpCamPos.vz + (s32)((s64)TP_LOOKAT_DIST * fwdZ >> 12);
+            g_PcAltCamViewFwd.vx = fwdX;
+            g_PcAltCamViewFwd.vy = fwdY;
+            g_PcAltCamViewFwd.vz = fwdZ;
         }
         #undef TP_LOOKAT_DIST
 
@@ -2405,6 +2413,29 @@ void MainLoop(void) // 0x80032EE0
             }
         }
 
+        {
+            extern int g_PcPauseSwallowInput;
+            if (g_PcPauseSwallowInput) {
+                const s_ControllerConfig* cc = &g_GameWorkPtr->config.controllerConfig;
+                const u32 resumeBits = cc->enter | cc->action | cc->cancel | cc->pause | ControllerFlag_Start;
+                int mouseDown = (SDL_GetMouseState(NULL, NULL) &
+                                 (SDL_BUTTON(SDL_BUTTON_LEFT) | SDL_BUTTON(SDL_BUTTON_RIGHT))) != 0;
+                extern unsigned int Pc_MouseCursor_BoundPadBits(void);
+                /* At least two frames: the emulated pad still carries the
+                 * click the frame after the SDL button is up. */
+                if (g_PcPauseSwallowInput++ > 2 && !mouseDown &&
+                    !(g_Controller0->heldBtnFlags & (resumeBits | Pc_MouseCursor_BoundPadBits()))) {
+                    g_PcPauseSwallowInput = 0;
+                } else {
+                    g_Controller0->heldBtnFlags      = 0;
+                    g_Controller0->clickedBtnFlags   = 0;
+                    g_Controller0->releasedBtnFlags  = 0;
+                    g_Controller0->pulsedBtnFlags    = 0;
+                    g_Controller0->pulsedGuiBtnFlags = 0;
+                }
+            }
+        }
+
         /* Quick Save (F6) / Quick Load (F8) — always on, not debug-gated. */
         {
             extern void Pc_QuickSaveLoadUpdate(void);
@@ -2465,7 +2496,9 @@ void MainLoop(void) // 0x80032EE0
          * FMV_Play and fades back in afterwards. */
         {
             extern void Pc_ConsoleFmvUpdate(void);
+            extern void Pc_ConsoleGpuBenchUpdate(void);
             Pc_ConsoleFmvUpdate();
+            Pc_ConsoleGpuBenchUpdate();
         }
 
 #endif
@@ -2732,6 +2765,12 @@ void MainLoop(void) // 0x80032EE0
              * frame's world state is settled; self-gated to live gameplay and
              * to being signed in. */
             { extern void Pc_Ra_Update(void); Pc_Ra_Update(); }
+            {
+                extern int  Pc_CharaSelect_IsOpen(void);
+                extern void Pc_CharaSelect_Draw(void);
+                if (Pc_CharaSelect_IsOpen() && g_GameWork.gameState == GameState_InGame)
+                    Pc_CharaSelect_Draw();
+            }
 
             /* Gameplay plugins: per-frame hooks after the frame's game state is
              * settled. Both are no-op loops over zero plugins unless the user
@@ -3110,6 +3149,29 @@ void MainLoop(void) // 0x80032EE0
                                    s_perfPhase[4] / n, s_perfPhase[5] / n,
                                    g_PsyX_GpuMsCount > 0 ? g_PsyX_GpuMsSum / g_PsyX_GpuMsCount : -1.0,
                                    g_SavegamePtr != NULL ? (int)g_SavegamePtr->mapIdx : -1);
+                        }
+                        {
+                            /* What the frames asked of the renderer: many draws or
+                             * binds point at submission, a high cover at fill (a few
+                             * triangles painted over the screen again and again). */
+                            extern unsigned int g_PsxPerfSplits, g_PsxPerfBinds, g_PsxPerfFilterSets, g_PsxPerfTris;
+                            extern unsigned int g_PsxPerfBigTris, g_PsxPerfCharaVerts, g_PsxPerfFrames;
+                            extern double       g_PsxPerfCover, g_PsxPerfCoverWorst;
+                            extern int          g_PsxUsePgxp, g_cfg_textureFilter;
+
+                            if (g_PsxPerfFrames > 0)
+                            {
+                                double n = (double)g_PsxPerfFrames;
+                                SH_DBG("[PERF]   drawn per frame: draws=%.0f binds=%.0f filter-sets=%.0f world tris=%.0f chara verts=%.0f "
+                                       "cover=%.1fx (worst frame %.1fx) oversize tris=%.1f | pgxp=%d filter=%d pplight=%d hero=%d fl=%d",
+                                       g_PsxPerfSplits / n, g_PsxPerfBinds / n, g_PsxPerfFilterSets / n, g_PsxPerfTris / n,
+                                       g_PsxPerfCharaVerts / n, g_PsxPerfCover / n, g_PsxPerfCoverWorst, g_PsxPerfBigTris / n,
+                                       g_PsxUsePgxp, g_cfg_textureFilter, g_PcConfig.perPixelLighting, g_PcConfig.heroLight,
+                                       g_PcConfig.flashlightMode);
+                            }
+                            g_PsxPerfSplits = g_PsxPerfBinds = g_PsxPerfFilterSets = g_PsxPerfTris = 0;
+                            g_PsxPerfBigTris = g_PsxPerfCharaVerts = g_PsxPerfFrames = 0;
+                            g_PsxPerfCover = g_PsxPerfCoverWorst = 0.0;
                         }
                         {
                             extern double g_PsyX_GpuMsSum;
@@ -3535,7 +3597,13 @@ void MainLoop(void) // 0x80032EE0
         {
             extern int g_PsxItemTakeActive;
             extern int g_PcPickupItemActive;
-            g_PsxItemTakeActive = g_PcPickupItemActive;
+            /* Only while the world itself is frozen behind the item. On the
+             * boundary frame after Yes the flag is still up but the world is
+             * drawn live, and the take screen's ortho (no vertical crop, its
+             * own PAR) then framed the live world: a one-frame jump of the
+             * characters and thin bars at the sides. Same gate as the item
+             * pass's GTE offset below. */
+            g_PsxItemTakeActive = g_PcPickupItemActive && !g_PcWorldDrawnThisFrame;
         }
 
         /* Fixed-angle camera shots frame the top of the scene clipped vs PSX (e.g. a
@@ -4215,7 +4283,14 @@ void MainLoop(void) // 0x80032EE0
                                      (g_Screen_FadeStatus & 0x7) <= ScreenFadeState_FadeInStart;
             const int uiIsMenu = uiMenuState && !uiWorldOnScreen && !uiFadeOpaque;
 
-            g_PcHorPlusEnabled = uiIsMenu ? 0 : g_PcHorPlusGate;
+            /* Character Select over gameplay lays out like it does on the
+             * title screen (widened native menu, g_PsxWideMenu), but the world
+             * behind it keeps the gameplay gate on, and this pass then framed
+             * the menu as gameplay: zoomed in at 16:9. */
+            extern int Pc_CharaSelect_IsOpen(void);
+            const int uiCharaSelect = Pc_CharaSelect_IsOpen();
+
+            g_PcHorPlusEnabled = (uiIsMenu || uiCharaSelect) ? 0 : g_PcHorPlusGate;
             g_PsxUIOrthoPass   = 1;
             GsDrawOt(&g_OrderingTable2[g_ActiveBufferIdx]);
             g_PsxUIOrthoPass   = 0;

@@ -288,7 +288,7 @@ if(MINGW)
 endif()
 
 # Shipped runtime assets: pc_port/assets/ mirrors the game folder layout
-# (assets/gamedata/decal.png -> <build>/gamedata/decal.png), so a fresh build
+# (assets/gamedata/image/decal.png -> <build>/gamedata/image/decal.png), so a fresh build
 # folder runs with them. release-nightly.ps1 and the CI stage steps package the
 # same directory — add new custom assets there, never to the build folder.
 add_custom_command(TARGET SilentHillPC POST_BUILD
@@ -322,6 +322,22 @@ if(WIN32 AND EXISTS "${CMAKE_SOURCE_DIR}/angle")
     message(STATUS "ANGLE runtime found - D3D11/Vulkan render backends will be available")
 else()
     message(STATUS "No pc_port/angle/ - only the native OpenGL backend will be selectable at runtime")
+endif()
+
+# SDL3 under the SDL2 API (pc_port/sdl/README.md): the exe still links SDL2, and
+# sdl2-compat's SDL2.dll beside it forwards every call to SDL3, whose libusb
+# build carries the Switch 2 controller driver. Copied file by file so the
+# README and licences stay out of the build folder.
+option(SH_SDL3_RUNTIME "Run on SDL3 through sdl2-compat (pc_port/sdl/)" ON)
+if(WIN32 AND SH_SDL3_RUNTIME AND EXISTS "${CMAKE_SOURCE_DIR}/sdl/SDL3.dll")
+    add_custom_command(TARGET SilentHillPC POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_SOURCE_DIR}/sdl/SDL2.dll"
+                "${CMAKE_SOURCE_DIR}/sdl/SDL3.dll"
+                "${CMAKE_SOURCE_DIR}/sdl/libusb-1.0.dll"
+                "$<TARGET_FILE_DIR:SilentHillPC>"
+        COMMENT "Copying SDL3 runtime (sdl2-compat + SDL3 + libusb)"
+    )
 endif()
 
 # Game-specific defines (only on our target, NOT PsyCross)

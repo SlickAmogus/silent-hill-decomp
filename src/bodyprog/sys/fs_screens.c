@@ -11,6 +11,7 @@
 #include "main/fileinfo.h" /* g_GameRegion — PAL FONT16 reload */
 #include "pc_title_style.h"
 #include "font_region.h"
+#include "lang_ar.h"
 #endif
 
 void GameFs_TitleGfxSeek(void) // 0x80032BD0
@@ -83,6 +84,10 @@ void GameFs_SaveLoadBinLoad(void) // 0x80032CA8
 
 void func_80032CE8(void) // 0x80032CE8
 {
+#ifdef SH_PC_PORT
+    Gfx_StringSetPosition(PC_AR_USA(191, SCREEN_POSITION_X(33.75f)), SCREEN_POSITION_Y(43.5f));
+#else
     Gfx_StringSetPosition(SCREEN_POSITION_X(33.75f), SCREEN_POSITION_Y(43.5f));
+#endif
     Gfx_StringDraw("\x7Now_loading.", 100);
 }

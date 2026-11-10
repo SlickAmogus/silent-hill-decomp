@@ -14,9 +14,15 @@
  * its own input handling in that case. */
 int  Pc_ConfirmDialog_IsOpen(void);
 
-/* Open with a short title band and a one-line message. Strings are copied.
- * Selection starts on "No". */
+/* Open with a short title band and a message, which wraps to as many lines
+ * as it needs. Strings are copied. Selection starts on "No". */
 void Pc_ConfirmDialog_Open(const char* title, const char* message);
+/* The same with a third button after No (e.g. "Don't ask again"), answered
+ * as PC_CONFIRM_THIRD. The title is shown upper-cased. */
+void Pc_ConfirmDialog_Open3(const char* title, const char* message, const char* third);
+/* A notice: the message and OK alone. Update answers PC_CONFIRM_YES for OK,
+ * PC_CONFIRM_NO for Cancel. The title is shown upper-cased. */
+void Pc_ConfirmDialog_OpenOk(const char* title, const char* message);
 
 /* Dismiss without an answer, for a host closing underneath the dialog. */
 void Pc_ConfirmDialog_Cancel(void);
@@ -25,7 +31,8 @@ enum
 {
     PC_CONFIRM_NONE = 0,
     PC_CONFIRM_YES,
-    PC_CONFIRM_NO
+    PC_CONFIRM_NO,
+    PC_CONFIRM_THIRD
 };
 
 /* Per-frame input while open (game thread). left/right move the selection,

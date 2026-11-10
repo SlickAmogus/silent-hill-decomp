@@ -8,8 +8,15 @@
  * and add a migration whenever you change a default that is written to config.cfg.
  *   1: world_vscale default 1.0 -> 1.08 (DuckStation-match vertical FOV).
  *   2: crt_aspect_trim default 0.98 -> 1.06, so Simple's default shape equals
- *      Advanced's (hfov 1.00, vfov 1.08) again -- they diverged at vfov 1.08. */
-#define PC_CONFIG_VERSION 3
+ *      Advanced's (hfov 1.00, vfov 1.08) again -- they diverged at vfov 1.08.
+ *   3: menu_fps_unlock default 1 -> 0 (menus count input per frame).
+ *   4: allow_loose_files default 0 -> 1, mobile only (no launcher to turn it on).
+ *      Desktop configs are stamped forward with no value change.
+ *   5: fps_cap default 30 -> 60, mobile only. Desktop keeps 30.
+ *   6: pad_reload / pad_quick_turn default NONE -> rightshoulder / leftshoulder,
+ *      filled only where the slot was unbound. (4 and 5 live on the mobile
+ *      branches; numbering is shared so a merge never reuses a step.) */
+#define PC_CONFIG_VERSION 6
 
 /* Minimap size range, as a percentage of the built-in MM_SIZE. The top end is a
  * little larger than the stock panel; the bottom end is a bit over half of it. */
@@ -51,6 +58,9 @@ typedef struct {
     int fullscreen;      /* 0 = windowed, 1 = exclusive fullscreen, 2 = borderless (desktop) */
     int confineCursor;   /* keep the pointer inside the window while focused, fullscreen/borderless only (config key: confine_cursor) */
     int disableCulling;  /* 1 = render all objects regardless of view angle */
+    int worldVisibility; /* fog below 1.0 only: 1 = the whole town draws, 0 = the game's own far
+                          * caps. Saved, so raising and lowering the fog again keeps the choice
+                          * (config key: world_visibility) */
     int drawDistancePct; /* per-poly far cap as a % of vanilla ~61u; 200 = ~122u. Worth raising with fog turned down */
     int preloadChunks;   /* 1 = load all IPD chunks at map init instead of streaming */
     int vsync;           /* 0 = off (uncapped), 1 = on, -1 = adaptive */
@@ -178,7 +188,7 @@ typedef struct {
                            * one-vblank wait. (config key: menu_fps_unlock) */
     int lowHealthGlow;    /* 1 = pulsing red edge glow while health is low (config key: low_health_glow); off by default */
     int bulletDecals;     /* 1 = bullet-hole decals where player gunfire hits world geometry
-                           * (gamedata/decal.png; up to 64 FIFO, cleared on map load)
+                           * (gamedata/image/decal.png; up to 64 FIFO, cleared on map load)
                            * (config key: bullet_decals) */
     int gamepadIcons;     /* e_GlyphSet: 0 Auto, 1 PS Classic, 2 PS Modern, 3 Xbox, 4 Nintendo, 5 Steam
                            * (gamedata/icons/input_glyphs.png; config key: gamepad_icons) */
@@ -234,6 +244,8 @@ typedef struct {
     float flashlightSize;       /* per-pixel flashlight cone coverage multiplier, 0..3 (config key: flashlight_size) */
     float flashlightIntensityFps; /* per-pixel flashlight brightness in FPS mode, 0..3 (config key: flashlight_intensity_fps) */
     float flashlightSizeFps;      /* per-pixel flashlight coverage in FPS mode, 0..3 (config key: flashlight_size_fps) */
+    int   flashlightFollowAimFps; /* FPS: the beam follows the view (config key: flashlight_follow_aim_fps, F10 row while in first person) */
+    int   flashlightFollowAim;    /* TPS/OTS: the beam follows the camera fully while aiming and by pitch only otherwise (config key: flashlight_follow_aim, console FLASHLIGHTAIM, F10 row) */
     float postProcessIntensity; /* post-process effect mix, 0..1 (config key: post_process_intensity) */
     float tonemapIntensity;     /* tone-map mix, 0..1 (config key: tonemap_intensity) */
     /* Image adjustments applied to the final frame every time (independent of the
@@ -455,7 +467,7 @@ typedef struct {
      * lisa, cybil, kaufmann, dahlia. Swaps the player's rendered model while
      * keeping Harry's animations/gameplay; also cycled in-game with - / = while
      * the keyframe viewer is on, or the console PLAYAS command. */
-    char playerCharacter[16];
+    char playerCharacter[48];
 
     /* Raise the pitch of Harry's OWN VOICE sound effects — his hurt cries,
      * death screams, landing grunt and low-HP breathing — while playing as one
@@ -573,6 +585,17 @@ typedef struct {
      * pushed along the last hit. Stock models are never affected.
      * (config key: ragdoll) */
     int ragdoll;
+
+    /* 1 = no crosshair while a melee weapon, or nothing, is equipped, in every
+     * camera; guns keep it. (config key: crosshair_hide_melee) */
+    int crosshairHideMelee;
+
+    /* Reloading a gun. 0 = only the reload button reloads (a touchscreen,
+     * which has no reload button, still reloads after a dry fire); 1 = a dry
+     * fire on an empty clip reloads, with the animation, in every camera (the
+     * default); 2 = the original game: 1, and the clip also fills from the
+     * reserve the moment the gun is raised, silently. (config key: auto_reload) */
+    int autoReload;
 } s_PcConfig;
 
 extern s_PcConfig g_PcConfig;
@@ -584,6 +607,9 @@ int Pc_WholeMapDrawActive(void);
 /* whole_map_exteriors resolved against the live fog strength (auto mode)
  * and PGXP, which the far band's depth test needs. */
 int Pc_WholeMapEnabled(void);
+/* The far cap under world_visibility: no cap while it is on and the fog is
+ * below 1.0, otherwise `stock`. */
+int Pc_WorldVisCap(int stock);
 /* Fog thinned below 1.0: the world is visible past where monsters spawn and
  * despawn, so npc_main.c moves both out of the camera's view. */
 int Pc_LongViewActive(void);

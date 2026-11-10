@@ -21,6 +21,7 @@
  * weapon's PLM window (and a later weapon load would stomp the body's tail).
  */
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
@@ -33,6 +34,7 @@
 #include "main/fileinfo.h"
 
 #include "pc_playas.h"
+#include "pc_chara_dl.h"
 #include "pc_big_lm.h"
 #include "pc_config.h"
 #include "pc_skin_chara.h"
@@ -96,12 +98,12 @@ static const PcPlayAsChara s_builtin[] = {
 /* Skinned swaps for Harry found in gamedata/load/CHARA (HERO_CJ.glb or
  * HEROCJ.glb -> "CJ"), each its own row after the built-ins. They play on
  * Harry's own row and rig; only the glTF the skin loader reads changes. */
-#define PLAYAS_SWAP_MAX 32
+#define PLAYAS_SWAP_MAX 1024
 typedef struct
 {
-    char name[24];
-    char label[24];
-    char file[32];
+    char name[80];
+    char label[80];
+    char file[96];
 } PcPlayAsSwap;
 
 static PcPlayAsChara s_playable[PLAYAS_BUILTIN + PLAYAS_SWAP_MAX];
@@ -123,18 +125,66 @@ static int PlayAs_SwapCmp(const void* a, const void* b)
     return strcmp(((const PcPlayAsChara*)a)->name, ((const PcPlayAsChara*)b)->name);
 }
 
+/* base= and female= from a swap's ini. base names a built-in row (cheryl,
+ * lisa...): the swap then plays in that character's slot -- its model under
+ * the skin, so its size, bind offsets and held-item fit -- instead of Harry's.
+ * For characters built small, like Cheryl. */
+static void PlayAs_IniBase(const char* dir, const char* file, char* base, size_t baseSize, int* female)
+{
+    char  path[320], line[160];
+    FILE* f;
+
+    base[0] = '\0';
+    *female = 0;
+    snprintf(path, sizeof(path), "%s/%s.ini", dir, file);
+    if ((f = fopen(path, "r")) == NULL)
+        return;
+    while (fgets(line, sizeof(line), f) != NULL)
+    {
+        char* eq = strchr(line, '=');
+        char* k = line;
+        char* v;
+        char* e;
+
+        if (eq == NULL || line[0] == '#' || line[0] == ';')
+            continue;
+        *eq = '\0';
+        v = eq + 1;
+        while (*k == ' ' || *k == '\t') k++;
+        for (e = eq - 1; e >= k && (*e == ' ' || *e == '\t'); e--) *e = '\0';
+        while (*v == ' ' || *v == '\t') v++;
+        for (e = v + strlen(v) - 1; e >= v && (*e == ' ' || *e == '\t' || *e == '\r' || *e == '\n'); e--) *e = '\0';
+        if (strcasecmp(k, "base") == 0)
+        {
+            size_t i;
+            for (i = 0; v[i] && i < baseSize - 1; i++)
+                base[i] = (char)((v[i] >= 'A' && v[i] <= 'Z') ? v[i] + 32 : v[i]);
+            base[i] = '\0';
+        }
+        else if (strcasecmp(k, "female") == 0)
+            *female = atoi(v) != 0;
+    }
+    fclose(f);
+}
+
 static int PlayAs_Roster(void)
 {
+    /* The load order: a download keeps its name over a file in load/CHARA. */
+    static const char* const dirs[2] = { CD_DL_DIR, "gamedata/load/CHARA" };
     DIR* d;
     struct dirent* e;
-    int i;
+    int i, di;
 
     if (s_playCount > 0)
         return s_playCount;
     for (i = 0; i < PLAYAS_BUILTIN; i++)
         s_playable[s_playCount++] = s_builtin[i];
-    if (!g_PcConfig.allowLooseFiles || (d = opendir("gamedata/load/CHARA")) == NULL)
+    if (!g_PcConfig.allowLooseFiles)
         return s_playCount;
+    for (di = 0; di < 2; di++)
+    {
+    if ((d = opendir(dirs[di])) == NULL)
+        continue;
     while ((e = readdir(d)) != NULL && s_playCount < PLAYAS_BUILTIN + PLAYAS_SWAP_MAX)
     {
         PcPlayAsSwap* sw = &s_swaps[s_playCount - PLAYAS_BUILTIN];
@@ -162,7 +212,8 @@ static int PlayAs_Roster(void)
         sw->file[len] = '\0';
         if (PlayAs_NameTaken(sw->name))
         {
-            SH_DBG("[PLAYAS] %s: the name \"%s\" is already taken, skipped", n, sw->name);
+            if (di == 0)
+                SH_DBG("[PLAYAS] %s: the name \"%s\" is already taken, skipped", n, sw->name);
             continue;
         }
         memset(&s_playable[s_playCount], 0, sizeof(s_playable[0]));
@@ -170,10 +221,29 @@ static int PlayAs_Roster(void)
         s_playable[s_playCount].label = sw->label;
         s_playable[s_playCount].charaId = Chara_Harry;
         s_playable[s_playCount].skinFile = sw->file;
+        {
+            char base[24];
+            int  female, b;
+
+            PlayAs_IniBase(dirs[di], sw->file, base, sizeof(base), &female);
+            for (b = 0; base[0] && b < PLAYAS_BUILTIN; b++)
+                if (strcmp(s_builtin[b].name, base) == 0)
+                {
+                    memcpy(s_playable[s_playCount].hideParts, s_builtin[b].hideParts,
+                           sizeof(s_playable[0].hideParts));
+                    s_playable[s_playCount].charaId = s_builtin[b].charaId;
+                    break;
+                }
+            if (base[0] && b == PLAYAS_BUILTIN)
+                SH_DBG("[PLAYAS] %s: base=%s is not a built-in character, using Harry", n, base);
+            s_playable[s_playCount].female = (u8)female;
+        }
+        SH_DBG("[PLAYAS] %s swap %s -> PLAYAS %s",
+               s_playable[s_playCount].charaId == Chara_Harry ? "Harry" : "based", n, sw->name);
         s_playCount++;
-        SH_DBG("[PLAYAS] Harry swap %s -> PLAYAS %s", n, sw->name);
     }
     closedir(d);
+    }
     /* readdir order is the filesystem's, so sort or the cycle order would
      * differ per machine. */
     qsort(&s_playable[PLAYAS_BUILTIN], (size_t)(s_playCount - PLAYAS_BUILTIN),
@@ -230,6 +300,20 @@ const char* Pc_PlayAs_Name(int idx)
         return "?";
     }
     return s_playable[idx].name;
+}
+
+const char* Pc_PlayAs_File(int idx)
+{
+    if (idx < 0 || idx >= PLAYAS_COUNT)
+        return NULL;
+    return s_playable[idx].skinFile;
+}
+
+int Pc_PlayAs_CharaId(int idx)
+{
+    if (idx < 0 || idx >= PLAYAS_COUNT)
+        return Chara_Harry;
+    return s_playable[idx].charaId;
 }
 
 int Pc_PlayAs_SkinCharaId(void)
@@ -975,6 +1059,40 @@ int Pc_PlayAs_Cycle(int step)
 
     Pc_PlayAs_SetByIndex(idx, 1);
     return s_current;
+}
+
+/* After Additional Characters installed or removed swaps: rebuild the roster
+ * and stay on the same character, or fall back to Harry if it went away. */
+/* The props and variant faces Play As hides on a stock body, for drawing that
+ * body elsewhere (Character Select's preview). NULL when none. */
+const char* const* Pc_PlayAs_HiddenPartsFor(int charaId)
+{
+    int i;
+
+    for (i = 0; i < PLAYAS_BUILTIN; i++)
+        if (s_builtin[i].charaId == charaId)
+            return s_builtin[i].hideParts;
+    return NULL;
+}
+
+void Pc_PlayAs_Rescan(void)
+{
+    char cur[40];
+    int  i;
+
+    snprintf(cur, sizeof(cur), "%s", PlayAs_Cur()->name);
+    s_playCount = 0;
+    PlayAs_Roster();
+    for (i = 0; i < s_playCount; i++)
+        if (strcmp(s_playable[i].name, cur) == 0)
+        {
+            s_current = i;
+            return;
+        }
+    /* -1 first: SetByIndex applies nothing when the index is already current,
+     * and a removed swap then stayed on Harry with the row reading HARRY. */
+    s_current = -1;
+    Pc_PlayAs_SetByIndex(0, 1);
 }
 
 void Pc_PlayAs_Init(void)

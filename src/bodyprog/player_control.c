@@ -843,6 +843,11 @@ bool func_80071620(u32 animStatus, s_SubCharacter* player, s32 keyframeIdx, e_Sf
     }
 }
 
+#ifdef SH_PC_PORT
+/* Free-aim camera-ray pitch (90 = level), written by Player_CombatUpdate. */
+static q3_12 g_PcFreeAimPitch = Q12_ANGLE(90.0f);
+#endif
+
 void Player_Update(s_SubCharacter* player, s_AnmHeader* anmHdr, GsCOORDINATE2* coords) // 0x800717D0
 {
     s_PlayerExtra* extra;
@@ -993,9 +998,15 @@ void Player_Update(s_SubCharacter* player, s_AnmHeader* anmHdr, GsCOORDINATE2* c
                 Anim_BoneUpdate(anmHdr, coords, _holdKf, _holdKf, Q12(0.0f));
             }
 
-            s32 _aimPitch = playerProps.field_122 - Q12_ANGLE(90.0f);
+            /* g_PcFreeAimPitch, not field_122: with nothing locked on, the aim
+             * states reset field_122 to level every frame before this runs, and
+             * the camera-ray pitch only lands in it later in the frame, so the
+             * lean read level and Harry never tilted. */
+            s32 _aimPitch = g_PcFreeAimPitch - Q12_ANGLE(90.0f);
             _aimPitch = CLAMP(_aimPitch, -Q12_ANGLE(56.25f), Q12_ANGLE(56.25f)); /* = FLEX_ROT_X_RANGE */
-            func_80044F14(&coords[HarryBone_Torso], Q12_ANGLE(0.0f), _aimPitch >> 1, Q12_ANGLE(0.0f));
+            /* Three quarters of the aim pitch: half read as Harry barely moving
+             * while the camera looked well up or down. */
+            func_80044F14(&coords[HarryBone_Torso], Q12_ANGLE(0.0f), (_aimPitch * 3) >> 2, Q12_ANGLE(0.0f));
             coords[HarryBone_Torso].flg = 0;
         }
 
@@ -3068,6 +3079,52 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                      * original path set — classic is not this shim's business. */
                 }
 
+                /* Katana lunge. Retail's Player_LowerBodyUpdate (case Attack)
+                 * steps the stab forward through moveSpeed, and the alternate
+                 * cameras never run that machine, so the katana stood still in
+                 * all of them. Same numbers and triggers: the tap stab on its
+                 * first Attack tick (stateStep 0, which nothing else advances
+                 * here), the hold thrust once the swing passes its hit
+                 * keyframe; 0x444 per tick in Attack, the aim rate after. */
+                if (g_DebugThirdPersonCam)
+                {
+                    static q19_12 s_pcKatanaLunge = Q12(0.0f);
+                    int inAttack = (extra->lowerBodyState == PlayerLowerBodyState_Attack);
+                    s32 wa       = g_SysWork.playerCombat.weaponAttack;
+
+                    if (inAttack && wa < WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap) &&
+                        WEAPON_ATTACK_ID_GET(wa) == EquippedWeaponId_Katana)
+                    {
+                        if (wa == WEAPON_ATTACK(EquippedWeaponId_Katana, AttackInputType_Hold))
+                        {
+                            if (s_pcKatanaLunge == Q12(0.0f) &&
+                                extra->model.anim.keyframeIdx >= D_800C44F0[D_800AF220].field_4 + 7)
+                            {
+                                s_pcKatanaLunge = Q12(5.0f);
+                            }
+                        }
+                        else if (player->model.stateStep == 0 && !g_Player_IsAttacking)
+                        {
+                            s_pcKatanaLunge = Q12(5.0f);
+                        }
+                        if (player->model.stateStep == 0)
+                        {
+                            player->model.stateStep++;
+                        }
+                    }
+
+                    if (s_pcKatanaLunge != Q12(0.0f))
+                    {
+                        s_pcKatanaLunge -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, inAttack ? 0x444 : Q12(0.4f));
+                        if (s_pcKatanaLunge < Q12(0.0f))
+                        {
+                            s_pcKatanaLunge = Q12(0.0f);
+                        }
+                        D_800C4550            = s_pcKatanaLunge;
+                        g_Player_HeadingAngle = Q12_ANGLE(0.0f);
+                    }
+                }
+
                 /* Trigger footstep sounds based on animation keyframes.
                  * Save/restore D_800C4550 because func_8007B924 overwrites it
                  * with moveDistance which isn't set on PC. */
@@ -4741,7 +4798,7 @@ static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra,
              * move rounds out of the inventory while the cheat is on. A reload
              * the player asks for by hand still works. */
             if (!isHyperBlaster && reserve > 0 &&
-                (reloadReq || (fireEdge && ammo == 0 && !g_PcInfiniteAmmo)))
+                (reloadReq || (fireEdge && ammo == 0 && !g_PcInfiniteAmmo && Pc_AutoReloadEnabled())))
             {
                 /* Begin reload: play the reload anim (blend->active track) from the
                  * proven per-weapon keyframes, firing locked out. */
@@ -4807,7 +4864,7 @@ static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra,
             else if (fireEdge && ammo == 0 && !g_PcInfiniteAmmo)
             {
                 /* Dry fire. Reaching here means the reload branch above declined
-                 * it — no reserve left — so this is the genuinely empty click,
+                 * it — no reserve left, or auto_reload off — so this is the empty click,
                  * and the native path plays it (Player_CombatAnimUpdate, the
                  * else of the same ammo test). This FSM replaces that function
                  * wholesale for the alternate cameras, so without this the gun
@@ -6334,9 +6391,21 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                 playerTurn = (g_Player_IsTurningLeft != false) * 2;
             }
 
+#ifdef SH_PC_PORT
+            /* Left/Right picks the next target only while the lock-on aim anim
+             * holds its ready keyframe. PSX plays one keyframe a tick and stops
+             * exactly on field_6; at PC frame rates the hold parks a frame past
+             * it, so the exact test failed every frame and the press was thrown
+             * away: no target switching in the classic camera. Same
+             * reached-or-passed reading as SH_AIM_KF_REACHED. */
+            if ((extra->model.anim.status != ANIM_STATUS(HarryAnim_Unk29, true) || extra->model.anim.keyframeIdx < D_800C44F0[1].field_6) &&
+                (extra->model.anim.status != ANIM_STATUS(HarryAnim_Unk30, true) || extra->model.anim.keyframeIdx < D_800C44F0[2].field_6) &&
+                (extra->model.anim.status != ANIM_STATUS(HarryAnim_Unk32, true) || extra->model.anim.keyframeIdx < D_800C44F0[4].field_6))
+#else
             if ((extra->model.anim.status != ANIM_STATUS(HarryAnim_Unk29, true) || extra->model.anim.keyframeIdx != D_800C44F0[1].field_6) &&
                 (extra->model.anim.status != ANIM_STATUS(HarryAnim_Unk30, true) || extra->model.anim.keyframeIdx != D_800C44F0[2].field_6) &&
                 (extra->model.anim.status != ANIM_STATUS(HarryAnim_Unk32, true) || extra->model.anim.keyframeIdx != D_800C44F0[4].field_6))
+#endif
             {
                 playerTurn = 0;
                 player->properties.player.field_100++;
@@ -6348,6 +6417,9 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
 
             if (playerTurn != 0)
             {
+#ifdef SH_PC_PORT
+                s32 pcPrevTarget = g_Player_TargetNpcIdx;
+#endif
                 playerProps.flags &= ~PlayerFlag_Unk9;
                 player->properties.player.field_F4                 = g_Player_FlexRotationX;
 
@@ -6359,6 +6431,15 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                 {
                     func_8005CD38(&g_Player_TargetNpcIdx, &playerProps.field_122, &g_SysWork.playerCombat, Q12(1.0f / 3.0f), Q12(3.0f), playerTurn);
                 }
+#ifdef SH_PC_PORT
+                /* Once per switch attempt (the state leaves AimTargetLock on either
+                 * outcome), so a test run says whether the gate opened and what the
+                 * selector answered: -1 = no candidate on that side with a clear
+                 * line of sight, which drops the lock as retail does. */
+                SH_DBG("[AIMSWITCH] dir=%s from npc %d -> %d (status=%d kf=%d)",
+                       (playerTurn == 1) ? "right" : "left", (int)pcPrevTarget, (int)g_Player_TargetNpcIdx,
+                       (int)extra->model.anim.status, (int)extra->model.anim.keyframeIdx);
+#endif
 
                 if (g_Player_TargetNpcIdx == NO_VALUE)
                 {
@@ -6670,7 +6751,10 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                 {
                     case ANIM_STATUS(HarryAnim_Unk29, true):
                     case ANIM_STATUS(HarryAnim_Unk32, true):
-                        if (extra->model.anim.keyframeIdx == D_800C44F0[D_800AF220].field_6)
+                        /* Reached-or-passed on PC: the switch below completes on that
+                         * reading, so the snap has to fire on the same frames or the
+                         * body finishes the switch still turning. */
+                        if (SH_AIM_KF_REACHED(D_800C44F0[D_800AF220].field_6))
                         {
                             player->rotation.vy = temp_s1_2;
                         }
@@ -7123,7 +7207,15 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
                     extra->model.controlState                = 0;
                     player->properties.player.field_100 = 0;
 
+#ifdef SH_PC_PORT
+                    /* Retail fills the clip from the reserve the moment the gun is
+                     * raised, with no animation: every aim is a free, silent
+                     * reload, which makes the reload button and the dry-fire
+                     * reload meaningless. Kept only under auto_reload = 2. */
+                    if (g_SysWork.playerCombat.totalWeaponAmmo != 0 && g_PcConfig.autoReload == 2)
+#else
                     if (g_SysWork.playerCombat.totalWeaponAmmo != 0)
+#endif
                     {
                         if (g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
                         {
@@ -7533,9 +7625,16 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
 
                 if (g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
                 {
+                    /* With the automatic reload off this falls through to the
+                     * Attack state set above, whose empty-clip branch plays the
+                     * dry click, as it does with no reserve at all. */
                     if (g_SysWork.playerCombat.currentWeaponAmmo == 0 &&
                         INV_ITEM_GROUP(g_SavegamePtr->equippedWeapon) == InvItemGroup_GunWeapons &&
-                        g_SysWork.playerCombat.totalWeaponAmmo != 0)
+                        g_SysWork.playerCombat.totalWeaponAmmo != 0
+#ifdef SH_PC_PORT
+                        && Pc_AutoReloadEnabled()
+#endif
+                        )
                     {
                         g_SysWork.playerWork.extra.upperBodyState              = PlayerUpperBodyState_Reload;
                         playerProps.flags &= ~PlayerFlag_Unk9;
@@ -11339,6 +11438,7 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
                 if (_pitch > Q12_ANGLE(146.25f)) _pitch = Q12_ANGLE(146.25f);
                 unkAngle              = _pitch;
                 playerProps.field_122 = _pitch;
+                g_PcFreeAimPitch      = _pitch;
                 (void)g_TpsCamPitch;
                 D_800C4554 = NO_VALUE;
                 D_800C4556 = NO_VALUE;

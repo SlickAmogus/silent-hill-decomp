@@ -13,6 +13,7 @@
 #include "bodyprog/text/text_draw.h"
 #ifdef SH_PC_PORT
 #include "pc_msg_voice.h"
+#include "lang_ar.h"
 #endif
 #include "main/fsqueue.h"
 
@@ -287,7 +288,11 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
 
             Gfx_StringSetColor(StringColorId_White);
 #if VERSION_REGION_IS(NTSC)
+#ifdef SH_PC_PORT
+            Gfx_StringSetPosition(PC_AR_USA(280, 40), 160);
+#else
             Gfx_StringSetPosition(40, 160);
+#endif
 #endif
 
 #ifdef SH_PC_PORT
@@ -664,7 +669,11 @@ s32 Gfx_MapMsg_SelectionUpdate(u8 mapMsgIdx, s32* arg1) // 0x80036B5C
                     }
 
 #if VERSION_REGION_IS(NTSC)
+#ifdef SH_PC_PORT
+                    Gfx_StringSetPosition(PC_AR_USA(288, 32), (STRING_LINE_OFFSET * i) + 98);
+#else
                     Gfx_StringSetPosition(32, (STRING_LINE_OFFSET * i) + 98);
+#endif
                     Gfx_StringDraw(g_MapOverlayHdr.mapMessages[i], MAP_MESSAGE_DISPLAY_ALL_LENGTH);
 #else
                     Gfx_StringDraw_JP(g_MapOverlayHdr.mapMessages[i], i);
@@ -693,7 +702,11 @@ s32 Gfx_MapMsg_SelectionUpdate(u8 mapMsgIdx, s32* arg1) // 0x80036B5C
                     }
 
 #if VERSION_REGION_IS(NTSC)
+#ifdef SH_PC_PORT
+                    Gfx_StringSetPosition(PC_AR_USA(288, 32), (STRING_LINE_OFFSET * i) + 96);
+#else
                     Gfx_StringSetPosition(32, (STRING_LINE_OFFSET * i) + 96);
+#endif
                     Gfx_StringDraw(g_MapOverlayHdr.mapMessages[(mapMsgIdx + i) + 1], MAP_MESSAGE_DISPLAY_ALL_LENGTH);
 #else
                     Gfx_StringDraw_JP(g_MapOverlayHdr.mapMessages[(mapMsgIdx + i) + 1], i);

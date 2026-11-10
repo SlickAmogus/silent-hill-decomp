@@ -60,9 +60,10 @@ s_PcConfig g_PcConfig = {
                          * Cursor and repeat speeds on those screens are per-frame, so a
                          * 240Hz menu moved them four times too fast (reported). */
     .lowHealthGlow = 0, /* 1=pulsing red edge glow below 20 hp (SH2 remake style); off by default */
-    .bulletDecals = 0, /* 1=bullet-hole decals at player gunshot impacts (gamedata/decal.png); off by default */
+    .bulletDecals = 0, /* 1=bullet-hole decals at player gunshot impacts (gamedata/image/decal.png); off by default */
     .gamepadIcons = GLYPH_SET_AUTO,
     .globalCharaPool = 1, /* 1=all chara assets resident PC-side + chara_global.dll AI backfill (SPAWN anything anywhere) */
+    .worldVisibility = 1,
     .wholeMapExteriors = 2, /* auto: whole town drawn while fog_strength < 1.0, the only time it can be seen */
     .usePgxp        = 0, /* 0=affine textures (PSX look), 1=PGXP perspective correct (WIP) */
     .itemDepthProbe = 0, /* 1=one-shot [ITEMDEPTH] depth dump per item-screen entry (diagnostic) */
@@ -76,10 +77,12 @@ s_PcConfig g_PcConfig = {
     .perPixelFlashlight = 0, /* DERIVED from flashlightMode */
     .flashlightShadows  = 1, /* per-pixel flashlight casts real-time shadows (on by default; only visible when perPixelFlashlight is on) */
     .fogStrength          = 1.10f, /* PSX-matched density; lower reveals more of the widened draw distance */
-    .flashlightIntensity  = 1.20f, /* per-pixel flashlight cone brightness scale, 0..3 */
+    .flashlightIntensity  = 1.20f, /* per-pixel flashlight cone brightness scale, 0..6 */
     .flashlightSize       = 3.00f, /* per-pixel flashlight cone coverage multiplier */
     .flashlightIntensityFps = 2.10f, /* FPS-mode brightness (head-mounted) */
     .flashlightSizeFps      = 1.30f, /* FPS-mode coverage (tighter than third-person) */
+    .flashlightFollowAim    = 0,
+    .flashlightFollowAimFps = 1,
     .postProcessIntensity = 1.0f, /* post-process effect mix, 0..1 */
     .tonemapIntensity     = 1.0f, /* tone-map mix, 0..1 */
     .brightness           = 1.0f, /* output image brightness; 1.0 = neutral */
@@ -104,6 +107,8 @@ s_PcConfig g_PcConfig = {
     .crosshairStyle      = 0, /* 0 = cross (+), 1 = dot, 2 = circle, 3 = dashes/gap */
     .crosshairSize       = 100.0f,
     .crosshairFpsAimOnly = 0, /* FPS crosshair: 0 = always shown, 1 = only while aiming */
+    .crosshairHideMelee  = 0, /* 1 = no crosshair unless a gun is equipped */
+    .autoReload          = 2, /* 0 = reload button only, 1 = after a dry fire, 2 = original (also on aim) */
     .ragdoll             = 0,
     .textSize            = 100.0f,
     .aimAssist           = 1, /* OTS/TPS free-aim aim assist (mouse body-coverage + controller auto-aim) */
@@ -214,11 +219,11 @@ s_PcConfig g_PcConfig = {
         .padL3 = "leftstick", .padR3 = "rightstick",
         .padStart = "start", .padSelect = "back",
         .keyChangeCam = "F9", .padChangeCam = "rightstick",
-        .keyReload = "R", .padReload = "NONE",
+        .keyReload = "R", .padReload = "rightshoulder",
         .keyCycleWeapons = "NONE", .padCycleWeapons = "NONE",
         .keyQuickHeal = "NONE", .padQuickHeal = "NONE",
         .keyReload2 = "NONE",
-        .keyQuickTurn = "NONE", .padQuickTurn = "NONE",
+        .keyQuickTurn = "NONE", .padQuickTurn = "leftshoulder",
         .keyRearLook = "NONE", .padRearLook = "NONE",
     },
     /* === ALTCAM scheme: any alternate/modern camera (TPS/OTS). WASD move,
@@ -239,11 +244,11 @@ s_PcConfig g_PcConfig = {
         /* Action binds default to the same as classic until the player rebinds
          * the altcam scheme (Change Camera stays F9/rightstick, reload keyboard R). */
         .keyChangeCam = "F9", .padChangeCam = "rightstick",
-        .keyReload = "R", .padReload = "NONE",
+        .keyReload = "R", .padReload = "rightshoulder",
         .keyCycleWeapons = "NONE", .padCycleWeapons = "NONE",
         .keyQuickHeal = "NONE", .padQuickHeal = "NONE",
         .keyReload2 = "NONE",
-        .keyQuickTurn = "NONE", .padQuickTurn = "NONE",
+        .keyQuickTurn = "NONE", .padQuickTurn = "leftshoulder",
         .keyRearLook = "NONE", .padRearLook = "NONE",
     },
     .keyQuickSave = "F6", .keyQuickLoad = "F8",
@@ -571,6 +576,10 @@ void PcConfig_Load(const char* path)
             if (f > 2.0f) f = 2.0f;
             g_PcConfig.fogStrength = f;
         }
+        else if (strcmp(key, "world_visibility") == 0)
+        {
+            g_PcConfig.worldVisibility = (atoi(value) != 0);
+        }
         else if (strcmp(key, "draw_distance_pct") == 0)
         {
             /* Above ~210 the view-space Z (Q8 in an s16 scratch) wraps past 128u. */
@@ -842,28 +851,36 @@ void PcConfig_Load(const char* path)
         {
             float v = (float)atof(value);
             if (v < 0.0f) v = 0.0f;
-            if (v > 3.0f) v = 3.0f;
+            if (v > 6.0f) v = 6.0f;
             g_PcConfig.flashlightIntensity = v;
         }
         else if (strcmp(key, "flashlight_size") == 0)
         {
             float v = (float)atof(value);
             if (v < 0.0f) v = 0.0f;
-            if (v > 3.0f) v = 3.0f;
+            if (v > 5.0f) v = 5.0f;
             g_PcConfig.flashlightSize = v;
         }
         else if (strcmp(key, "flashlight_intensity_fps") == 0)
         {
             float v = (float)atof(value);
             if (v < 0.0f) v = 0.0f;
-            if (v > 3.0f) v = 3.0f;
+            if (v > 6.0f) v = 6.0f;
             g_PcConfig.flashlightIntensityFps = v;
+        }
+        else if (strcmp(key, "flashlight_follow_aim") == 0)
+        {
+            g_PcConfig.flashlightFollowAim = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "flashlight_follow_aim_fps") == 0)
+        {
+            g_PcConfig.flashlightFollowAimFps = (atoi(value) != 0);
         }
         else if (strcmp(key, "flashlight_size_fps") == 0)
         {
             float v = (float)atof(value);
             if (v < 0.0f) v = 0.0f;
-            if (v > 3.0f) v = 3.0f;
+            if (v > 5.0f) v = 5.0f;
             g_PcConfig.flashlightSizeFps = v;
         }
         else if (strcmp(key, "xa_volume") == 0)
@@ -1130,6 +1147,17 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "crosshair_fps_aim_only") == 0)
         {
             g_PcConfig.crosshairFpsAimOnly = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "crosshair_hide_melee") == 0)
+        {
+            g_PcConfig.crosshairHideMelee = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "auto_reload") == 0)
+        {
+            int v = atoi(value);
+            if (v < 0) v = 0;
+            if (v > 2) v = 2;
+            g_PcConfig.autoReload = v;
         }
         else if (strcmp(key, "ragdoll") == 0)
         {
@@ -1442,6 +1470,11 @@ else if (strcmp(key, "enable_plugins") == 0)
                 g_PcConfig.mapName[sizeof(g_PcConfig.mapName) - 1] = '\0';
             }
         }
+        else if (strncmp(key, "chara_model_", 12) == 0)
+        {
+            extern void Pc_CharaSelect_ConfigKey(const char* name, const char* value);
+            Pc_CharaSelect_ConfigKey(key + 12, value);
+        }
         else if (strncmp(key, "launcher_", 9) == 0)
         {
             /* Launcher-managed keys (launcher_repo_url / _branch / _build) live in
@@ -1599,6 +1632,35 @@ else if (strcmp(key, "enable_plugins") == 0)
         {
             g_PcConfig.menuFpsUnlock = 0;
             PcConfig_SaveKeyValue("menu_fps_unlock", "0");
+        }
+
+        /* v6: the controller gets Reload on the right shoulder and Quick Turn on
+         * the left by default. Only a slot still unbound is filled, so a pad
+         * bind the player chose for either action stays. (v4 and v5 are the
+         * mobile branches' steps; a desktop config just stamps past them.) */
+        if (g_PcConfig.configVersion < 6)
+        {
+            static const struct { const char* key; size_t off; const char* value; } pad[2] = {
+                { "pad_reload",     offsetof(ControlScheme, padReload),    "rightshoulder" },
+                { "pad_quick_turn", offsetof(ControlScheme, padQuickTurn), "leftshoulder"  },
+            };
+            ControlScheme* schemes[2] = { &g_PcConfig.classic, &g_PcConfig.altcam };
+            int i, s;
+
+            for (s = 0; s < 2; s++)
+            {
+                for (i = 0; i < 2; i++)
+                {
+                    char* slot = (char*)schemes[s] + pad[i].off;
+                    char  fullKey[40];
+
+                    if (slot[0] != '\0' && strcmp(slot, "NONE") != 0)
+                        continue;
+                    snprintf(slot, 24, "%s", pad[i].value);
+                    snprintf(fullKey, sizeof(fullKey), "%s%s", pad[i].key, s ? "_altcam" : "");
+                    PcConfig_SaveKeyValue(fullKey, pad[i].value);
+                }
+            }
         }
 
         g_PcConfig.configVersion = PC_CONFIG_VERSION;

@@ -18,6 +18,7 @@
 #ifdef SH_PC_PORT
 #include <ctype.h>
 #include "pc_config.h"
+#include "main/fileinfo.h" /* g_GameRegion: PAL Brightness */
 #include "pc_pause_menu.h"
 #endif
 
@@ -35,6 +36,7 @@
 #include "pc_pplit.h"
 #endif
 #include "lang_pack.h" /* PC-side pack language label (Polish) */
+#include "lang_ar.h"
 #define LAYER_24   PSX_OT_OFS(24)
 #define LAYER_40   PSX_OT_OFS(40)
 #define LAYER_36   PSX_OT_OFS(36)
@@ -112,7 +114,9 @@ extern float g_PcFmvVolume;
  * hit-test, and their selection arrows right by this many (authored, pre-160)
  * pixels in every language — the widescreen 2D layer has ample room on the
  * right, and English still sits comfortably clear. */
-#define OPT_VOLUME_BAR_DX 28
+/* The USA Arabic patch mirrors the bars about x=0 with no nudge; its labels sit
+ * on the far side. */
+#define OPT_VOLUME_BAR_DX PC_AR_USA(0, 28)
 
 s32 g_PcOptionsMenu_SelectedEntry     = 0;
 s32 g_PcOptionsMenu_PrevSelectedEntry = 0;
@@ -130,7 +134,7 @@ static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System, 2 = Cont
  * which is the right behaviour for a pointer that is already there. */
 s32 g_PcOptions_HighlightSnap = 0;
 
-enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_NEXT, PCK_PREV, PCK_BACK };
+enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_CHARA };
 
 /* PC-options row origin. The heading sits at y=20 and the rows used to start at 56,
  * leaving a full empty row beneath it while the pages ran off the BOTTOM of the
@@ -204,12 +208,15 @@ static const s_PcOpt PCOPT_G[] = {
     { "VSync",          &g_PcConfig.vsync,              "vsync",                VAL_VSYNC, 2, LBL_VSYNC, NULL,                          1, PCK_VSYNC   },
     { "Texture_Filter", &g_PcConfig.psxDither,          "texture_filter",       VAL_FILT,  8, LBL_FILT,  NULL,                          1, PCK_FILTER },
     { "PGXP",           &g_PcConfig.usePgxp,            "use_pgxp",             VAL_ONOFF, 2, LBL_ONOFF, &g_PsxUsePgxp,                 1, PCK_INT    },
-    { "Antialiasing",   &g_PcConfig.msaaSamples,        "msaa",                 VAL_AA,    4, LBL_AA,    NULL,                          0, PCK_INT    },
     { "Post_Process",   &g_PcConfig.postProcess,        "post_process",         VAL_POST,  9, LBL_POST,  &g_cfg_postProcess,            1, PCK_INT    },
     { "Tone_Mapping",   &g_PcConfig.tonemap,            "tonemap",              VAL_TONE,  4, LBL_TONE,  &g_cfg_tonemap,                1, PCK_INT    },
     /* New-Game start map. Moved here from the Camera page, which had run to 12
      * rows (the practical maximum) while this page had room to spare. */
     { "Map",           NULL,                           "map",                  NULL,      0, NULL,      NULL,                          1, PCK_MAP    },
+    /* Opens the Character Select screen (pc_chara_select.c). Antialiasing
+     * moved to the System page to keep this one at 11 rows; it needs a
+     * restart either way. */
+    { "Character_Customization", NULL,                NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_CHARA  },
     { "Next_Page",      NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_NEXT   },
     { "Back",           NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_BACK   },
 };
@@ -221,8 +228,8 @@ static const s_PcOpt PCOPT_S[] = {
      * through Pc_FlashlightModeApply, which derives the per-pixel/style/shadow
      * globals and the per-style beam defaults. */
     { "Flashlight",       &g_PcConfig.flashlightMode,     "flashlight_mode",      VAL_FLMODE, 4, LBL_FLMODE, NULL,                        1, PCK_FLMODE },
-    { "Beam_Intensity",   NULL, "flashlight_intensity", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.flashlightIntensity, &g_PsyX_FlashlightIntensity, 0.0f, 3.0f, 0.1f },
-    { "Beam_Size",        NULL, "flashlight_size",      NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.flashlightSize,      &g_PsyX_FlashlightSize,      0.0f, 3.0f, 0.1f },
+    { "Beam_Intensity",   NULL, "flashlight_intensity", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.flashlightIntensity, &g_PsyX_FlashlightIntensity, 0.0f, 6.0f, 0.1f },
+    { "Beam_Size",        NULL, "flashlight_size",      NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.flashlightSize,      &g_PsyX_FlashlightSize,      0.0f, 5.0f, 0.1f },
     /* 1.1 is the PSX-matched density. Lowering it reveals the extra reach that
      * draw_distance_pct buys, rather than just thinning the haze -- the two are
      * meant to be moved together, since either alone disappoints. */
@@ -239,6 +246,7 @@ static const s_PcOpt PCOPT_S[] = {
      * Crosshair rows moved to the HUD page to make room, which is where the
      * quick-options overlay already groups them. */
     { "Weather_Rate",     &g_PcConfig.weatherSimHz,   "weather_sim_hz",   VAL_WHZ,   2, LBL_WHZ,   NULL, 1, PCK_INT  },
+    { "Antialiasing",     &g_PcConfig.msaaSamples,    "msaa",             VAL_AA,    4, LBL_AA,    NULL, 0, PCK_INT  },
     { "Prev_Page",        NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_PREV },
     { "Next_Page",        NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_NEXT },
     { "Back",             NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_BACK },
@@ -552,7 +560,8 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_TPSRESTX, QO_X_TPSRESTY, QO_X_TPSAIMX, QO_X_TPSAIMY,
        QO_X_OTSRESTX, QO_X_OTSRESTY, QO_X_OTSAIMX, QO_X_OTSAIMY,
        QO_X_DREAMSTR, QO_X_DREAMBLUR, QO_X_DPADMOVE, QO_X_CROSSHAIRSTYLE,
-       QO_X_LINEGAP, QO_X_CHARALIGHT, QO_X_PPLIGHT, QO_X_HEROLIGHT, QO_X_HEROLIGHTFL, QO_X_FACEANIM };
+       QO_X_LINEGAP, QO_X_CHARALIGHT, QO_X_PPLIGHT, QO_X_HEROLIGHT, QO_X_HEROLIGHTFL, QO_X_FACEANIM,
+       QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD, QO_X_WORLDVIS, QO_X_FLASHAIM };
 
 /* display_aspect = crt puts the picture on (4:3 x trim), so one framebuffer
  * pixel lands on screen this many times wider than tall at trim 1.0. It is the
@@ -655,6 +664,23 @@ const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz)
         return Pc_LangQuickMenu(g_PcConfig.heroLightWithFlashlight ? "On" : "Off");
     case QO_X_FACEANIM:
         return Pc_LangQuickMenu(g_PcConfig.charaFaceAnim ? "On" : "Off");
+    case QO_X_WORLDVIS:
+        return g_PcConfig.worldVisibility ? Pc_LangQuick("Full") : Pc_LangQuickMenu("Off");
+    case QO_X_CROSSHAIRMELEE:
+        return Pc_LangQuickMenu(g_PcConfig.crosshairHideMelee ? "On" : "Off");
+    /* One row, two settings: first person and the third-person cameras each
+     * keep their own, and the row edits the one for the camera in use. */
+    case QO_X_FLASHAIM: {
+        extern int g_PcFpsCam;
+        int        on = g_PcFpsCam ? g_PcConfig.flashlightFollowAimFps : g_PcConfig.flashlightFollowAim;
+
+        snprintf(buf, bufsz, "%s  %s", Pc_LangQuickMenu(on ? "On" : "Off"),
+                 Pc_LangQuick(g_PcFpsCam ? "(first person)" : "(third person)"));
+        return buf;
+    }
+    case QO_X_AUTORELOAD:
+        return (g_PcConfig.autoReload == 2) ? Pc_LangQuick("Original (also when aiming)")
+                                            : Pc_LangQuickMenu(g_PcConfig.autoReload ? "On" : "Off");
     case QO_X_LINEGAP: {
         int i = PcOpt_LineGapIndex();
         return (i == 0) ? Pc_LangQuickMenu("Off") : Pc_LangQuick(QO_LINEGAP_LBL[i]);
@@ -1129,6 +1155,12 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
         Sd_PlaySfx(Sfx_MenuMove, 0, 64);
         break;
     }
+    /* Read by every far cap each frame, so it applies live. */
+    case QO_X_WORLDVIS:
+        g_PcConfig.worldVisibility = !g_PcConfig.worldVisibility;
+        PcConfig_SaveKeyValue("world_visibility", g_PcConfig.worldVisibility ? "1" : "0");
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        break;
     /* Read by the skinned-character draw each frame, so it applies live. */
     case QO_X_FACEANIM:
         g_PcConfig.charaFaceAnim = !g_PcConfig.charaFaceAnim;
@@ -1151,6 +1183,39 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
         PcConfig_SaveKeyValue("disable_dpad_movement", g_PcConfig.disableDpadMovement ? "1" : "0");
         Sd_PlaySfx(Sfx_MenuMove, 0, 64);
         break;
+    /* Pc_CrosshairDraw reads it each frame, so it applies live. */
+    case QO_X_CROSSHAIRMELEE:
+        g_PcConfig.crosshairHideMelee = !g_PcConfig.crosshairHideMelee;
+        PcConfig_SaveKeyValue("crosshair_hide_melee", g_PcConfig.crosshairHideMelee ? "1" : "0");
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        break;
+    /* func_800554C4 reads it each time the light is set up, so it applies live. */
+    case QO_X_FLASHAIM: {
+        extern int g_PcFpsCam;
+
+        if (g_PcFpsCam)
+        {
+            g_PcConfig.flashlightFollowAimFps = !g_PcConfig.flashlightFollowAimFps;
+            PcConfig_SaveKeyValue("flashlight_follow_aim_fps", g_PcConfig.flashlightFollowAimFps ? "1" : "0");
+        }
+        else
+        {
+            g_PcConfig.flashlightFollowAim = !g_PcConfig.flashlightFollowAim;
+            PcConfig_SaveKeyValue("flashlight_follow_aim", g_PcConfig.flashlightFollowAim ? "1" : "0");
+        }
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        break;
+    }
+    /* Read where a reload starts, so it applies live. */
+    case QO_X_AUTORELOAD: {
+        char buf2[8];
+
+        g_PcConfig.autoReload = (g_PcConfig.autoReload + dir + 3) % 3;
+        snprintf(buf2, sizeof(buf2), "%d", g_PcConfig.autoReload);
+        PcConfig_SaveKeyValue("auto_reload", buf2);
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        break;
+    }
     /* Wraps both ways through the four shapes. Pc_CrosshairBuild reads the
      * value when it draws, so it applies live; the row does NOT switch the
      * crosshair on, because picking a shape is not asking for one. */
@@ -1191,8 +1256,15 @@ static void PcOpt_ResetEntry(const s_PcOpt* e)
 
     if (e->key == NULL) return;
     if (e->kind == PCK_RES || e->kind == PCK_WINMODE ||
-        e->kind == PCK_NEXT || e->kind == PCK_PREV || e->kind == PCK_BACK ||
-        e->kind == PCK_MAP) return;
+        e->kind == PCK_NEXT || e->kind == PCK_PREV || e->kind == PCK_BACK) return;
+
+    /* The New Game start map, saved the way picking it on the row does. */
+    if (e->kind == PCK_MAP) {
+        strncpy(g_PcConfig.mapName, d->mapName, sizeof(g_PcConfig.mapName) - 1);
+        g_PcConfig.mapName[sizeof(g_PcConfig.mapName) - 1] = '\0';
+        PcConfig_SaveMapName(g_PcConfig.mapName);
+        return;
+    }
 
     if (e->kind == PCK_SLIDER && e->ffield != NULL) {
         float dv = *(const float*)((const char*)d + ((const char*)e->ffield - (const char*)&g_PcConfig));
@@ -1235,6 +1307,21 @@ void Pc_Options_ResetToDefaults(void)
         for (i = 0; i < count; i++)
             PcOpt_ResetEntry(&tbl[i]);
     }
+    {
+        extern const s_PcConfig* PcConfig_Defaults(void);
+        extern void              Pc_ControlStyleSet(int style);
+        const s_PcConfig*        d = PcConfig_Defaults();
+
+        /* Camera mode is chosen by the Change Camera bind and the quick menu,
+         * not a table row; Pc_ControlStyleSet swaps the binds and saves it. */
+        g_PcConfig.controlStyle = d->controlStyle;
+        Pc_ControlStyleSet(d->controlStyle);
+        /* Character Select's choices are settings too. */
+        {
+            extern void Pc_CharaSelect_ResetAll(void);
+            Pc_CharaSelect_ResetAll();
+        }
+    }
     SH_DBG_ECHO("Settings reset to defaults (resolution and window mode kept).");
 }
 
@@ -1242,6 +1329,9 @@ void Pc_Options_ResetToDefaults(void)
 #include <SDL.h>
 #include "pc_confirm_dialog.h"
 #include "pc_controls_screen.h"
+#include "pc_reset_settings.h"
+#include "pc_chara_select.h"
+#include "pc_native_menu_draw.h"
 
 /* Shared with the header draw: 1 while the reset dialog is up (label turns red). */
 int g_PcOptResetConfirmActive = 0;
@@ -1268,10 +1358,12 @@ static int PcOpt_ResetConfirm_Run(void)
     int left, right, confirm, cancel, res;
 
     g_PcOptResetConfirmActive = Pc_ConfirmDialog_IsOpen();
+    Pc_ResetSettings_Track();
 
     if (!g_PcOptResetConfirmActive) {
-        if (PcOpt_KeyEdge(SDL_SCANCODE_R)) {
-            Pc_ConfirmDialog_Open("RESET SETTINGS", "Reset all PC options to their defaults?");
+        /* R, both triggers, or the touch overlay's circled R. */
+        if (Pc_ResetSettings_RequestEdge()) {
+            Pc_ConfirmDialog_Open("RESET SETTINGS", "Reset all settings to their defaults?");
             g_PcOptResetConfirmActive = 1;
             Sd_PlaySfx(Sfx_MenuMove, 0, 64);
             return 1;
@@ -1502,6 +1594,14 @@ void Options_PcOptionsMenu_Control(void)
                 g_GameWork.gameStateSteps[1] = 0;
                 g_GameWork.gameStateSteps[2] = 0;
                 return;
+            } else if (sel->kind == PCK_CHARA) {
+                Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+                ScreenFade_Start(true, false, false);
+                g_GameWork.gameStateSteps[0] = OptionsMenuState_EnterCharaSelect;
+                g_SysWork.counters_1C[1]     = 0;
+                g_GameWork.gameStateSteps[1] = 0;
+                g_GameWork.gameStateSteps[2] = 0;
+                return;
             }
         }
     }
@@ -1518,15 +1618,64 @@ void Options_PcOptionsMenu_Control(void)
     }
 }
 
+/* Character Select under PC Options: the page fades out, the screen runs
+ * until it asks to close, then the page fades back in where it was. */
+static void Options_CharaSelectMenu_Control(void)
+{
+    switch (g_GameWork.gameStateSteps[0])
+    {
+        case OptionsMenuState_EnterCharaSelect:
+            if (ScreenFade_IsFinished())
+            {
+                Pc_CharaSelect_Open();
+                ScreenFade_Start(false, true, false);
+                g_GameWork.gameStateSteps[0] = OptionsMenuState_CharaSelect;
+            }
+            break;
+
+        case OptionsMenuState_CharaSelect:
+            {
+                NmInput in;
+
+                NmInput_FromGame(&in);
+                Pc_CharaSelect_Draw();
+                if (!Pc_CharaSelect_Update(&in))
+                {
+                    ScreenFade_Start(true, false, false);
+                    g_GameWork.gameStateSteps[0] = OptionsMenuState_LeaveCharaSelect;
+                }
+                g_Controller0->clickedBtnFlags   = 0;
+                g_Controller0->pulsedBtnFlags    = 0;
+                g_Controller0->pulsedGuiBtnFlags = 0;
+            }
+            break;
+
+        default:
+            Pc_CharaSelect_Draw();
+            if (ScreenFade_IsFinished())
+            {
+                Pc_CharaSelect_Close();
+                ScreenFade_Start(false, true, false);
+                g_GameWork.gameStateSteps[0] = OptionsMenuState_PcOptions;
+                g_SysWork.counters_1C[1]     = 0;
+                g_GameWork.gameStateSteps[1] = 0;
+                g_GameWork.gameStateSteps[2] = 0;
+            }
+            break;
+    }
+}
+
 static void Options_PcOptionsMenu_EntryStringsDraw(void)
 {
-    #define LINE_BASE_X   64
+    /* USA Arabic draws leftward from X: the page is mirrored the way the patch
+     * mirrored the main Options page (labels anchored at 264). */
+    #define LINE_BASE_X   PC_AR_USA(264, 64)
     #define LINE_BASE_Y   PCOPT_LINE_BASE_Y
     #define LINE_OFFSET_Y 16
 
     int            count, i;
     const s_PcOpt* tbl = PcOpt_Page(&count);
-    DVECTOR        strPos  = { 100, 20 };
+    DVECTOR        strPos  = { PC_AR_USA(220, 100), 20 };
     const char*    HEADING = "PC_Options";
 
     Gfx_StringSetColor(StringColorId_White);
@@ -1539,10 +1688,21 @@ static void Options_PcOptionsMenu_EntryStringsDraw(void)
      * confirm dialog is up. Underscores render as spaces: "[R] Reset". */
     {
         extern int g_PcOptResetConfirmActive;
+        /* Names the input in use (R, the triggers, or the touch button, which
+         * is labelled R), small enough to sit beside the heading. */
+        char hint[48], *c;
+        int  w;
+
+        snprintf(hint, sizeof(hint), "%s", Pc_ResetSettings_Hint());
+        for (c = hint; *c; c++)
+            if (*c == ' ') *c = '_';
+        w = (Pc_LangMenuTextWidth(hint) * 3) / 5;
         Gfx_StringSetColor(g_PcOptResetConfirmActive ? StringColorId_Red : StringColorId_White);
-        Gfx_StringSetPosition(232, strPos.vy);
+        Pc_StringScaleSet(Q12(0.6f));
+        Gfx_StringSetPosition(PC_AR_USA(8 + w, 320 - 8 - w), strPos.vy + 4);
         Gfx_Strings2dLayerIdxSet(8);
-        Gfx_StringDraw("[R]_Reset", DEFAULT_MAP_MESSAGE_LENGTH);
+        Gfx_StringDraw(hint, DEFAULT_MAP_MESSAGE_LENGTH);
+        Pc_StringScaleSet(Q12(1.0f));
         Gfx_StringSetColor(StringColorId_White);
     }
 #endif
@@ -1575,6 +1735,8 @@ static void Options_PcOptionsMenu_ConfigDraw(void)
      * 204 clears both ways). Controls and Camera hold only short values (numbers
      * and On/Off), so they can afford 240. */
     int            valX = (g_PcOptionsMenu_Page == 0) ? 196 : (g_PcOptionsMenu_Page == 1) ? 204 : 240;
+
+    valX = PC_AR_USA(320 - valX, valX);
 
     Gfx_StringSetColor(StringColorId_White);
     for (i = 0; i < count; i++) {
@@ -1613,21 +1775,23 @@ static void Options_PcOptionsMenu_SelectionHighlightDraw(void)
     /* Bullet quads, likewise lifted 16 to follow PCOPT_LINE_BASE_Y. */
     const DVECTOR BULLET_QUAD_VERTS_FRONT[] = { { -120, -71 }, { -120, -59 }, { -108, -71 }, { -108, -59 } };
     const DVECTOR BULLET_QUAD_VERTS_BACK[]  = { { -121, -72 }, { -121, -58 }, { -107, -72 }, { -107, -58 } };
+    /* USA Arabic: mirrored like the patch's main-page highlight (121 - width). */
+    s32           mirror = PC_AR_USA(-1, 1);
 
     const s_PcOpt* tbl = PcOpt_Page(&count);
     (void)tbl;
 
     if (g_Options_SelectionHighlightTimer == 0 || g_PcOptions_HighlightSnap) {
         g_PcOptions_HighlightSnap = 0;
-        selectionHighlightFrom.vx = HILITE_WIDTH + (65536 + HIGHLIGHT_OFFSET_X);
+        selectionHighlightFrom.vx = mirror * (HILITE_WIDTH + HIGHLIGHT_OFFSET_X);
         selectionHighlightFrom.vy = ((u16)g_PcOptionsMenu_PrevSelectedEntry * LINE_OFFSET_Y) - HIGHLIGHT_OFFSET_Y;
-        selectionHighlightTo.vx   = HILITE_WIDTH + (65536 + HIGHLIGHT_OFFSET_X);
+        selectionHighlightTo.vx   = mirror * (HILITE_WIDTH + HIGHLIGHT_OFFSET_X);
         selectionHighlightTo.vy   = ((u16)g_PcOptionsMenu_SelectedEntry * LINE_OFFSET_Y) - HIGHLIGHT_OFFSET_Y;
     }
 
     interpAlpha = Math_Sin(g_Options_SelectionHighlightTimer << 7);
 
-    highlightLine.vertex0.vx = HIGHLIGHT_OFFSET_X;
+    highlightLine.vertex0.vx = mirror * HIGHLIGHT_OFFSET_X;
     highlightLine.vertex1.vx = selectionHighlightFrom.vx +
                                FP_FROM((selectionHighlightTo.vx - selectionHighlightFrom.vx) * interpAlpha, Q12_SHIFT);
     highlightLine.vertex1.vy = selectionHighlightFrom.vy +
@@ -1640,9 +1804,9 @@ static void Options_PcOptionsMenu_SelectionHighlightDraw(void)
         int line = i;
         quadVerts = (DVECTOR*)&bulletQuads;
         for (j = 0; j < RECT_VERT_COUNT; j++) {
-            quadVerts[j].vx                   = BULLET_QUAD_VERTS_FRONT[j].vx;
+            quadVerts[j].vx                   = mirror * BULLET_QUAD_VERTS_FRONT[j].vx;
             quadVerts[j].vy                   = BULLET_QUAD_VERTS_FRONT[j].vy + (line * LINE_OFFSET_Y);
-            quadVerts[j + sizeof(DVECTOR)].vx = BULLET_QUAD_VERTS_BACK[j].vx;
+            quadVerts[j + sizeof(DVECTOR)].vx = mirror * BULLET_QUAD_VERTS_BACK[j].vx;
             quadVerts[j + sizeof(DVECTOR)].vy = BULLET_QUAD_VERTS_BACK[j].vy + (line * LINE_OFFSET_Y);
         }
         if (i == g_PcOptionsMenu_SelectedEntry) {
@@ -1922,6 +2086,12 @@ void GameState_Options_Update(void) // 0x801E2D44
         case OptionsMenuState_LeavePcOptions:
             Options_PcOptionsMenu_Control();
             break;
+
+        case OptionsMenuState_EnterCharaSelect:
+        case OptionsMenuState_CharaSelect:
+        case OptionsMenuState_LeaveCharaSelect:
+            Options_CharaSelectMenu_Control();
+            break;
 #endif
     }
 }
@@ -2183,6 +2353,13 @@ void Options_ExtraOptionsMenu_Control(void) // 0x801E318C
 void Options_MainOptionsMenu_Control(void) // 0x801E3770
 {
     #define SOUND_VOL_STEP 8
+#ifdef SH_PC_PORT
+    /* The USA Arabic patch fills the bars right to left, so Right lowers the volume.
+     * It left the error-beep edge checks LTR-keyed; those are kept as the patch had them. */
+    #define SOUND_VOL_STEP_RIGHT PC_AR_USA(-SOUND_VOL_STEP, SOUND_VOL_STEP)
+#else
+    #define SOUND_VOL_STEP_RIGHT SOUND_VOL_STEP
+#endif
 
     s32 audioType;
     s32 vol;
@@ -2265,7 +2442,10 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
                     /* Volume bars: notches at authored x (184 + DX) + n*6,
                      * n = 0..15; just left of the bar drags the volume to
                      * zero. Origin tracks the OPT_VOLUME_BAR_DX bar nudge. */
-                    if (Pc_MouseCursor_LeftHeld() && mx >= 174 + OPT_VOLUME_BAR_DX)
+                    /* USA Arabic bars are the retail bar mirrored about x=160. */
+                    s32 barMx = PC_AR_USA(320 - mx, mx);
+
+                    if (Pc_MouseCursor_LeftHeld() && barMx >= 174 + OPT_VOLUME_BAR_DX)
                     {
                         extern float g_PcXaVolume;
                         s32 barX0 = 184 + OPT_VOLUME_BAR_DX;
@@ -2273,12 +2453,12 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
                             (row == MainOptionsMenuEntry_BgmVolume) ? g_GameWork.config.volumeBgm :
                             (row == MainOptionsMenuEntry_SfxVolume) ? g_GameWork.config.volumeSe  :
                             CLAMP((s32)((g_PcXaVolume * (float)OPT_SOUND_VOLUME_MAX) + 0.5f), 0, OPT_SOUND_VOLUME_MAX);
-                        s32 lit = (mx < barX0) ? 0 : CLAMP(((mx - barX0) / 6) + 1, 1, 16);
+                        s32 lit = (barMx < barX0) ? 0 : CLAMP(((barMx - barX0) / 6) + 1, 1, 16);
 
                         if (lit > curVol / 8)
-                            PcMouse_InjectDir(1);
+                            PcMouse_InjectDir(PC_AR_USA(-1, 1));
                         else if (lit < curVol / 8)
-                            PcMouse_InjectDir(-1);
+                            PcMouse_InjectDir(PC_AR_USA(1, -1));
                     }
                     else if (wheel != 0)
                     {
@@ -2392,6 +2572,17 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
             if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.enter)
             {
                 Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+#ifdef SH_PC_PORT
+                /* PAL never loads this picture (its options overlay loads only
+                 * OPTION2.TIM): the PAL layout puts the item CLUTs at
+                 * (896..943,480..495), inside the in-game rect, and the
+                 * inventory uploads them once per session, so every item
+                 * model came back blank after Brightness. */
+                if (g_GameRegion == Region_EUR)
+                {
+                }
+                else
+#endif
                 if (g_GameWork.gameStatePrev == GameState_MainMenu)
                 {
                     Fs_QueueStartReadTim(FILE_TIM_OP_BRT_E_TIM, IMAGE_BUFFER_3, &g_BrightnessScreenImg0);
@@ -2504,11 +2695,11 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
             // Scroll left/right.
             if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickRight)
             {
-                vol = vol + SOUND_VOL_STEP;
+                vol = vol + SOUND_VOL_STEP_RIGHT;
             }
             if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickLeft)
             {
-                vol = vol - SOUND_VOL_STEP;
+                vol = vol - SOUND_VOL_STEP_RIGHT;
             }
 
             // Set config.
@@ -2533,11 +2724,11 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
 
             if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickRight)
             {
-                vol = vol + SOUND_VOL_STEP;
+                vol = vol + SOUND_VOL_STEP_RIGHT;
             }
             if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickLeft)
             {
-                vol = vol - SOUND_VOL_STEP;
+                vol = vol - SOUND_VOL_STEP_RIGHT;
             }
 
             vol = CLAMP(vol, 0, OPT_SOUND_VOLUME_MAX);
@@ -2575,11 +2766,11 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
 
             if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickRight)
             {
-                fvol += SOUND_VOL_STEP;
+                fvol += SOUND_VOL_STEP_RIGHT;
             }
             if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickLeft)
             {
-                fvol -= SOUND_VOL_STEP;
+                fvol -= SOUND_VOL_STEP_RIGHT;
             }
             fvol = CLAMP(fvol, 0, OPT_SOUND_VOLUME_MAX);
 
@@ -2626,6 +2817,7 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
     }
 
     #undef SOUND_VOL_STEP
+    #undef SOUND_VOL_STEP_RIGHT
 }
 
 void Options_MainOptionsMenu_BgmVolumeBarDraw(void) // 0x801E3F68
@@ -2706,10 +2898,31 @@ void Options_MainOptionsMenu_VolumeBarDraw(s32 row, u8 vol) // 0x801E3FB8
             x0       = (x0Offset + (i * 6)) & 0xFFFF;
             yOffset  = j + 56;
 
+#ifdef SH_PC_PORT
+            /* The USA Arabic patch negates each notch quad's X (bar mirrored about x=0). */
+            if (Pc_ArDisc() == AR_DISC_USA_MANSOUR)
+            {
+                s32 xl = (-((xOffset - j) + NOTCH_SIZE_X)) & 0xFFFF;
+                s32 xr = (-(x0Offset + (i * 6))) & 0xFFFF;
+
+                setXY0Fast(poly, xl, (row * STR_OFFSET_Y) + yOffset);
+                setXY1Fast(poly, xl, (row * STR_OFFSET_Y) - (j + offset));
+                setXY2Fast(poly, xr, (row * STR_OFFSET_Y) + yOffset);
+                setXY3Fast(poly, xr, (row * STR_OFFSET_Y) - (j + offset));
+            }
+            else
+            {
+                setXY0Fast(poly, x0,                           (row * STR_OFFSET_Y) + yOffset);
+                setXY1Fast(poly, x0,                           (row * STR_OFFSET_Y) - (j + offset));
+                setXY2Fast(poly, (xOffset - j) + NOTCH_SIZE_X, (row * STR_OFFSET_Y) + yOffset);
+                setXY3Fast(poly, (xOffset - j) + NOTCH_SIZE_X, (row * STR_OFFSET_Y) - (j + offset));
+            }
+#else
             setXY0Fast(poly, x0,                           (row * STR_OFFSET_Y) + yOffset);
             setXY1Fast(poly, x0,                           (row * STR_OFFSET_Y) - (j + offset));
             setXY2Fast(poly, (xOffset - j) + NOTCH_SIZE_X, (row * STR_OFFSET_Y) + yOffset);
             setXY3Fast(poly, (xOffset - j) + NOTCH_SIZE_X, (row * STR_OFFSET_Y) - (j + offset));
+#endif
             addPrim((u8*)ot->org + LAYER_24, poly);
             GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_F4);
         }
@@ -2722,7 +2935,12 @@ void Options_MainOptionsMenu_VolumeBarDraw(s32 row, u8 vol) // 0x801E3FB8
 
 void Options_ExtraOptionsMenu_EntryStringsDraw(void) // 0x801E416C
 {
+#ifdef SH_PC_PORT
+    /* USA Arabic draws right to left, so the patch moved this to the labels' right edge. */
+    #define LINE_BASE_X   PC_AR_USA(264, 64)
+#else
     #define LINE_BASE_X   64
+#endif
     #define LINE_BASE_Y   64
     #define LINE_OFFSET_X 16
     #define LINE_OFFSET_Y 16
@@ -2731,7 +2949,11 @@ void Options_ExtraOptionsMenu_EntryStringsDraw(void) // 0x801E416C
     static DVECTOR selectionHighlightFromUnused;
     static DVECTOR selectionHighlightToUnused;
 
+#ifdef SH_PC_PORT
+    const DVECTOR STR_POS = { PC_AR_USA(202, PC_AR_PAL(83, 86)), 20 };
+#else
     const DVECTOR STR_POS = { 86, 20 };
+#endif
 
     const char* EXTRA_OPTIONS_STR = "EXTRA_OPTION_\x01\x01\x01\x01\x01S";
 
@@ -2781,7 +3003,12 @@ void Options_ExtraOptionsMenu_EntryStringsDraw(void) // 0x801E416C
 
 void Options_MainOptionsMenu_EntryStringsDraw(void) // 0x801E42EC
 {
+#ifdef SH_PC_PORT
+    /* USA Arabic draws right to left, so the patch moved this to the labels' right edge. */
+    #define LINE_BASE_X   PC_AR_USA(264, 64)
+#else
     #define LINE_BASE_X   64
+#endif
     #define LINE_BASE_Y   56
     #define LINE_OFFSET_X 16
     #define LINE_OFFSET_Y 16
@@ -2790,7 +3017,11 @@ void Options_MainOptionsMenu_EntryStringsDraw(void) // 0x801E42EC
     static DVECTOR selectionHighlightFromUnused;
     static DVECTOR selectionHighlightToUnused;
 
+#ifdef SH_PC_PORT
+    DVECTOR strPos = { PC_AR_USA(185, PC_AR_PAL(116, 121)), 20 };
+#else
     DVECTOR strPos = { 121, 20 };
+#endif
 
     const char* OPTIONS_STR = "OPTION_\x01\x01\x01\x01\x01S";
 
@@ -2892,6 +3123,24 @@ void Options_ExtraOptionsMenu_SelectionHighlightDraw(void) // 0x801E4450
         { -107, -34 }
     };
 
+#ifdef SH_PC_PORT
+    /* Arabic patches: label widths of the disc's text; USA also mirrors the
+     * highlight and bullets about x=0 (line runs leftward from +121). */
+    static const u8 AR_USA_HIGHLIGHT_WIDTHS[] = { 96, 75, 102, 100, 129, 108, 96, 128 };
+    static const u8 AR_PAL_HIGHLIGHT_WIDTHS[] = { 144, 83, 150, 131, 135, 129, 151, 170 };
+    static const DVECTOR AR_USA_FRONT_BULLET_QUAD[] = {
+        { 120, -47 }, { 120, -35 }, { 108, -47 }, { 108, -35 }
+    };
+    static const DVECTOR AR_USA_BACK_BULLET_QUAD[] = {
+        { 121, -48 }, { 121, -34 }, { 107, -48 }, { 107, -34 }
+    };
+    const u8* widths = PC_AR_USA(AR_USA_HIGHLIGHT_WIDTHS,
+                       PC_AR_PAL(AR_PAL_HIGHLIGHT_WIDTHS, SELECTION_HIGHLIGHT_WIDTHS));
+    const DVECTOR* frontQuad = PC_AR_USA(AR_USA_FRONT_BULLET_QUAD, FRONT_BULLET_QUAD);
+    const DVECTOR* backQuad  = PC_AR_USA(AR_USA_BACK_BULLET_QUAD, BACK_BULLET_QUAD);
+    s32 usaAr = Pc_ArDisc() == AR_DISC_USA_MANSOUR;
+#endif
+
     // Set active selection highlight position references.
 #ifdef SH_PC_PORT
     if (g_Options_SelectionHighlightTimer == 0 || g_PcOptions_HighlightSnap)
@@ -2901,18 +3150,35 @@ void Options_ExtraOptionsMenu_SelectionHighlightDraw(void) // 0x801E4450
     {
 #ifdef SH_PC_PORT
         g_PcOptions_HighlightSnap = 0;
-#endif
+        if (usaAr)
+        {
+            selectionHighlightFrom.vx = -HIGHLIGHT_OFFSET_X - widths[g_ExtraOptionsMenu_PrevSelectedEntry];
+            selectionHighlightTo.vx   = -HIGHLIGHT_OFFSET_X - widths[g_ExtraOptionsMenu_SelectedEntry];
+        }
+        else
+        {
+            selectionHighlightFrom.vx = widths[g_ExtraOptionsMenu_PrevSelectedEntry] + (65536 + HIGHLIGHT_OFFSET_X);
+            selectionHighlightTo.vx   = widths[g_ExtraOptionsMenu_SelectedEntry]     + (65536 + HIGHLIGHT_OFFSET_X);
+        }
+        selectionHighlightFrom.vy = ((u16)g_ExtraOptionsMenu_PrevSelectedEntry * LINE_OFFSET_Y)      - HIGHLIGHT_OFFSET_Y;
+        selectionHighlightTo.vy   = ((u16)g_ExtraOptionsMenu_SelectedEntry * LINE_OFFSET_Y)          - HIGHLIGHT_OFFSET_Y;
+#else
         selectionHighlightFrom.vx = SELECTION_HIGHLIGHT_WIDTHS[g_ExtraOptionsMenu_PrevSelectedEntry] + (65536 + HIGHLIGHT_OFFSET_X); // TODO
         selectionHighlightFrom.vy = ((u16)g_ExtraOptionsMenu_PrevSelectedEntry * LINE_OFFSET_Y)      - HIGHLIGHT_OFFSET_Y;
         selectionHighlightTo.vx   = SELECTION_HIGHLIGHT_WIDTHS[g_ExtraOptionsMenu_SelectedEntry]     + (65536 + HIGHLIGHT_OFFSET_X); // TODO
         selectionHighlightTo.vy   = ((u16)g_ExtraOptionsMenu_SelectedEntry * LINE_OFFSET_Y)          - HIGHLIGHT_OFFSET_Y;
+#endif
     }
 
     // Compute sine-based interpolation alpha.
     interpAlpha = Math_Sin(g_Options_SelectionHighlightTimer << 7);
 
     // Draw active selection highlight.
+#ifdef SH_PC_PORT
+    highlightLine.vertex0.vx = usaAr ? -HIGHLIGHT_OFFSET_X : HIGHLIGHT_OFFSET_X;
+#else
     highlightLine.vertex0.vx = HIGHLIGHT_OFFSET_X;
+#endif
     highlightLine.vertex1.vx = selectionHighlightFrom.vx +
                                Q12_MULT(selectionHighlightTo.vx - selectionHighlightFrom.vx, interpAlpha);
     highlightLine.vertex1.vy = selectionHighlightFrom.vy +
@@ -2928,10 +3194,17 @@ void Options_ExtraOptionsMenu_SelectionHighlightDraw(void) // 0x801E4450
         quadVerts = (DVECTOR*)&bulletQuads;
         for (j = 0; j < RECT_VERT_COUNT; j++)
         {
+#ifdef SH_PC_PORT
+            quadVerts[j].vx                   = frontQuad[j].vx;
+            quadVerts[j].vy                   = frontQuad[j].vy + (i * LINE_OFFSET_Y);
+            quadVerts[j + sizeof(DVECTOR)].vx = backQuad[j].vx;
+            quadVerts[j + sizeof(DVECTOR)].vy = backQuad[j].vy + (i * LINE_OFFSET_Y);
+#else
             quadVerts[j].vx                   = FRONT_BULLET_QUAD[j].vx;
             quadVerts[j].vy                   = FRONT_BULLET_QUAD[j].vy + (i * LINE_OFFSET_Y);
             quadVerts[j + sizeof(DVECTOR)].vx = BACK_BULLET_QUAD[j].vx;
             quadVerts[j + sizeof(DVECTOR)].vy = BACK_BULLET_QUAD[j].vy + (i * LINE_OFFSET_Y);
+#endif
         }
 
         // Active selection bullet point.
@@ -2995,6 +3268,25 @@ void Options_MainOptionsMenu_SelectionHighlightDraw(void) // 0x801E472C
         { -107, -42 }
     };
 
+#ifdef SH_PC_PORT
+    /* Arabic patches: label widths of the disc's text; USA also mirrors the
+     * highlight and bullets about x=0. The PC Voice row (10th) has no patch
+     * value: it takes the disc's Sound width, as retail's 75 matches Sound. */
+    static const u8 AR_USA_HIGHLIGHT_WIDTHS[] = { 65, 101, 116, 96, 81, 120, 70, 84, 78, 70 };
+    static const u8 AR_PAL_HIGHLIGHT_WIDTHS[] = { 64, 73, 201, 160, 106, 118, 81, 81, 86, 81 };
+    static const DVECTOR AR_USA_BULLET_QUAD_VERTS_FRONT[] = {
+        { 120, -55 }, { 120, -43 }, { 108, -55 }, { 108, -43 }
+    };
+    static const DVECTOR AR_USA_BULLET_QUAD_VERTS_BACK[] = {
+        { 121, -56 }, { 121, -42 }, { 107, -56 }, { 107, -42 }
+    };
+    const u8* widths = PC_AR_USA(AR_USA_HIGHLIGHT_WIDTHS,
+                       PC_AR_PAL(AR_PAL_HIGHLIGHT_WIDTHS, SELECTION_HIGHLIGHT_WIDTHS));
+    const DVECTOR* frontQuad = PC_AR_USA(AR_USA_BULLET_QUAD_VERTS_FRONT, BULLET_QUAD_VERTS_FRONT);
+    const DVECTOR* backQuad  = PC_AR_USA(AR_USA_BULLET_QUAD_VERTS_BACK, BULLET_QUAD_VERTS_BACK);
+    s32 usaAr = Pc_ArDisc() == AR_DISC_USA_MANSOUR;
+#endif
+
     // Set active selection highlight position references.
 #ifdef SH_PC_PORT
     if (g_Options_SelectionHighlightTimer == 0 || g_PcOptions_HighlightSnap)
@@ -3004,18 +3296,35 @@ void Options_MainOptionsMenu_SelectionHighlightDraw(void) // 0x801E472C
     {
 #ifdef SH_PC_PORT
         g_PcOptions_HighlightSnap = 0;
-#endif
+        if (usaAr)
+        {
+            selectionHighlightFrom.vx = -HIGHLIGHT_OFFSET_X - widths[g_MainOptionsMenu_PrevSelectedEntry];
+            selectionHighlightTo.vx   = -HIGHLIGHT_OFFSET_X - widths[g_MainOptionsMenu_SelectedEntry];
+        }
+        else
+        {
+            selectionHighlightFrom.vx = widths[g_MainOptionsMenu_PrevSelectedEntry] + (65536 + HIGHLIGHT_OFFSET_X);
+            selectionHighlightTo.vx   = widths[g_MainOptionsMenu_SelectedEntry]     + (65536 + HIGHLIGHT_OFFSET_X);
+        }
+        selectionHighlightFrom.vy = ((u16)g_MainOptionsMenu_PrevSelectedEntry * LINE_OFFSET_Y)      - HIGHLIGHT_OFFSET_Y;
+        selectionHighlightTo.vy   = ((u16)g_MainOptionsMenu_SelectedEntry * LINE_OFFSET_Y)          - HIGHLIGHT_OFFSET_Y;
+#else
         selectionHighlightFrom.vx = SELECTION_HIGHLIGHT_WIDTHS[g_MainOptionsMenu_PrevSelectedEntry] + (65536 + HIGHLIGHT_OFFSET_X); // TODO
         selectionHighlightFrom.vy = ((u16)g_MainOptionsMenu_PrevSelectedEntry * LINE_OFFSET_Y)      - HIGHLIGHT_OFFSET_Y;
         selectionHighlightTo.vx   = SELECTION_HIGHLIGHT_WIDTHS[g_MainOptionsMenu_SelectedEntry]     + (65536 + HIGHLIGHT_OFFSET_X); // TODO
         selectionHighlightTo.vy   = ((u16)g_MainOptionsMenu_SelectedEntry * LINE_OFFSET_Y)          - HIGHLIGHT_OFFSET_Y;
+#endif
     }
 
     // Compute sine-based interpolation alpha.
     interpAlpha = Math_Sin(g_Options_SelectionHighlightTimer << 7);
 
     // Draw active selection highlight.
+#ifdef SH_PC_PORT
+    highlightLine.vertex0.vx = usaAr ? -HIGHLIGHT_OFFSET_X : HIGHLIGHT_OFFSET_X;
+#else
     highlightLine.vertex0.vx = HIGHLIGHT_OFFSET_X;
+#endif
     highlightLine.vertex1.vx = selectionHighlightFrom.vx +
                                FP_FROM((selectionHighlightTo.vx - selectionHighlightFrom.vx) * interpAlpha, Q12_SHIFT);
     highlightLine.vertex1.vy = selectionHighlightFrom.vy +
@@ -3031,10 +3340,17 @@ void Options_MainOptionsMenu_SelectionHighlightDraw(void) // 0x801E472C
         quadVerts = (DVECTOR*)&bulletQuads;
         for (j = 0; j < RECT_VERT_COUNT; j++)
         {
+#ifdef SH_PC_PORT
+            quadVerts[j].vx                   = frontQuad[j].vx;
+            quadVerts[j].vy                   = frontQuad[j].vy + (i * LINE_OFFSET_Y);
+            quadVerts[j + sizeof(DVECTOR)].vx = backQuad[j].vx;
+            quadVerts[j + sizeof(DVECTOR)].vy = backQuad[j].vy + (i * LINE_OFFSET_Y);
+#else
             quadVerts[j].vx                   = BULLET_QUAD_VERTS_FRONT[j].vx;
             quadVerts[j].vy                   = BULLET_QUAD_VERTS_FRONT[j].vy + (i * LINE_OFFSET_Y);
             quadVerts[j + sizeof(DVECTOR)].vx = BULLET_QUAD_VERTS_BACK[j].vx;
             quadVerts[j + sizeof(DVECTOR)].vy = BULLET_QUAD_VERTS_BACK[j].vy + (i * LINE_OFFSET_Y);
+#endif
         }
 
         // Active selection bullet point.
@@ -3140,6 +3456,85 @@ void Options_ExtraOptionsMenu_ConfigDraw(void) // 0x801E4B2C
         { { 105,  70 }, { 95,   60 }, { 95,   80 } }
     };
 
+#ifdef SH_PC_PORT
+    /* The Arabic patches' arrow tables: USA mirrors them left of centre (right
+     * arrow pinned at x=-31), PAL widens them around its longer values. */
+    static const s_Triangle2d AR_USA_FRONT_ARROWS[] = {
+        { { -93, -42 }, { -85, -50 }, { -85, -34 } },
+        { { -31, -42 }, { -39, -50 }, { -39, -34 } },
+        { { -97, -26 }, { -89, -34 }, { -89, -18 } },
+        { { -31, -26 }, { -39, -34 }, { -39, -18 } },
+        { { -88, -10 }, { -80, -18 }, { -80, -2 } },
+        { { -31, -10 }, { -39, -18 }, { -39, -2 } },
+        { { -88, 6 }, { -80, -2 }, { -80, 14 } },
+        { { -31, 6 }, { -39, -2 }, { -39, 14 } },
+        { { -88, 22 }, { -80, 14 }, { -80, 30 } },
+        { { -31, 22 }, { -39, 14 }, { -39, 30 } },
+        { { -74, 38 }, { -66, 30 }, { -66, 46 } },
+        { { -31, 38 }, { -39, 30 }, { -39, 46 } },
+        { { -85, 54 }, { -77, 46 }, { -77, 62 } },
+        { { -31, 54 }, { -39, 46 }, { -39, 62 } },
+        { { -69, 70 }, { -61, 62 }, { -61, 78 } },
+        { { -31, 70 }, { -39, 62 }, { -39, 78 } }
+    };
+    static const s_Triangle2d AR_USA_BACK_ARROWS[] = {
+        { { -94, -42 }, { -84, -52 }, { -84, -32 } },
+        { { -30, -42 }, { -40, -52 }, { -40, -32 } },
+        { { -98, -26 }, { -88, -36 }, { -88, -16 } },
+        { { -30, -26 }, { -40, -36 }, { -40, -16 } },
+        { { -89, -10 }, { -79, -20 }, { -79, 0 } },
+        { { -30, -10 }, { -40, -20 }, { -40, 0 } },
+        { { -89, 6 }, { -79, -4 }, { -79, 16 } },
+        { { -30, 6 }, { -40, -4 }, { -40, 16 } },
+        { { -89, 22 }, { -79, 12 }, { -79, 32 } },
+        { { -30, 22 }, { -40, 12 }, { -40, 32 } },
+        { { -75, 38 }, { -65, 28 }, { -65, 48 } },
+        { { -30, 38 }, { -40, 28 }, { -40, 48 } },
+        { { -86, 54 }, { -76, 44 }, { -76, 64 } },
+        { { -30, 54 }, { -40, 44 }, { -40, 64 } },
+        { { -70, 70 }, { -60, 60 }, { -60, 80 } },
+        { { -30, 70 }, { -40, 60 }, { -40, 80 } }
+    };
+    static const s_Triangle2d AR_PAL_FRONT_ARROWS[] = {
+        { { 41, -42 }, { 49, -50 }, { 49, -34 } },
+        { { 145, -42 }, { 137, -50 }, { 137, -34 } },
+        { { 49, -26 }, { 57, -34 }, { 57, -18 } },
+        { { 136, -26 }, { 128, -34 }, { 128, -18 } },
+        { { 40, -10 }, { 48, -18 }, { 48, -2 } },
+        { { 144, -10 }, { 136, -18 }, { 136, -2 } },
+        { { 40, 6 }, { 48, -2 }, { 48, 14 } },
+        { { 144, 6 }, { 136, -2 }, { 136, 14 } },
+        { { 40, 22 }, { 48, 14 }, { 48, 30 } },
+        { { 144, 22 }, { 136, 14 }, { 136, 30 } },
+        { { 68, 38 }, { 76, 30 }, { 76, 46 } },
+        { { 117, 38 }, { 109, 30 }, { 109, 46 } },
+        { { 45, 54 }, { 53, 46 }, { 53, 62 } },
+        { { 140, 54 }, { 132, 46 }, { 132, 62 } },
+        { { 68, 70 }, { 76, 62 }, { 76, 78 } },
+        { { 115, 70 }, { 107, 62 }, { 107, 78 } }
+    };
+    static const s_Triangle2d AR_PAL_BACK_ARROWS[] = {
+        { { 40, -42 }, { 50, -52 }, { 50, -32 } },
+        { { 146, -42 }, { 136, -52 }, { 136, -32 } },
+        { { 48, -26 }, { 58, -36 }, { 58, -16 } },
+        { { 137, -26 }, { 127, -36 }, { 127, -16 } },
+        { { 39, -10 }, { 49, -20 }, { 49, 0 } },
+        { { 145, -10 }, { 135, -20 }, { 135, 0 } },
+        { { 39, 6 }, { 49, -4 }, { 49, 16 } },
+        { { 145, 6 }, { 135, -4 }, { 135, 16 } },
+        { { 39, 22 }, { 49, 12 }, { 49, 32 } },
+        { { 145, 22 }, { 135, 12 }, { 135, 32 } },
+        { { 67, 38 }, { 77, 28 }, { 77, 48 } },
+        { { 118, 38 }, { 108, 28 }, { 108, 48 } },
+        { { 44, 54 }, { 54, 44 }, { 54, 64 } },
+        { { 141, 54 }, { 131, 44 }, { 131, 64 } },
+        { { 67, 70 }, { 77, 60 }, { 77, 80 } },
+        { { 116, 70 }, { 106, 60 }, { 106, 80 } }
+    };
+    const s_Triangle2d* frontArrows = PC_AR_USA(AR_USA_FRONT_ARROWS, PC_AR_PAL(AR_PAL_FRONT_ARROWS, FRONT_ARROWS));
+    const s_Triangle2d* backArrows  = PC_AR_USA(AR_USA_BACK_ARROWS, PC_AR_PAL(AR_PAL_BACK_ARROWS, BACK_ARROWS));
+#endif
+
     // TODO: Can this be split?
     const char* CONFIG_STRS[] = {
         "Press",
@@ -3179,6 +3574,21 @@ void Options_ExtraOptionsMenu_ConfigDraw(void) // 0x801E4B2C
     if (g_ExtraOptionsMenu_SelectedEntry < (u32)ExtraOptionsMenuEntry_Count)
     {
         // Draw flashing left/right arrows.
+#ifdef SH_PC_PORT
+        for (i = 0; i < 2; i++)
+        {
+            Options_Selection_ArrowDraw(&frontArrows[(g_ExtraOptionsMenu_SelectedEntry * 2) + i], true, false);
+        }
+
+        if (g_Controller0->heldBtnFlags & ControllerFlag_LStickLeft)
+        {
+            Options_Selection_ArrowDraw(&backArrows[g_ExtraOptionsMenu_SelectedEntry << 1], false, false);
+        }
+        if (g_Controller0->heldBtnFlags & ControllerFlag_LStickRight)
+        {
+            Options_Selection_ArrowDraw(&backArrows[(g_ExtraOptionsMenu_SelectedEntry << 1) + 1], false, false);
+        }
+#else
         for (i = 0; i < 2; i++)
         {
             Options_Selection_ArrowDraw(&FRONT_ARROWS[(g_ExtraOptionsMenu_SelectedEntry * 2) + i], true, false);
@@ -3193,6 +3603,7 @@ void Options_ExtraOptionsMenu_ConfigDraw(void) // 0x801E4B2C
         {
             Options_Selection_ArrowDraw(&BACK_ARROWS[(g_ExtraOptionsMenu_SelectedEntry << 1) + 1], false, false);
         }
+#endif
     }
 
     // Draw entry strings.
@@ -3201,7 +3612,12 @@ void Options_ExtraOptionsMenu_ConfigDraw(void) // 0x801E4B2C
         switch (j)
         {
             case ExtraOptionsMenuEntry_WeaponCtrl:
+#ifdef SH_PC_PORT
+                strPosX = (g_GameWork.config.extraWeaponCtrl != 0) ? PC_AR_USA(114, PC_AR_PAL(215, 217))
+                                                                   : PC_AR_USA(111, PC_AR_PAL(227, 212));
+#else
                 strPosX = (g_GameWork.config.extraWeaponCtrl != 0) ? 217 : 212;
+#endif
                 Gfx_StringSetPosition(strPosX, STR_BASE_Y + (STR_OFFSET_Y * ExtraOptionsMenuEntry_WeaponCtrl));
                 Gfx_StringDraw(CONFIG_STRS[!g_GameWork.config.extraWeaponCtrl], 10);
                 break;
@@ -3210,19 +3626,35 @@ void Options_ExtraOptionsMenu_ConfigDraw(void) // 0x801E4B2C
                 switch (g_ExtraOptionsMenu_SelectedBloodColorEntry)
                 {
                     case BloodColorMenuEntry_Normal:
+#ifdef SH_PC_PORT
+                        Gfx_StringSetPosition(PC_AR_USA(114, PC_AR_PAL(224, 210)), STR_BASE_Y + (STR_OFFSET_Y * ExtraOptionsMenuEntry_Blood));
+#else
                         Gfx_StringSetPosition(210, STR_BASE_Y + (STR_OFFSET_Y * ExtraOptionsMenuEntry_Blood));
+#endif
                         break;
 
                     case BloodColorMenuEntry_Green:
+#ifdef SH_PC_PORT
+                        Gfx_StringSetPosition(PC_AR_USA(112, PC_AR_PAL(230, 214)), STR_BASE_Y + (STR_OFFSET_Y * ExtraOptionsMenuEntry_Blood));
+#else
                         Gfx_StringSetPosition(214, STR_BASE_Y + (STR_OFFSET_Y * ExtraOptionsMenuEntry_Blood));
+#endif
                         break;
 
                     case BloodColorMenuEntry_Violet:
+#ifdef SH_PC_PORT
+                        Gfx_StringSetPosition(PC_AR_USA(115, PC_AR_PAL(223, 214)), STR_BASE_Y + (STR_OFFSET_Y * ExtraOptionsMenuEntry_Blood));
+#else
                         Gfx_StringSetPosition(214, STR_BASE_Y + (STR_OFFSET_Y * ExtraOptionsMenuEntry_Blood));
+#endif
                         break;
 
                     case BloodColorMenuEntry_Black:
+#ifdef SH_PC_PORT
+                        Gfx_StringSetPosition(PC_AR_USA(111, PC_AR_PAL(228, 217)), STR_BASE_Y + (STR_OFFSET_Y * ExtraOptionsMenuEntry_Blood));
+#else
                         Gfx_StringSetPosition(217, STR_BASE_Y + (STR_OFFSET_Y * ExtraOptionsMenuEntry_Blood));
+#endif
                         break;
                 }
 
@@ -3230,37 +3662,66 @@ void Options_ExtraOptionsMenu_ConfigDraw(void) // 0x801E4B2C
                 break;
 
             case ExtraOptionsMenuEntry_ViewCtrl:
+#ifdef SH_PC_PORT
+                strPosX = !g_GameWork.config.extraViewCtrl ? PC_AR_USA(114, PC_AR_PAL(224, 210))
+                                                           : PC_AR_USA(115, PC_AR_PAL(212, 206));
+#else
                 strPosX = !g_GameWork.config.extraViewCtrl ? 210 : 206;
+#endif
                 Gfx_StringSetPosition(strPosX, STR_BASE_Y + (STR_OFFSET_Y * ExtraOptionsMenuEntry_ViewCtrl));
                 Gfx_StringDraw(CONFIG_STRS[((g_GameWork.config.extraViewCtrl != 0) ? 32 : 28) >> 2], 10);
                 break;
 
             case ExtraOptionsMenuEntry_RetreatTurn:
+#ifdef SH_PC_PORT
+                strPosX = !g_GameWork.config.extraRetreatTurn ? PC_AR_USA(114, PC_AR_PAL(224, 210))
+                                                              : PC_AR_USA(115, PC_AR_PAL(212, 206));
+#else
                 strPosX = !g_GameWork.config.extraRetreatTurn ? 210 : 206;
+#endif
                 Gfx_StringSetPosition(strPosX, STR_BASE_Y + (STR_OFFSET_Y * ExtraOptionsMenuEntry_RetreatTurn));
                 Gfx_StringDraw(CONFIG_STRS[((g_GameWork.config.extraRetreatTurn != 0) ? 32 : 28) >> 2], 10);
                 break;
 
             case ExtraOptionsMenuEntry_MovementCtrl:
+#ifdef SH_PC_PORT
+                strPosX = !g_GameWork.config.extraWalkRunCtrl ? PC_AR_USA(114, PC_AR_PAL(224, 210))
+                                                              : PC_AR_USA(115, PC_AR_PAL(212, 206));
+#else
                 strPosX = !g_GameWork.config.extraWalkRunCtrl ? 210 : 206;
+#endif
                 Gfx_StringSetPosition(strPosX, STR_BASE_Y + (STR_OFFSET_Y * ExtraOptionsMenuEntry_MovementCtrl));
                 Gfx_StringDraw(CONFIG_STRS[((g_GameWork.config.extraWalkRunCtrl != 0) ? 32 : 28) >> 2], 10);
                 break;
 
             case ExtraOptionsMenuEntry_AutoAiming:
+#ifdef SH_PC_PORT
+                strPosX = !g_GameWork.config.extraAutoAiming ? PC_AR_USA(115, PC_AR_PAL(245, 228))
+                                                             : PC_AR_USA(112, PC_AR_PAL(242, 226));
+#else
                 strPosX = !g_GameWork.config.extraAutoAiming ? 228 : 226;
+#endif
                 Gfx_StringSetPosition(strPosX, STR_BASE_Y + (STR_OFFSET_Y * ExtraOptionsMenuEntry_AutoAiming));
                 Gfx_StringDraw(CONFIG_STRS[((g_GameWork.config.extraAutoAiming != 0) ? 40 : 36) >> 2], 10);
                 break;
 
             case ExtraOptionsMenuEntry_ViewMode:
+#ifdef SH_PC_PORT
+                strPosX = !g_GameWork.config.extraViewMode ? PC_AR_USA(114, PC_AR_PAL(224, 210))
+                                                           : PC_AR_USA(115, PC_AR_PAL(219, 200));
+#else
                 strPosX = !g_GameWork.config.extraViewMode ? 210 : 200;
+#endif
                 Gfx_StringSetPosition(strPosX, STR_BASE_Y + (STR_OFFSET_Y * ExtraOptionsMenuEntry_ViewMode));
                 Gfx_StringDraw(CONFIG_STRS[(g_GameWork.config.extraViewMode ? 48 : 44) >> 2], 10);
                 break;
 
             case ExtraOptionsMenuEntry_BulletMult:
+#ifdef SH_PC_PORT
+                Gfx_StringSetPosition(PC_AR_USA(115, PC_AR_PAL(242, 230)), STR_BASE_Y + (STR_OFFSET_Y * ExtraOptionsMenuEntry_BulletMult));
+#else
                 Gfx_StringSetPosition(230, STR_BASE_Y + (STR_OFFSET_Y * ExtraOptionsMenuEntry_BulletMult));
+#endif
                 Gfx_StringDraw(CONFIG_STRS[g_GameWork.config.extraBulletAdjust + 13], 10);
                 break;
         }
@@ -3308,6 +3769,69 @@ void Options_MainOptionsMenu_ConfigDraw(void) // 0x801E4FFC
 #endif
     };
 
+#ifdef SH_PC_PORT
+    /* The Arabic patches' arrow tables. PAL keeps the port's NTSC rows with the
+     * patch's X; the PC Voice row repeats the volume rows. */
+    static const s_Triangle2d AR_USA_FRONT_ARROWS[] = {
+        { { -84, 14 }, { -76, 6 }, { -76, 22 } },
+        { { -41, 14 }, { -49, 6 }, { -49, 22 } },
+        { { -84, 30 }, { -76, 22 }, { -76, 38 } },
+        { { -41, 30 }, { -49, 22 }, { -49, 38 } },
+        { { -93, 46 }, { -85, 38 }, { -85, 54 } },
+        { { -22, 46 }, { -30, 38 }, { -30, 54 } },
+        { { -133, 62 }, { -125, 54 }, { -125, 70 } },
+        { { -10, 62 }, { -18, 54 }, { -18, 70 } },
+        { { -133, 78 }, { -125, 70 }, { -125, 86 } },
+        { { -10, 78 }, { -18, 70 }, { -18, 86 } },
+        { { -133, 94 }, { -125, 86 }, { -125, 102 } },
+        { { -10, 94 }, { -18, 86 }, { -18, 102 } }
+    };
+    static const s_Triangle2d AR_USA_BACK_ARROWS[] = {
+        { { -85, 14 }, { -75, 4 }, { -75, 24 } },
+        { { -40, 14 }, { -50, 4 }, { -50, 24 } },
+        { { -85, 30 }, { -75, 20 }, { -75, 40 } },
+        { { -40, 30 }, { -50, 20 }, { -50, 40 } },
+        { { -94, 46 }, { -84, 36 }, { -84, 56 } },
+        { { -21, 46 }, { -31, 36 }, { -31, 56 } },
+        { { -134, 62 }, { -124, 52 }, { -124, 72 } },
+        { { -9, 62 }, { -19, 52 }, { -19, 72 } },
+        { { -134, 78 }, { -124, 68 }, { -124, 88 } },
+        { { -9, 78 }, { -19, 68 }, { -19, 88 } },
+        { { -134, 94 }, { -124, 84 }, { -124, 104 } },
+        { { -9, 94 }, { -19, 84 }, { -19, 104 } }
+    };
+    static const s_Triangle2d AR_PAL_FRONT_ARROWS[] = {
+        { { 49, 14 }, { 57, 6 }, { 57, 22 } },
+        { { 96, 14 }, { 88, 6 }, { 88, 22 } },
+        { { 49, 30 }, { 57, 22 }, { 57, 38 } },
+        { { 96, 30 }, { 88, 22 }, { 88, 38 } },
+        { { 29, 46 }, { 37, 38 }, { 37, 54 } },
+        { { 115, 46 }, { 107, 38 }, { 107, 54 } },
+        { { 12, 62 }, { 20, 54 }, { 20, 70 } },
+        { { 131, 62 }, { 123, 54 }, { 123, 70 } },
+        { { 12, 78 }, { 20, 70 }, { 20, 86 } },
+        { { 131, 78 }, { 123, 70 }, { 123, 86 } },
+        { { 12, 94 }, { 20, 86 }, { 20, 102 } },
+        { { 131, 94 }, { 123, 86 }, { 123, 102 } }
+    };
+    static const s_Triangle2d AR_PAL_BACK_ARROWS[] = {
+        { { 48, 14 }, { 58, 4 }, { 58, 24 } },
+        { { 97, 14 }, { 87, 4 }, { 87, 24 } },
+        { { 48, 30 }, { 58, 20 }, { 58, 40 } },
+        { { 97, 30 }, { 87, 20 }, { 87, 40 } },
+        { { 28, 46 }, { 38, 36 }, { 38, 56 } },
+        { { 116, 46 }, { 106, 36 }, { 106, 56 } },
+        { { 11, 62 }, { 21, 52 }, { 21, 72 } },
+        { { 132, 62 }, { 122, 52 }, { 122, 72 } },
+        { { 11, 78 }, { 21, 68 }, { 21, 88 } },
+        { { 132, 78 }, { 122, 68 }, { 122, 88 } },
+        { { 11, 94 }, { 21, 84 }, { 21, 104 } },
+        { { 132, 94 }, { 122, 84 }, { 122, 104 } }
+    };
+    const s_Triangle2d* frontArrows = PC_AR_USA(AR_USA_FRONT_ARROWS, PC_AR_PAL(AR_PAL_FRONT_ARROWS, FRONT_ARROWS));
+    const s_Triangle2d* backArrows  = PC_AR_USA(AR_USA_BACK_ARROWS, PC_AR_PAL(AR_PAL_BACK_ARROWS, BACK_ARROWS));
+#endif
+
     const char* CONFIG_STRS[] =
     {
         "On",
@@ -3349,18 +3873,18 @@ void Options_MainOptionsMenu_ConfigDraw(void) // 0x801E4FFC
         // Draw flashing left/right arrows.
         for (i = 0; i < 2; i++)
         {
-            ARROW_DRAW_DX(FRONT_ARROWS, ((g_MainOptionsMenu_SelectedEntry - 4) * 2) + i,
+            ARROW_DRAW_DX(frontArrows, ((g_MainOptionsMenu_SelectedEntry - 4) * 2) + i,
                           ((i == 0) ? -langDx : langDx) + volDx, true);
         }
 
         // Draw border to highlight flashing left/right arrow corresponding to direction of UI navigation.
         if (g_Controller0->heldBtnFlags & ControllerFlag_LStickLeft)
         {
-            ARROW_DRAW_DX(BACK_ARROWS, (g_MainOptionsMenu_SelectedEntry - 4) << 1, -langDx + volDx, false);
+            ARROW_DRAW_DX(backArrows, (g_MainOptionsMenu_SelectedEntry - 4) << 1, -langDx + volDx, false);
         }
         if (g_Controller0->heldBtnFlags & ControllerFlag_LStickRight)
         {
-            ARROW_DRAW_DX(BACK_ARROWS, ((g_MainOptionsMenu_SelectedEntry - 4) << 1) + 1, langDx + volDx, false);
+            ARROW_DRAW_DX(backArrows, ((g_MainOptionsMenu_SelectedEntry - 4) << 1) + 1, langDx + volDx, false);
         }
 
         #undef ARROW_DRAW_DX
@@ -3388,7 +3912,12 @@ void Options_MainOptionsMenu_ConfigDraw(void) // 0x801E4FFC
         switch (i)
         {
             case 0:
+#ifdef SH_PC_PORT
+                strPosX = !g_GameWork.config.vibrationEnabled ? PC_AR_USA(102, PC_AR_PAL(222, 214))
+                                                              : PC_AR_USA(105, PC_AR_PAL(224, 216));
+#else
                 strPosX = !g_GameWork.config.vibrationEnabled ? 214 : 216;
+#endif
                 Gfx_StringSetPosition(strPosX, 120);
 
                 strIdx = !g_GameWork.config.vibrationEnabled;
@@ -3410,7 +3939,12 @@ void Options_MainOptionsMenu_ConfigDraw(void) // 0x801E4FFC
                     break;
                 }
 #endif
+#ifdef SH_PC_PORT
+                strPosX = !g_GameWork.config.autoLoad ? PC_AR_USA(102, PC_AR_PAL(222, 214))
+                                                      : PC_AR_USA(105, PC_AR_PAL(224, 216));
+#else
                 strPosX = !g_GameWork.config.autoLoad ? 214 : 216;
+#endif
                 Gfx_StringSetPosition(strPosX, 136);
 
                 strIdx = !g_GameWork.config.autoLoad;
@@ -3427,7 +3961,9 @@ void Options_MainOptionsMenu_ConfigDraw(void) // 0x801E4FFC
                 const char* nm;
                 if (m < 0 || m > 5) m = 0;
                 nm = LAY[m];
-                Gfx_StringSetPosition(242 - (int)strlen(nm) * 6, 152);
+                /* USA Arabic draws leftward from X: anchor the right edge where the
+                 * patch put Stereo. */
+                Gfx_StringSetPosition(PC_AR_USA(124, 242 - (int)strlen(nm) * 6), 152);
                 Gfx_StringDraw(nm, 10);
             }
 #else
@@ -3748,11 +4284,19 @@ void Options_ScreenPosMenu_ConfigDraw(void) // 0x801E5CBC
     addPrim((u8*)ot->org + LAYER_40, poly);
     GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_F4);
 
+#ifdef SH_PC_PORT
+    Gfx_StringSetPosition(PC_AR_USA(212, 108) - g_GameWorkConst->config.screenPositionX, 162 - g_GameWorkConst->config.screenPositionY);
+#else
     Gfx_StringSetPosition(108 - g_GameWorkConst->config.screenPositionX, 162 - g_GameWorkConst->config.screenPositionY);
+#endif
     Gfx_StringDraw(AXIS_OFFSET_STRS[0], 10);
     Gfx_StringDrawInt(3, g_GameWorkConst->config.screenPositionX);
 
+#ifdef SH_PC_PORT
+    Gfx_StringSetPosition(PC_AR_USA(152, 168) - g_GameWorkConst->config.screenPositionX, 162 - g_GameWorkConst->config.screenPositionY);
+#else
     Gfx_StringSetPosition(168 - g_GameWorkConst->config.screenPositionX, 162 - g_GameWorkConst->config.screenPositionY);
+#endif
     Gfx_StringDraw(AXIS_OFFSET_STRS[1], 10);
     Gfx_StringDrawInt(3, g_GameWorkConst->config.screenPositionY);
 }
@@ -3780,10 +4324,34 @@ void Options_ScreenPosMenu_ConfigDraw(void) // 0x801E5CBC
  * way to reach it. */
 static s32 g_PcBrtRow = 0;
 
-#define PC_BRT_ROWS 4
+#define PC_BRT_ROWS 5
+/* The last row is RESET: confirm puts the four values back to their defaults
+ * instead of leaving the screen. */
+#define PC_BRT_ROW_RESET 4
 /* Top row's y in percent, 8 per row after it. 52 put CLASSIC under the
- * reference bar on a 224-line frame (bottom ~15% of the picture). */
-#define PC_BRT_ROW_Y0 40.0f
+ * reference bar on a 224-line frame (bottom ~15% of the picture); the rows
+ * start higher since RESET joined them, so it clears the bar too. */
+#define PC_BRT_ROW_Y0 34.0f
+/* The value column's centre in UiPos x: the knobs are drawn at 178-187 and
+ * 225-236 (ArrowsDraw, centre-origin + 160), the number between them. */
+#define PC_BRT_VALUE_MID_X 206
+
+static void Pc_BrightnessReset(void)
+{
+    extern float g_cfg_brightness, g_cfg_contrast, g_cfg_saturation;
+    extern const s_PcConfig* PcConfig_Defaults(void);
+    const s_PcConfig* d = PcConfig_Defaults();
+    char b[16];
+
+    g_PcConfig.brightness = g_cfg_brightness = d->brightness;
+    g_PcConfig.contrast   = g_cfg_contrast   = d->contrast;
+    g_PcConfig.saturation = g_cfg_saturation = d->saturation;
+    snprintf(b, sizeof(b), "%.3f", d->brightness); PcConfig_SaveKeyValue("brightness", b);
+    snprintf(b, sizeof(b), "%.3f", d->contrast);   PcConfig_SaveKeyValue("contrast", b);
+    snprintf(b, sizeof(b), "%.3f", d->saturation); PcConfig_SaveKeyValue("saturation", b);
+    /* Settings_Reset's console level (settings_reset.c). */
+    g_GameWork.config.brightness = 3;
+}
 
 static void Pc_BrightnessRowAdjust(s32 row, int dir)
 {
@@ -3850,10 +4418,8 @@ void Options_BrightnessMenu_Control(void) // 0x801E6018
 
         case BrightnessMenuState_2:
 #ifdef SH_PC_PORT
-            /* Up/Down select a row (Brightness/Contrast/Saturation), Left/Right
-             * adjust it. Mouse: wheel adjusts the selected row; hovering a row
-             * band selects it; left-click the arrow columns adjusts; right-click
-             * leaves. Rows drawn from y 74 at 16px pitch (see ConfigDraw). */
+            /* Up/Down select a row, Left/Right adjust it, Confirm on RESET
+             * resets. Pointer and touch below. */
             {
                 int mx, my;
 
@@ -3874,15 +4440,71 @@ void Options_BrightnessMenu_Control(void) // 0x801E6018
 
                 if (Pc_MouseCursor_UiPos(&mx, &my))
                 {
-                    int wheel = Pc_MouseCursor_WheelStep();
+                    /* One pointer path for the mouse and for touch, whose taps
+                     * arrive here as clicks. UiPos is in the framebuffer space
+                     * ConfigDraw positions its text in, so each band is that
+                     * row's line plus the gap below it. On a row the label only
+                     * selects it and anything from just left of the left knob
+                     * outward steps it, so the 10px knobs are not the only
+                     * target; off the rows either side steps the selected row.
+                     * The percentage rows are 35 steps end to end, so a held
+                     * press repeats. The way out on touch is the overlay's
+                     * corner Back; right-click leaves with the mouse. */
+                    static int s_brtHoldFrames;
+                    static int s_brtHoldDir;
+                    int        wheel = Pc_MouseCursor_WheelStep();
+                    int        row   = -1;
+                    int        r;
 
-                    /* Wheel adjusts the selected row; left of centre lowers, right
-                     * raises it; right-click leaves. Kept geometry-free (no
-                     * per-row hit-test) — Up/Down selects the row. */
+                    for (r = 0; r < PC_BRT_ROWS; r++)
+                    {
+                        int top = SCREEN_POSITION_Y(PC_BRT_ROW_Y0 + (float)r * 8.0f);
+
+                        if (my >= top - 2 && my < top + 17)
+                            row = r;
+                    }
+
+                    if (row >= 0 && row != g_PcBrtRow && Pc_MouseCursor_Moved() && !Pc_MouseCursor_LeftHeld())
+                    {
+                        g_PcBrtRow = row;
+                        Sd_PlaySfx(Sfx_MenuMove, 0, Q8(0.25f));
+                    }
+
                     if (wheel != 0)
+                    {
+                        s_brtHoldDir = 0;
                         Pc_BrightnessRowAdjust(g_PcBrtRow, wheel);
+                    }
                     else if (Pc_MouseCursor_LeftClicked())
-                        Pc_BrightnessRowAdjust(g_PcBrtRow, (mx < 160) ? -1 : +1);
+                    {
+                        s_brtHoldDir    = 0;
+                        s_brtHoldFrames = 0;
+                        if (row >= 0 && row != g_PcBrtRow)
+                        {
+                            g_PcBrtRow = row;
+                            Sd_PlaySfx(Sfx_MenuMove, 0, Q8(0.25f));
+                        }
+                        if (g_PcBrtRow == PC_BRT_ROW_RESET && (row < 0 || row == PC_BRT_ROW_RESET))
+                        {
+                            Pc_BrightnessReset();
+                            Sd_PlaySfx(Sfx_MenuConfirm, 0, Q8(0.25f));
+                        }
+                        else if (row < 0 || mx >= 150)
+                        {
+                            s_brtHoldDir = (mx < PC_BRT_VALUE_MID_X) ? -1 : +1;
+                            Pc_BrightnessRowAdjust(g_PcBrtRow, s_brtHoldDir);
+                        }
+                    }
+                    else if (s_brtHoldDir != 0 && Pc_MouseCursor_LeftHeld())
+                    {
+                        s_brtHoldFrames++;
+                        if (s_brtHoldFrames > 20 && (s_brtHoldFrames % 4) == 0)
+                            Pc_BrightnessRowAdjust(g_PcBrtRow, s_brtHoldDir);
+                    }
+                    else
+                    {
+                        s_brtHoldDir = 0;
+                    }
 
                     if (Pc_MouseCursor_RightClicked())
                         PcMouse_InjectCancel();
@@ -3908,6 +4530,15 @@ void Options_BrightnessMenu_Control(void) // 0x801E6018
             }
 #endif
 
+#ifdef SH_PC_PORT
+            if (g_PcBrtRow == PC_BRT_ROW_RESET &&
+                (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.enter))
+            {
+                Pc_BrightnessReset();
+                Sd_PlaySfx(Sfx_MenuConfirm, 0, Q8(0.25f));
+                g_Controller0->clickedBtnFlags &= ~g_GameWorkPtr->config.controllerConfig.enter;
+            }
+#endif
             // Fade screen and leave menu.
             if (g_Controller0->clickedBtnFlags & (g_GameWorkPtr->config.controllerConfig.enter |
                                                  g_GameWorkPtr->config.controllerConfig.cancel))
@@ -3950,6 +4581,14 @@ void Options_BrightnessMenu_Control(void) // 0x801E6018
     }
 
     // Draw graphics.
+#ifdef SH_PC_PORT
+    /* PAL draws the options background here; its Brightness picture is never loaded. */
+    if (g_GameRegion == Region_EUR)
+    {
+        Screen_BackgroundImgDraw(&g_ItemInspectionImg);
+    }
+    else
+#endif
     if (g_GameWork.gameStatePrev == GameState_MainMenu)
     {
         Screen_BackgroundImgDraw(&g_BrightnessScreenImg0);
@@ -3984,9 +4623,11 @@ void Options_BrightnessMenu_ConfigDraw(void) // 0x801E6238
      * actually 6, so the real widths are 118 / 123 / 121 and the column was
      * never pixel-exact to begin with. 7 underscores is the closest fit.) */
     const char* const NAMES[PC_BRT_ROWS] = { "BRIGHTNESS_", "CONTRAST_____", "SATURATION_",
-                                             "CLASSIC_______" };
+                                             "CLASSIC_______", "RESET" };
     const float*      vals[3];
     s32 i;
+    /* USA Arabic draws leftward from X; its patch mirrored LEVEL about x=160. */
+    s32 rowX = PC_AR_USA(SCREEN_WIDTH - SCREEN_POSITION_X(22.0f), SCREEN_POSITION_X(22.0f));
 
     vals[0] = &g_cfg_brightness;
     vals[1] = &g_cfg_contrast;
@@ -3994,13 +4635,20 @@ void Options_BrightnessMenu_ConfigDraw(void) // 0x801E6238
 
     for (i = 0; i < PC_BRT_ROWS; i++)
     {
+        if (i == PC_BRT_ROW_RESET)
+        {
+            Gfx_StringSetColor(i == g_PcBrtRow ? StringColorId_Gold : StringColorId_White);
+            Gfx_StringSetPosition(rowX, SCREEN_POSITION_Y(PC_BRT_ROW_Y0 + (float)i * 8.0f));
+            Gfx_StringDraw(NAMES[i], 20);
+            continue;
+        }
         if (i == 3)
         {
             /* 0-7, not a percentage: this is the console control's own scale,
              * and the reference lines behind the panel already move with it the
              * way they did in the original screen. */
             Gfx_StringSetColor(i == g_PcBrtRow ? StringColorId_Gold : StringColorId_White);
-            Gfx_StringSetPosition(SCREEN_POSITION_X(22.0f), SCREEN_POSITION_Y(PC_BRT_ROW_Y0 + (float)i * 8.0f));
+            Gfx_StringSetPosition(rowX, SCREEN_POSITION_Y(PC_BRT_ROW_Y0 + (float)i * 8.0f));
             Gfx_StringDraw(NAMES[i], 20);
             Gfx_StringDrawInt(3, (s32)g_GameWork.config.brightness);
             continue;
@@ -4010,7 +4658,7 @@ void Options_BrightnessMenu_ConfigDraw(void) // 0x801E6238
          * Selection shown by gold vs white — no bracket glyph (the menu font
          * renders '[' as a curly quote). */
         Gfx_StringSetColor(i == g_PcBrtRow ? StringColorId_Gold : StringColorId_White);
-        Gfx_StringSetPosition(SCREEN_POSITION_X(22.0f), SCREEN_POSITION_Y(PC_BRT_ROW_Y0 + (float)i * 8.0f));
+        Gfx_StringSetPosition(rowX, SCREEN_POSITION_Y(PC_BRT_ROW_Y0 + (float)i * 8.0f));
         Gfx_StringDraw(NAMES[i], 20);
         Gfx_StringDrawInt(3, (s32)((*vals[i] * 100.0f) + 0.5f));
     }
@@ -4034,6 +4682,9 @@ void Options_BrightnessMenu_ArrowsDraw(void) // 0x801E628C
      * knob on the text line, matching the original's 84 vs its 79.5% value row).
      * X (8/64) already brackets the value column. */
     s32 yc  = (s32)(SCREEN_HEIGHT * ((PC_BRT_ROW_Y0 + (float)g_PcBrtRow * 8.0f) / 100.0f)) - 107;
+
+    if (g_PcBrtRow == PC_BRT_ROW_RESET)
+        return; /* nothing to adjust */
     /* Shift both knobs right so the left one clears the label and they bracket
      * the value number (labels are longer than the retail "LEVEL"). With the
      * value column now aligned across rows, 10 sits the knobs a touch tighter
@@ -4049,15 +4700,27 @@ void Options_BrightnessMenu_ArrowsDraw(void) // 0x801E628C
         { { 7 + xo,  yc }, { 17 + xo, yc - 10 }, { 17 + xo, yc + 10 } },
         { { 65 + xo, yc }, { 55 + xo, yc - 10 }, { 55 + xo, yc + 10 } }
     };
+    /* The USA Arabic patch negates these arrows' X (left arrow becomes the
+     * negated right one), matching the mirrored rows. */
+    const s_Triangle2d AR_USA_FRONT_ARROWS[2] = {
+        { { -(64 + xo), yc }, { -(56 + xo), yc - 8 }, { -(56 + xo), yc + 8 } },
+        { { -(8 + xo),  yc }, { -(16 + xo), yc - 8 }, { -(16 + xo), yc + 8 } }
+    };
+    const s_Triangle2d AR_USA_BORDER_ARROWS[2] = {
+        { { -(65 + xo), yc }, { -(55 + xo), yc - 10 }, { -(55 + xo), yc + 10 } },
+        { { -(7 + xo),  yc }, { -(17 + xo), yc - 10 }, { -(17 + xo), yc + 10 } }
+    };
+    const s_Triangle2d* front  = PC_AR_USA(AR_USA_FRONT_ARROWS, FRONT_ARROWS);
+    const s_Triangle2d* border = PC_AR_USA(AR_USA_BORDER_ARROWS, BORDER_ARROWS);
     s32 i;
 
     for (i = 0; i < 2; i++)
-        Options_Selection_ArrowDraw(&FRONT_ARROWS[i], true, false);
+        Options_Selection_ArrowDraw(&front[i], true, false);
 
     /* Border highlights the side being pushed; dir 0 would read [-1] (OOB), so
      * only draw when a direction is held. */
     if (dir != 0)
-        Options_Selection_ArrowDraw(&BORDER_ARROWS[dir - 1], false, false);
+        Options_Selection_ArrowDraw(&border[dir - 1], false, false);
 #else
     const s_Triangle2d FRONT_ARROWS[] = {
         { { 8, 84  }, { 16, 76 }, { 16, 92 } },
@@ -4761,7 +5424,12 @@ void Options_ControllerMenu_EntriesDraw(bool isOnRightPane, s32 presetsEntryIdx,
     #define STR_BASE_Y    22
     #define STR_OFFSET_Y  20
     #define ICON_SIZE_Y   12
+#ifdef SH_PC_PORT
+    /* Both Arabic patches move the icon column for their longer action names. */
+    #define ICON_OFFSET_X PC_AR_USA(0, PC_AR_PAL(8, -12))
+#else
     #define ICON_OFFSET_X -12
+#endif
 
     s16      highlightY0;
     s16      highlightY1;
@@ -4868,7 +5536,11 @@ void Options_ControllerMenu_EntriesDraw(bool isOnRightPane, s32 presetsEntryIdx,
     // Draw entry strings.
     for (i = 0; i < CONTROLLER_MENU_ROW_COUNT; i++)
     {
+#ifdef SH_PC_PORT
+        Gfx_StringSetPosition(PC_AR_USA(296, 24), STR_BASE_Y + (i * STR_OFFSET_Y));
+#else
         Gfx_StringSetPosition(24, STR_BASE_Y + (i * STR_OFFSET_Y));
+#endif
         Gfx_StringDraw(CONTROLLER_MENU_PRESETS_PANE_ENTRY_STRINGS[i], 20);
     }
 
@@ -4876,11 +5548,20 @@ void Options_ControllerMenu_EntriesDraw(bool isOnRightPane, s32 presetsEntryIdx,
     {
         highlightY1 = presetsEntryIdx * STR_OFFSET_Y;
         highlightY0 = highlightY1 - 91;
+#ifdef SH_PC_PORT
+        /* The USA Arabic patch mirrors this pane (columns swapped). */
+        setXY4(poly,
+               PC_AR_USA(76, -137),  highlightY0,
+               PC_AR_USA(137, -76),  highlightY0,
+               PC_AR_USA(76, -137),  highlightY1 - 76,
+               PC_AR_USA(137, -76),  highlightY1 - 76);
+#else
         setXY4(poly,
                -137, highlightY0,
                -76,  highlightY0,
                -137, highlightY1 - 76,
                -76,  highlightY1 - 76);
+#endif
     }
 
     strYPos     = STR_BASE_Y;
@@ -4890,7 +5571,11 @@ void Options_ControllerMenu_EntriesDraw(bool isOnRightPane, s32 presetsEntryIdx,
     for (i = 0, contConfig = (u16*)&g_GameWorkPtr->config.controllerConfig; i < (u32)InputAction_Count; i++, contConfig++)
     {
         // Draw action string.
+#ifdef SH_PC_PORT
+        Text_Debug_PositionSet(PC_AR_USA(175, 96), strYPos);
+#else
         Text_Debug_PositionSet(96, strYPos);
+#endif
         Text_Debug_Draw(CONTROLLER_MENU_ACTIONS_PANE_ENTRY_STRINGS[i]);
 
         // Draw button icon.
@@ -4932,7 +5617,9 @@ void Options_ControllerMenu_EntriesDraw(bool isOnRightPane, s32 presetsEntryIdx,
             }
             buf[n] = '\0';
 
-            Text_Debug_PositionSet(184, strYPos);
+            /* No patch value: USA Arabic puts the column left of its mirrored
+             * icons, right-aligned; PAL Arabic follows its icons 20 px right. */
+            Text_Debug_PositionSet(PC_AR_USA(136 - (n * 8), PC_AR_PAL(204, 184)), strYPos);
             Text_Debug_Draw(buf);
         }
 #endif
@@ -4942,11 +5629,20 @@ void Options_ControllerMenu_EntriesDraw(bool isOnRightPane, s32 presetsEntryIdx,
 
     if (isOnRightPane == true)
     {
+#ifdef SH_PC_PORT
+        /* USA Arabic mirrors this pane (columns swapped); PAL Arabic widens it. */
+        setXY4(poly,
+               PC_AR_USA(15, -65),                 highlightY0,
+               PC_AR_USA(65, PC_AR_PAL(5, -15)),   highlightY0,
+               PC_AR_USA(15, -65),                 highlightY0 + 10,
+               PC_AR_USA(65, PC_AR_PAL(5, -15)),   highlightY0 + 10);
+#else
         setXY4(poly,
                -65, highlightY0,
                -15, highlightY0,
                -65, highlightY0 + 10,
                -15, highlightY0 + 10);
+#endif
     }
 
     AddPrim(ot, poly);
@@ -4962,7 +5658,12 @@ void Options_ControllerMenu_ButtonIconsDraw(s32 baseX, s32 baseY, u16 config) //
 {
     #define ICON_SIZE_X   12
     #define ICON_SIZE_Y   12
+#ifdef SH_PC_PORT
+    /* USA Arabic stacks extra bound-button icons leftward. */
+    #define ICON_OFFSET_X PC_AR_USA(-14, 14)
+#else
     #define ICON_OFFSET_X 14
+#endif
 
     s32            i;
     s32            posX;

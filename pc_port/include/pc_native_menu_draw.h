@@ -21,6 +21,9 @@ void Nm_TextDraw(int x, int y, int size, int color, const char* s);
  * Pc_LangMenuTextWidth(s). */
 void Nm_TextDrawVerbatim(int x, int y, int size, int color, const char* s);
 int  Nm_TextWidth(const char* s);
+/* While on, text drawn at a Pc_StringScaleSet size other than 1.0 is not
+ * filtered as world geometry. Only for menus drawn over a frozen capture. */
+void Nm_TextBucketMark2d(int on);
 void Nm_TextDrawCentered(int cx, int y, int size, int color, const char* s);
 void Nm_TextDrawRight(int rx, int y, int size, int color, const char* s);
 /* Draws `s` verbatim in x..x+maxW. Text wider than that pans to its end
@@ -29,6 +32,12 @@ void Nm_TextDrawRight(int rx, int y, int size, int color, const char* s);
  * otherwise. Every pan restarts from its left end when the highlight moves.
  * Returns the width drawn, at most maxW. */
 int  Nm_TextDrawMarquee(int x, int y, int size, int color, const char* s, int maxW, int pan);
+/* Untranslated run-time text (key names, file and character names, status
+ * lines): a TrueType face when the active font has no Latin cells
+ * (pc_ttf_text.c), the game font otherwise. maxW <= 0 = no limit. Returns
+ * the drawn width. */
+int  Nm_TextDrawLatin(int x, int y, int size, int color, const char* s, int maxW, int pan);
+int  Nm_TextWidthLatin(const char* s, int size);
 
 /* y is the arrow's vertical centre. */
 void Nm_ScrollArrowDraw(int cx, int y, int up, int enabled);

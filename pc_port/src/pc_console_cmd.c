@@ -30,6 +30,8 @@
  *                             collision except the ground
  *   BIND <key> <cmds>    - run one or more console commands from a key;
  *                          BIND LIST / UNBIND <key> / UNBINDALL
+ *                          BIND pad:<input> <cmd> (controller) / ADDCONTROL <cmd> / REMOVECONTROL <cmd>
+ *   NEXTGUN / NEXTMELEE    - next owned gun / melee weapon (works with the weapon raised)
  *   ABOUT                - PC port credits (same block the staff roll appends)
  *   PCCREDITS [0|1]      - toggle that block in the staff roll (persists)
  *   LOGA / LOGB          - stamp an incremental A#/B# position mark
@@ -52,6 +54,7 @@
 #include "bodyprog/sound/sound_system.h" /* AMBSFX sweep: s_VabInfo / Sd_PlaySfx */
 #include "bodyprog/sound/sfx_id_enum.h"
 #include "sh_log.h"
+#include <SDL_timer.h> /* gpubench's wall clock */
 #include "map_registry.h"
 #include "dbg_overlay.h"
 #include "pc_config.h"
@@ -519,6 +522,8 @@ static const char* const HELP_LINES[] = {
     " kf [n]         keyframe viewer: toggle, or view frame n",
     " playas [name]  play as another character (bare = list)",
     " playas next / previous  cycle characters (bindable)",
+    " charmenu (cmenu)  open or close Character Select (bindable)",
+    " gpubench       GPU cost of each graphics setting here (stand still ~20 s)",
     " skinini        re-read the character models' .ini files",
     " minimapnomap [0|1]  minimap before the map is found: 0 hide, 1 empty panel",
     " bind <key> <cmd>[;<cmd>...]  run console commands from a key",
@@ -618,6 +623,127 @@ void Pc_ConsoleFmvUpdate(void)
     FMV_Play(fileIdx, 0);
     g_PcFmvClockDiscard = 1;
     ScreenFade_Start(true, true, false);
+}
+
+/* gpubench: the GPU cost of each graphics setting, measured in place.
+ *
+ * A performance log from another machine says how slow it is, not why: the
+ * [PERF] window reports one gpu figure for everything at once. This flips one
+ * setting at a time, holds it for a fixed number of frames and reads the GPU
+ * timer, so the table says what each setting costs on this machine in this
+ * spot. The ranking carries to a slower card of the same vendor even when the
+ * absolute numbers do not. Everything is put back as it was. The [PERF] window
+ * zeroes the GPU counters every 30 s, so a step whose counters went backwards
+ * is measured again. */
+#define GB_SETTLE  20
+#define GB_MEASURE 120
+
+static const char* const s_gbNames[] = {
+    "as configured", "texture filter off", "bilinear", "aniso 4x",
+    "per-pixel lighting off", "hero light off", "PGXP off", "flashlight shadows off",
+};
+#define GB_STEPS ((int)(sizeof(s_gbNames) / sizeof(s_gbNames[0])))
+
+static int          s_gbStep = -1, s_gbFrames;
+static double       s_gbGpu0;
+static int          s_gbGpuN0;
+static unsigned int s_gbMs0;
+static struct { int texFilter, aniso, pplight, hero, pgxp, flMode, timerWanted; } s_gbSaved;
+
+/* Restores the saved settings, then applies one step's change (-1 = restore only). */
+static void gb_apply(int step)
+{
+    extern int g_cfg_textureFilter, g_cfg_anisoLevel, g_PsxUsePgxp;
+
+    g_cfg_textureFilter         = s_gbSaved.texFilter;
+    g_cfg_anisoLevel            = s_gbSaved.aniso;
+    g_PcConfig.perPixelLighting = s_gbSaved.pplight;
+    g_PcConfig.heroLight        = s_gbSaved.hero;
+    g_PsxUsePgxp                = s_gbSaved.pgxp;
+    if (g_PcConfig.flashlightMode != s_gbSaved.flMode)
+        Pc_FlashlightModeApply(s_gbSaved.flMode, 0);
+
+    switch (step) {
+        case 1: g_cfg_textureFilter = 0; break;
+        case 2: g_cfg_textureFilter = 1; break;
+        case 3: g_cfg_textureFilter = 3; g_cfg_anisoLevel = 4; break;
+        case 4: g_PcConfig.perPixelLighting = 0; break;
+        case 5: g_PcConfig.heroLight = 0; break;
+        case 6: g_PsxUsePgxp = 0; break;
+        case 7:
+            if (s_gbSaved.flMode == 1 || s_gbSaved.flMode == 3)
+                Pc_FlashlightModeApply(s_gbSaved.flMode - 1, 0);
+            break;
+        default: break;
+    }
+}
+
+void Pc_ConsoleGpuBenchUpdate(void)
+{
+    extern double g_PsyX_GpuMsSum;
+    extern int    g_PsyX_GpuMsCount;
+    extern int    g_PsyX_GpuTimerWanted;
+
+    if (s_gbStep < 0)
+        return;
+
+    s_gbFrames++;
+    if (s_gbFrames == GB_SETTLE) {
+        s_gbGpu0  = g_PsyX_GpuMsSum;
+        s_gbGpuN0 = g_PsyX_GpuMsCount;
+        s_gbMs0   = SDL_GetTicks();
+        return;
+    }
+    if (s_gbFrames < GB_SETTLE + GB_MEASURE)
+        return;
+    if (g_PsyX_GpuMsCount < s_gbGpuN0) {
+        s_gbFrames = GB_SETTLE - 1;
+        return;
+    }
+
+    {
+        int    n   = g_PsyX_GpuMsCount - s_gbGpuN0;
+        double gpu = (n > 0) ? (g_PsyX_GpuMsSum - s_gbGpu0) / n : -1.0;
+        double frm = (double)(SDL_GetTicks() - s_gbMs0) / GB_MEASURE;
+
+        if (gpu >= 0.0)
+            SH_DBG_ECHO("[GPUBENCH] %-24s gpu %6.2f ms   frame %6.2f ms", s_gbNames[s_gbStep], gpu, frm);
+        else
+            SH_DBG_ECHO("[GPUBENCH] %-24s gpu    n/a      frame %6.2f ms", s_gbNames[s_gbStep], frm);
+    }
+
+    s_gbStep++;
+    s_gbFrames = 0;
+    if (s_gbStep >= GB_STEPS) {
+        gb_apply(-1);
+        g_PsyX_GpuTimerWanted = s_gbSaved.timerWanted;
+        s_gbStep = -1;
+        SH_DBG_ECHO("[GPUBENCH] done; settings restored (MSAA needs a restart to compare)");
+        return;
+    }
+    gb_apply(s_gbStep);
+}
+
+static void cmd_gpubench(void)
+{
+    extern int g_cfg_textureFilter, g_cfg_anisoLevel, g_PsxUsePgxp, g_PsyX_GpuTimerWanted;
+
+    if (s_gbStep >= 0) {
+        cprintf("gpubench is already running");
+        return;
+    }
+    s_gbSaved.texFilter   = g_cfg_textureFilter;
+    s_gbSaved.aniso       = g_cfg_anisoLevel;
+    s_gbSaved.pplight     = g_PcConfig.perPixelLighting;
+    s_gbSaved.hero        = g_PcConfig.heroLight;
+    s_gbSaved.pgxp        = g_PsxUsePgxp;
+    s_gbSaved.flMode      = g_PcConfig.flashlightMode;
+    s_gbSaved.timerWanted = g_PsyX_GpuTimerWanted;
+    g_PsyX_GpuTimerWanted = 1;
+    s_gbStep              = 0;
+    s_gbFrames            = 0;
+    SH_DBG_ECHO("[GPUBENCH] %d settings x %d frames: stand still, keep the view; results follow here and in the log",
+                GB_STEPS, GB_SETTLE + GB_MEASURE);
 }
 
 static void cmd_fmv(const char* arg)
@@ -1460,6 +1586,15 @@ void Pc_ConsoleExec(const char* line)
             push_lines(DEBUG_PAGE1, (int)(sizeof(DEBUG_PAGE1) / sizeof(DEBUG_PAGE1[0])));
     } else if (strcmp(cmd, "AMBSFX") == 0) {
         cmd_ambsfx(arg);
+    } else if (strcmp(cmd, "NEXTGUN") == 0 || strcmp(cmd, "NEXTMELEE") == 0) {
+        extern const char* Pc_NextWeaponRequest(int guns);
+        const char* why = Pc_NextWeaponRequest(cmd[4] == 'G');
+        if (why != NULL)
+            cprintf("%s", why);
+    } else if (strcmp(cmd, "ADDCONTROL") == 0) {
+        PcBinds_CmdAddControl(arg);
+    } else if (strcmp(cmd, "REMOVECONTROL") == 0) {
+        PcBinds_CmdRemoveControl(arg);
     } else if (strcmp(cmd, "BIND") == 0) {
         PcBinds_CmdBind(arg);
     } else if (strcmp(cmd, "UNBIND") == 0) {
@@ -1895,6 +2030,20 @@ void Pc_ConsoleExec(const char* line)
         extern float g_pgxpWeldWRatio;
         if (arg[0]) g_pgxpWeldWRatio = (float)atof(arg);
         cprintf("PGXP weld depth ratio: %.3f", g_pgxpWeldWRatio);
+    } else if (strcmp(cmd, "FLASHLIGHTAIM") == 0) {
+        /* Acts on the camera in use: first person (flashlight_follow_aim_fps,
+         * the beam follows the view) or Thirdperson / Over-the-Shoulder
+         * (flashlight_follow_aim, the aim while a weapon is readied, otherwise
+         * only the camera's pitch). Off keeps Harry's torso direction. */
+        extern int  g_PcFpsCam;
+        int*        v   = g_PcFpsCam ? &g_PcConfig.flashlightFollowAimFps : &g_PcConfig.flashlightFollowAim;
+        const char* key = g_PcFpsCam ? "flashlight_follow_aim_fps" : "flashlight_follow_aim";
+
+        if (arg[0] == '1')      *v = 1;
+        else if (arg[0] == '0') *v = 0;
+        else                    *v = !*v;
+        PcConfig_SaveKeyValue(key, *v ? "1" : "0");
+        cprintf("flashlight follows the %s: %s", g_PcFpsCam ? "first-person view" : "third-person aim", *v ? "ON" : "OFF");
     } else if (strcmp(cmd, "WEATHERHZ") == 0) {
         if (arg[0]) g_PcConfig.weatherSimHz = (atoi(arg) == 30) ? 30 : 60;
         cprintf("Weather (rain/snow) simulation: %d Hz%s", g_PcConfig.weatherSimHz,
@@ -2054,11 +2203,22 @@ void Pc_ConsoleExec(const char* line)
         else
             g_PsxFeedbackExact = !g_PsxFeedbackExact;
         cprintf("loading trail: %s", g_PsxFeedbackExact ? "sharp (pixel-exact store)" : "soft (old filtered store)");
+    } else if (strcmp(cmd, "FBSCREEN") == 0) {
+        /* Framebuffer feedback at render resolution: 1 = the loading trail,
+         * door fade, dream overlays and soft focus read a 1:1 capture of the
+         * frame with the PS1's 5-bit arithmetic, 0 = the 320x224 VRAM store
+         * (a blocky or soft ghost under a sharp scene). Bare toggles. */
+        extern int g_PsxFeedbackScreen;
+        if (arg[0] == '0' || arg[0] == '1')
+            g_PsxFeedbackScreen = (arg[0] == '1');
+        else
+            g_PsxFeedbackScreen = !g_PsxFeedbackScreen;
+        cprintf("framebuffer feedback: %s", g_PsxFeedbackScreen ? "render resolution" : "320x224 VRAM store");
     } else if (strcmp(cmd, "FBDAMP") == 0) {
         /* Gain of the framebuffer-feedback loop that produces the door out-fade
-         * and the loading-screen trail. 0.65 = shipped; ~0.996 (255/256) is
-         * retail-length decay but diverged to a grey field last time it was
-         * tried, so it is tunable here rather than baked in. */
+         * and the loading-screen trail. 1.0 = the hardware loop (the opaque
+         * copy is identity, the 127/128 frames take one 5-bit level off); lower
+         * fades the trail faster than a PS1 does. */
         /* Second argument is the gain for a BLENDING reader (the dream
          * overlays), which is unity by default because the overlay's own 50/50
          * composite is already the decay hardware relies on. */
@@ -2128,6 +2288,8 @@ void Pc_ConsoleExec(const char* line)
         extern int g_PsxPgxpDbg;
         if (arg[0]) g_PsxPgxpDbg = atoi(arg);
         cprintf("pgxpdbg %d: 1=no precise verts 2=legacy depth 4=opaque alpha 8=no world split 16=no exact twin 32=precise from MAC 64=W=1 128=integer xy", g_PsxPgxpDbg);
+    } else if (strcmp(cmd, "GPUBENCH") == 0) {
+        cmd_gpubench();
     } else if (strcmp(cmd, "WORLDDEPTH") == 0) {
         /* worlddepth 0|1 -- depth function for static opaque world under PGXP.
          * 1 = GL_ALWAYS (paint order alone decides), 0 = GL_LEQUAL (a nearer
@@ -2397,6 +2559,24 @@ void Pc_ConsoleExec(const char* line)
     } else if (strcmp(cmd, "SKININI") == 0) {
         extern int Pc_SkinChara_ReloadSettings(void);
         cprintf("re-read %d character .ini file(s)", Pc_SkinChara_ReloadSettings());
+    } else if (strcmp(cmd, "CHARMENU") == 0 || strcmp(cmd, "CMENU") == 0) {
+        /* Hosted by the quick menu, which runs its input and freezes the
+         * world under it, so open that first. Again from a key closes both. */
+        extern int  Pc_CharaSelect_IsOpen(void);
+        extern void Pc_CharaSelect_Open(void);
+        extern int  Pc_QuickOptions_IsOpen(void);
+        extern void Pc_QuickOptions_Toggle(void);
+        extern void Pc_QuickOptions_Close(void);
+        if (Pc_CharaSelect_IsOpen()) {
+            Pc_QuickOptions_Close();
+        } else {
+            if (!Pc_QuickOptions_IsOpen())
+                Pc_QuickOptions_Toggle();
+            if (Pc_QuickOptions_IsOpen())
+                Pc_CharaSelect_Open();
+            else
+                cprintf("Character Select is not available here");
+        }
     } else if (strcmp(cmd, "PLAYAS") == 0) {
         extern int         Pc_PlayAs_SetByName(const char* name, int save);
         extern int         Pc_PlayAs_Current(void);
@@ -2437,12 +2617,12 @@ void Pc_ConsoleExec(const char* line)
             char buf[16];
             float v = (float)atof(arg);
             if (v < 0.0f) v = 0.0f;
-            if (v > 3.0f) v = 3.0f;
+            if (v > 6.0f) v = 6.0f;
             *pv = v;
             snprintf(buf, sizeof(buf), "%.2f", v);
             PcConfig_SaveKeyValue(pkey, buf);
         }
-        cprintf("flashlight intensity%s: %.2f (0..3)", g_PcFpsCam ? " (fps)" : "", *pv);
+        cprintf("flashlight intensity%s: %.2f (0..6)", g_PcFpsCam ? " (fps)" : "", *pv);
     } else if (strcmp(cmd, "POSTINTENSITY") == 0 || strcmp(cmd, "POSTINT") == 0) {
         extern float g_cfg_postProcessIntensity;
         if (arg[0] != '\0') {
