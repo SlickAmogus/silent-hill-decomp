@@ -3169,6 +3169,18 @@ void MainLoop(void) // 0x80032EE0
                                        g_PsxUsePgxp, g_cfg_textureFilter, g_PcConfig.perPixelLighting, g_PcConfig.heroLight,
                                        g_PcConfig.flashlightMode);
                             }
+                            /* Out of video memory reads exactly like a GPU that is too
+                             * slow, and nothing drawn explains it; this is the only
+                             * figure that tells the two apart. */
+                            {
+                                extern void HiresOverride_VramReport(int* totalMb, int* freeMb, int* packMb);
+                                int vTotal = 0, vFree = 0, vPack = 0;
+
+                                HiresOverride_VramReport(&vTotal, &vFree, &vPack);
+                                if (vTotal > 0)
+                                    SH_DBG("[PERF]   video memory: %d MB free of %d MB | texture packs hold %d MB (budget %d MB)",
+                                           vFree, vTotal, vPack, g_PcConfig.texpackBudgetMb);
+                            }
                             g_PsxPerfSplits = g_PsxPerfBinds = g_PsxPerfFilterSets = g_PsxPerfTris = 0;
                             g_PsxPerfBigTris = g_PsxPerfCharaVerts = g_PsxPerfFrames = 0;
                             g_PsxPerfCover = g_PsxPerfCoverWorst = 0.0;
