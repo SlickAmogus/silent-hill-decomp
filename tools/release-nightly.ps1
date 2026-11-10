@@ -128,7 +128,7 @@ function Get-Sha256([string]$path) {
 }
 
 # Shipped runtime assets: pc_port/assets/ mirrors the game folder layout
-# (assets/gamedata/decal.png ships as gamedata/decal.png). Both modes package
+# (assets/gamedata/image/decal.png ships as gamedata/image/decal.png). Both modes package
 # from THIS directory — never glob the build folder's gamedata/, which holds
 # the user's disc images and saves. RelPath is the runtime-relative POSIX path
 # used in the zip, the manifest, and the loose-mode asset name.
@@ -1041,7 +1041,7 @@ if (Test-Path $launcherExe) {
     Write-Host "Warning: launcher exe not found at $launcherExe - not included in this release." -ForegroundColor Yellow
 }
 
-# Shipped runtime assets (manifest path = runtime-relative, e.g. gamedata/decal.png;
+# Shipped runtime assets (manifest path = runtime-relative, e.g. gamedata/image/decal.png;
 # the launcher creates missing dirs on apply, same as maps/). Sourced from
 # pc_port/assets/, remembered here so the upload stage doesn't look in BuildDir.
 $assetSources = @{}
