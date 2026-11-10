@@ -815,10 +815,11 @@ static int Tc_FixedStick(void)
     return g_PcConfig.touchStyle == TouchStyle_ContextFixed;
 }
 
-/* Where the pinned stick lives, in the same space as the button table. Lower
- * left, clear of Fire and of the corner buttons. */
-#define TC_FIXED_STICK_CX 0.170f
-#define TC_FIXED_STICK_CY 0.740f
+/* Where the pinned stick lives: the Gamepad style's stick centre, so a thumb
+ * finds it in the same place in either style. That one is laid out in height
+ * units from the left edge; this is its width fraction on the screen at hand. */
+#define TC_FIXED_STICK_CX (TG_STICK_CX / Tc_Aspect())
+#define TC_FIXED_STICK_CY TG_STICK_CY
 
 /* A scripted scene, as opposed to message or examine text. A tap in an advance
  * state injects enter and ONLY enter (s_AdvanceHeld below), which advances text
