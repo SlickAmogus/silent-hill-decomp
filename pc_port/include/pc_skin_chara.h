@@ -40,6 +40,8 @@ int   Pc_SkinChara_KeepsStockPart(void* chara, const char partName[8], int bone)
 void  Pc_SkinChara_PreloadBuiltins(void);
 /* The model files changed on disk: forget which ones were not found. */
 void  Pc_SkinChara_FilesChanged(void);
+/* Counts those calls: holders of a preview model drop it when this moves. */
+int   Pc_SkinChara_FilesGen(void);
 /* Transforms and lights a replaced part into the scratch slots without drawing
  * it, for a kept part that reads its seam vertices from there
  * (bodyprog_80055028.c). */

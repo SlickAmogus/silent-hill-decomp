@@ -11,7 +11,10 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
+#include "bodyprog/bodyprog.h"
+#include "bodyprog/map/terrain.h"
 #include "bodyprog/collision/collision.h"
 #include "bodyprog/collision/ray.h"
 #include "bodyprog/math/math.h"
@@ -22,8 +25,11 @@
 #include "hires_override.h"
 #include "pc_config.h"
 #include "pc_decals.h"
+#include "pc_wide_lm.h"
 #include "sh_log.h"
 #include "stb_image.h"
+
+extern s_MapTerrain g_Map;
 
 #define DECAL_MAX       64
 #define DECAL_HALF      Q12(0.0375f) /* quad half-extent (~3.75cm) */
@@ -71,7 +77,259 @@ typedef struct {
     VECTOR3 center; /* Q19.12 world, already offset along the normal */
     VECTOR3 axisU;  /* Q12 half-extent tangent */
     VECTOR3 axisV;  /* Q12 half-extent bitangent */
+    u8      glass;  /* drawn with decalGlass.png */
 } s_PcDecal;
+
+/* What the eye sees where a bullet stopped. Collision knows only that
+ * something is there: an invisible wall and a brick one are the same to it. */
+enum { SURF_NONE, SURF_SOLID, SURF_GLASS };
+
+/* The rendered wall is looked for this far either side of the collision hit
+ * along the shot (Q8 world units, 256 = 1 m): collision planes sit a little
+ * off the art. */
+#define SURF_NEAR   128.0f
+/* A pane itself is not drawn; what marks it is the cut-out backdrop standing
+ * behind the opening, looked for this far past the hit. */
+#define SURF_BEYOND 1024.0f
+
+#define DECAL_OBJ_MAX 32
+typedef struct
+{
+    const s_ModelHeader* modelHdr;
+    MATRIX               mat;
+} s_PcDecalObj;
+
+/* World objects of the frame being drawn, and of the last one drawn whole:
+ * the game empties its own list as it draws, before any shot is traced. */
+static s_PcDecalObj s_objCur[DECAL_OBJ_MAX];
+static s_PcDecalObj s_objLast[DECAL_OBJ_MAX];
+static int          s_objCurCount;
+static int          s_objLastCount;
+
+void Pc_DecalsNoteWorldObject(const s_ModelHeader* modelHdr, const MATRIX* worldMat)
+{
+    if (modelHdr == NULL || worldMat == NULL || s_objCurCount >= DECAL_OBJ_MAX)
+    {
+        return;
+    }
+    s_objCur[s_objCurCount].modelHdr = modelHdr;
+    s_objCur[s_objCurCount].mat      = *worldMat;
+    s_objCurCount++;
+}
+
+typedef struct
+{
+    float o[3];      /* shot origin, Q8 world */
+    float d[3];      /* unit direction */
+    float len;       /* origin to the collision hit */
+    float nearT;     /* nearest drawn surface around the hit, <0 none */
+    float beyondT;   /* nearest drawn surface past it, <0 none */
+    int   beyondCut; /* that surface is a cut-out (see-through texels) */
+    int   blind;     /* a model was met that this cannot read */
+} s_SurfQuery;
+
+static void Surf_Tri(s_SurfQuery* q, const float* a, const float* b, const float* c, int cutout)
+{
+    float e1[3], e2[3], p[3], s[3], r[3], det, inv, u, v, t;
+    int   i;
+
+    for (i = 0; i < 3; i++)
+    {
+        e1[i] = b[i] - a[i];
+        e2[i] = c[i] - a[i];
+    }
+    p[0] = q->d[1] * e2[2] - q->d[2] * e2[1];
+    p[1] = q->d[2] * e2[0] - q->d[0] * e2[2];
+    p[2] = q->d[0] * e2[1] - q->d[1] * e2[0];
+    det  = e1[0] * p[0] + e1[1] * p[1] + e1[2] * p[2];
+    if (det > -1e-4f && det < 1e-4f)
+    {
+        return;
+    }
+    inv = 1.0f / det;
+    for (i = 0; i < 3; i++)
+    {
+        s[i] = q->o[i] - a[i];
+    }
+    /* A little slack at the edges: a shot on a seam between two quads would
+     * otherwise slip between them. */
+    u = (s[0] * p[0] + s[1] * p[1] + s[2] * p[2]) * inv;
+    if (u < -0.02f || u > 1.02f)
+    {
+        return;
+    }
+    r[0] = s[1] * e1[2] - s[2] * e1[1];
+    r[1] = s[2] * e1[0] - s[0] * e1[2];
+    r[2] = s[0] * e1[1] - s[1] * e1[0];
+    v    = (q->d[0] * r[0] + q->d[1] * r[1] + q->d[2] * r[2]) * inv;
+    if (v < -0.02f || u + v > 1.04f)
+    {
+        return;
+    }
+    t = (e2[0] * r[0] + e2[1] * r[1] + e2[2] * r[2]) * inv;
+    if (t >= q->len - SURF_NEAR && t <= q->len + SURF_NEAR)
+    {
+        if (q->nearT < 0.0f || t < q->nearT)
+        {
+            q->nearT = t;
+        }
+    }
+    else if (t > q->len + SURF_NEAR && t <= q->len + SURF_BEYOND)
+    {
+        if (q->beyondT < 0.0f || t < q->beyondT)
+        {
+            q->beyondT   = t;
+            q->beyondCut = cutout;
+        }
+    }
+}
+
+static void Surf_Model(s_SurfQuery* q, const s_ModelHeader* modelHdr, const MATRIX* mat)
+{
+    static float wv[256][3];
+    s_MeshHeader* mesh;
+
+    if (modelHdr == NULL)
+    {
+        return;
+    }
+    /* High-poly replacements keep their triangles elsewhere. */
+    if (Pc_WideLm_IsWide(modelHdr) || modelHdr->meshHdrs == NULL || modelHdr->meshCount == 0)
+    {
+        q->blind = 1;
+        return;
+    }
+    for (mesh = modelHdr->meshHdrs; mesh < &modelHdr->meshHdrs[modelHdr->meshCount]; mesh++)
+    {
+        const s_Primitive* prim;
+        int                base = modelHdr->vertexOffset;
+        int                i;
+
+        if (mesh->primitives == NULL || mesh->verticesXy == NULL || mesh->verticesZ == NULL)
+        {
+            continue;
+        }
+        for (i = 0; i < mesh->vertexCount && base + i < 256; i++)
+        {
+            const float lx = (float)mesh->verticesXy[i].vx;
+            const float ly = (float)mesh->verticesXy[i].vy;
+            const float lz = (float)mesh->verticesZ[i];
+            int         k;
+
+            for (k = 0; k < 3; k++)
+            {
+                wv[base + i][k] = (mat->m[k][0] * lx + mat->m[k][1] * ly + mat->m[k][2] * lz) / 4096.0f + (float)mat->t[k];
+            }
+        }
+        for (prim = mesh->primitives; prim < &mesh->primitives[mesh->primitiveCount]; prim++)
+        {
+            int vi[4];
+            int k, ok = 1;
+
+            for (k = 0; k < 4; k++)
+            {
+                vi[k] = prim->field_C[k];
+                if (vi[k] == 0xFF)
+                {
+                    vi[k] = prim->field_C[2];
+                }
+                if (vi[k] < base || vi[k] >= base + mesh->vertexCount)
+                {
+                    ok = 0;
+                }
+            }
+            if (!ok)
+            {
+                continue;
+            }
+            Surf_Tri(q, wv[vi[0]], wv[vi[1]], wv[vi[2]], prim->field_6.bits.isTransparent);
+            if (vi[3] != vi[2])
+            {
+                Surf_Tri(q, wv[vi[1]], wv[vi[2]], wv[vi[3]], prim->field_6.bits.isTransparent);
+            }
+        }
+    }
+}
+
+/* Maps with real panes the player can shoot at. Elsewhere a cut-out behind an
+ * invisible wall is a fence or foliage as often as a window, so nothing is
+ * drawn there. */
+static int Surf_MapHasGlass(void)
+{
+    return g_SavegamePtr->mapIdx == MapIdx_MAP0_S01;
+}
+
+static int Surf_Classify(const VECTOR3* pos, const VECTOR3* origin)
+{
+    s_SurfQuery q;
+    s_Chunk*    chunk;
+    int         i;
+
+    for (i = 0; i < 3; i++)
+    {
+        const float o = (float)(&origin->vx)[i] / 16.0f;
+        const float p = (float)(&pos->vx)[i] / 16.0f;
+
+        q.o[i] = o;
+        q.d[i] = p - o;
+    }
+    q.len = sqrtf(q.d[0] * q.d[0] + q.d[1] * q.d[1] + q.d[2] * q.d[2]);
+    if (q.len < 1.0f)
+    {
+        return SURF_SOLID;
+    }
+    for (i = 0; i < 3; i++)
+    {
+        q.d[i] /= q.len;
+    }
+    q.nearT     = -1.0f;
+    q.beyondT   = -1.0f;
+    q.beyondCut = 0;
+    q.blind     = 0;
+
+    for (chunk = g_Map.activeChunks; chunk < &g_Map.activeChunks[g_Map.activeChunkCount]; chunk++)
+    {
+        const s_IpdHeader* ipd = chunk->ipdHdr;
+        int                b;
+
+        if (ipd == NULL || IpdHeader_LoadStateGet(chunk) < StaticModelLoadState_Loaded ||
+            !Ipd_CellPositionMatchCheck(chunk, &g_Map))
+        {
+            continue;
+        }
+        for (b = 0; b < ipd->modelBufferCount; b++)
+        {
+            const s_IpdModelBuffer*   buf = &ipd->modelBuffers[b];
+            const s_IpdModelInstance* inst;
+
+            for (inst = buf->modelInstances; inst < &buf->modelInstances[buf->modelInstanceCount]; inst++)
+            {
+                MATRIX mat = inst->mat;
+
+                mat.t[0] += ipd->cellX * Q12_TO_Q8(CHUNK_CELL_SIZE);
+                mat.t[2] += ipd->cellZ * Q12_TO_Q8(CHUNK_CELL_SIZE);
+                Surf_Model(&q, inst->modelHdr, &mat);
+            }
+        }
+    }
+    for (i = 0; i < s_objLastCount; i++)
+    {
+        Surf_Model(&q, s_objLast[i].modelHdr, &s_objLast[i].mat);
+    }
+
+    SH_DBG("[DECAL] shot %.0f long: drawn surface at %.0f, next past it %.0f%s%s", q.len, q.nearT, q.beyondT,
+           q.beyondCut ? " (cut-out)" : "", q.blind ? ", unreadable models present" : "");
+    if (q.nearT >= 0.0f)
+    {
+        return SURF_SOLID;
+    }
+    if (Surf_MapHasGlass() && q.beyondT >= 0.0f && q.beyondCut)
+    {
+        return SURF_GLASS;
+    }
+    /* Unreadable geometry in the scene: say solid, as before this test. */
+    return q.blind ? SURF_SOLID : SURF_NONE;
+}
 
 static s_PcDecal s_decals[DECAL_MAX];
 extern s_WorldEnvWork g_WorldEnvWork;
@@ -84,6 +342,10 @@ static int            s_rgbaW         = 0;
 static int            s_rgbaH         = 0;
 static int            s_texRegistered = 0;
 static int            s_texMissing    = 0; /* decal.png absent/broken — logged once, feature off */
+static unsigned char* s_glassRgba     = NULL; /* decalGlass.png: the slot's second row */
+static int            s_glassW        = 0;
+static int            s_glassH        = 0;
+static int            s_glassMissing  = 0;
 
 void Pc_DecalAddBulletImpact(const VECTOR3* pos, const VECTOR3* dir, const VECTOR3* origin)
 {
@@ -96,6 +358,21 @@ void Pc_DecalAddBulletImpact(const VECTOR3* pos, const VECTOR3* dir, const VECTO
     }
 
     d.center = *pos;
+    switch (Surf_Classify(pos, origin))
+    {
+        case SURF_NONE:
+            return;
+        case SURF_GLASS:
+            if (s_glassMissing)
+            {
+                return;
+            }
+            d.glass = 1;
+            break;
+        default:
+            d.glass = 0;
+            break;
+    }
 
     Collision_SurfaceGet(&surf, d.center.vx, d.center.vz);
     if (ABS(d.center.vy - surf.groundHeight) < DECAL_FLOOR_TOL)
@@ -227,10 +504,15 @@ static int Pc_DecalEnsureTexture(void)
         unsigned char* buf;
         int            comp = 0;
 
-        f = fopen("gamedata/decal.png", "rb");
+        f = fopen("gamedata/image/decal.png", "rb");
+        /* An install updated exe-only still has it where it used to be. */
         if (f == NULL)
         {
-            SH_DBG("[DECAL] gamedata/decal.png not found — bullet decals disabled");
+            f = fopen("gamedata/decal.png", "rb");
+        }
+        if (f == NULL)
+        {
+            SH_DBG("[DECAL] gamedata/image/decal.png not found — bullet decals disabled");
             s_texMissing = 1;
             return 0;
         }
@@ -242,7 +524,7 @@ static int Pc_DecalEnsureTexture(void)
         {
             fclose(f);
             free(buf);
-            SH_DBG("[DECAL] gamedata/decal.png unreadable — bullet decals disabled");
+            SH_DBG("[DECAL] gamedata/image/decal.png unreadable — bullet decals disabled");
             s_texMissing = 1;
             return 0;
         }
@@ -252,7 +534,7 @@ static int Pc_DecalEnsureTexture(void)
         free(buf);
         if (s_rgba == NULL || s_rgbaW <= 0 || s_rgbaH <= 0)
         {
-            SH_DBG("[DECAL] gamedata/decal.png decode failed: %s — bullet decals disabled",
+            SH_DBG("[DECAL] gamedata/image/decal.png decode failed: %s — bullet decals disabled",
                    stbi_failure_reason());
             s_texMissing = 1;
             return 0;
@@ -265,6 +547,39 @@ static int Pc_DecalEnsureTexture(void)
         return 0;
     }
 
+    if (s_glassRgba == NULL && !s_glassMissing)
+    {
+        FILE* f = fopen("gamedata/image/decalGlass.png", "rb");
+
+        s_glassMissing = 1;
+        if (f != NULL)
+        {
+            long           size;
+            unsigned char* buf;
+            int            comp = 0;
+
+            fseek(f, 0, SEEK_END);
+            size = ftell(f);
+            fseek(f, 0, SEEK_SET);
+            buf = (size > 0) ? (unsigned char*)malloc((size_t)size) : NULL;
+            if (buf != NULL && fread(buf, 1, (size_t)size, f) == (size_t)size)
+            {
+                s_glassRgba = stbi_load_from_memory(buf, (int)size, &s_glassW, &s_glassH, &comp, 4);
+            }
+            free(buf);
+            fclose(f);
+            s_glassMissing = s_glassRgba == NULL;
+        }
+        if (s_glassMissing)
+        {
+            SH_DBG("[DECAL] gamedata/image/decalGlass.png missing or unreadable - no decals on glass");
+        }
+    }
+    if (s_glassRgba != NULL)
+    {
+        HiresOverride_PoolSlotRegisterRGBA(DECAL_POOL_SLOT, 1, s_glassRgba, s_glassW, s_glassH, DECAL_NATIVE, DECAL_NATIVE);
+    }
+
     SH_DBG("[DECAL] decal.png %dx%d registered in pool slot %d (clut=0x%04X)",
            s_rgbaW, s_rgbaH, DECAL_POOL_SLOT, (unsigned)DECAL_CLUT);
     s_texRegistered = 1;
@@ -275,6 +590,11 @@ void Pc_DecalsDraw(GsOT* ot)
 {
     POLY_FT4* poly;
     int       i;
+
+    /* Every world object of this frame has been drawn by now. */
+    memcpy(s_objLast, s_objCur, sizeof(s_objCur[0]) * (size_t)s_objCurCount);
+    s_objLastCount = s_objCurCount;
+    s_objCurCount  = 0;
 
     if (!g_PcConfig.bulletDecals || s_decalCount == 0)
     {
@@ -445,7 +765,8 @@ void Pc_DecalsDraw(GsOT* ot)
         /* tpage is irrelevant: the bit-15 clut alone keys the GL override
          * (ApplyHiresOverride pool-slot fast path); page bits never sample VRAM. */
         poly->tpage = 0;
-        poly->clut  = DECAL_CLUT;
+        /* The pane's image is the slot's second palette row. */
+        poly->clut  = (u16)(DECAL_CLUT + (d->glass ? (1 << 6) : 0));
         poly->u0    = 0;
         poly->v0    = 0;
         poly->u1    = DECAL_UV_MAX;
@@ -468,4 +789,7 @@ void Pc_DecalsReset(void)
     s_decalCount    = 0;
     s_decalHead     = 0;
     s_texRegistered = 0; /* HiresOverride_PoolSlotsReset freed the slot texture */
+    /* Their models belong to the map being left. */
+    s_objCurCount  = 0;
+    s_objLastCount = 0;
 }

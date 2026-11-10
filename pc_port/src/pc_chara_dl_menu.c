@@ -20,6 +20,7 @@
 #include "pc_confirm_dialog.h"
 #include "lang_quick.h"
 #include "pc_chara_preview.h"
+#include "pc_menu_image.h"
 #include "pc_mouse_cursor.h"
 #include "pc_native_menu_draw.h"
 #include "pc_playas.h"
@@ -38,6 +39,7 @@
 #define M_PREV_Y1    196
 #define M_FOOTER_Y   204
 #define M_OT_LINE    6
+#define M_OT_PLATE   9   /* images under the text (8) */
 #define M_BOX        9   /* checkbox side */
 
 static int s_fl, s_fr;
@@ -1382,7 +1384,6 @@ static void m_info_draw(void)
      * into the series name. */
     if (tris > M_HEAVY_TRIS)
     {
-        static const signed char ring[8][2] = { { -2, -5 }, { 2, -5 }, { 5, -2 }, { 5, 2 }, { 2, 5 }, { -2, 5 }, { -5, 2 }, { -5, -2 } };
         const char* w    = Ct_Tr("High poly, may impact performance");
         int         room = x1 - (x0 + Ct_SmallWidth(game) + 22), ww = Ct_SmallWidth(w), wx, cx, cy = M_INFO_Y0 + 9 + 4, k;
 
@@ -1392,10 +1393,10 @@ static void m_info_draw(void)
             ww = Ct_SmallWidth(w);
         }
         wx = x1 - ww;
-        cx = wx - 9;
-        for (k = 0; k < 8; k++)
-            m_line(cx + ring[k][0], cy + ring[k][1], cx + ring[(k + 1) % 8][0], cy + ring[(k + 1) % 8][1], 0xE0, 0x18, 0x18);
-        m_small(cx - 1, M_INFO_Y0 + 9, StringColorId_Red, "!", 0);
+        cx = wx - 8;
+        (void)k;
+        if (!Pc_MenuImage_Draw(PC_MENU_IMAGE_WARNING, m_px(cx - 6), m_py(cy - 6), m_px(cx + 6), m_py(cy + 6), M_OT_PLATE, 128))
+            m_small(cx - 1, M_INFO_Y0 + 9, StringColorId_Red, "!", 0);
         m_small(wx, M_INFO_Y0 + 9, StringColorId_Red, w, ww);
     }
     {
@@ -1423,18 +1424,20 @@ static void m_preview_panel(void)
     if (s_page == P_DOWN && s_rowCount > 0 && s_rows[s_scroll.sel].type == R_ITEM &&
         !Cd_PreviewFile(s_rows[s_scroll.sel].idx))
     {
-        /* The small face, like the details under it: measured and drawn
-         * the same way, so the box fits the label and both centre. */
-        const char* lbl = Ct_Tr("Load Preview");
-        int         w   = Ct_SmallWidth(lbl);
+        /* The button plate, sized to its label in the menu's own letters. */
+        int w = Ct_Width("Load Preview", 0);
 
-        if (w > M_PREV_X1 - M_PREV_X0 - 12)
-            w = M_PREV_X1 - M_PREV_X0 - 12;
-        Ct_Small(cx - w / 2, M_BTN_Y + 2, s_onPreviewBtn ? StringColorId_Gold : StringColorId_White, lbl, w);
-        m_line(cx - w / 2 - 4, M_BTN_Y - 2, cx + w / 2 + 4, M_BTN_Y - 2, 0xC0, 0x80, 0x50);
-        m_line(cx - w / 2 - 4, M_BTN_Y + 12, cx + w / 2 + 4, M_BTN_Y + 12, 0xC0, 0x80, 0x50);
-        m_line(cx - w / 2 - 4, M_BTN_Y - 2, cx - w / 2 - 4, M_BTN_Y + 12, 0xC0, 0x80, 0x50);
-        m_line(cx + w / 2 + 4, M_BTN_Y - 2, cx + w / 2 + 4, M_BTN_Y + 12, 0xC0, 0x80, 0x50);
+        if (w > M_PREV_X1 - M_PREV_X0 - 16)
+            w = M_PREV_X1 - M_PREV_X0 - 16;
+        if (!Pc_MenuImage_Draw(PC_MENU_IMAGE_BUTTON_WIDE, m_px(cx - w / 2 - 7), m_py(M_BTN_Y - 4), m_px(cx + w / 2 + 7),
+                               m_py(M_BTN_Y + 13), M_OT_PLATE, s_onPreviewBtn ? 128 : 96))
+        {
+            m_line(cx - w / 2 - 4, M_BTN_Y - 2, cx + w / 2 + 4, M_BTN_Y - 2, 0xC0, 0x80, 0x50);
+            m_line(cx - w / 2 - 4, M_BTN_Y + 12, cx + w / 2 + 4, M_BTN_Y + 12, 0xC0, 0x80, 0x50);
+            m_line(cx - w / 2 - 4, M_BTN_Y - 2, cx - w / 2 - 4, M_BTN_Y + 12, 0xC0, 0x80, 0x50);
+            m_line(cx + w / 2 + 4, M_BTN_Y - 2, cx + w / 2 + 4, M_BTN_Y + 12, 0xC0, 0x80, 0x50);
+        }
+        Ct_Draw(cx - w / 2, M_BTN_Y - 2, 0, s_onPreviewBtn ? StringColorId_Gold : StringColorId_White, "Load Preview", w, 0);
     }
     m_info_draw();
 }
