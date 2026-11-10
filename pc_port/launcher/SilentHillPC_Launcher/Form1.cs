@@ -702,6 +702,15 @@ public partial class Form1 : Form
             {
                 lblUpdateStatus.ForeColor = Color.LightGray;
                 SetText(lblUpdateStatus, "Up to date ({0}).", plan.RemoteVersion);
+                // On realtime builds the launcher comes from official releases
+                // only: say so when one has a newer launcher.
+                var launcherPlan = await UpdateChecker.CheckOfficialLauncherAsync(settings);
+                if (launcherPlan != null)
+                {
+                    SetText(btnUpdate, "Update available!");
+                    lblUpdateStatus.ForeColor = Color.LightGreen;
+                    SetText(lblUpdateStatus, "Launcher update available: {0}", launcherPlan.LauncherVersion);
+                }
             }
 
             // "Download Build" vs "Redownload Build": is the SELECTED build already
@@ -1907,6 +1916,17 @@ public partial class Form1 : Form
         {
             var plan = await UpdateChecker.CheckAsync(installDir, ForceLatest(settings));
             if (!plan.HasUpdate) settings.RecordSeenAtLeast(config, plan.RemoteVersion);
+
+            // Realtime builds carry no launcher: a newer one from the latest
+            // official release is offered here, before the game's own update.
+            {
+                var launcherPlan = await UpdateChecker.CheckOfficialLauncherAsync(settings);
+                if (launcherPlan != null)
+                {
+                    await RunApplyAsync(installDir, launcherPlan, showFileConfirm: false);
+                    progUpdate.Style = ProgressBarStyle.Marquee;
+                }
+            }
 
             bool available = LauncherSettings.CompareVersions(plan.RemoteVersion, settings.GetSeen(config)) > 0;
             if (!available)

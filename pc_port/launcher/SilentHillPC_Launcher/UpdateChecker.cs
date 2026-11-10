@@ -269,6 +269,52 @@ namespace SilentHillPC_Launcher
             return plan;
         }
 
+        /// <summary>
+        /// Realtime builds never carry a launcher of their own, so someone following
+        /// them would keep the launcher they started with for good. This looks at
+        /// the newest OFFICIAL (scripted) release instead and, when its launcher is
+        /// strictly newer than the running one, returns a plan holding only that
+        /// file, to be applied like any launcher update. Null when there is none,
+        /// when not on the realtime stream, or when the release cannot be reached.
+        /// </summary>
+        public static async Task<UpdatePlan> CheckOfficialLauncherAsync(LauncherSettings settings,
+                                                                        CancellationToken ct = default(CancellationToken))
+        {
+            if (settings == null || !settings.UsesRealtime) return null;
+            try
+            {
+                string owner, repo;
+                var official = new LauncherSettings { RepoUrl = LauncherSettings.DefaultRepoUrl };
+                if (!official.TryGetOwnerRepo(out owner, out repo)) return null;
+
+                var src      = await ResolveManifestSourceAsync(owner, repo, official, ct).ConfigureAwait(false);
+                var manifest = await FetchManifestAsync(src.Url, ct).ConfigureAwait(false);
+                if (manifest == null || manifest.Files == null) return null;
+                if (!LauncherSettings.IsLauncherNewer(manifest.LauncherVersion, LauncherSettings.OwnLauncherVersion()))
+                    return null;
+
+                var entry = manifest.Files.FirstOrDefault(f => f != null && IsLauncherFile(f.Path));
+                if (entry == null || string.IsNullOrEmpty(entry.Sha256)) return null;
+
+                var plan = new UpdatePlan
+                {
+                    RemoteVersion   = manifest.Version,
+                    BuildDate       = manifest.BuildDate,
+                    Mode            = string.IsNullOrWhiteSpace(manifest.Mode) ? "loose" : manifest.Mode.Trim().ToLowerInvariant(),
+                    ZipUrl          = manifest.ZipUrl,
+                    RepoLabel       = src.Label,
+                    LauncherVersion = manifest.LauncherVersion,
+                    LauncherIsNewer = true,
+                };
+                plan.Changed.Add(entry);
+                return plan;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         // -- Public: apply ----------------------------------------------------
 
         public static async Task ApplyAsync(string installDir, UpdatePlan plan, Action<double, string> progress,
