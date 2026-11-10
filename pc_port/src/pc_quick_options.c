@@ -33,6 +33,8 @@
 #include "pc_dpad_icons.h"
 #include "pc_bind_input.h"
 #include "pc_bind_panel.h"
+#include "pc_chara_select.h"
+#include "pc_native_menu_draw.h"
 #include "pc_confirm_dialog.h"
 #include "pc_mouse_cursor.h"
 #include "pc_config.h"
@@ -1743,6 +1745,7 @@ void Pc_QuickOptions_Close(void)
      * Update, so closing the menu under it left it drawn with nothing able to
      * close it. Whatever closes the menu closes it too. */
     Pc_BindPanel_Close();
+    Pc_CharaSelect_Close();
 #if defined(QO_MOBILE)
     /* Same for the fog row's PGXP question, which only this Update answers. */
     if (Pc_ConfirmDialog_IsOpen())
@@ -1770,7 +1773,7 @@ void Pc_QuickOptions_Toggle(void)
 {
     /* The panel owns input while it is up -- the bind being captured may be
      * the very button that opens this menu -- so the toggle waits for it. */
-    if (Pc_BindPanel_IsOpen())
+    if (Pc_BindPanel_IsOpen() || Pc_CharaSelect_IsOpen())
         return;
     if (s_phase == QO_CLOSED || s_phase == QO_CLOSING)
         qo_open();
@@ -1933,6 +1936,20 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
      * meanwhile, so the Esc that closed the panel is not read here either. */
     if (Pc_BindPanel_Update())
     {
+        return;
+    }
+    /* Character Select is a native screen drawn over the frozen world from
+     * MainLoop, and this menu is the only thing that runs it there: without
+     * this it was drawn with nothing reading it, under this menu and then,
+     * once that was closed, under the thumb controls of a game running
+     * again, with no way out. */
+    if (Pc_CharaSelect_IsOpen())
+    {
+        NmInput in;
+
+        NmInput_FromGame(&in);
+        if (!Pc_CharaSelect_Update(&in))
+            Pc_CharaSelect_Close();
         return;
     }
 
@@ -2399,8 +2416,9 @@ void Pc_QuickOptions_Draw(void)
 
     if (s_phase == QO_CLOSED)
         return;
-    /* The keybind panel stands in for this menu while it is open. */
-    if (Pc_BindPanel_IsOpen())
+    /* The keybind panel and the character screen stand in for this menu
+     * while they are open. */
+    if (Pc_BindPanel_IsOpen() || Pc_CharaSelect_IsOpen())
         return;
 
     glGetIntegerv(GL_VIEWPORT, vp);
