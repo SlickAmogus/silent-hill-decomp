@@ -11694,11 +11694,22 @@ void Game_PlayerInfoInit(void) // 0x8007E5AC
     // Assign weapon that the player was holding when saving.
     if (itemGroupId == InvItemGroup_MeleeWeapons || itemGroupId == InvItemGroup_GunWeapons)
     {
-        for (i = 0; g_SavegamePtr->items[i].id_0 != g_SavegamePtr->equippedWeapon && i < INV_ITEM_COUNT_MAX; i++);
+        for (i = 0;
+#ifdef SH_PC_PORT
+             i < INV_ITEM_COUNT_MAX && g_SavegamePtr->items[i].id_0 != g_SavegamePtr->equippedWeapon;
+#else
+             g_SavegamePtr->items[i].id_0 != g_SavegamePtr->equippedWeapon && i < INV_ITEM_COUNT_MAX;
+#endif
+             i++);
 
         g_SysWork.playerCombat.weaponAttack        = g_SavegamePtr->equippedWeapon + InvItemId_KitchenKnife;
+#ifdef SH_PC_PORT
+        g_SysWork.playerCombat.currentWeaponAmmo  = (i < INV_ITEM_COUNT_MAX) ? g_SavegamePtr->items[i].count_1 : 0;
+        g_SysWork.playerCombat.weaponInventoryIdx = (i < INV_ITEM_COUNT_MAX) ? i : NO_VALUE;
+#else
         g_SysWork.playerCombat.currentWeaponAmmo  = g_SavegamePtr->items[i].count_1;
         g_SysWork.playerCombat.weaponInventoryIdx = i;
+#endif
 
         if (itemGroupId == InvItemGroup_MeleeWeapons)
         {
@@ -11707,7 +11718,14 @@ void Game_PlayerInfoInit(void) // 0x8007E5AC
         else
         {
             for (i = 0;
+#ifdef SH_PC_PORT
+                 /* Hyper Blaster has no ammo item. Check the bound BEFORE the
+                  * array read, or its absent ammo invokes undefined behaviour
+                  * and an optimizing compiler can remove the loop limit. */
+                 i < INV_ITEM_COUNT_MAX && g_SavegamePtr->items[i].id_0 != (g_SavegamePtr->equippedWeapon + InvItemId_HealthDrink);
+#else
                  g_SavegamePtr->items[i].id_0 != (g_SavegamePtr->equippedWeapon + InvItemId_HealthDrink) && i < INV_ITEM_COUNT_MAX;
+#endif
                  i++);
 
             if (i == INV_ITEM_COUNT_MAX)
