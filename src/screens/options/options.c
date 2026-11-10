@@ -308,11 +308,18 @@ static const s_PcOpt PCOPT_G[] = {
     { "Tone_Mapping",   &g_PcConfig.tonemap,            "tonemap",              VAL_TONE,  4, LBL_TONE,  &g_cfg_tonemap,                1, PCK_INT    },
     /* New-Game start map. Moved here from the Camera page, which had run to 12
      * rows (the practical maximum) while this page had room to spare. */
+#if !defined(__ANDROID__) && !defined(SH_IOS)
     { "Map",            NULL,                           "map",                  NULL,      0, NULL,      NULL,                          1, PCK_MAP    },
+#endif
     /* Opens the Character Select screen (pc_chara_select.c). Antialiasing
      * moved to the System page to keep this one at 11 rows; it needs a
      * restart either way. */
     { "Character_Customization", NULL,                NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_CHARA  },
+#if defined(__ANDROID__) || defined(SH_IOS)
+    /* Below Character_Customization on a phone, where that row is the one
+     * people come to this page for. */
+    { "Map",            NULL,                           "map",                  NULL,      0, NULL,      NULL,                          1, PCK_MAP    },
+#endif
 #if defined(__ANDROID__)
     /* Where the disc image, gamedata/, config.cfg, the memory cards and the log
      * live. The default is an SD card where one is present, because the players
@@ -325,17 +332,6 @@ static const s_PcOpt PCOPT_G[] = {
      * check runs in SetupActivity before the engine, so a change takes hold on
      * the next launch. */
     { "Check_Updates",  &g_PcConfig.checkUpdates,       "check_updates",        VAL_ONOFF, 2, LBL_ONOFF, NULL,                          0, PCK_INT    },
-#endif
-#if defined(SH_IOS) || defined(__ANDROID__)
-    /* The one switch behind every gamedata/load/ channel: replacement textures,
-     * models, ILM/IPD, glTF meshes, SFX banks, XA voice lines and text
-     * overrides. Launcher-only on desktop, but a phone has no launcher, and
-     * editing config.cfg by hand through Files.app is the only alternative.
-     * On by default here for the same reason; this row is for turning it off.
-     *
-     * Not realtime: the lookups run when an asset is loaded, so the room already
-     * in memory keeps what it has. Takes hold on the next load either way. */
-    { "Load_Mods",      &g_PcConfig.allowLooseFiles,    "allow_loose_files",    VAL_ONOFF, 2, LBL_ONOFF, NULL,                          0, PCK_INT    },
 #endif
 #if defined(SH_IOS)
     /* Lives on this page rather than System purely for room: System is already
@@ -370,7 +366,9 @@ static const s_PcOpt PCOPT_S[] = {
     /* Preload_Chunks moved out: it needs a map reload to take effect and the
      * launcher already exposes it. Disable_Culling takes the slot back -- it
      * applies live, and it pairs with Fog_Strength above for seeing further. */
+#if !defined(__ANDROID__) && !defined(SH_IOS)
     { "Disable_Culling",  &g_PcConfig.disableCulling, "disable_culling",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },
+#endif
     { "FPS_Limit",        &g_PcConfig.fpsCap,         "fps_cap",          VAL_FPS,   5, LBL_FPS,   NULL, 1, PCK_INT  },
     { "FMV_Movie_Vol",    NULL, "fmv_volume",           NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fmvVolume,           &g_PcFmvVolume,             0.0f, 1.0f, 0.05f },
     /* Rain and snow step once per rendered frame at 60, or on the original
@@ -517,6 +515,15 @@ static const s_PcOpt PCOPT_M[] = {
      * memory and fill rate wants, and the first thing to try without a texture
      * pack. Needs a restart: the pool is sized at startup. */
     { "Resident_Textures", &g_PcConfig.residentTextures,  "resident_textures",   VAL_ONOFF,  2, LBL_ONOFF,  NULL, 0, PCK_INT },
+    /* The one switch behind every gamedata/load/ channel: replacement textures,
+     * models, ILM/IPD, glTF meshes, SFX banks, XA voice lines and text
+     * overrides. Launcher-only on desktop, but a phone has no launcher, and
+     * editing config.cfg by hand through Files.app is the only alternative.
+     * On by default here for the same reason; this row is for turning it off.
+     *
+     * Not realtime: the lookups run when an asset is loaded, so the room already
+     * in memory keeps what it has. Takes hold on the next load either way. */
+    { "Load_Mods",      &g_PcConfig.allowLooseFiles,    "allow_loose_files",    VAL_ONOFF, 2, LBL_ONOFF, NULL,                          0, PCK_INT    },
     /* Builds with no launcher have no Mod Manager: this lists the Essential
      * QoL Mods, installs the ones ticked and removes the ones unticked (pc_qol_mods.c). */
     { "Set_Up_QoL_Mods",   NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_QOLMODS },
