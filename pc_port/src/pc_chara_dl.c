@@ -57,6 +57,17 @@ static void cd_mkdir(const char* p)
 #endif
 }
 
+/* SDL_strcasestr is SDL 2.26 and later; distributions still ship older. */
+static const char* cd_istr(const char* hay, const char* needle)
+{
+    const size_t n = strlen(needle);
+
+    for (; *hay; hay++)
+        if (SDL_strncasecmp(hay, needle, n) == 0)
+            return hay;
+    return NULL;
+}
+
 static int cd_exists(const char* p)
 {
     struct stat st;
@@ -801,7 +812,7 @@ static void cd_scan_launcher_mods(void)
                              m.author[0] ? m.author : author, CD_SRC_PACK, m.enabled);
             if (g < 0)
                 continue;
-            s_groups[g].oldJojo = cd_ieq(id, "additionalcharacters") && SDL_strcasestr(author, "jojo670") && !hasVer;
+            s_groups[g].oldJojo = cd_ieq(id, "additionalcharacters") && cd_istr(author, "jojo670") && !hasVer;
             for (i = 0; i < n; i++)
             {
                 char path[320];
@@ -1062,7 +1073,7 @@ void Cd_LocalScan(void)
                 if (name[0] != '\0')
                     continue;
                 for (k = 0; k < s_catCount; k++)
-                    if (cd_ieq(s_cat[k].hero, s_local[j].hero) && SDL_strcasestr(s_cat[k].author, "jojo670"))
+                    if (cd_ieq(s_cat[k].hero, s_local[j].hero) && cd_istr(s_cat[k].author, "jojo670"))
                     {
                         s_groups[i].oldJojo = 1;
                         s_local[j].oldJojo  = 1;
@@ -1313,7 +1324,7 @@ static int cd_unzip_chara(const char* zipPath, const char* dir, int glbOnly, cha
         if (mz_zip_reader_is_file_a_directory(&zip, i))
             continue;
         mz_zip_reader_get_filename(&zip, i, name, sizeof(name));
-        if (strstr(name, "..") || SDL_strcasestr(name, "load/CHARA/") == NULL)
+        if (strstr(name, "..") || cd_istr(name, "load/CHARA/") == NULL)
             continue;
         base = strrchr(name, '/') + 1;
         dot  = strrchr(base, '.');
