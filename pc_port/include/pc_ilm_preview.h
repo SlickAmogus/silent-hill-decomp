@@ -24,6 +24,9 @@ typedef struct
 
 int  Pc_IlmPreview_Build(int charaId, IlmPreview* out);
 void Pc_IlmPreview_Free(IlmPreview* p);
+/* A whole game file by its file-table index (a loose copy first, else the
+ * disc), malloc'd; NULL when it cannot be read. */
+unsigned char* Pc_IlmPreview_ReadFile(int idx, int* outSize);
 
 #ifdef __cplusplus
 }

@@ -71,6 +71,10 @@ typedef struct { unsigned texture; int first, count; } PcSkinPreviewMat;
 void* Pc_SkinChara_PreviewLoad(const char* name, const char* file);
 /* That call would return at once: the file is already loaded for that slot. */
 int   Pc_SkinChara_PreviewCached(const char* name, const char* file);
+/* The pose the next PreviewMesh calls build: 18 game bones, each a row-major
+ * rotation (bone -> model) and a joint position, as the rest tables hold
+ * them. NULL goes back to the rest pose. */
+void  Pc_SkinChara_PreviewPose(const float (*rot)[9], const float (*pos)[3]);
 int   Pc_SkinChara_PreviewMesh(void* ch, const float** stream, int* cornerCount,
                                PcSkinPreviewMat* mats, int maxMats, float bounds[6]);
 

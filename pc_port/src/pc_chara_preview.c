@@ -53,6 +53,205 @@ static Uint32       s_wantSince;
 static int          s_pending;
 static int          s_opened;
 
+/* ---- a clip of the character's own animation, played on a click ---------- */
+
+extern s_AnimInfo ALESSA_ANIM_INFOS[22], BLOODY_LISA_ANIM_INFOS[4], DAHLIA_ANIM_INFOS[52], KAUFMANN_ANIM_INFOS[46],
+                  LISA_ANIM_INFOS[36], MONSTER_CYBIL_ANIM_INFOS[44], GHOST_CHILD_ALESSA_ANIM_INFOS[18],
+                  GHOST_DOCTOR_ANIM_INFOS[4], INCUBATOR_ANIM_INFOS[8], CHERYL_ANIM_INFOS[], CYBIL_ANIM_INFOS[];
+extern const int  CHERYL_ANIM_INFO_COUNT, CYBIL_ANIM_INFO_COUNT;
+extern s_AnimInfo HARRY_BASE_ANIM_INFOS[];
+
+#define CP_ANM_BONES 18
+#define CP_ANM_MAX   64
+
+static unsigned char* s_anm;
+static int            s_anmSize;
+static char           s_anmSlot[16];
+static int            s_clipK0, s_clipK1; /* keyframes, inclusive */
+static float          s_clipRate;         /* keyframes per second */
+static float          s_clipT;            /* keyframes into the clip */
+static int            s_clipOn;
+
+/* The slot's animation file and its table of clips. */
+static int cp_anim_set(const char* slot, int* fileIdx, const s_AnimInfo** infos, int* count)
+{
+    static const struct
+    {
+        const char* slot;
+        int         charaId;
+    } ids[] = {
+        { "HERO", Chara_Harry }, { "SIBYL", Chara_Cybil }, { "MSB", Chara_MonsterCybil }, { "LISA", Chara_Lisa },
+        { "BLISA", Chara_BloodyLisa }, { "DARIA", Chara_Dahlia }, { "KAU", Chara_Kaufmann }, { "SRL", Chara_Cheryl },
+        { "AR", Chara_Alessa }, { "TAR", Chara_GhostChildAlessa }, { "MAR", Chara_Incubator }, { "DOC", Chara_GhostDoctor },
+    };
+    int i;
+
+    for (i = 0; i < (int)(sizeof(ids) / sizeof(ids[0])); i++)
+    {
+        if (strcmp(ids[i].slot, slot) != 0)
+            continue;
+        *fileIdx = CHARA_FILE_INFOS[ids[i].charaId].animFileIdx;
+        switch (ids[i].charaId)
+        {
+            case Chara_Harry:            *infos = HARRY_BASE_ANIM_INFOS;         *count = 57; break;
+            case Chara_Cybil:            *infos = CYBIL_ANIM_INFOS;              *count = CYBIL_ANIM_INFO_COUNT; break;
+            case Chara_MonsterCybil:     *infos = MONSTER_CYBIL_ANIM_INFOS;      *count = 44; break;
+            case Chara_Lisa:             *infos = LISA_ANIM_INFOS;               *count = 36; break;
+            case Chara_BloodyLisa:       *infos = BLOODY_LISA_ANIM_INFOS;        *count = 4; break;
+            case Chara_Dahlia:           *infos = DAHLIA_ANIM_INFOS;             *count = 52; break;
+            case Chara_Kaufmann:         *infos = KAUFMANN_ANIM_INFOS;           *count = 46; break;
+            case Chara_Cheryl:           *infos = CHERYL_ANIM_INFOS;             *count = CHERYL_ANIM_INFO_COUNT; break;
+            case Chara_Alessa:           *infos = ALESSA_ANIM_INFOS;             *count = 22; break;
+            case Chara_GhostChildAlessa: *infos = GHOST_CHILD_ALESSA_ANIM_INFOS; *count = 18; break;
+            case Chara_Incubator:        *infos = INCUBATOR_ANIM_INFOS;          *count = 8; break;
+            default:                     *infos = GHOST_DOCTOR_ANIM_INFOS;       *count = 4; break;
+        }
+        return *fileIdx > 0;
+    }
+    return 0;
+}
+
+static int cp_anm_valid(const unsigned char* a, int size)
+{
+    int dataOff, kfSize, bones, kfCount;
+
+    if (a == NULL || size < 0x14)
+        return 0;
+    dataOff = a[0] | (a[1] << 8);
+    kfSize  = a[4] | (a[5] << 8);
+    bones   = a[6];
+    kfCount = a[0x10] | (a[0x11] << 8);
+    return bones >= CP_ANM_BONES && bones <= CP_ANM_MAX && a[0x12] < 16 && a[2] * 9 + a[3] * 3 == kfSize && kfSize > 0 &&
+           0x14 + bones * 6 <= dataOff && dataOff + kfSize * kfCount <= size;
+}
+
+/* The bones at a point between two keyframes, as Anim_BoneUpdate blends them
+ * and the bone hierarchy stacks them: what the game would draw. */
+static void cp_anm_pose(const unsigned char* a, int k0, int k1, float alpha, float (*rot)[9], float (*pos)[3])
+{
+    static float wr[CP_ANM_MAX][9], wt[CP_ANM_MAX][3];
+    const int    dataOff = a[0] | (a[1] << 8), transCount = a[3], kfSize = a[4] | (a[5] << 8), bones = a[6];
+    const float  scale = (float)(1 << a[0x12]);
+    const signed char* f0 = (const signed char*)a + dataOff + kfSize * k0;
+    const signed char* f1 = (const signed char*)a + dataOff + kfSize * k1;
+    int          i, k;
+
+    memset(wr[0], 0, sizeof(wr[0]));
+    memset(wt[0], 0, sizeof(wt[0]));
+    wr[0][0] = wr[0][4] = wr[0][8] = 1.0f;
+    for (i = 1; i < bones; i++)
+    {
+        const signed char* b = (const signed char*)a + 0x14 + i * 6;
+        int                parent = b[0], rIdx = b[1], tIdx = b[2];
+        float              lr[9] = { 1, 0, 0, 0, 1, 0, 0, 0, 1 }, lt[3];
+
+        for (k = 0; k < 3; k++)
+            lt[k] = (float)b[3 + k] * scale;
+        if (tIdx >= 0)
+        {
+            for (k = 0; k < 3; k++)
+                lt[k] = ((float)f0[tIdx * 3 + k] + (float)(f1[tIdx * 3 + k] - f0[tIdx * 3 + k]) * alpha) * scale;
+            if (tIdx == 0)
+                lt[1] -= (float)a[0x13];
+        }
+        if (rIdx >= 0)
+            for (k = 0; k < 9; k++)
+            {
+                const int o = transCount * 3 + rIdx * 9 + k;
+                lr[k] = ((float)f0[o] + (float)(f1[o] - f0[o]) * alpha) / 128.0f;
+            }
+        /* Parents come first in every character's table. */
+        if (parent < 0 || parent >= i)
+            parent = 0;
+        {
+            const float* pr = wr[parent];
+            int          r, c;
+
+            for (r = 0; r < 3; r++)
+            {
+                for (c = 0; c < 3; c++)
+                    wr[i][r * 3 + c] = pr[r * 3] * lr[c] + pr[r * 3 + 1] * lr[3 + c] + pr[r * 3 + 2] * lr[6 + c];
+                wt[i][r] = pr[r * 3] * lt[0] + pr[r * 3 + 1] * lt[1] + pr[r * 3 + 2] * lt[2] + wt[parent][r];
+            }
+        }
+    }
+    memcpy(rot, wr, sizeof(float) * 9 * CP_ANM_BONES);
+    memcpy(pos, wt, sizeof(float) * 3 * CP_ANM_BONES);
+}
+
+static void cp_anim_stop(void)
+{
+    if (s_clipOn)
+        Pc_SkinChara_PreviewPose(NULL, NULL);
+    s_clipOn = 0;
+}
+
+/* A click: one of the slot's clips, picked at random, played once through. */
+static void cp_anim_start(const char* slot)
+{
+    const s_AnimInfo* infos = NULL;
+    int               fileIdx = 0, count = 0, i, n = 0, pick, kfCount;
+
+    if (slot == NULL || !cp_anim_set(slot, &fileIdx, &infos, &count))
+        return;
+    if (strcmp(slot, s_anmSlot) != 0 || s_anm == NULL)
+    {
+        free(s_anm);
+        s_anm = Pc_IlmPreview_ReadFile(fileIdx, &s_anmSize);
+        snprintf(s_anmSlot, sizeof(s_anmSlot), "%s", slot);
+        if (!cp_anm_valid(s_anm, s_anmSize))
+        {
+            free(s_anm);
+            s_anm = NULL;
+        }
+    }
+    if (s_anm == NULL)
+        return;
+    kfCount = s_anm[0x10] | (s_anm[0x11] << 8);
+    for (i = 0; i < count; i++)
+        if (infos[i].startKeyframeIdx >= 0 && infos[i].endKeyframeIdx >= infos[i].startKeyframeIdx + 4 &&
+            infos[i].endKeyframeIdx < kfCount)
+            n++;
+    if (n == 0)
+        return;
+    pick = (int)(SDL_GetTicks() * 2654435761u >> 8) % n;
+    for (i = 0; i < count; i++)
+        if (infos[i].startKeyframeIdx >= 0 && infos[i].endKeyframeIdx >= infos[i].startKeyframeIdx + 4 &&
+            infos[i].endKeyframeIdx < kfCount && pick-- == 0)
+        {
+            s_clipK0   = infos[i].startKeyframeIdx;
+            s_clipK1   = infos[i].endKeyframeIdx;
+            /* Keyframes a second, where the table states it; some of Harry's
+             * are worked out by a function as he moves. */
+            s_clipRate = infos[i].hasVariableDuration ? 15.0f : (float)infos[i].duration.constant / 4096.0f;
+            if (s_clipRate < 4.0f)  s_clipRate = 4.0f;
+            if (s_clipRate > 30.0f) s_clipRate = 30.0f;
+            s_clipT  = 0.0f;
+            s_clipOn = 1;
+            return;
+        }
+}
+
+/* Advances the clip and hands the loader its pose; the rest pose again when
+ * it ends. */
+static void cp_anim_tick(float dt)
+{
+    static float rot[CP_ANM_BONES][9], pos[CP_ANM_BONES][3];
+    int          k;
+
+    if (!s_clipOn || s_anm == NULL)
+        return;
+    s_clipT += dt * s_clipRate;
+    if (s_clipT >= (float)(s_clipK1 - s_clipK0))
+    {
+        cp_anim_stop();
+        return;
+    }
+    k = (int)s_clipT;
+    cp_anm_pose(s_anm, s_clipK0 + k, s_clipK0 + k + 1, s_clipT - (float)k, rot, pos);
+    Pc_SkinChara_PreviewPose((const float (*)[9])rot, (const float (*)[3])pos);
+}
+
 static int cp_dwell_ok(const char* key, int cached)
 {
     Uint32 now = SDL_GetTicks();
@@ -393,6 +592,7 @@ static int cp_model_sync(void)
     if (strcmp(key, s_modelKey) != 0)
     {
         snprintf(s_modelKey, sizeof(s_modelKey), "%s", key);
+        cp_anim_stop();
         s_model  = Pc_SkinChara_PreviewLoad(target, file);
         s_stream = NULL;
         s_corners = 0;
@@ -402,11 +602,19 @@ static int cp_model_sync(void)
     }
     if (s_model == NULL)
         return 0;
-    s_matCount = Pc_SkinChara_PreviewMesh(s_model, &stream, &corners, s_mats, CP_MAX_MATS, s_bounds);
-    if (s_matCount == 0 || corners == 0)
-        return 0;
-    if (stream != s_stream || corners != s_corners)
-        cp_upload_stream(stream, corners);
+    {
+        /* The view stays framed on the standing model while a clip moves it. */
+        float       moving[6];
+        const int   was = s_clipOn;
+        static int  s_posedLast;
+
+        s_matCount = Pc_SkinChara_PreviewMesh(s_model, &stream, &corners, s_mats, CP_MAX_MATS, s_clipOn ? moving : s_bounds);
+        if (s_matCount == 0 || corners == 0)
+            return 0;
+        if (stream != s_stream || corners != s_corners || was || s_posedLast)
+            cp_upload_stream(stream, corners);
+        s_posedLast = was;
+    }
     return 1;
 }
 
@@ -440,23 +648,82 @@ void Pc_CharaPreview_Draw(void)
         s_lastMs = 0;
         s_opened = 0;
         s_wantKey[0] = '\0';
+        cp_anim_stop();
         return;
     }
     if (!s_glReady) cp_gl_init();
     if (s_glReady != 1) return;
-    if (!cp_model_sync())
-        return;
-    s_showing = 1;
-
     now = SDL_GetTicks();
-    if (s_lastMs != 0)
-        s_yaw += CP_TURN_RATE * (float)(now - s_lastMs) / 1000.0f;
-    s_lastMs = now;
-    if (s_yaw > 6.2831853f) s_yaw -= 6.2831853f;
+    cp_anim_tick(s_lastMs != 0 ? (float)(now - s_lastMs) / 1000.0f : 0.0f);
+    if (!cp_model_sync())
+    {
+        s_lastMs = now;
+        return;
+    }
+    s_showing = 1;
 
     PsyX_GetDisplayViewport(&vp[0], &vp[1], &vp[2], &vp[3]);
     if (vp[2] <= 0 || vp[3] <= 0)
         return;
+
+    /* The mouse on the model: held and moved it turns it by hand, a plain
+     * click plays one of its animations. It turns by itself again a moment
+     * after being let go. One preview serves every page, so this does too. */
+    {
+        static int    s_drag, s_wasDown, s_lastX, s_moved;
+        static Uint32 s_handMs;
+        int           mx = 0, my = 0, ww = 0, wh = 0, px0, px1, py0, py1, inside;
+        const int     down = (SDL_GetMouseState(&mx, &my) & SDL_BUTTON(SDL_BUTTON_LEFT)) != 0;
+        SDL_Window*   win = SDL_GetMouseFocus();
+        const float   m  = g_PsxWideMenu ? PsyX_WideMenuMargin() : 0.0f;
+        const float   fw = 320.0f + 2.0f * m;
+
+        Pc_CharaSelect_PreviewRect(&rx0, &ry0, &rx1, &ry1);
+        if (win != NULL)
+            SDL_GetWindowSize(win, &ww, &wh);
+        if (ww > 0 && wh > 0)
+        {
+            /* Window points to drawable pixels, then the menu's 320x224 field. */
+            int dw = ww, dh = wh;
+
+            SDL_GL_GetDrawableSize(win, &dw, &dh);
+            mx = mx * dw / ww;
+            my = dh - 1 - my * dh / wh;
+        }
+        px0    = vp[0] + (int)(((float)rx0 + m) / fw * (float)vp[2]);
+        px1    = vp[0] + (int)(((float)rx1 + m) / fw * (float)vp[2]);
+        py1    = vp[1] + (int)((1.0f - (float)ry0 / 224.0f) * (float)vp[3]);
+        py0    = vp[1] + (int)((1.0f - (float)ry1 / 224.0f) * (float)vp[3]);
+        inside = win != NULL && mx >= px0 && mx < px1 && my >= py0 && my < py1;
+        if (down && !s_wasDown && inside)
+        {
+            s_drag  = 1;
+            s_lastX = mx;
+            s_moved = 0;
+        }
+        if (s_drag && down)
+        {
+            s_yaw   += (float)(mx - s_lastX) * 6.2831853f / (float)(px1 - px0 > 0 ? (px1 - px0) * 2 : 1);
+            s_moved += abs(mx - s_lastX);
+            s_lastX  = mx;
+            s_handMs = now;
+        }
+        if (s_drag && !down)
+        {
+            s_drag = 0;
+            if (s_moved < 4 && s_model != NULL)
+            {
+                const char* file;
+                cp_anim_start(Pc_CharaSelect_PreviewTarget(&file));
+            }
+        }
+        s_wasDown = down;
+        if (s_lastMs != 0 && !s_drag && now - s_handMs > 1500)
+            s_yaw += CP_TURN_RATE * (float)(now - s_lastMs) / 1000.0f;
+    }
+    s_lastMs = now;
+    while (s_yaw > 6.2831853f) s_yaw -= 6.2831853f;
+    while (s_yaw < 0.0f) s_yaw += 6.2831853f;
 
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFbo);
     glGetIntegerv(GL_VIEWPORT, prevVp);
