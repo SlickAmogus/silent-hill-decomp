@@ -957,10 +957,15 @@ static cgltf_result Skin_FileRead(const struct cgltf_memory_options* mem, const 
     return cgltf_result_success;
 }
 
-static void Skin_FileRelease(const struct cgltf_memory_options* mem, const struct cgltf_file_options* file, void* data)
+/* The signature is cgltf's exactly. One argument short still ran on desktop,
+ * but WebAssembly checks an indirect call's type and trapped the moment a
+ * model's file was released: every custom character crashed the browser build. */
+static void Skin_FileRelease(const struct cgltf_memory_options* mem, const struct cgltf_file_options* file, void* data,
+                             cgltf_size size)
 {
     (void)mem;
     (void)file;
+    (void)size;
     free(data);
 }
 
