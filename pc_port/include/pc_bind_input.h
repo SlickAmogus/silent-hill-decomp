@@ -30,4 +30,14 @@ int         BindInput_PadConnected(void);
 void        BindInput_KeyLabel(const char* v, char* out, size_t n);
 int         BindInput_ScancodeFromLabel(const char* label); /* SDL_Scancode */
 
+/* A bind the port's own actions can test: an SDL scancode for a key name, or
+ * BIND_MOUSE_BASE + the SDL button number for Mouse1..Mouse5. 0 = neither.
+ * They used to resolve key names only, so a mouse button (the side buttons
+ * most of all) set on Reload, Cycle Weapons and the rest did nothing. */
+#define BIND_MOUSE_BASE 1000
+int         BindInput_MouseCode(const char* name);
+int         BindInput_Code(const char* name);
+int         BindInput_CodeHeld(int code);
+const char* BindInput_MouseName(int code); /* "Mouse4", or NULL for a key */
+
 #endif

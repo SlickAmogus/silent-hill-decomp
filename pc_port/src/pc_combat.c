@@ -11,6 +11,7 @@
 #include "bodyprog/collision/ray.h"
 #include "pc_combat.h"
 #include "pc_config.h"
+#include "pc_bind_input.h"
 #include "bodyprog/item_screens.h"
 #include "sh_log.h"      /* SH_DBG */
 #include "dbg_overlay.h" /* DbgOverlay_ToastLine — quick-heal result line */
@@ -93,7 +94,7 @@ bool PC_KeyboardKeyClicked(int sdlScancode)
         s_keys[slot]  = sdlScancode;
         /* Seed prev with current held state — if the key is already down
          * when first queried, that's NOT a rising edge. */
-        s_prev[slot]  = g_sdlKeyboardState[sdlScancode] != 0;
+        s_prev[slot]  = BindInput_CodeHeld(sdlScancode) != 0;
         s_edge[slot]  = false;
         s_frame[slot] = g_PcInputFrame;
         return false;
@@ -102,7 +103,7 @@ bool PC_KeyboardKeyClicked(int sdlScancode)
     /* Resample only once per frame (per slot). Other call sites in the
      * same frame get the cached edge result. */
     if (s_frame[slot] != g_PcInputFrame) {
-        bool nowHeld = g_sdlKeyboardState[sdlScancode] != 0;
+        bool nowHeld = BindInput_CodeHeld(sdlScancode) != 0;
         s_edge[slot] = nowHeld && !s_prev[slot];
         s_prev[slot] = nowHeld;
         s_frame[slot] = g_PcInputFrame;
@@ -167,8 +168,8 @@ static void Pc_ReloadBindsResolve(void)
     sc[0] = &g_PcConfig.classic;
     sc[1] = &g_PcConfig.altcam;
     for (i = 0; i < 2; i++) {
-        s_kbReload[i]  = SDL_GetScancodeFromName(sc[i]->keyReload);
-        s_kbReload2[i] = SDL_GetScancodeFromName(sc[i]->keyReload2);
+        s_kbReload[i]  = (SDL_Scancode)BindInput_Code(sc[i]->keyReload);
+        s_kbReload2[i] = (SDL_Scancode)BindInput_Code(sc[i]->keyReload2);
         s_padReload[i] = (sc[i]->padReload[0] != '\0')
                           ? (int)PsyX_LookupGameControllerMapping(sc[i]->padReload, SDL_CONTROLLER_BUTTON_INVALID)
                           : SDL_CONTROLLER_BUTTON_INVALID;
@@ -816,9 +817,9 @@ void Pc_ExtraActionsUpdate(void)
         sc[0] = &g_PcConfig.classic;
         sc[1] = &g_PcConfig.altcam;
         for (i = 0; i < 2; i++) {
-            s_kbCycle[i]  = SDL_GetScancodeFromName(sc[i]->keyCycleWeapons);
-            s_kbHeal[i]   = SDL_GetScancodeFromName(sc[i]->keyQuickHeal);
-            s_kbQt[i]     = SDL_GetScancodeFromName(sc[i]->keyQuickTurn);
+            s_kbCycle[i]  = (SDL_Scancode)BindInput_Code(sc[i]->keyCycleWeapons);
+            s_kbHeal[i]   = (SDL_Scancode)BindInput_Code(sc[i]->keyQuickHeal);
+            s_kbQt[i]     = (SDL_Scancode)BindInput_Code(sc[i]->keyQuickTurn);
             s_padCycle[i] = (sc[i]->padCycleWeapons[0] != '\0') ? (int)PsyX_LookupGameControllerMapping(sc[i]->padCycleWeapons, SDL_CONTROLLER_BUTTON_INVALID) : SDL_CONTROLLER_BUTTON_INVALID;
             s_padHeal[i]  = (sc[i]->padQuickHeal[0]    != '\0') ? (int)PsyX_LookupGameControllerMapping(sc[i]->padQuickHeal, SDL_CONTROLLER_BUTTON_INVALID)    : SDL_CONTROLLER_BUTTON_INVALID;
             s_padQt[i]    = (sc[i]->padQuickTurn[0]    != '\0') ? (int)PsyX_LookupGameControllerMapping(sc[i]->padQuickTurn, SDL_CONTROLLER_BUTTON_INVALID)    : SDL_CONTROLLER_BUTTON_INVALID;
@@ -898,13 +899,13 @@ void Pc_RearLookUpdate(void)
         sc[0] = &g_PcConfig.classic;
         sc[1] = &g_PcConfig.altcam;
         for (i = 0; i < 2; i++) {
-            s_kb[i]  = SDL_GetScancodeFromName(sc[i]->keyRearLook);
+            s_kb[i]  = (SDL_Scancode)BindInput_Code(sc[i]->keyRearLook);
             s_pad[i] = (sc[i]->padRearLook[0] != '\0') ? (int)PsyX_LookupGameControllerMapping(sc[i]->padRearLook, SDL_CONTROLLER_BUTTON_INVALID) : SDL_CONTROLLER_BUTTON_INVALID;
         }
     }
     sch  = g_DebugThirdPersonCam ? 1 : 0;
     keys = SDL_GetKeyboardState(NULL);
-    held = ((keys && s_kb[sch] != SDL_SCANCODE_UNKNOWN && keys[s_kb[sch]]) ||
+    held = ((keys && BindInput_CodeHeld((int)s_kb[sch])) ||
             (s_pad[sch] >= 0 && PsyX_RawControllerButtonHeld(s_pad[sch])));
 
     /* TPS/OTS only (not FPS, not classic), gameplay only; cleared otherwise so it

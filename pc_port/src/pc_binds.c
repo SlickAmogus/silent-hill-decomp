@@ -382,8 +382,9 @@ static int SetBind(const char* keyName, const char* cmds, int quiet)
     {
         /* The key is named the way it is labelled, as the user typed it, so the
          * same bind line means the same key cap on any layout. */
-        SDL_Scancode sc  = (SDL_Scancode)BindInput_ScancodeFromLabel(key);
-        const char*  why = KeyRefusal(key, sc);
+        const int    mouse = BindInput_MouseCode(key);
+        SDL_Scancode sc    = (SDL_Scancode)(mouse ? mouse : BindInput_ScancodeFromLabel(key));
+        const char*  why   = mouse ? NULL : KeyRefusal(key, sc);
 
         if (why != NULL)
         {
@@ -491,7 +492,8 @@ void PcBinds_CmdUnbind(const char* arg)
     }
     else
     {
-        SDL_Scancode sc = (SDL_Scancode)BindInput_ScancodeFromLabel(arg);
+        const int    mouse = BindInput_MouseCode(arg);
+        SDL_Scancode sc    = (SDL_Scancode)(mouse ? mouse : BindInput_ScancodeFromLabel(arg));
 
         for (i = 0; i < s_bindCount && sc != SDL_SCANCODE_UNKNOWN; i++)
         {
@@ -677,7 +679,7 @@ void PcBinds_Update(const unsigned char* keyState)
             s_relabelled = 1;
             for (i = 0; i < s_bindCount; i++)
             {
-                int sc = (s_binds[i].key[0] != '\0') ? BindInput_ScancodeFromLabel(s_binds[i].key) : SDL_SCANCODE_UNKNOWN;
+                int sc = (s_binds[i].key[0] != '\0' && !BindInput_MouseCode(s_binds[i].key)) ? BindInput_ScancodeFromLabel(s_binds[i].key) : SDL_SCANCODE_UNKNOWN;
                 if (sc != SDL_SCANCODE_UNKNOWN)
                     s_binds[i].scancode = sc;
             }
@@ -687,7 +689,8 @@ void PcBinds_Update(const unsigned char* keyState)
     for (i = 0; i < s_bindCount; i++)
     {
         s_PcBind* b      = &s_binds[i];
-        int       keyNow = (b->key[0] != '\0' && b->scancode > 0) ? keyState[b->scancode] : 0;
+        int       keyNow = (b->key[0] == '\0' || b->scancode <= 0) ? 0
+                           : (b->scancode > BIND_MOUSE_BASE) ? BindInput_CodeHeld(b->scancode) : keyState[b->scancode];
         int       padNow = (b->pad[0] != '\0' && b->padCode != NO_PAD) ? (PsyX_RawControllerBindHeld(b->padCode) != 0) : 0;
         int       fire   = (keyNow && !b->prevKey) || (padNow && !b->prevPad);
 
@@ -758,7 +761,11 @@ const char* PcBinds_RowValue(int row, int isPad)
         return s_binds[row].pad;
     /* The controls screen deals in key POSITIONS (SDL scancode names) and
      * labels them itself; a bind is kept by the label typed. */
-    return (s_binds[row].key[0] != '\0') ? SDL_GetScancodeName((SDL_Scancode)s_binds[row].scancode) : "";
+    if (s_binds[row].key[0] == '\0')
+        return "";
+    if (s_binds[row].scancode > BIND_MOUSE_BASE)
+        return BindInput_MouseName(s_binds[row].scancode);
+    return SDL_GetScancodeName((SDL_Scancode)s_binds[row].scancode);
 }
 
 /* Sets or clears (value NULL, "" or "NONE") a row's key or controller input.
