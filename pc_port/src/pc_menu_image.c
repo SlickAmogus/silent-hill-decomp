@@ -26,6 +26,7 @@ typedef struct
 static MiImage s_images[PC_MENU_IMAGE_COUNT] = {
     { "gamedata/image/buttonWide.png", 240, 84, 0 },
     { "gamedata/image/warning.png", 110, 116, 0 },
+    { "gamedata/image/checkmark.png", 64, 64, 0 },
 };
 
 static int mi_ready(int id)
