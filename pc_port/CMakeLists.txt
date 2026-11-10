@@ -370,7 +370,7 @@ if(MINGW)
 endif()
 
 # Shipped runtime assets: pc_port/assets/ mirrors the game folder layout
-# (assets/gamedata/decal.png -> <build>/gamedata/decal.png), so a fresh build
+# (assets/gamedata/image/decal.png -> <build>/gamedata/image/decal.png), so a fresh build
 # folder runs with them. release-nightly.ps1 and the CI stage steps package the
 # same directory — add new custom assets there, never to the build folder.
 add_custom_command(TARGET SilentHillPC POST_BUILD

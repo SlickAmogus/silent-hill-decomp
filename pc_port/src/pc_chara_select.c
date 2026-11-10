@@ -46,7 +46,7 @@
 #define CS_PREV_Y1     196
 #define CS_FOOTER_Y    204
 #define CS_OT_LINE     6
-#define CS_OT_SHADE    9
+#define CS_OT_SHADE    12 /* behind the value arrows (10), which the grid lines crossed */
 
 extern int   g_PsxWideMenu;
 extern float PsyX_WideMenuMargin(void);
@@ -931,7 +931,13 @@ static void cs_rows_draw(void)
 
         if (row == CS_ROW_DOWNLOAD)
         {
-            w = Ct_Draw(CS_COL1_X0, y, 1, color, "Additional Characters...", CS_COL1_X1 - CS_COL1_X0, sel);
+            /* Shortened in English to fit the column; the translations made
+             * for the longer wording stay in use. */
+            const char* more = Ct_Tr("Additional Characters...");
+
+            if (strcmp(more, "Additional Characters...") == 0)
+                more = "More Characters...";
+            w = Ct_DrawText(CS_COL1_X0, y, 1, color, more, CS_COL1_X1 - CS_COL1_X0, sel);
             if (sel)
                 Nm_HighlightDraw(CS_COL1_X0 - 1, CS_COL1_X0 + w + 4, y + 14);
             continue;

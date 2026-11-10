@@ -840,6 +840,12 @@ void func_8003CC7C(s_WorldObjectModel* model, MATRIX* viewMat, MATRIX* worldMat)
     }
 #endif
 
+#ifdef SH_PC_PORT
+    {
+        extern void Pc_DecalsNoteWorldObject(const s_ModelHeader* modelHdr, const MATRIX* worldMat);
+        Pc_DecalsNoteWorldObject(model->modelInfo.modelHdr, worldMat);
+    }
+#endif
     func_80057090(&model->modelInfo, &g_OrderingTable0[g_ActiveBufferIdx], 1, viewMat, worldMat, 0);
 }
 

@@ -377,6 +377,17 @@ static int cp_model_sync(void)
         return 0;
     }
     snprintf(key, sizeof(key), "%s|%s", target, file);
+    {
+        static int s_gen;
+
+        if (Pc_SkinChara_FilesGen() != s_gen)
+        {
+            s_gen         = Pc_SkinChara_FilesGen();
+            s_model       = NULL;
+            s_modelKey[0] = 0;
+            s_stream      = NULL;
+        }
+    }
     if (!cp_dwell_ok(key, strcmp(key, s_modelKey) == 0 || Pc_SkinChara_PreviewCached(target, file)))
         return 0;
     if (strcmp(key, s_modelKey) != 0)

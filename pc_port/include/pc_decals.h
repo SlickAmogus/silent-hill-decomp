@@ -12,7 +12,7 @@
  *
  * Decals persist until map change (cleared alongside
  * HiresOverride_PoolSlotsReset in Ipd_TexturesInit), capped at 64 FIFO.
- * The texture is gamedata/decal.png (32x32 RGBA; any size works — it is
+ * The texture is gamedata/image/decal.png (32x32 RGBA; any size works — it is
  * mapped 0..1 over the quad), served through hires-override virtual pool
  * slot 255, which Ipd_TexturesInit keeps out of the chunk-texture pool.
  * A missing PNG logs once and disables the feature for the session.
@@ -29,6 +29,10 @@ void Pc_DecalAddBulletImpact(const VECTOR3* pos, const VECTOR3* dir, const VECTO
 /* Project + emit all live decals into the world ordering table. Call once
  * per frame during world rendering (after Ipd_ChunkCheckDraw, same OT). */
 void Pc_DecalsDraw(GsOT* ot);
+
+/* A world object (a model a map places itself, outside its chunks) as it is
+ * drawn this frame, so the surface test at an impact can see it. */
+void Pc_DecalsNoteWorldObject(const s_ModelHeader* modelHdr, const MATRIX* worldMat);
 
 /* Clear the decal FIFO and mark the pool-slot texture for re-registration.
  * Call where HiresOverride_PoolSlotsReset runs (map init frees the slot). */
