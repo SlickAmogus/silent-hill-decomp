@@ -1311,6 +1311,13 @@ void Pc_Touch_Update(void)
     float       lookDx = 0.0f, lookDy = 0.0f;
     int         winW = 0, winH = 0;
 
+#if defined(__ANDROID__) || defined(SH_IOS)
+    {
+        extern void Pc_PhoneHaptics_Update(void);
+        Pc_PhoneHaptics_Update();
+    }
+#endif
+
     /* BEFORE the mode gate, not inside the per-finger loop below. That loop only
      * runs once touch is already enabled, so the clear it used to hold could
      * never fire: one keyboard or pad byte latched the controls off and no
