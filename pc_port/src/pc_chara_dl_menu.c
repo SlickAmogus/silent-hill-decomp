@@ -40,6 +40,7 @@
 #define M_FOOTER_Y   204
 #define M_OT_LINE    6
 #define M_OT_PLATE   9   /* images under the text (8) */
+#define M_TICK_IMAGE PC_MENU_IMAGE_BUTTON_WIDE
 #define M_BOX        9   /* checkbox side */
 
 static int s_fl, s_fr;
@@ -161,10 +162,15 @@ static void m_checkbox(int x, int y, int state, int sel)
     m_line(x, y1, x1, y1, c, c, c);
     m_line(x, y0, x, y1, c, c, c);
     m_line(x1, y0, x1, y1, c, c, c);
+    /* Ticked is the box filled with the button plate; partly stays a dash in
+     * an empty box. M_TICK_IMAGE can be PC_MENU_IMAGE_CHECKMARK instead. */
     if (state == 1)
     {
-        m_line(x + 2, y0 + 5, x + 4, y1 - 2, 0x60, 0xFF, 0x60);
-        m_line(x + 4, y1 - 2, x1 - 2, y0 + 2, 0x60, 0xFF, 0x60);
+        if (!Pc_MenuImage_Draw(M_TICK_IMAGE, m_px(x + 1), m_py(y0 + 1), m_px(x1), m_py(y1), M_OT_PLATE, sel ? 128 : 104))
+        {
+            m_line(x + 2, y0 + 5, x + 4, y1 - 2, 0x60, 0xFF, 0x60);
+            m_line(x + 4, y1 - 2, x1 - 2, y0 + 2, 0x60, 0xFF, 0x60);
+        }
     }
     else if (state == 2)
         m_line(x + 2, y0 + M_BOX / 2, x1 - 2, y0 + M_BOX / 2, 0xFF, 0xC0, 0x40);
