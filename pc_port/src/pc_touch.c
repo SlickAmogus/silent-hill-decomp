@@ -979,6 +979,29 @@ static unsigned char Tc_AxisByte(float v)
     return (unsigned char)b;
 }
 
+/* The stick as the game is to read it. The game takes no notice of a stick
+ * until an axis passes half deflection (STICK_THRESHOLD), so sent as measured
+ * the inner half of the ring did nothing: a thumb resting inside a pinned
+ * stick could not move at all, and only a push out past the rim did. The
+ * dead middle is the touch stick's own small one; past it the leading axis
+ * starts at the game's threshold and runs up to full, the other in proportion,
+ * so the direction pushed is the direction taken. */
+static void Tc_StickOut(float ux, float uy, float mag, unsigned char* outX, unsigned char* outY)
+{
+    const float ax  = (ux < 0.0f) ? -ux : ux;
+    const float ay  = (uy < 0.0f) ? -uy : uy;
+    const float big = (ax > ay) ? ax : ay;
+    const float m   = 0.52f + (0.48f * mag);
+
+    if (big <= 0.0f)
+    {
+        *outX = *outY = 128;
+        return;
+    }
+    *outX = Tc_AxisByte((ux / big) * m);
+    *outY = Tc_AxisByte((uy / big) * m);
+}
+
 /* Press whatever the player has bound to an action. Reading the live config
  * rather than hardcoding Cross/Square means a rebound pad keeps working, and
  * the region/difficulty defaults come along for free. */
@@ -1722,8 +1745,7 @@ void Pc_Touch_Update(void)
 
                 if (mag > 0.0f && len > 0.0f)
                 {
-                    s_LeftX = Tc_AxisByte((dx / len) * mag);
-                    s_LeftY = Tc_AxisByte((dy / len) * mag);
+                    Tc_StickOut(dx / len, dy / len, mag, &s_LeftX, &s_LeftY);
 
                     /* The d-pad bits as well as the analog position. Gameplay
                      * reads the stick, but the inventory, the map screen and
@@ -1811,8 +1833,7 @@ void Pc_Touch_Update(void)
 
                 if (mag > 0.0f && len > 0.0f)
                 {
-                    s_LeftX = Tc_AxisByte((dx / len) * mag);
-                    s_LeftY = Tc_AxisByte((dy / len) * mag);
+                    Tc_StickOut(dx / len, dy / len, mag, &s_LeftX, &s_LeftY);
                 }
                 else
                 {
