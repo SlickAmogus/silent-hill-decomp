@@ -2113,7 +2113,13 @@ static int Skin_Load(PcSkinChara* ch, const char* path)
             anchor[0][0] = anchor[0][1] = anchor[0][2] = 0.0f;
             continue;
         }
-        if (b == 5 || b == 9)
+        /* Only where the model's shoulder is the broader one (see s_pinned).
+         * A narrower model's shoulder moves out onto the game's instead: left
+         * where it was, the game's pivot fell inside its upper arm, so the top
+         * of the sleeve swung up into a spike as the arm came down, the elbow
+         * bent a hand's width down the forearm and the sleeve, stretched to
+         * make up the difference, ran out past the wrist. */
+        if ((b == 5 || b == 9) && fabsf(anchor[b - 1][0]) >= fabsf((float)ch->def->rest[b - 1].T[0]))
             anchor[b][0] -= anchor[b - 1][0] - ch->def->rest[b - 1].T[0];
         if (s_childA[b] >= 0)
         {
@@ -2219,7 +2225,8 @@ static int Skin_Load(PcSkinChara* ch, const char* path)
         /* Hips and knees keep the model's own spacing: pulling a knee onto the
          * game's (narrower) knee while the foot stayed put bowed the shins
          * outward. A leg swings about X, so the X offset costs nothing. */
-        else if (b == 4 || b == 8 || b == 12 || b == 13 || b == 15 || b == 16)
+        else if (b == 12 || b == 13 || b == 15 || b == 16 ||
+                 ((b == 4 || b == 8) && fabsf(anchor[b][0]) >= fabsf((float)ch->def->rest[b].T[0])))
             anchor[b][0] = ch->def->rest[b].T[0];
     }
     /* Native parts are posed by the rest frame itself, so every bone keeps it
