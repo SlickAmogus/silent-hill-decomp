@@ -554,6 +554,66 @@ void NmInput_FromGame(NmInput* out)
     }
 }
 
+#define NM_TOUCH_SLOP 6
+
+void NmInput_TouchDragScroll(NmInput* in, int pitch, int xMax)
+{
+    static int s_active, s_startX, s_startY, s_lastY, s_moved, s_own;
+
+    /* The mouse click a touch also arrives as is not tied to the frame the
+     * touch is first seen on; on the list only the lift below clicks. */
+    if (in->touch && (!in->mouseOk || in->mouseX < xMax))
+        in->mouseLeft = 0;
+
+    if (in->touchPress)
+    {
+        s_active = 1;
+        s_startX = in->touchX;
+        s_startY = in->touchY;
+        s_lastY  = in->touchY;
+        s_moved  = 0;
+        s_own    = in->touchX < xMax;
+    }
+    if (!s_active || !s_own)
+    {
+        if (!in->touchHeld && !in->touchPress)
+            s_active = 0;
+        return;
+    }
+
+    /* A finger's click is decided when it lifts, not when it lands: landing
+     * is also how a drag starts. */
+    in->mouseLeft = 0;
+    if (in->touchHeld)
+    {
+        int dx = in->touchX - s_startX, dy = in->touchY - s_startY;
+
+        if (dx < 0) dx = -dx;
+        if (dy < 0) dy = -dy;
+        if (dx > NM_TOUCH_SLOP || dy > NM_TOUCH_SLOP)
+            s_moved = 1;
+        if (s_moved)
+        {
+            int rows = (s_lastY - in->touchY) / pitch;
+
+            in->wheel   -= rows;
+            s_lastY     -= rows * pitch;
+            /* The row under a passing finger is not being pointed at. */
+            in->mouseMoved = 0;
+            in->mouseOk    = 0;
+        }
+        return;
+    }
+    s_active = 0;
+    if (in->touchRelease && !s_moved)
+    {
+        in->mouseOk   = 1;
+        in->mouseX    = s_startX;
+        in->mouseY    = s_startY;
+        in->mouseLeft = 1;
+    }
+}
+
 void NmPage_Draw(const NmPage* p, int x, int y, int pitch, int valueX)
 {
     const NmScroll* s = &p->scroll;
