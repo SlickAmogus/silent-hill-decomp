@@ -3181,6 +3181,22 @@ void MainLoop(void) // 0x80032EE0
                                     SH_DBG("[PERF]   video memory: %d MB free of %d MB | texture packs hold %d MB (budget %d MB)",
                                            vFree, vTotal, vPack, g_PcConfig.texpackBudgetMb);
                             }
+                            /* cover above is bounding boxes; this is what the card
+                             * shaded. Screens are of the window, so supersampling and
+                             * the shadow map's own pass count on top. */
+                            {
+                                extern double g_PsyX_GpuSamplesSum;
+                                extern int    g_PsyX_GpuMsCount, g_windowWidth, g_windowHeight;
+
+                                if (g_PsyX_GpuMsCount > 0 && g_windowWidth > 0 && g_windowHeight > 0)
+                                {
+                                    double px = g_PsyX_GpuSamplesSum / g_PsyX_GpuMsCount;
+                                    SH_DBG("[PERF]   shaded per frame: %.1f million pixels = %.1f screens of %dx%d",
+                                           px / 1.0e6, px / ((double)g_windowWidth * g_windowHeight),
+                                           g_windowWidth, g_windowHeight);
+                                }
+                                g_PsyX_GpuSamplesSum = 0.0;
+                            }
                             g_PsxPerfSplits = g_PsxPerfBinds = g_PsxPerfFilterSets = g_PsxPerfTris = 0;
                             g_PsxPerfBigTris = g_PsxPerfCharaVerts = g_PsxPerfFrames = 0;
                             g_PsxPerfCover = g_PsxPerfCoverWorst = 0.0;
