@@ -150,16 +150,17 @@ static inline u32 Pc_MeshDpcs(const CVECTOR* c, s32 ir0, const s32* fc)
  * there, which is where its distant road and buildings were going. */
 static s32 s_pcOtTagBase = 0;
 
-/* Faces the dark hides. A map without fog draws out to the ~61u hard limit,
- * and at night nearly all of that is black: the vertex shades are zero past
- * the light's reach, so the face is the colour of the void behind it. With the
- * whole exterior resident and culling off that was thousands of invisible
- * triangles and most of the frame's draw calls. A face goes only when every
- * vertex shade is zero AND, with the per-pixel beam on, all of it lies past
- * the beam's range from the light (the beam lights by distance, not by the
- * vertex shade, and still reaches faces the PSX light leaves black). Depth
- * from the camera minus the light's depth is never more than the distance to
- * the light, so the bound is conservative. Console: `nightcull`. */
+/* Faces the dark hides. A map lit by the flashlight with no fog draws out to
+ * the ~61u hard limit, and at night nearly all of that is black: the no-fog
+ * lit loop of Gfx_MeshDraw writes colour 0 for any vertex whose shade is under
+ * 8, so a face with four such vertices is the colour of the void behind it.
+ * With the whole exterior resident and culling off that was thousands of
+ * invisible triangles and most of the frame's draw calls. A black face is
+ * dropped only when all of it also lies past the beam's range from the light:
+ * nearer than that it can stand in front of something lit and must keep
+ * hiding it, and the per-pixel beam lights by distance, not by the vertex
+ * shade. Depth from the camera minus the light's depth is never more than the
+ * distance to the light, so the bound is conservative. Console: `nightcull`. */
 int          g_PcNightCull = 1;
 unsigned int g_PcNightCulled, g_PcNightSeen, g_PcNightBlack, g_PcNightMeshes;
 s32          g_PcNightFarLast, g_PcNightEnv[3];
@@ -167,21 +168,36 @@ static s32   s_pcNightFar = 0x7FFFFFFF;
 
 static s32 Pc_NightCullDepth(void)
 {
-    extern int   g_PsyX_FlashlightActive, g_PsyX_UsePerPixelFlashlight;
-    extern float g_PsyX_FlashlightPos[3], g_PsyX_FlashlightRange;
+    extern float          g_PsyX_FlashlightRange;
     extern s_WorldEnvWork g_WorldEnvWork;
+    s32                   lx, ly, lz, vz;
 
-    if (!g_PcNightCull || g_WorldEnvWork.isFogEnabled || Pc_WholeMapDrawActive())
+    if (!g_PcNightCull || g_WorldEnvWork.isFogEnabled || g_WorldEnvWork.field_0 != 1 || Pc_WholeMapDrawActive())
         return 0x7FFFFFFF;
-    if (g_PsyX_UsePerPixelFlashlight && g_PsyX_FlashlightActive)
-    {
-        float reach = g_PsyX_FlashlightPos[2] + g_PsyX_FlashlightRange + 256.0f;
-        return reach > 0.0f ? (s32)reach : 0;
-    }
-    return 0;
+    lx = Q12_TO_Q8(g_WorldEnvWork.field_60.vx);
+    ly = Q12_TO_Q8(g_WorldEnvWork.field_60.vy);
+    lz = Q12_TO_Q8(g_WorldEnvWork.field_60.vz);
+    vz = (s32)(((s64)GsWSMATRIX.m[2][0] * lx + (s64)GsWSMATRIX.m[2][1] * ly + (s64)GsWSMATRIX.m[2][2] * lz) >> 12) + GsWSMATRIX.t[2];
+    vz += (s32)g_PsyX_FlashlightRange + 256;
+    return vz > 0 ? vz : 0;
 }
 
-#define PC_NIGHT_FACE_HIDDEN(sd, shadeIdx) ({     int _hid = 0;     if (s_pcNightFar != 0x7FFFFFFF) { g_PcNightSeen++;         const u8* _si  = (const u8*)(shadeIdx);         const int _tri = ((sd)->field_380.s_0.field_13 == 0xFF);         if (((sd)->field_2B8[_si[0]] | (sd)->field_2B8[_si[1]] | (sd)->field_2B8[_si[2]] |              (_tri ? 0 : (sd)->field_2B8[_si[3]])) == 0) { g_PcNightBlack++;             s32 _mn = (sd)->field_18C[(sd)->field_380.s_0.field_10];             s32 _tz = (sd)->field_18C[(sd)->field_380.s_0.field_11]; if (_tz < _mn) _mn = _tz;             _tz = (sd)->field_18C[(sd)->field_380.s_0.field_12]; if (_tz < _mn) _mn = _tz;             if (!_tri) { _tz = (sd)->field_18C[(sd)->field_380.s_0.field_13]; if (_tz < _mn) _mn = _tz; }             if (_mn > s_pcNightFar) { _hid = 1; g_PcNightCulled++; }         }     }     _hid; })
+#define PC_NIGHT_FACE_HIDDEN(sd, shadeIdx) ({ \
+    int _hid = 0; \
+    if (s_pcNightFar != 0x7FFFFFFF) { \
+        const u8* _si = (const u8*)(shadeIdx); \
+        g_PcNightSeen++; \
+        if ((sd)->field_2B8[_si[0]] < 8 && (sd)->field_2B8[_si[1]] < 8 && \
+            (sd)->field_2B8[_si[2]] < 8 && (sd)->field_2B8[_si[3]] < 8) { \
+            s32 _mn = (sd)->field_18C[(sd)->field_380.s_0.field_10]; \
+            s32 _tz = (sd)->field_18C[(sd)->field_380.s_0.field_11]; if (_tz < _mn) _mn = _tz; \
+            _tz = (sd)->field_18C[(sd)->field_380.s_0.field_12]; if (_tz < _mn) _mn = _tz; \
+            _tz = (sd)->field_18C[(sd)->field_380.s_0.field_13]; if (_tz < _mn) _mn = _tz; \
+            g_PcNightBlack++; \
+            if (_mn > s_pcNightFar) { _hid = 1; g_PcNightCulled++; } \
+        } \
+    } \
+    _hid; })
 #define SH_OT_LAST_DEPTH(shift) ((ORDERING_TABLE_SIZE - 1 - s_pcOtTagBase) << ((shift) + 2))
 #define SH_CLAMP_OT_DEPTH(depth, shift)                                         \
     do {                                                                        \
@@ -3235,10 +3251,6 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                     {
                         continue;
                     }
-                    if (PC_NIGHT_FACE_HIDDEN(scratchData, &prim->field_10))
-                    {
-                        continue;
-                    }
 
 #ifdef SH_PC_PORT
                     if (SH_PRECISE_NCLIP(scratchData->field_380.s_0.field_18, arg3))
@@ -3515,10 +3527,6 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                 SH_CLAMP_OT_DEPTH(scratchData->field_380.s_0.field_18, arg3);
 
                 if (PC_FACE_CULL_DEPTH(scratchData, scratchData->field_380.s_0.field_18) > scratchData->field_380.s_0.field_1C)
-                {
-                    continue;
-                }
-                if (PC_NIGHT_FACE_HIDDEN(scratchData, &prim->field_10))
                 {
                     continue;
                 }
@@ -4004,6 +4012,12 @@ __block1530:
 #endif
             continue;
         }
+#ifdef SH_PC_PORT
+        if (PC_NIGHT_FACE_HIDDEN(scratchData, &prim->field_10))
+        {
+            continue;
+        }
+#endif
 
 #ifdef SH_PC_PORT
         if (SH_PRECISE_NCLIP(scratchData->field_380.s_0.field_18, arg3))
