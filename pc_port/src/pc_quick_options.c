@@ -122,6 +122,7 @@ typedef struct
 static const QoRowDef s_pageGfx1[] = {
     { ROW_OPT,   "texture_filter",       0, NULL },  /* Texture_Filter */
     { ROW_OPT,   "msaa",                 0, NULL },  /* Antialiasing (restart) */
+    { ROW_OPT,   "render_scale",         0, NULL },
     { ROW_OPT,   "post_process",         0, NULL },
     { ROW_OPT,   "tonemap",              0, NULL },
     { ROW_OPT,   "fog_strength",         0, NULL },

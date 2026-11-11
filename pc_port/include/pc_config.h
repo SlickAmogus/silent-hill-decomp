@@ -127,6 +127,9 @@ typedef struct {
      * picture in the window. width/height are then only the window size. Off
      * by default (config key: native_resolution). */
     int nativeResolution;
+    /* Internal render size as a fraction of the window (or of the borderless
+     * render size), 0.25..1.0; ignored by Native (PSX) (config key: render_scale). */
+    float renderScale;
     int widescreenMode;  /* 0 = pillarbox (PSX-faithful, default), 1 = Hor+ (extra side content), 2 = stretch */
     int menuPillarbox;   /* 1 = pillarbox 2D screens (menus/load) with 4:3 black bars instead of stretching to fill (config key: menu_pillarbox) */
     int allowLooseFiles; /* 1 = scan gamedata/load/{folder}/{name}.{ext} before CD read (texture mod support) */

@@ -1154,6 +1154,8 @@ int main(int argc, char* argv[])
      * multisampled (the native target is scaled onto it by a blit). */
     {
         extern int g_PcNativeRender;
+        extern float g_cfg_renderScale;
+        g_cfg_renderScale = g_PcConfig.renderScale;
         g_PcNativeRender = g_PcConfig.nativeResolution;
         if (g_PcNativeRender)
             SH_LOG("Render: native PSX resolution, %dx%d window", windowWidth, windowHeight);

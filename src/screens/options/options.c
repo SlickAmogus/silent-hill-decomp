@@ -102,6 +102,7 @@ extern void PsyX_ApplyVsync(int vsync);
 /* Per-pixel flashlight beam live floats (PsyCross); mirrored by the sliders. */
 extern float g_PsyX_FlashlightIntensity;
 extern float g_PsyX_FogStrength;
+extern float g_cfg_renderScale;
 extern float g_PsyX_FlashlightSize;
 
 /* FMV movie (SDL PCM) live volume, 0..1; mirrored by the FMV Movie slider.
@@ -205,14 +206,15 @@ static const int RES_H[] = { 480,  720,  768,  900, 1080, 1440, 2160 };
 static const s_PcOpt PCOPT_G[] = {
     { "Resolution",     NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_RES    },
     { "Window_Mode",    &g_PcConfig.fullscreen,         "fullscreen",           VAL_WIN,   3, LBL_WIN,   NULL,                          1, PCK_WINMODE },
+    /* Under Window_Mode on purpose: it scales whatever size those two rows
+     * give. The New-Game start Map row went to the Controls page to keep this
+     * one at 11 rows. */
+    { "Render_Scale",   NULL, "render_scale", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.renderScale, &g_cfg_renderScale, 0.25f, 1.0f, 0.05f },
     { "VSync",          &g_PcConfig.vsync,              "vsync",                VAL_VSYNC, 2, LBL_VSYNC, NULL,                          1, PCK_VSYNC   },
     { "Texture_Filter", &g_PcConfig.psxDither,          "texture_filter",       VAL_FILT,  8, LBL_FILT,  NULL,                          1, PCK_FILTER },
     { "PGXP",           &g_PcConfig.usePgxp,            "use_pgxp",             VAL_ONOFF, 2, LBL_ONOFF, &g_PsxUsePgxp,                 1, PCK_INT    },
     { "Post_Process",   &g_PcConfig.postProcess,        "post_process",         VAL_POST,  9, LBL_POST,  &g_cfg_postProcess,            1, PCK_INT    },
     { "Tone_Mapping",   &g_PcConfig.tonemap,            "tonemap",              VAL_TONE,  4, LBL_TONE,  &g_cfg_tonemap,                1, PCK_INT    },
-    /* New-Game start map. Moved here from the Camera page, which had run to 12
-     * rows (the practical maximum) while this page had room to spare. */
-    { "Map",           NULL,                           "map",                  NULL,      0, NULL,      NULL,                          1, PCK_MAP    },
     /* Opens the Character Select screen (pc_chara_select.c). Antialiasing
      * moved to the System page to keep this one at 11 rows; it needs a
      * restart either way. */
@@ -269,6 +271,8 @@ static const s_PcOpt PCOPT_C[] = {
      * the real ceiling, not the 12 the Graphics comment above assumes, and this
      * page is the shortest. Adding it to Graphics pushed that page off-screen. */
     { "Bullet_Decals",     &g_PcConfig.bulletDecals,      "bullet_decals",          VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    /* New-Game start map; here for room, like Bullet_Decals above. */
+    { "Map",               NULL,                          "map",                    NULL,      0, NULL,      NULL, 1, PCK_MAP },
     { "Prev_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_PREV },
     { "Next_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_NEXT },
     { "Back",              NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_BACK },
