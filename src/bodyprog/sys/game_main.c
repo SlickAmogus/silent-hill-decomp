@@ -3238,6 +3238,20 @@ void MainLoop(void) // 0x80032EE0
                                 memset(g_PsyX_GpuBucketMs, 0, sizeof(g_PsyX_GpuBucketMs));
                                 memset(g_PsyX_GpuBucketPx, 0, sizeof(g_PsyX_GpuBucketPx));
                             }
+                            {
+                                extern double       g_PsyX_CpuParseMs, g_PsyX_CpuDrawMs, g_PsyX_CpuSwapMs;
+                                extern unsigned int g_PsxSplitWhy[7];
+                                double              n = (double)s_perfFrames;
+
+                                SH_DBG("[PERF]   cpu per frame: build vertices %.1f ms | submit draws %.1f ms | swap (gpu + vsync wait) %.1f ms",
+                                       g_PsyX_CpuParseMs / n, g_PsyX_CpuDrawMs / n, g_PsyX_CpuSwapMs / n);
+                                SH_DBG("[PERF]   draw calls per frame started by: texture %.0f | blend %.0f | depth mode %.0f | texture offset %.0f | "
+                                       "clip %.0f | after a mesh %.0f | other %.0f",
+                                       g_PsxSplitWhy[2] / n, g_PsxSplitWhy[1] / n, g_PsxSplitWhy[3] / n, g_PsxSplitWhy[4] / n,
+                                       g_PsxSplitWhy[5] / n, g_PsxSplitWhy[0] / n, g_PsxSplitWhy[6] / n);
+                                g_PsyX_CpuParseMs = g_PsyX_CpuDrawMs = g_PsyX_CpuSwapMs = 0.0;
+                                memset(g_PsxSplitWhy, 0, sizeof(g_PsxSplitWhy));
+                            }
                             g_PsxPerfSplits = g_PsxPerfBinds = g_PsxPerfFilterSets = g_PsxPerfTris = 0;
                             g_PsxPerfBigTris = g_PsxPerfCharaVerts = g_PsxPerfFrames = 0;
                             g_PsxPerfCover = g_PsxPerfCoverWorst = 0.0;
