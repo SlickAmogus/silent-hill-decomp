@@ -717,6 +717,11 @@ static void ParseArgs(int argc, char* argv[])
             s_RendererArg = argv[i + 1];
             i++;
         }
+        else if (strcmp(argv[i], "-fullshaders") == 0)
+        {
+            extern int g_PsyX_LeanShaders;
+            g_PsyX_LeanShaders = 0;
+        }
         else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0)
         {
             printf("Usage: SilentHillPC [options]\n");

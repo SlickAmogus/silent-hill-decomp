@@ -2317,6 +2317,14 @@ void Pc_ConsoleExec(const char* line)
         else if (arg[0] == '0') g_PsxMixedShader = 0;
         else g_PsxMixedShader = !g_PsxMixedShader;
         cprintf("mixed-format shader: %s", g_PsxMixedShader ? "ON (fewer draw calls)" : "OFF (one program per format)");
+    } else if (strcmp(cmd, "LEANSHADER") == 0) {
+        /* leanshader 0|1 -- A/B for the stripped PSX programs used while
+         * texture filtering and flashlight shadows are off. */
+        extern int g_PsyX_LeanShaders;
+        if (arg[0] == '1') g_PsyX_LeanShaders = 1;
+        else if (arg[0] == '0') g_PsyX_LeanShaders = 0;
+        else g_PsyX_LeanShaders = !g_PsyX_LeanShaders;
+        cprintf("lean shaders: %s", g_PsyX_LeanShaders ? "ON" : "OFF (full programs always)");
     } else if (strcmp(cmd, "FLMODE") == 0) {
         /* flmode 0..3 | classic | classicshadows | modern | modernshadows */
         int mode = g_PcConfig.flashlightMode;
