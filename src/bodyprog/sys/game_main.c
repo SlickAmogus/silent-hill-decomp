@@ -3196,6 +3196,14 @@ void MainLoop(void) // 0x80032EE0
                                 if (vTotal > 0)
                                     SH_DBG("[PERF]   video memory: %d MB free of %d MB | texture packs hold %d MB (budget %d MB)",
                                            vFree, vTotal, vPack, g_PcConfig.texpackBudgetMb);
+                                {
+                                    extern int Pc_Vram_Process(int* usedMb, int* budgetMb);
+                                    int        used = 0, budget = 0;
+
+                                    if (Pc_Vram_Process(&used, &budget))
+                                        SH_DBG("[PERF]   video memory, this game: %d MB of the %d MB Windows allows it%s", used, budget,
+                                               used > budget ? " (OVER: Windows is moving its textures to system memory)" : "");
+                                }
                             }
                             /* cover above is bounding boxes; this is what the card
                              * shaded. Screens are of the window, so supersampling and
