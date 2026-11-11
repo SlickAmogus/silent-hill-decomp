@@ -313,13 +313,16 @@ add_custom_command(TARGET SilentHillPC POST_BUILD
 # and ANGLE's Vulkan backend needs companions that are not DLLs at all
 # (vk_swiftshader_icd.json). Copying the directory keeps the deployed set equal
 # to the source set without a reconfigure.
-if(WIN32 AND EXISTS "${CMAKE_SOURCE_DIR}/angle")
+# macOS: the same directory holds libEGL.dylib + libGLESv2.dylib for the
+# renderer=metal backend (ANGLE's Metal device). make_app.sh moves them into
+# Contents/Frameworks when packaging the app.
+if((WIN32 OR APPLE) AND EXISTS "${CMAKE_SOURCE_DIR}/angle")
     add_custom_command(TARGET SilentHillPC POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 "${CMAKE_SOURCE_DIR}/angle" "$<TARGET_FILE_DIR:SilentHillPC>"
-        COMMENT "Copying ANGLE runtime (D3D11/Vulkan backends)"
+        COMMENT "Copying ANGLE runtime (translated render backends)"
     )
-    message(STATUS "ANGLE runtime found - D3D11/Vulkan render backends will be available")
+    message(STATUS "ANGLE runtime found - translated render backends (D3D11/Vulkan/Metal) will be available")
 else()
     message(STATUS "No pc_port/angle/ - only the native OpenGL backend will be selectable at runtime")
 endif()
