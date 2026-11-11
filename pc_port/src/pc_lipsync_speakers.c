@@ -450,10 +450,10 @@ const char* const g_PcLipSpeaker[PC_LIP_LINES] = {
     "HERO", /* 444 */
     "SIBYL", /* 445 */
     "HERO", /* 446 */
-    "SIBYL", /* 447 */
+    "HERO", /* 447 */
     "HERO", /* 448 */
     "DARIA", /* 449 */
-    "HERO", /* 450 */
+    "SIBYL", /* 450 */
     "HERO", /* 451 */
     "KAU", /* 452 */
     "HERO", /* 453 */
