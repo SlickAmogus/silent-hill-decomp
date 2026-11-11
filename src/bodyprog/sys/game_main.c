@@ -3075,6 +3075,7 @@ void MainLoop(void) // 0x80032EE0
             {
                 static Uint32 s_perfLastMs = 0, s_perfAccumMs = 0, s_perfWorstMs = 0;
                 static u32    s_perfFrames = 0, s_perfVbAccum = 0;
+                static int    s_perfEarly = 0;
                 /* The same phases as [SLOWFRAME], summed over the window, so an
                  * area that is slow throughout says whether the game (update)
                  * or the GPU (present, sync) is holding it back. */
@@ -3128,7 +3129,22 @@ void MainLoop(void) // 0x80032EE0
                     /* A 30-second window, not 256 frames: at 240 fps the frame count
                      * logged every second and was the third-largest source in the log. */
                     s_perfFrames++;
-                    if (s_perfAccumMs >= 30000)
+                    /* A stretch of slow frames reports without waiting out the
+                     * window: once as it starts, so the frames before it do not
+                     * dilute it, then every few seconds while it lasts. Sessions
+                     * that hit one tend to end before 30 seconds of it pass. */
+                    {
+                        static int s_slowStreak = 0, s_slowReports = 0;
+
+                        s_slowStreak = (dt >= 50) ? s_slowStreak + 1 : 0;
+                        s_perfEarly  = 0;
+                        if (s_slowReports < 16 && (s_slowStreak == 20 || (s_slowStreak > 20 && s_perfAccumMs >= 4000)))
+                        {
+                            s_slowReports++;
+                            s_perfEarly = 1;
+                        }
+                    }
+                    if (s_perfAccumMs >= 30000 || s_perfEarly)
                     {
                         SH_DBG("[PERF] avg=%.1fms (%.1f fps) worst=%lums vblanks/frame=%.2f over %lu frames",
                                (double)s_perfAccumMs / s_perfFrames,
@@ -3196,6 +3212,23 @@ void MainLoop(void) // 0x80032EE0
                                            g_windowWidth, g_windowHeight);
                                 }
                                 g_PsyX_GpuSamplesSum = 0.0;
+                            }
+                            {
+                                extern double g_PsyX_GpuBucketMs[4], g_PsyX_GpuBucketPx[4];
+                                extern int    g_PsyX_GpuMsCount;
+
+                                if (g_PsyX_GpuMsCount > 0)
+                                {
+                                    double n = (double)g_PsyX_GpuMsCount;
+                                    SH_DBG("[PERF]   gpu by pass, ms / million pixels per frame: shadow map %.1f / %.1f | PSX prims %.1f / %.1f | "
+                                           "skinned meshes %.1f / %.1f | rest %.1f / %.1f",
+                                           g_PsyX_GpuBucketMs[0] / n, g_PsyX_GpuBucketPx[0] / n / 1.0e6,
+                                           g_PsyX_GpuBucketMs[1] / n, g_PsyX_GpuBucketPx[1] / n / 1.0e6,
+                                           g_PsyX_GpuBucketMs[2] / n, g_PsyX_GpuBucketPx[2] / n / 1.0e6,
+                                           g_PsyX_GpuBucketMs[3] / n, g_PsyX_GpuBucketPx[3] / n / 1.0e6);
+                                }
+                                memset(g_PsyX_GpuBucketMs, 0, sizeof(g_PsyX_GpuBucketMs));
+                                memset(g_PsyX_GpuBucketPx, 0, sizeof(g_PsyX_GpuBucketPx));
                             }
                             g_PsxPerfSplits = g_PsxPerfBinds = g_PsxPerfFilterSets = g_PsxPerfTris = 0;
                             g_PsxPerfBigTris = g_PsxPerfCharaVerts = g_PsxPerfFrames = 0;
