@@ -149,6 +149,38 @@ static inline u32 Pc_MeshDpcs(const CVECTOR* c, s32 ir0, const s32* fc)
  * vanilla draw distance never got there; whole-map mode puts most of the town
  * there, which is where its distant road and buildings were going. */
 static s32 s_pcOtTagBase = 0;
+
+/* Faces the dark hides. A map without fog draws out to the ~61u hard limit,
+ * and at night nearly all of that is black: the vertex shades are zero past
+ * the light's reach, so the face is the colour of the void behind it. With the
+ * whole exterior resident and culling off that was thousands of invisible
+ * triangles and most of the frame's draw calls. A face goes only when every
+ * vertex shade is zero AND, with the per-pixel beam on, all of it lies past
+ * the beam's range from the light (the beam lights by distance, not by the
+ * vertex shade, and still reaches faces the PSX light leaves black). Depth
+ * from the camera minus the light's depth is never more than the distance to
+ * the light, so the bound is conservative. Console: `nightcull`. */
+int          g_PcNightCull = 1;
+unsigned int g_PcNightCulled;
+static s32   s_pcNightFar = 0x7FFFFFFF;
+
+static s32 Pc_NightCullDepth(void)
+{
+    extern int   g_PsyX_FlashlightActive, g_PsyX_UsePerPixelFlashlight;
+    extern float g_PsyX_FlashlightPos[3], g_PsyX_FlashlightRange;
+    extern s_WorldEnvWork g_WorldEnvWork;
+
+    if (!g_PcNightCull || g_WorldEnvWork.isFogEnabled || Pc_WholeMapDrawActive())
+        return 0x7FFFFFFF;
+    if (g_PsyX_UsePerPixelFlashlight && g_PsyX_FlashlightActive)
+    {
+        float reach = g_PsyX_FlashlightPos[2] + g_PsyX_FlashlightRange + 256.0f;
+        return reach > 0.0f ? (s32)reach : 0;
+    }
+    return 0;
+}
+
+#define PC_NIGHT_FACE_HIDDEN(sd, shadeIdx) ({     int _hid = 0;     if (s_pcNightFar != 0x7FFFFFFF) {         const u8* _si  = (const u8*)(shadeIdx);         const int _tri = ((sd)->field_380.s_0.field_13 == 0xFF);         if (((sd)->field_2B8[_si[0]] | (sd)->field_2B8[_si[1]] | (sd)->field_2B8[_si[2]] |              (_tri ? 0 : (sd)->field_2B8[_si[3]])) == 0) {             s32 _mn = (sd)->field_18C[(sd)->field_380.s_0.field_10];             s32 _tz = (sd)->field_18C[(sd)->field_380.s_0.field_11]; if (_tz < _mn) _mn = _tz;             _tz = (sd)->field_18C[(sd)->field_380.s_0.field_12]; if (_tz < _mn) _mn = _tz;             if (!_tri) { _tz = (sd)->field_18C[(sd)->field_380.s_0.field_13]; if (_tz < _mn) _mn = _tz; }             if (_mn > s_pcNightFar) { _hid = 1; g_PcNightCulled++; }         }     }     _hid; })
 #define SH_OT_LAST_DEPTH(shift) ((ORDERING_TABLE_SIZE - 1 - s_pcOtTagBase) << ((shift) + 2))
 #define SH_CLAMP_OT_DEPTH(depth, shift)                                         \
     do {                                                                        \
@@ -3080,6 +3112,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
         }
     }
     SH_WHOLEMAP_FARCAP(scratchData->field_380.s_0.field_1C);
+    s_pcNightFar = Pc_NightCullDepth();
 
 #ifdef SH_PC_PORT
     /* Hor+ widescreen: per-polygon visibility bound. PSX uses raw
@@ -3193,6 +3226,10 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                     SH_CLAMP_OT_DEPTH(scratchData->field_380.s_0.field_18, arg3);
 
                     if (PC_FACE_CULL_DEPTH(scratchData, scratchData->field_380.s_0.field_18) > scratchData->field_380.s_0.field_1C)
+                    {
+                        continue;
+                    }
+                    if (PC_NIGHT_FACE_HIDDEN(scratchData, &prim->field_10))
                     {
                         continue;
                     }
@@ -3472,6 +3509,10 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                 SH_CLAMP_OT_DEPTH(scratchData->field_380.s_0.field_18, arg3);
 
                 if (PC_FACE_CULL_DEPTH(scratchData, scratchData->field_380.s_0.field_18) > scratchData->field_380.s_0.field_1C)
+                {
+                    continue;
+                }
+                if (PC_NIGHT_FACE_HIDDEN(scratchData, &prim->field_10))
                 {
                     continue;
                 }

@@ -3249,6 +3249,14 @@ void MainLoop(void) // 0x80032EE0
                                        "clip %.0f | after a mesh %.0f | other %.0f",
                                        g_PsxSplitWhy[2] / n, g_PsxSplitWhy[1] / n, g_PsxSplitWhy[3] / n, g_PsxSplitWhy[4] / n,
                                        g_PsxSplitWhy[5] / n, g_PsxSplitWhy[0] / n, g_PsxSplitWhy[6] / n);
+                                {
+                                    extern unsigned int g_PcNightCulled;
+                                    extern int          g_PcNightCull;
+
+                                    SH_DBG("[PERF]   night cull %s: %.0f world faces per frame dropped as hidden by the dark",
+                                           g_PcNightCull ? "on" : "off", g_PcNightCulled / n);
+                                    g_PcNightCulled = 0;
+                                }
                                 g_PsyX_CpuParseMs = g_PsyX_CpuDrawMs = g_PsyX_CpuSwapMs = 0.0;
                                 memset(g_PsxSplitWhy, 0, sizeof(g_PsxSplitWhy));
                             }
