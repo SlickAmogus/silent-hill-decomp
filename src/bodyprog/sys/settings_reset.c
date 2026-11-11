@@ -6,6 +6,14 @@
 
 void Settings_ScreenAndVolUpdate(void) // 0x800333CC
 {
+#ifdef SH_PC_PORT
+    /* Runs at boot before and after the memory-card options block is read,
+     * and again after a Continue: config.cfg holds the newer values. */
+    {
+        extern void Pc_GameOptions_Apply(void);
+        Pc_GameOptions_Apply();
+    }
+#endif
     Screen_XyPositionSet(g_GameWork.config.screenPositionX, g_GameWork.config.screenPositionY);
 #ifdef SH_PC_PORT
     /* PC: internal mixing is always Stereo -- the speaker layout (mono/quad/
