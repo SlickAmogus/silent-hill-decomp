@@ -979,6 +979,19 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
     }
 #endif
 
+#ifdef SH_PC_PORT
+    /* A file the disc lists with no blocks (USA ANIM/HB_M1S04.ANM, so any boot
+     * straight into map1_s04) has nothing to read. Asking the drive for zero
+     * sectors left a read that never finished: every retry copied one more
+     * sector past the buffer, on through the end of PSX RAM and over the
+     * globals behind it, and the map boot died on whichever it used first. */
+    if ((sectorCount >> FS_SECTOR_SHIFT) <= 0)
+    {
+        g_FsLooseReadComplete = 1;
+        return true;
+    }
+#endif
+
     return CdRead(sectorCount >> FS_SECTOR_SHIFT, (u32*)entry->data, CdlModeSpeed);
 }
 
