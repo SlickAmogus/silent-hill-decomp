@@ -26,7 +26,7 @@ void Text_Debug_Draw(char* str);
  */
 char* Text_Debug_IntToString(s32 widthMin, s32 val);
 
-#if VERSION_EQUAL_OR_OLDER(PROTO_981216)
+#if VERSION_EQUAL_OR_OLDER(PROTO_981216) || defined(SH_PC_PORT) /* PC restores the 98-12-16 sound test readout */
 /** @brief Draws a Q19.12 fixed-point value to the screen with a specified number of decimal places.
  *
  * @note Converts the fixed-point value to an integer with extra precision, then passes it to `Text_Debug_DrawDecimal`

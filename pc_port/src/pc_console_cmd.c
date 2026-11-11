@@ -645,7 +645,7 @@ static const char* const s_gbNames[] = {
 #define GB_STEPS ((int)(sizeof(s_gbNames) / sizeof(s_gbNames[0])))
 
 static int          s_gbStep = -1, s_gbFrames;
-static double       s_gbGpu0;
+static double       s_gbGpu0, s_gbPx0;
 static int          s_gbGpuN0;
 static unsigned int s_gbMs0;
 static struct { int texFilter, aniso, pplight, hero, pgxp, flMode, timerWanted; } s_gbSaved;
@@ -683,6 +683,7 @@ void Pc_ConsoleGpuBenchUpdate(void)
     extern double g_PsyX_GpuMsSum;
     extern int    g_PsyX_GpuMsCount;
     extern int    g_PsyX_GpuTimerWanted;
+    extern double g_PsyX_GpuSamplesSum;
 
     if (s_gbStep < 0)
         return;
@@ -690,6 +691,7 @@ void Pc_ConsoleGpuBenchUpdate(void)
     s_gbFrames++;
     if (s_gbFrames == GB_SETTLE) {
         s_gbGpu0  = g_PsyX_GpuMsSum;
+        s_gbPx0   = g_PsyX_GpuSamplesSum;
         s_gbGpuN0 = g_PsyX_GpuMsCount;
         s_gbMs0   = SDL_GetTicks();
         return;
@@ -707,7 +709,8 @@ void Pc_ConsoleGpuBenchUpdate(void)
         double frm = (double)(SDL_GetTicks() - s_gbMs0) / GB_MEASURE;
 
         if (gpu >= 0.0)
-            SH_DBG_ECHO("[GPUBENCH] %-24s gpu %6.2f ms   frame %6.2f ms", s_gbNames[s_gbStep], gpu, frm);
+            SH_DBG_ECHO("[GPUBENCH] %-24s gpu %6.2f ms   frame %6.2f ms   shaded %5.0f Mpx", s_gbNames[s_gbStep], gpu, frm,
+                        (g_PsyX_GpuSamplesSum - s_gbPx0) / n / 1.0e6);
         else
             SH_DBG_ECHO("[GPUBENCH] %-24s gpu    n/a      frame %6.2f ms", s_gbNames[s_gbStep], frm);
     }
@@ -2244,6 +2247,12 @@ void Pc_ConsoleExec(const char* line)
         cprintf("chunk visibility culling: %s (disable_culling=%d)",
                 g_PcConfig.disableCulling ? "OFF (draw everything)" : "ON (retail PVS + frustum)",
                 g_PcConfig.disableCulling);
+    } else if (strcmp(cmd, "NIGHTCULL") == 0) {
+        extern int g_PcNightCull;
+        if (arg[0] == '1') g_PcNightCull = 1;
+        else if (arg[0] == '0') g_PcNightCull = 0;
+        else g_PcNightCull = !g_PcNightCull;
+        cprintf("night cull (drop world faces the dark hides): %s", g_PcNightCull ? "ON" : "OFF");
     } else if (strcmp(cmd, "POLYSIZECULL") == 0) {
         /* PSX GPU parity: hardware rejects triangles whose screen bbox exceeds
          * 1023x511; drawing them is the wedge-poly corruption. Off = A/B the

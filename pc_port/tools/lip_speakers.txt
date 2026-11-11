@@ -391,10 +391,10 @@
 444 = HERO  # MAP6_S02.17: Damn! I was too late?
 445 = SIBYL  # MAP6_S01.77: You go to the lighthouse.
 446 = HERO  # MAP6_S01.69: What do I do?
-447 = SIBYL  # MAP6_S01.17: How did you get back here?
+447 = HERO  # MAP6_S01.17: How did you get back here?
 448 = HERO  # MAP6_S00.15: What's this!
 449 = DARIA  # MAP6_S01.81: The Flauros.
-450 = HERO  # MAP6_S01.18: I followed the sewer.
+450 = SIBYL  # MAP6_S01.18: I followed the sewer.
 451 = HERO  # MAP5_S03.28: What is this?
 452 = KAU  # MAP5_S03.33: What do you think you are doing?
 453 = HERO  # MAP6_S01.83: What about Cybil!?

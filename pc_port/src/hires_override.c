@@ -197,6 +197,24 @@ static void pack_charge(unsigned* slot, int w, int h)
  * for the native rows, the PsyCross framebuffers and the driver's working set;
  * with LRU eviction in the pump the budget is now a steady-state working-set
  * target rather than a one-way ratchet, so overshooting it is self-correcting. */
+/* Video memory as the driver reports it (NVIDIA only; 0 elsewhere) and what
+ * the texture packs hold, in MB. Any pointer may be NULL. GL thread. */
+void HiresOverride_VramReport(int* totalMb, int* freeMb, int* packMb)
+{
+    GLint total = 0, avail = 0;
+
+    while (glGetError() != GL_NO_ERROR) { }
+    glGetIntegerv(0x9047 /* GPU_MEMORY_INFO_DEDICATED_VIDMEM_NVX */, &total);
+    glGetIntegerv(0x9049 /* GPU_MEMORY_INFO_CURRENT_AVAILABLE_VIDMEM_NVX */, &avail);
+    if (glGetError() != GL_NO_ERROR)
+        total = avail = 0;
+    while (glGetError() != GL_NO_ERROR) { }
+
+    if (totalMb != NULL) *totalMb = total / 1024;
+    if (freeMb != NULL)  *freeMb  = avail / 1024;
+    if (packMb != NULL)  *packMb  = (int)(g_packBytesLive >> 20);
+}
+
 void HiresOverride_ClampBudgetToVram(void)
 {
     int dedicatedMb = 0;
@@ -236,16 +254,30 @@ void HiresOverride_ClampBudgetToVram(void)
     }
 
     {
-        int cap = dedicatedMb * 45 / 100;
+        int cap    = dedicatedMb * 45 / 100;
+        int freeMb = 0;
+
+        /* The card's size says nothing about what is left of it. A desktop
+         * with a browser, a wallpaper engine and an overlay open held 3.2 GB
+         * of an 8 GB card before the game started; 45% of the whole card on
+         * top of that, plus the multisampled targets and the shadow map, went
+         * past the end, and a driver out of video memory moves textures to
+         * system memory: frame times of 100 ms and more that came and went
+         * with nothing in the scene to explain them. So the budget is also
+         * held to a share of what is free now, at startup, before this game
+         * has taken anything to speak of. */
+        HiresOverride_VramReport(NULL, &freeMb, NULL);
+        if (freeMb > 0 && cap > freeMb * 55 / 100)
+            cap = freeMb * 55 / 100;
         if (cap < 256) cap = 256;
 
-        SH_DBG("[TEXPACK] GPU reports %d MB VRAM; pack budget ceiling %d MB", dedicatedMb, cap);
+        SH_DBG("[TEXPACK] GPU reports %d MB VRAM, %d MB free; pack budget ceiling %d MB", dedicatedMb, freeMb, cap);
 
         if (g_PcConfig.texpackBudgetUserSet)
         {
             if (g_PcConfig.texpackBudgetMb > cap)
             {
-                SH_DBG("[TEXPACK] GL texture budget capped %d -> %d MB (45%% of %d MB VRAM)",
+                SH_DBG("[TEXPACK] GL texture budget capped %d -> %d MB (of %d MB VRAM)",
                        g_PcConfig.texpackBudgetMb, cap, dedicatedMb);
                 g_PcConfig.texpackBudgetMb = cap;
             }
@@ -264,7 +296,7 @@ void HiresOverride_ClampBudgetToVram(void)
             }
             if (want != g_PcConfig.texpackBudgetMb)
             {
-                SH_DBG("[TEXPACK] GL texture budget %d -> %d MB (45%% of %d MB VRAM, auto)",
+                SH_DBG("[TEXPACK] GL texture budget %d -> %d MB (of %d MB VRAM, auto)",
                        g_PcConfig.texpackBudgetMb, want, dedicatedMb);
                 g_PcConfig.texpackBudgetMb = want;
             }

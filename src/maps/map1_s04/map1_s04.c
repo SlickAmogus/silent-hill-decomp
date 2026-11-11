@@ -1,6 +1,7 @@
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/text/text_draw.h"
+#include "bodyprog/text/text_debug_draw.h" /* Text_Debug_IntToString returns char*; an implicit declaration truncates it on 64-bit */
 #include "bodyprog/sound/sound_system.h"
 #include "main/rng.h"
 #include "maps/map1/map1_s04.h"
@@ -157,7 +158,7 @@ void func_800CCA2C(void) // 0x800CCA2C
 
             Text_Debug_PositionSet(50, 50);
 
-#if VERSION_EQUAL_OR_OLDER(PROTO_981216)
+#if VERSION_EQUAL_OR_OLDER(PROTO_981216) || defined(SH_PC_PORT) /* PC restores the 98-12-16 sound test readout */
             // Code seen in 98-12-16 build.
             Text_Debug_Draw("VS 0:");
             Text_Debug_Draw(Text_Debug_IntToString(3, D_800CD768));

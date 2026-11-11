@@ -3075,6 +3075,7 @@ void MainLoop(void) // 0x80032EE0
             {
                 static Uint32 s_perfLastMs = 0, s_perfAccumMs = 0, s_perfWorstMs = 0;
                 static u32    s_perfFrames = 0, s_perfVbAccum = 0;
+                static int    s_perfEarly = 0;
                 /* The same phases as [SLOWFRAME], summed over the window, so an
                  * area that is slow throughout says whether the game (update)
                  * or the GPU (present, sync) is holding it back. */
@@ -3128,7 +3129,22 @@ void MainLoop(void) // 0x80032EE0
                     /* A 30-second window, not 256 frames: at 240 fps the frame count
                      * logged every second and was the third-largest source in the log. */
                     s_perfFrames++;
-                    if (s_perfAccumMs >= 30000)
+                    /* A stretch of slow frames reports without waiting out the
+                     * window: once as it starts, so the frames before it do not
+                     * dilute it, then every few seconds while it lasts. Sessions
+                     * that hit one tend to end before 30 seconds of it pass. */
+                    {
+                        static int s_slowStreak = 0, s_slowReports = 0;
+
+                        s_slowStreak = (dt >= 50) ? s_slowStreak + 1 : 0;
+                        s_perfEarly  = 0;
+                        if (s_slowReports < 16 && (s_slowStreak == 20 || (s_slowStreak > 20 && s_perfAccumMs >= 4000)))
+                        {
+                            s_slowReports++;
+                            s_perfEarly = 1;
+                        }
+                    }
+                    if (s_perfAccumMs >= 30000 || s_perfEarly)
                     {
                         SH_DBG("[PERF] avg=%.1fms (%.1f fps) worst=%lums vblanks/frame=%.2f over %lu frames",
                                (double)s_perfAccumMs / s_perfFrames,
@@ -3168,6 +3184,85 @@ void MainLoop(void) // 0x80032EE0
                                        g_PsxPerfCharaVerts / n, g_PsxPerfCover / n, g_PsxPerfCoverWorst, g_PsxPerfBigTris / n,
                                        g_PsxUsePgxp, g_cfg_textureFilter, g_PcConfig.perPixelLighting, g_PcConfig.heroLight,
                                        g_PcConfig.flashlightMode);
+                            }
+                            /* Out of video memory reads exactly like a GPU that is too
+                             * slow, and nothing drawn explains it; this is the only
+                             * figure that tells the two apart. */
+                            {
+                                extern void HiresOverride_VramReport(int* totalMb, int* freeMb, int* packMb);
+                                int vTotal = 0, vFree = 0, vPack = 0;
+
+                                HiresOverride_VramReport(&vTotal, &vFree, &vPack);
+                                if (vTotal > 0)
+                                    SH_DBG("[PERF]   video memory: %d MB free of %d MB | texture packs hold %d MB (budget %d MB)",
+                                           vFree, vTotal, vPack, g_PcConfig.texpackBudgetMb);
+                                {
+                                    extern int Pc_Vram_Process(int* usedMb, int* budgetMb);
+                                    int        used = 0, budget = 0;
+
+                                    if (Pc_Vram_Process(&used, &budget))
+                                        SH_DBG("[PERF]   video memory, this game: %d MB of the %d MB Windows allows it%s", used, budget,
+                                               used > budget ? " (OVER: Windows is moving its textures to system memory)" : "");
+                                }
+                            }
+                            /* cover above is bounding boxes; this is what the card
+                             * shaded. Screens are of the window, so supersampling and
+                             * the shadow map's own pass count on top. */
+                            {
+                                extern double g_PsyX_GpuSamplesSum;
+                                extern int    g_PsyX_GpuMsCount, g_windowWidth, g_windowHeight;
+
+                                if (g_PsyX_GpuMsCount > 0 && g_windowWidth > 0 && g_windowHeight > 0)
+                                {
+                                    double px = g_PsyX_GpuSamplesSum / g_PsyX_GpuMsCount;
+                                    SH_DBG("[PERF]   shaded per frame: %.1f million pixels = %.1f screens of %dx%d",
+                                           px / 1.0e6, px / ((double)g_windowWidth * g_windowHeight),
+                                           g_windowWidth, g_windowHeight);
+                                }
+                                g_PsyX_GpuSamplesSum = 0.0;
+                            }
+                            {
+                                extern double g_PsyX_GpuBucketMs[4], g_PsyX_GpuBucketPx[4];
+                                extern int    g_PsyX_GpuMsCount;
+
+                                if (g_PsyX_GpuMsCount > 0)
+                                {
+                                    double n = (double)g_PsyX_GpuMsCount;
+                                    SH_DBG("[PERF]   gpu by pass, ms / million pixels per frame: shadow map %.1f / %.1f | PSX prims %.1f / %.1f | "
+                                           "skinned meshes %.1f / %.1f | rest %.1f / %.1f",
+                                           g_PsyX_GpuBucketMs[0] / n, g_PsyX_GpuBucketPx[0] / n / 1.0e6,
+                                           g_PsyX_GpuBucketMs[1] / n, g_PsyX_GpuBucketPx[1] / n / 1.0e6,
+                                           g_PsyX_GpuBucketMs[2] / n, g_PsyX_GpuBucketPx[2] / n / 1.0e6,
+                                           g_PsyX_GpuBucketMs[3] / n, g_PsyX_GpuBucketPx[3] / n / 1.0e6);
+                                }
+                                memset(g_PsyX_GpuBucketMs, 0, sizeof(g_PsyX_GpuBucketMs));
+                                memset(g_PsyX_GpuBucketPx, 0, sizeof(g_PsyX_GpuBucketPx));
+                            }
+                            {
+                                extern double       g_PsyX_CpuParseMs, g_PsyX_CpuDrawMs, g_PsyX_CpuSwapMs;
+                                extern unsigned int g_PsxSplitWhy[7];
+                                double              n = (double)s_perfFrames;
+
+                                SH_DBG("[PERF]   cpu per frame: build vertices %.1f ms | submit draws %.1f ms | swap (gpu + vsync wait) %.1f ms",
+                                       g_PsyX_CpuParseMs / n, g_PsyX_CpuDrawMs / n, g_PsyX_CpuSwapMs / n);
+                                SH_DBG("[PERF]   draw calls per frame started by: texture %.0f | blend %.0f | depth mode %.0f | texture offset %.0f | "
+                                       "clip %.0f | after a mesh %.0f | other %.0f",
+                                       g_PsxSplitWhy[2] / n, g_PsxSplitWhy[1] / n, g_PsxSplitWhy[3] / n, g_PsxSplitWhy[4] / n,
+                                       g_PsxSplitWhy[5] / n, g_PsxSplitWhy[0] / n, g_PsxSplitWhy[6] / n);
+                                {
+                                    extern unsigned int g_PcNightCulled, g_PcNightSeen, g_PcNightBlack, g_PcNightMeshes;
+                                    extern int          g_PcNightCull;
+                                    extern s32          g_PcNightFarLast, g_PcNightEnv[3];
+
+                                    SH_DBG("[PERF]   night cull %s: %.0f world faces per frame dropped | meshes %.0f, faces tested %.0f, lit black %.0f | "
+                                           "fog %d far %d, light mode %d, cull depth %d",
+                                           g_PcNightCull ? "on" : "off", g_PcNightCulled / n, g_PcNightMeshes / n, g_PcNightSeen / n,
+                                           g_PcNightBlack / n, (int)g_PcNightEnv[0], (int)g_PcNightEnv[1],
+                                           (int)g_PcNightEnv[2], (int)g_PcNightFarLast);
+                                    g_PcNightCulled = g_PcNightSeen = g_PcNightBlack = g_PcNightMeshes = 0;
+                                }
+                                g_PsyX_CpuParseMs = g_PsyX_CpuDrawMs = g_PsyX_CpuSwapMs = 0.0;
+                                memset(g_PsxSplitWhy, 0, sizeof(g_PsxSplitWhy));
                             }
                             g_PsxPerfSplits = g_PsxPerfBinds = g_PsxPerfFilterSets = g_PsxPerfTris = 0;
                             g_PsxPerfBigTris = g_PsxPerfCharaVerts = g_PsxPerfFrames = 0;
