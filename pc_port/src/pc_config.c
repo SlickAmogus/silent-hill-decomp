@@ -4,6 +4,7 @@
 #include "pc_title_style.h"
 #include "lang_text.h"
 #include "pc_binds.h"
+#include "pc_game_options.h"
 #include "pc_input_glyphs.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -1482,6 +1483,9 @@ else if (strcmp(key, "enable_plugins") == 0)
         {
             extern void Pc_CharaSelect_ConfigKey(const char* name, const char* value);
             Pc_CharaSelect_ConfigKey(key + 12, value);
+        }
+        else if (Pc_GameOptions_ConfigKey(key, value))
+        {
         }
         else if (strncmp(key, "launcher_", 9) == 0)
         {

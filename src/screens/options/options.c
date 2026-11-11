@@ -1079,6 +1079,7 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
         if (which == QO_X_BGM) g_GameWork.config.volumeBgm = nv;
         else                   g_GameWork.config.volumeSe  = nv;
         Sd_SetVolume(OPT_SOUND_VOLUME_MAX, g_GameWork.config.volumeBgm, g_GameWork.config.volumeSe);
+        { extern void Pc_GameOptions_Persist(void); Pc_GameOptions_Persist(); }
         SD_Call(Sfx_MenuMove);
         break;
     }
@@ -2098,6 +2099,16 @@ void GameState_Options_Update(void) // 0x801E2D44
             break;
 #endif
     }
+
+#ifdef SH_PC_PORT
+    /* Here rather than on leaving the screen: closing the window from
+     * inside the menu never reaches the leave step. It only writes when a
+     * value differs from the last one saved. */
+    {
+        extern void Pc_GameOptions_Persist(void);
+        Pc_GameOptions_Persist();
+    }
+#endif
 }
 
 void Options_ExtraOptionsMenu_Control(void) // 0x801E318C
