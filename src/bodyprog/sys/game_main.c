@@ -3250,12 +3250,16 @@ void MainLoop(void) // 0x80032EE0
                                        g_PsxSplitWhy[2] / n, g_PsxSplitWhy[1] / n, g_PsxSplitWhy[3] / n, g_PsxSplitWhy[4] / n,
                                        g_PsxSplitWhy[5] / n, g_PsxSplitWhy[0] / n, g_PsxSplitWhy[6] / n);
                                 {
-                                    extern unsigned int g_PcNightCulled;
+                                    extern unsigned int g_PcNightCulled, g_PcNightSeen, g_PcNightBlack, g_PcNightMeshes;
                                     extern int          g_PcNightCull;
+                                    extern s32          g_PcNightFarLast, g_PcNightEnv[3];
 
-                                    SH_DBG("[PERF]   night cull %s: %.0f world faces per frame dropped as hidden by the dark",
-                                           g_PcNightCull ? "on" : "off", g_PcNightCulled / n);
-                                    g_PcNightCulled = 0;
+                                    SH_DBG("[PERF]   night cull %s: %.0f world faces per frame dropped | meshes %.0f, faces tested %.0f, lit black %.0f | "
+                                           "fog %d far %d, light mode %d, cull depth %d",
+                                           g_PcNightCull ? "on" : "off", g_PcNightCulled / n, g_PcNightMeshes / n, g_PcNightSeen / n,
+                                           g_PcNightBlack / n, (int)g_PcNightEnv[0], (int)g_PcNightEnv[1],
+                                           (int)g_PcNightEnv[2], (int)g_PcNightFarLast);
+                                    g_PcNightCulled = g_PcNightSeen = g_PcNightBlack = g_PcNightMeshes = 0;
                                 }
                                 g_PsyX_CpuParseMs = g_PsyX_CpuDrawMs = g_PsyX_CpuSwapMs = 0.0;
                                 memset(g_PsxSplitWhy, 0, sizeof(g_PsxSplitWhy));

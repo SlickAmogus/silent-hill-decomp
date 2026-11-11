@@ -161,7 +161,8 @@ static s32 s_pcOtTagBase = 0;
  * from the camera minus the light's depth is never more than the distance to
  * the light, so the bound is conservative. Console: `nightcull`. */
 int          g_PcNightCull = 1;
-unsigned int g_PcNightCulled;
+unsigned int g_PcNightCulled, g_PcNightSeen, g_PcNightBlack, g_PcNightMeshes;
+s32          g_PcNightFarLast, g_PcNightEnv[3];
 static s32   s_pcNightFar = 0x7FFFFFFF;
 
 static s32 Pc_NightCullDepth(void)
@@ -180,7 +181,7 @@ static s32 Pc_NightCullDepth(void)
     return 0;
 }
 
-#define PC_NIGHT_FACE_HIDDEN(sd, shadeIdx) ({     int _hid = 0;     if (s_pcNightFar != 0x7FFFFFFF) {         const u8* _si  = (const u8*)(shadeIdx);         const int _tri = ((sd)->field_380.s_0.field_13 == 0xFF);         if (((sd)->field_2B8[_si[0]] | (sd)->field_2B8[_si[1]] | (sd)->field_2B8[_si[2]] |              (_tri ? 0 : (sd)->field_2B8[_si[3]])) == 0) {             s32 _mn = (sd)->field_18C[(sd)->field_380.s_0.field_10];             s32 _tz = (sd)->field_18C[(sd)->field_380.s_0.field_11]; if (_tz < _mn) _mn = _tz;             _tz = (sd)->field_18C[(sd)->field_380.s_0.field_12]; if (_tz < _mn) _mn = _tz;             if (!_tri) { _tz = (sd)->field_18C[(sd)->field_380.s_0.field_13]; if (_tz < _mn) _mn = _tz; }             if (_mn > s_pcNightFar) { _hid = 1; g_PcNightCulled++; }         }     }     _hid; })
+#define PC_NIGHT_FACE_HIDDEN(sd, shadeIdx) ({     int _hid = 0;     if (s_pcNightFar != 0x7FFFFFFF) { g_PcNightSeen++;         const u8* _si  = (const u8*)(shadeIdx);         const int _tri = ((sd)->field_380.s_0.field_13 == 0xFF);         if (((sd)->field_2B8[_si[0]] | (sd)->field_2B8[_si[1]] | (sd)->field_2B8[_si[2]] |              (_tri ? 0 : (sd)->field_2B8[_si[3]])) == 0) { g_PcNightBlack++;             s32 _mn = (sd)->field_18C[(sd)->field_380.s_0.field_10];             s32 _tz = (sd)->field_18C[(sd)->field_380.s_0.field_11]; if (_tz < _mn) _mn = _tz;             _tz = (sd)->field_18C[(sd)->field_380.s_0.field_12]; if (_tz < _mn) _mn = _tz;             if (!_tri) { _tz = (sd)->field_18C[(sd)->field_380.s_0.field_13]; if (_tz < _mn) _mn = _tz; }             if (_mn > s_pcNightFar) { _hid = 1; g_PcNightCulled++; }         }     }     _hid; })
 #define SH_OT_LAST_DEPTH(shift) ((ORDERING_TABLE_SIZE - 1 - s_pcOtTagBase) << ((shift) + 2))
 #define SH_CLAMP_OT_DEPTH(depth, shift)                                         \
     do {                                                                        \
@@ -3113,6 +3114,11 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
     }
     SH_WHOLEMAP_FARCAP(scratchData->field_380.s_0.field_1C);
     s_pcNightFar = Pc_NightCullDepth();
+    g_PcNightMeshes++;
+    g_PcNightFarLast = s_pcNightFar;
+    g_PcNightEnv[0]  = g_WorldEnvWork.isFogEnabled;
+    g_PcNightEnv[1]  = g_WorldEnvWork.fog.farDistance;
+    g_PcNightEnv[2]  = g_WorldEnvWork.field_0;
 
 #ifdef SH_PC_PORT
     /* Hor+ widescreen: per-polygon visibility bound. PSX uses raw
