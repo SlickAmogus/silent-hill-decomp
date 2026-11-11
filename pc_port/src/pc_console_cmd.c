@@ -2233,6 +2233,12 @@ void Pc_ConsoleExec(const char* line)
         cprintf("chunk visibility culling: %s (disable_culling=%d)",
                 g_PcConfig.disableCulling ? "OFF (draw everything)" : "ON (retail PVS + frustum)",
                 g_PcConfig.disableCulling);
+    } else if (strcmp(cmd, "NIGHTCULL") == 0) {
+        extern int g_PcNightCull;
+        if (arg[0] == '1') g_PcNightCull = 1;
+        else if (arg[0] == '0') g_PcNightCull = 0;
+        else g_PcNightCull = !g_PcNightCull;
+        cprintf("night cull (drop world faces the dark hides): %s", g_PcNightCull ? "ON" : "OFF");
     } else if (strcmp(cmd, "POLYSIZECULL") == 0) {
         /* PSX GPU parity: hardware rejects triangles whose screen bbox exceeds
          * 1023x511; drawing them is the wedge-poly corruption. Off = A/B the
