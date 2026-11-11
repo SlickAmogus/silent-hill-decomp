@@ -38,7 +38,10 @@ static void Ios_PlaceWindowOnScene(UIWindow* window)
     }
     if (s_waiting == nil)
     {
-        s_waiting = [NSPointerArray weakObjectsPointerArray];
+        /* This target is built without ARC (see ios_fonts.m), so the
+         * autoreleased array has to be retained to live until the scene
+         * connects; it was freed first and the launch crashed on it. */
+        s_waiting = [[NSPointerArray weakObjectsPointerArray] retain];
     }
     [s_waiting addPointer:(__bridge void*)window];
 }
@@ -67,6 +70,7 @@ static void Ios_PlaceWindowOnScene(UIWindow* window)
             visible = window;
         }
     }
+    [s_waiting release];
     s_waiting = nil;
     [visible makeKeyAndVisible];
 }
