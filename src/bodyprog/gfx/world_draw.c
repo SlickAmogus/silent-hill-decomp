@@ -2,6 +2,8 @@
 #ifdef SH_PC_PORT
 #include "pc_pick.h"
 #include <stdio.h>
+#include <string.h>
+#include <math.h>
 #include "sh_log.h"
 #include "pc_config.h"
 #include "pc_big_lm.h"
@@ -558,6 +560,17 @@ bool Pc_CommonPickupInRange(const VECTOR3* pos)
 }
 #endif
 
+#ifdef SH_PC_PORT
+/* Keep the wheel spokes' original transforms across the PSX object queue's
+ * Q12->Q10 angle and Q12->Q8 position packing. Other props keep that path. */
+static struct {
+    s_WorldObject packed;
+    VECTOR3 position;
+    s16 angle;
+    bool valid;
+} s_pcWheelPose[ARRAY_SIZE(((s_WorldGfxWork*)0)->objects)];
+#endif
+
 void WorldGfx_ObjectAdd(s_WorldObjectModel* model, const VECTOR3* pos, const SVECTOR3* rot) // 0x8003C92C
 {
     q23_8          geomPosX;
@@ -667,6 +680,20 @@ void WorldGfx_ObjectAdd(s_WorldObjectModel* model, const VECTOR3* pos, const SVE
         obj->positionY = geomPosY;
         obj->positionZ = geomPosZ;
 
+#ifdef SH_PC_PORT
+        s_pcWheelPose[g_WorldGfxWork.objectCount].valid =
+            g_SavegamePtr != NULL && g_SavegamePtr->mapIdx == MapIdx_MAP6_S04 &&
+            rot->vy == 0 && rot->vz == 0 &&
+            (memcmp(model->metadata.name.str, "FW1_BACK", 8) == 0 ||
+             memcmp(model->metadata.name.str, "FW2_BACK", 8) == 0 ||
+             memcmp(model->metadata.name.str, "FW3WIR_H", 8) == 0);
+        if (s_pcWheelPose[g_WorldGfxWork.objectCount].valid)
+        {
+            s_pcWheelPose[g_WorldGfxWork.objectCount].packed = *obj;
+            s_pcWheelPose[g_WorldGfxWork.objectCount].position = *pos;
+            s_pcWheelPose[g_WorldGfxWork.objectCount].angle = rot->vx;
+        }
+#endif
         g_WorldGfxWork.objectCount++;
     }
 }
@@ -714,6 +741,58 @@ void Gfx_WorldObjectDraw(s_WorldObject* obj) // 0x8003CBA4
 #endif
     Vw_CoordToWorldAndViewMatrices(&coord, &mats[1], &mats[0]);
 
+#ifdef SH_PC_PORT
+    if (g_SavegamePtr != NULL && g_SavegamePtr->mapIdx == MapIdx_MAP6_S04)
+    {
+        s32 idx;
+        for (idx = 0; idx < ARRAY_SIZE(s_pcWheelPose); idx++)
+            if (obj == &g_WorldGfxWork.objects[idx])
+                break;
+        if (idx < ARRAY_SIZE(s_pcWheelPose) && s_pcWheelPose[idx].valid &&
+            memcmp(obj, &s_pcWheelPose[idx].packed, sizeof(*obj)) == 0)
+        {
+            extern int PGXP_MatrixLookup(const MATRIX*, double*);
+            extern int PGXP_MatrixLookupTranslation(const MATRIX*, double*);
+            extern void PGXP_MatrixRegister(const MATRIX*, const double*);
+            extern void PGXP_MatrixRegisterTranslation(MATRIX*, const double*);
+            double angle = s_pcWheelPose[idx].angle * (6.283185307179586 / 4096.0);
+            double c = cos(angle), s = sin(angle);
+            double rotation[9] = {1,0,0, 0,c,-s, 0,s,c};
+            double position[3] = {s_pcWheelPose[idx].position.vx / 16.0,
+                                  s_pcWheelPose[idx].position.vy / 16.0,
+                                  s_pcWheelPose[idx].position.vz / 16.0};
+            double camera[9], cameraT[3], viewR[9], viewT[3];
+            s32 r, col, k;
+            for (r = 0; r < 3; r++)
+            {
+                cameraT[r] = GsWSMATRIX.t[r];
+                for (col = 0; col < 3; col++)
+                    camera[r * 3 + col] = GsWSMATRIX.m[r][col] / 4096.0;
+            }
+            PGXP_MatrixLookup(&GsWSMATRIX, camera);
+            PGXP_MatrixLookupTranslation(&GsWSMATRIX, cameraT);
+            for (r = 0; r < 3; r++)
+            {
+                viewT[r] = cameraT[r];
+                for (k = 0; k < 3; k++) viewT[r] += camera[r * 3 + k] * position[k];
+                mats[1].t[r] = (s32)position[r];
+                mats[0].t[r] = (s32)viewT[r];
+                for (col = 0; col < 3; col++)
+                {
+                    viewR[r * 3 + col] = 0.0;
+                    for (k = 0; k < 3; k++)
+                        viewR[r * 3 + col] += camera[r * 3 + k] * rotation[k * 3 + col];
+                    mats[1].m[r][col] = (s16)(rotation[r * 3 + col] * 4096.0);
+                    mats[0].m[r][col] = (s16)(viewR[r * 3 + col] * 4096.0);
+                }
+            }
+            PGXP_MatrixRegister(&mats[1], rotation);
+            PGXP_MatrixRegisterTranslation(&mats[1], position);
+            PGXP_MatrixRegister(&mats[0], viewR);
+            PGXP_MatrixRegisterTranslation(&mats[0], viewT);
+        }
+    }
+#endif
     func_8003CC7C(obj->model, &mats[0], &mats[1]);
 }
 
