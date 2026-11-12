@@ -18,6 +18,7 @@ extern int g_PcAllowDebugControls;
 int g_PcMapScreenActive = 0; /* set while paper-map overlay is displayed */
 extern int  g_PsyX_FrameInterp;
 extern void PsyX_FrameInterp_CaptureWorld(const short* rot, const int* trans, int worldValid, int tickHz);
+extern void PsyX_FrameInterp_SetActors(const int* xyz, const int* ids, int count);
 
 /* 1 once this frame's Gfx_InGameDraw has submitted the world. The fog-colored
  * clear is only correct on a frame that actually drew the world behind it; on a
@@ -4219,6 +4220,31 @@ void MainLoop(void) // 0x80032EE0
                     rot[i] = GsWSMATRIX.m[i / 3][i % 3];
                 for (i = 0; i < 3; i++)
                     trans[i] = (int)GsWSMATRIX.t[i];
+
+                /* Characters carry their own motion; positions are Q12
+                 * metres, the view matrix works in Q8. */
+                {
+                    int actXyz[8 * 3];
+                    int actIds[8];
+                    int n = 0;
+
+                    actIds[n]         = 1;
+                    actXyz[n * 3 + 0] = Q12_TO_Q8(g_SysWork.playerWork.player.position.vx);
+                    actXyz[n * 3 + 1] = Q12_TO_Q8(g_SysWork.playerWork.player.position.vy);
+                    actXyz[n * 3 + 2] = Q12_TO_Q8(g_SysWork.playerWork.player.position.vz);
+                    n++;
+                    for (i = 0; i < NPC_COUNT_MAX && n < 8; i++)
+                    {
+                        if (g_SysWork.npcs[i].model.charaId == Chara_None)
+                            continue;
+                        actIds[n]         = 2 + i;
+                        actXyz[n * 3 + 0] = Q12_TO_Q8(g_SysWork.npcs[i].position.vx);
+                        actXyz[n * 3 + 1] = Q12_TO_Q8(g_SysWork.npcs[i].position.vy);
+                        actXyz[n * 3 + 2] = Q12_TO_Q8(g_SysWork.npcs[i].position.vz);
+                        n++;
+                    }
+                    PsyX_FrameInterp_SetActors(actXyz, actIds, n);
+                }
 
                 PsyX_FrameInterp_CaptureWorld(rot, trans,
                     g_GameWork.gameState == GameState_InGame && g_PcWorldDrawnThisFrame &&
