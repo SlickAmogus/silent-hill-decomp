@@ -2325,6 +2325,11 @@ void Pc_ConsoleExec(const char* line)
         int mode = g_PsyX_FrameInterp, hz = g_PsyX_FrameInterpTargetHz;
         char b[16];
         if (arg[0] != 0) {
+            if (strncmp(arg, "check", 5) == 0 || strncmp(arg, "CHECK", 5) == 0) {
+                extern int g_PsyX_FrameInterpCheck;
+                g_PsyX_FrameInterpCheck = 12;
+                cprintf("frame interpolation: logging the next 12 ticks to the log ([FGCHK])");
+            } else
             if (sscanf(arg, "%d %d", &mode, &hz) < 1) mode = !g_PsyX_FrameInterp;
             if (mode < 0 || mode > 2) mode = 0;
             if (hz < 0) hz = 0;
