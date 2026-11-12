@@ -2317,6 +2317,26 @@ void Pc_ConsoleExec(const char* line)
         else if (arg[0] == '0') g_PsxMixedShader = 0;
         else g_PsxMixedShader = !g_PsxMixedShader;
         cprintf("mixed-format shader: %s", g_PsxMixedShader ? "ON (fewer draw calls)" : "OFF (one program per format)");
+    } else if (strcmp(cmd, "FRAMEINTERP") == 0) {
+        /* frameinterp 0|1|2 [targetfps] -- 2 shows the reprojection error
+         * (black where the camera-motion estimate is right). */
+        extern int g_PsyX_FrameInterp, g_PsyX_FrameInterpTargetHz, g_PsyX_FrameInterpLastCount;
+        extern int g_PsxUsePgxp;
+        int mode = g_PsyX_FrameInterp, hz = g_PsyX_FrameInterpTargetHz;
+        char b[16];
+        if (arg[0] != 0) {
+            if (sscanf(arg, "%d %d", &mode, &hz) < 1) mode = !g_PsyX_FrameInterp;
+            if (mode < 0 || mode > 2) mode = 0;
+            if (hz < 0) hz = 0;
+            g_PcConfig.frameInterp    = g_PsyX_FrameInterp         = mode;
+            g_PcConfig.frameInterpFps = g_PsyX_FrameInterpTargetHz = hz;
+            snprintf(b, sizeof(b), "%d", mode); PcConfig_SaveKeyValue("frame_interp", b);
+            snprintf(b, sizeof(b), "%d", hz);   PcConfig_SaveKeyValue("frame_interp_fps", b);
+        }
+        cprintf("frame interpolation: %s, target %d fps%s, fps_cap %d, +%d frames last tick%s",
+                mode == 2 ? "ERROR VIEW" : mode ? "ON" : "OFF", hz, hz ? "" : " (display)",
+                g_PcConfig.fpsCap, g_PsyX_FrameInterpLastCount,
+                g_PsxUsePgxp ? "" : " -- needs PGXP on");
     } else if (strcmp(cmd, "LEANSHADER") == 0) {
         /* leanshader 0|1 -- A/B for the stripped PSX programs used while
          * texture filtering and flashlight shadows are off. */

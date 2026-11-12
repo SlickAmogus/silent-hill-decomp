@@ -603,6 +603,16 @@ void PcConfig_Load(const char* path)
             int v = atoi(value);
             if (v >= 0) g_PcConfig.refreshRate = v;
         }
+        else if (strcmp(key, "frame_interp") == 0)
+        {
+            int v = atoi(value);
+            g_PcConfig.frameInterp = (v < 0 || v > 2) ? 0 : v;
+        }
+        else if (strcmp(key, "frame_interp_fps") == 0)
+        {
+            int v = atoi(value);
+            g_PcConfig.frameInterpFps = (v < 0) ? 0 : v;
+        }
         else if (strcmp(key, "fps_cap") == 0)
         {
             g_PcConfig.fpsCap = atoi(value);

@@ -65,6 +65,12 @@ typedef struct {
     int preloadChunks;   /* 1 = load all IPD chunks at map init instead of streaming */
     int vsync;           /* 0 = off (uncapped), 1 = on, -1 = adaptive */
     int refreshRate;     /* target refresh rate in hz (0 = display default); fullscreen only */
+    /* Frame interpolation: the game keeps its fps cap and the frames in
+     * between are synthesised up to frameInterpFps (0 = display refresh).
+     * 2 = reprojection-error view. Needs PGXP (config keys: frame_interp,
+     * frame_interp_fps). */
+    int frameInterp;
+    int frameInterpFps;
     int fpsCap;          /* gameplay fps cap: 0 = uncapped, 30 = PSX-accurate, 60 = smooth */
     int weatherSimHz;      /* rain/snow simulation rate: 60 (default) steps it once per rendered
                             * frame, 30 locks it to the console's cadence. Only the frame-stepped

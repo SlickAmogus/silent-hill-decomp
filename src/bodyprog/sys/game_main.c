@@ -16,11 +16,17 @@ extern int g_PcHorPlusEnabled;
 extern int g_PsxSkipFramebufferStore;
 extern int g_PcAllowDebugControls;
 int g_PcMapScreenActive = 0; /* set while paper-map overlay is displayed */
+extern int  g_PsyX_FrameInterp;
+extern void PsyX_FrameInterp_CaptureWorld(const short* rot, const int* trans, int worldValid, int tickHz);
 
 /* 1 once this frame's Gfx_InGameDraw has submitted the world. The fog-colored
  * clear is only correct on a frame that actually drew the world behind it; on a
  * frame that drew nothing it IS the visible image, which is the grey flash. */
 int g_PcWorldDrawnThisFrame = 0;
+/* How often MainLoop is producing frames right now, for frame
+ * interpolation: it has to know how long a tick lasts to space the frames
+ * it adds. 0 = uncapped. */
+static int s_PcFrameTickHz = 0;
 
 /* The framing the WORLD was last actually drawn with. HUD elements that lay
  * themselves out earlier in the frame than the world is submitted (the minimap
@@ -2884,6 +2890,7 @@ void MainLoop(void) // 0x80032EE0
                 VSync(SyncMode_Wait);
                 ML_TRACE("VSync-Wait-done");
 #ifdef SH_PC_PORT
+                s_PcFrameTickHz = 60;
                 /* Backstop that makes the wait above a real one-per-frame gate.
                  * In-game cutscenes run here (SysState_EventCallback), and this
                  * single wait is the whole reason they cannot exceed 60. But
@@ -2937,12 +2944,16 @@ void MainLoop(void) // 0x80032EE0
                     static Uint64 s_lastFrameTime = 0;
                     int effectiveMin = g_IntervalVBlanks;
                     int screenUnlocked = Pc_ScreenFpsUnlocked();
+                    s_PcFrameTickHz = (g_IntervalVBlanks > 0) ? (60 / g_IntervalVBlanks) : 0;
                     if (g_GameWork.gameState == GameState_InGame || screenUnlocked)
                     {
                         int effectiveFps;
 
                         /* vsync + explicit refresh rate: let the display pacing be the cap */
-                        if (g_PcConfig.vsync != 0 && g_PcConfig.refreshRate > 0)
+                        /* ...unless frames are being interpolated: then the
+                         * display rate is reached by the added frames and the
+                         * game keeps its own cap. */
+                        if (g_PcConfig.vsync != 0 && g_PcConfig.refreshRate > 0 && !g_PsyX_FrameInterp)
                             effectiveFps = g_PcConfig.refreshRate;
                         else if (g_DebugUnlockFps || g_PcConfig.fpsCap == 0)
                             effectiveFps = 0; /* uncapped */
@@ -2986,6 +2997,8 @@ void MainLoop(void) // 0x80032EE0
                         if (Pc_ScriptOwnsScene() &&
                             (effectiveFps <= 0 || effectiveFps > 60))
                             effectiveFps = 60;
+
+                        s_PcFrameTickHz = (effectiveFps > 0) ? effectiveFps : 0;
 
                         if (effectiveFps <= 0)
                         {
@@ -4190,6 +4203,28 @@ void MainLoop(void) // 0x80032EE0
                 g_PsxWorldDepthAlways = 0;
             GsDrawOt(&g_OrderingTable0[g_ActiveBufferIdx]);
             g_PsxWorldDepthAlways = prevWorldDepthAlways;
+
+            /* The target holds the 3D world alone at this point. The item
+             * and map screens run their own camera through the same
+             * globals, so GsWSMATRIX does not describe those frames. */
+            if (g_PsyX_FrameInterp)
+            {
+                extern int g_PcPickupItemActive;
+                extern int g_PsxPresentLastFrame;
+                short      rot[9];
+                int        trans[3];
+                int        i;
+
+                for (i = 0; i < 9; i++)
+                    rot[i] = GsWSMATRIX.m[i / 3][i % 3];
+                for (i = 0; i < 3; i++)
+                    trans[i] = (int)GsWSMATRIX.t[i];
+
+                PsyX_FrameInterp_CaptureWorld(rot, trans,
+                    g_GameWork.gameState == GameState_InGame && g_PcWorldDrawnThisFrame &&
+                    !g_PcPickupItemActive && !g_PcMapScreenActive && !g_PsxPresentLastFrame,
+                    s_PcFrameTickHz);
+            }
         }
 #else
         GsDrawOt(&g_OrderingTable0[g_ActiveBufferIdx]);

@@ -1156,6 +1156,11 @@ int main(int argc, char* argv[])
         extern int g_PcNativeRender;
         extern float g_cfg_renderScale;
         g_cfg_renderScale = g_PcConfig.renderScale;
+        {
+            extern int g_PsyX_FrameInterp, g_PsyX_FrameInterpTargetHz;
+            g_PsyX_FrameInterp         = g_PcConfig.frameInterp;
+            g_PsyX_FrameInterpTargetHz = g_PcConfig.frameInterpFps;
+        }
         g_PcNativeRender = g_PcConfig.nativeResolution;
         if (g_PcNativeRender)
             SH_LOG("Render: native PSX resolution, %dx%d window", windowWidth, windowHeight);
