@@ -81,6 +81,7 @@ static void Player_CrashHandler(int sig) {
 #include "pc_timing.h"
 #include "pc_config.h"
 #include "pc_grab_guard.h"
+#include "pc_inventory_guard.h"
 #include "main/fileinfo.h" /* g_GameRegion — EUR overlay pointer rebase */
 
 /* Called above their definitions. Without a prototype in scope Clang
@@ -4902,7 +4903,21 @@ static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra,
                     if (!g_PcInfiniteAmmo)
                     {
                         g_SysWork.playerCombat.currentWeaponAmmo--;
+#ifdef SH_PC_PORT
+                        /* Through the cached index this took a round off whatever item
+                         * sat in that slot when the index was stale: see
+                         * pc_inventory_guard.c. */
+                        {
+                            s32 pcWeaponSlot = Pc_Inventory_WeaponSlot("fire");
+
+                            if (pcWeaponSlot >= 0)
+                            {
+                                g_SavegamePtr->items[pcWeaponSlot].count_1--;
+                            }
+                        }
+#else
                         g_SavegamePtr->items[g_SysWork.playerCombat.weaponInventoryIdx].count_1--;
+#endif
                     }
                     func_8005DC1C(g_Player_EquippedWeaponInfo.attackSfx, &player->position, Q8(0.5f), 0);
                 }
@@ -5608,7 +5623,21 @@ static bool Player_CombatAnimUpdate(s_SubCharacter* player, s_PlayerExtra* extra
                     if (!g_PcInfiniteAmmo)
                     {
                         g_SysWork.playerCombat.currentWeaponAmmo--;
+#ifdef SH_PC_PORT
+                        /* Through the cached index this took a round off whatever item
+                         * sat in that slot when the index was stale: see
+                         * pc_inventory_guard.c. */
+                        {
+                            s32 pcWeaponSlot = Pc_Inventory_WeaponSlot("fire");
+
+                            if (pcWeaponSlot >= 0)
+                            {
+                                g_SavegamePtr->items[pcWeaponSlot].count_1--;
+                            }
+                        }
+#else
                         g_SavegamePtr->items[g_SysWork.playerCombat.weaponInventoryIdx].count_1--;
+#endif
                     }
 
                     func_8005DC1C(g_Player_EquippedWeaponInfo.attackSfx, &player->position, Q8(0.5f), 0);

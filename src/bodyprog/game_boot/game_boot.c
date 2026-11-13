@@ -19,6 +19,7 @@
 #ifdef SH_PC_PORT
 #include "main/fileinfo.h"          /* g_GameRegion, g_FileTable — PAL font/language hooks */
 #include "bodyprog/item_screens.h"  /* func_8004F190 — inventory sort + slot recount */
+#include "pc_inventory_guard.h"
 #endif
 
 void GameBoot_SavegameInitialize(s8 overlayId, s32 difficulty) // 0x800350BC
@@ -127,6 +128,7 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
            (int)g_SavegamePtr->inventorySlotCount,
            (int)g_SavegamePtr->equippedWeapon,
            Pc_SavegameInventoryIsEmpty());
+    Pc_Inventory_LogState("map load");
     fflush(g_ShDebugLog);
     /* Clear SysFlag_NoEnemySpawn on every non-tutorial map entry. This flag is
      * set by map2_s00.c:1948 (gated on EventFlag_146 / WaterWorks cutscene
