@@ -119,6 +119,7 @@ s_PcConfig g_PcConfig = {
     .immersiveFpsHeadTracking = 0, /* FPS view follows head-bone rotation (experiment, off by default) */
     .control2d               = 0, /* 2D screen-relative movement (experiment, off by default) */
     .control2dSnap           = 0, /* 2D control turns into the direction (0), doesn't snap */
+    .control2dHold           = 1, /* fixed cameras: a held direction is a straight world line */
     .minimap                 = 0, /* minimap overlay off by default */
     .anisoLevel              = 8,
     .shadowMapSize           = 1024,
@@ -1276,6 +1277,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "control_2d_snap") == 0)
         {
             g_PcConfig.control2dSnap = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "control_2d_hold") == 0)
+        {
+            g_PcConfig.control2dHold = (atoi(value) != 0);
         }
         else if (strcmp(key, "minimap") == 0)
         {

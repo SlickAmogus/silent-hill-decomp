@@ -1786,6 +1786,47 @@ static bool Pc_ReactionStateStuck(s32 state, s32 bodyKf, s32 upperKf)
 }
 #endif
 
+
+#ifdef SH_PC_PORT
+/* World yaw of the ground direction that runs straight UP THE SCREEN where the
+ * player stands, from the matrix the frame was drawn with.
+ *
+ * The camera's own look yaw is that direction only at the middle of the
+ * picture. Off centre, and the fixed cameras keep Harry off centre in every
+ * tight room, a walk along the look yaw drifts across the screen toward the
+ * vanishing point, so "up" on the stick was visibly not up. The bearing from
+ * the camera to Harry is right for a level camera and wrong for a steep one.
+ * This is the exact answer for both: the ground direction along which his
+ * screen X does not change, pointing the way his screen Y falls. */
+static int Pc_2dScreenUpYaw(const VECTOR3* pos, q3_12* yawOut)
+{
+    extern MATRIX GsWSMATRIX;
+    const MATRIX* m = &GsWSMATRIX;
+    float p[3] = { (float)pos->vx / 16.0f, (float)pos->vy / 16.0f, (float)pos->vz / 16.0f };
+    float v[3], a, b, len;
+    int   i;
+
+    for (i = 0; i < 3; i++)
+        v[i] = ((float)m->m[i][0] * p[0] + (float)m->m[i][1] * p[1] + (float)m->m[i][2] * p[2]) / 4096.0f + (float)m->t[i];
+    /* Behind the camera or on top of it: no screen position to speak of. */
+    if (v[2] < 64.0f)
+        return 0;
+    a = -((float)m->m[0][2] * v[2] - v[0] * (float)m->m[2][2]);
+    b =   (float)m->m[0][0] * v[2] - v[0] * (float)m->m[2][0];
+    if (((float)m->m[1][0] * v[2] - v[1] * (float)m->m[2][0]) * a +
+        ((float)m->m[1][2] * v[2] - v[1] * (float)m->m[2][2]) * b > 0.0f)
+    {
+        a = -a;
+        b = -b;
+    }
+    len = sqrtf(a * a + b * b);
+    if (len < 1.0f)
+        return 0;
+    *yawOut = Q12_ANGLE_NORM_U(ratan2((s32)(a / len * 4096.0f), (s32)(b / len * 4096.0f)) + Q12_ANGLE(360.0f));
+    return 1;
+}
+#endif
+
 void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINATE2* coords) // 0x80071CE8
 {
     SVECTOR       playerAngles;
@@ -2088,6 +2129,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     static s8      s_2dPrevMapIdx  = -1;
                     static s8      s_2dPrevRoomIdx = -1;
                     q3_12 camYaw  = g_TpsCamYaw;
+                    q3_12 lookYaw = g_TpsCamYaw;
                     int   camSnap = 0; /* the fixed cam changed SHOT this frame (teleport OR yaw jump) */
 
                     /* This path stops running while aiming, in scripted scenes
@@ -2118,6 +2160,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         vwGetViewAngle(&camAng);
                         vwGetViewPosition(&camPos);
                         camYaw = Q12_ANGLE_NORM_U(camAng.vy + Q12_ANGLE(360.0f));
+                        lookYaw = camYaw;
 
                         /* Shot change, detected from the CAMERA alone: (a) its position
                          * teleporting — the classic hard cut; (b) its own look yaw jumping
@@ -2129,15 +2172,19 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         if (s_2dHavePrevCam) {
                             s32   cdx   = camPos.vx - s_2dPrevCamPos.vx;
                             s32   cdz   = camPos.vz - s_2dPrevCamPos.vz;
-                            q3_12 swing = Math_AngleNormalizeSigned(camYaw - s_2dPrevCamYaw);
+                            q3_12 swing = Math_AngleNormalizeSigned(lookYaw - s_2dPrevCamYaw);
                             if ((s64)cdx * cdx + (s64)cdz * cdz > (s64)Q12(3.0f) * Q12(3.0f) ||
                                 ABS(swing) > TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12_ANGLE(25.0f))) {
                                 camSnap = 1;
                             }
                         }
                         s_2dPrevCamPos  = camPos;
-                        s_2dPrevCamYaw  = camYaw;
+                        s_2dPrevCamYaw  = lookYaw;
                         s_2dHavePrevCam = 1;
+                        /* The stick maps through where he is on screen; the shot-change
+                         * test above stays on the look yaw, which his own running cannot
+                         * move. */
+                        Pc_2dScreenUpYaw(&player->position, &camYaw);
                     } else {
                         /* Orbit cam: the player drives it, it never changes shot. Drop the
                          * fixed-cam history so toggling back to classic doesn't read the
@@ -2187,10 +2234,25 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                             SH_DBG("[2DSNAP] locked heading %d (stick %d, live cam %d)",
                                    (int)s_2dLockHeading, (int)stickYaw, (int)camYaw);
                         }
+                        /* Fixed cameras: a direction, once pushed, is a line in the WORLD
+                         * until the stick is let go or pushed somewhere else. These cameras
+                         * turn to follow Harry, so a direction read off the live picture
+                         * every frame bends as he moves: he could not walk a straight line,
+                         * and holding left or right ran him round the camera. The picture
+                         * is consulted when the player gives a direction, not while he
+                         * holds one. The orbit cameras are the player's own and stay live. */
+                        else if (g_PcConfig.control2dHold && !g_DebugThirdPersonCam && !s_2dLocked) {
+                            s_2dLocked      = 1;
+                            s_2dLockHeading = Q12_ANGLE_NORM_U(camYaw + stickYaw + Q12_ANGLE(360.0f));
+                            s_2dLockStick   = stickYaw;
+                        }
 
                         if (s_2dLocked) {
                             q3_12 delta = Math_AngleNormalizeSigned(stickYaw - s_2dLockStick);
-                            if (ABS(delta) <= Q12_ANGLE(45.0f)) {
+                            /* 30 degrees with a held direction: every step of a D-pad or
+                             * keyboard is a new direction and is read off the picture, while
+                             * a stick still steers finely along the line it is on. */
+                            if (ABS(delta) <= (g_PcConfig.control2dHold ? Q12_ANGLE(30.0f) : Q12_ANGLE(45.0f))) {
                                 targetYaw = Q12_ANGLE_NORM_U(s_2dLockHeading + delta + Q12_ANGLE(360.0f));
                             } else {
                                 s_2dLocked = 0;
