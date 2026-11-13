@@ -1160,11 +1160,8 @@ void WorldGfx_HeldItemDraw(void) // 0x8003D058
          * took the world's far-push and lost to a leg passing in front. */
         {
             extern int g_PsxActorDepth;
-            extern int g_PcHeldItemTwoSided;
             g_PsxActorDepth = 1;
-            g_PcHeldItemTwoSided = heldItem->itemId >= InvItemId_Handgun && heldItem->itemId <= InvItemId_HyperBlaster;
             func_80057090(&heldItem->bone.modelInfo, &g_OrderingTable0[g_ActiveBufferIdx], 1, &viewMat, &worldMat, 0);
-            g_PcHeldItemTwoSided = 0;
             g_PsxActorDepth = 0;
         }
 #else

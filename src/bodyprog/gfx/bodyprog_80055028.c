@@ -2465,13 +2465,6 @@ static void CharaPrimProbe_Note(const s_ModelInfo* modelInfo, const char* what)
 /* Dark Harry easter egg: 1 while the apparition is the character being
  * drawn. Consume-once, set and cleared around the draw in world_draw.c. */
 int g_PcCharaGhostDraw = 0;
-/* Set while a held firearm draws: its faces are kept whichever way they
- * turn. The gun models are open boxes where Harry's fist meets them (the
- * handgun has no underside behind the trigger), and the fist does not quite
- * reach the end of the gap: with the inside walls culled, the floor showed
- * through a sliver under the gun. A pixel on the PlayStation, a stripe at
- * any modern resolution. */
-int g_PcHeldItemTwoSided = 0;
 #endif
 
 void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat, MATRIX* worldMat, u16 arg5) // 0x80057090
@@ -3260,10 +3253,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                     }
 
 #ifdef SH_PC_PORT
-                    if (g_PcHeldItemTwoSided)
-                    {
-                    }
-                    else if (SH_PRECISE_NCLIP(scratchData->field_380.s_0.field_18, arg3))
+                    if (SH_PRECISE_NCLIP(scratchData->field_380.s_0.field_18, arg3))
                     {
                         /* Far poly: integer NCLIP collapses sub-pixel-tall distant
                          * ground to zero area and culls it. Re-test on the PGXP
@@ -3542,10 +3532,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                 }
 
 #ifdef SH_PC_PORT
-                if (g_PcHeldItemTwoSided)
-                {
-                }
-                else if (SH_PRECISE_NCLIP(scratchData->field_380.s_0.field_18, arg3))
+                if (SH_PRECISE_NCLIP(scratchData->field_380.s_0.field_18, arg3))
                 {
                     /* Far poly: precise backface re-test (see loop A). */
                     s32 _n012 = 0, _n312 = 0;
