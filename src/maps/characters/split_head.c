@@ -6,6 +6,7 @@
 #include "maps/characters/split_head.h"
 #ifdef SH_PC_PORT
 #include "pc_timing.h"
+#include "sh_log.h"
 #endif
 
 #define splitHeadProps splitHead->properties.splitHead
@@ -230,6 +231,12 @@ void SplitHead_DamageTake(s_SubCharacter* splitHead)
         newHealth = 0;
     }
     splitHead->health = newHealth;
+
+#ifdef SH_PC_PORT
+    SH_DBG("[SPLITHEAD] hit %d (%s, weapon %d), health %d of 25500", (int)damageAmount,
+           (splitHeadProps.flags & SplitHeadFlag_0) ? "mouth" : "body",
+           (int)g_SysWork.playerCombat.weaponAttack, (int)newHealth);
+#endif
 
 #ifdef SH_PC_PORT
     /* A hit that crosses the 24000 phase line AND zero at once (the debug kill
