@@ -16,6 +16,7 @@
 #include "pc_item_unq.h" /* Pc_ItemUnq_FromItemId: itemId -> UNQ file index */
 #include "sh_log.h"
 #include "pc_big_tmd.h" /* Pc_BigTmd_Resolve at the FS_BUFFER_5/8 consumers */
+#include "pc_inventory_guard.h"
 
 /* Each of these is called earlier in this file than it is defined. Without a
  * prototype the call creates an implicit `int f()` declaration that then
@@ -3949,11 +3950,25 @@ void func_800540A4(s8 arg0) // 0x800540A4
 {
     s32 i;
     s32 j;
+#ifdef SH_PC_PORT
+    /* Both writes below go through the cached `weaponInventoryIdx`. Pointing
+     * at anything but the equipped weapon, the first one stores the loaded
+     * round count over another item's quantity (zero, for an empty gun, and
+     * the recount then deletes that item) and the second rewrites an ammo
+     * stack that is not this weapon's. Only the slot that really holds the
+     * weapon is written. */
+    s32 pcWeaponSlot = Pc_Inventory_WeaponSlot("inventory open");
 
+    if (pcWeaponSlot >= 0)
+    {
+        g_SavegamePtr->items[pcWeaponSlot].count_1 = g_SysWork.playerCombat.currentWeaponAmmo;
+    }
+#else
     if (g_SysWork.playerCombat.weaponInventoryIdx != NO_VALUE)
     {
         g_SavegamePtr->items[g_SysWork.playerCombat.weaponInventoryIdx].count_1 = g_SysWork.playerCombat.currentWeaponAmmo;
     }
+#endif
 
     /* The loop body dereferences items[weaponInventoryIdx] unguarded, unlike the
      * writeback above. With nothing equipped that index is NO_VALUE, so items[-1]
@@ -3963,7 +3978,7 @@ void func_800540A4(s8 arg0) // 0x800540A4
      * the inventory screen, which clears the index on Unequip. */
     for (i = 0;
 #ifdef SH_PC_PORT
-         g_SysWork.playerCombat.weaponInventoryIdx != NO_VALUE &&
+         pcWeaponSlot >= 0 &&
 #endif
          i < g_SavegamePtr->inventorySlotCount; i++)
     {
@@ -4755,9 +4770,27 @@ void Inventory_AddSpecialItem(u8 itemId, u8 itemCount) // 0x80054CAC
             break;
     }
 
+#ifdef SH_PC_PORT
+    {
+        /* The append slot is `inventorySlotCount`, trusted to be free. With a
+         * stale count it is not: the new item replaced a live one, or went
+         * past the array. See pc_inventory_guard.c. */
+        s32 slot = Pc_Inventory_AppendSlot(itemId, itemCount);
+
+        if (slot >= 0)
+        {
+            g_SavegamePtr->items[slot].id_0    = itemId;
+            g_SavegamePtr->items[slot].count_1 = itemCount;
+        }
+    }
+
+    g_SavegamePtr->inventorySlotCount = func_8004F190(g_SavegamePtr);
+    Pc_Inventory_LogAdded(itemId, itemCount);
+#else
     g_SavegamePtr->items[g_SavegamePtr->inventorySlotCount].id_0    = itemId;
     g_SavegamePtr->items[g_SavegamePtr->inventorySlotCount].count_1 = itemCount;
     g_SavegamePtr->inventorySlotCount                                 = func_8004F190(g_SavegamePtr);
+#endif
 }
 
 void Items_AmmoReloadCalculation(s32* currentAmmo, s32* availableAmmo, u8 gunIdx) // 0x80054FC0
