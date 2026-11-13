@@ -100,9 +100,9 @@ const char* const g_PcLipSpeaker[PC_LIP_LINES] = {
     "LISA", /* 94 */
     "HERO", /* 95 */
     "HERO", /* 96 */
-    "SIBYL", /* 97 */
+    "HERO", /* 97 */
     "HERO", /* 98 */
-    "SIBYL", /* 99 */
+    "HERO", /* 99 */
     "HERO", /* 100 */
     "LISA", /* 101 */
     "HERO", /* 102 */
@@ -139,14 +139,14 @@ const char* const g_PcLipSpeaker[PC_LIP_LINES] = {
     "HERO", /* 133 */
     "LISA", /* 134 */
     "HERO", /* 135 */
-    "HERO", /* 136 */
+    "KAU", /* 136 */
     "KAU", /* 137 */
     "KAU", /* 138 */
-    "SIBYL", /* 139 */
+    "HERO", /* 139 */
     "HERO", /* 140 */
-    "HERO", /* 141 */
+    "KAU", /* 141 */
     "SIBYL", /* 142 */
-    "SIBYL", /* 143 */
+    "HERO", /* 143 */
     "HERO", /* 144 */
     "SIBYL", /* 145 */
     "SIBYL", /* 146 */
@@ -161,7 +161,7 @@ const char* const g_PcLipSpeaker[PC_LIP_LINES] = {
     "HERO", /* 155 */
     "HERO", /* 156 */
     "HERO", /* 157 */
-    "HERO", /* 158 */
+    "KAU", /* 158 */
     "LISA", /* 159 */
     "HERO", /* 160 */
     "HERO", /* 161 */
@@ -184,9 +184,9 @@ const char* const g_PcLipSpeaker[PC_LIP_LINES] = {
     "KAU", /* 178 */
     "SIBYL", /* 179 */
     "SIBYL", /* 180 */
-    "HERO", /* 181 */
+    "KAU", /* 181 */
     "KAU", /* 182 */
-    "HERO", /* 183 */
+    "DARIA", /* 183 */
     "LISA", /* 184 */
     "KAU", /* 185 */
     "HERO", /* 186 */
@@ -195,7 +195,7 @@ const char* const g_PcLipSpeaker[PC_LIP_LINES] = {
     "SIBYL", /* 189 */
     "KAU", /* 190 */
     "SIBYL", /* 191 */
-    "HERO", /* 192 */
+    "KAU", /* 192 */
     "SIBYL", /* 193 */
     "HERO", /* 194 */
     "SIBYL", /* 195 */
@@ -208,7 +208,7 @@ const char* const g_PcLipSpeaker[PC_LIP_LINES] = {
     "HERO", /* 202 */
     "HERO", /* 203 */
     "SIBYL", /* 204 */
-    "KAU", /* 205 */
+    "HERO", /* 205 */
     "HERO", /* 206 */
     "HERO", /* 207 */
     "HERO", /* 208 */
@@ -218,11 +218,11 @@ const char* const g_PcLipSpeaker[PC_LIP_LINES] = {
     "LISA", /* 212 */
     "HERO", /* 213 */
     "SIBYL", /* 214 */
-    "SIBYL", /* 215 */
+    "HERO", /* 215 */
     "HERO", /* 216 */
     NULL, /* 217 */
     "SIBYL", /* 218 */
-    "DARIA", /* 219 */
+    "HERO", /* 219 */
     "HERO", /* 220 */
     "LISA", /* 221 */
     NULL, /* 222 */
@@ -244,7 +244,7 @@ const char* const g_PcLipSpeaker[PC_LIP_LINES] = {
     NULL, /* 238 */
     "SIBYL", /* 239 */
     "SIBYL", /* 240 */
-    "DARIA", /* 241 */
+    "HERO", /* 241 */
     "HERO", /* 242 */
     "HERO", /* 243 */
     NULL, /* 244 */
@@ -360,7 +360,7 @@ const char* const g_PcLipSpeaker[PC_LIP_LINES] = {
     "HERO", /* 354 */
     "LISA", /* 355 */
     "HERO", /* 356 */
-    "LISA", /* 357 */
+    "HERO", /* 357 */
     NULL, /* 358 */
     "HERO", /* 359 */
     "KAU", /* 360 */
@@ -423,7 +423,7 @@ const char* const g_PcLipSpeaker[PC_LIP_LINES] = {
     "DARIA", /* 417 */
     "HERO", /* 418 */
     "KAU", /* 419 */
-    "HERO", /* 420 */
+    "DARIA", /* 420 */
     "HERO", /* 421 */
     "HERO", /* 422 */
     "DARIA", /* 423 */
@@ -555,7 +555,7 @@ const char* const g_PcLipSpeaker[PC_LIP_LINES] = {
     "LISA", /* 549 */
     NULL, /* 550 */
     "AR", /* 551 */
-    "HERO", /* 552 */
+    "DARIA", /* 552 */
     NULL, /* 553 */
     NULL, /* 554 */
     NULL, /* 555 */
@@ -689,11 +689,11 @@ const char* const g_PcLipSpeaker[PC_LIP_LINES] = {
     "HERO", /* 683 */
     NULL, /* 684 */
     "KAU", /* 685 */
-    "HERO", /* 686 */
+    "KAU", /* 686 */
     "HERO", /* 687 */
     NULL, /* 688 */
     "KAU", /* 689 */
-    "HERO", /* 690 */
+    "KAU", /* 690 */
     "DARIA", /* 691 */
     "TAR", /* 692 */
     "HERO", /* 693 */

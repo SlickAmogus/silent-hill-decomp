@@ -166,8 +166,25 @@ void Pc_Lip_Feed(uint16_t xaIdx, const int16_t* pcm, int frames, int rate, int c
     }
 }
 
+static int Lip_MedianHz(void)
+{
+    int i, n = 0;
+
+    for (i = 0; i < LIP_HZ_BINS && n * 2 < s_voiced; i++)
+        n += s_hist[i];
+    return LIP_HZ_MIN + (i - 1) * 2;
+}
+
 void Pc_Lip_Stop(void)
 {
+    /* One record per line: a wrong speaker is found by reading the scene's
+     * lines back with their pitch, not by replaying it. */
+    if (s_active && s_line < PC_LIP_LINES)
+    {
+        const char* who = s_override[s_line][0] ? s_override[s_line] : g_PcLipSpeaker[s_line];
+        SH_DBG("[LIP] line %u: %s, median pitch %d Hz", s_line, who != NULL ? who : "(by pitch)",
+               s_voiced >= 4 ? Lip_MedianHz() : 0);
+    }
     s_active = 0;
 }
 
@@ -195,12 +212,7 @@ float Pc_Lip_Level(const char** speaker, int* female)
     if (s_line < PC_LIP_LINES)
         *speaker = s_override[s_line][0] ? s_override[s_line] : g_PcLipSpeaker[s_line];
     if (s_voiced >= 4)
-    {
-        int i, n = 0;
-        for (i = 0; i < LIP_HZ_BINS && n * 2 < s_voiced; i++)
-            n += s_hist[i];
-        *female = LIP_HZ_MIN + (i - 1) * 2 >= LIP_FEMALE_HZ;
-    }
+        *female = Lip_MedianHz() >= LIP_FEMALE_HZ;
     w = (now - s_startMs) / LIP_WIN_MS;
     if (w >= s_fed || w >= LIP_RING)
         return 0.0f;
