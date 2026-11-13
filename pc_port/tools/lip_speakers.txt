@@ -169,7 +169,7 @@
 175 = SIBYL  # MAP4_S01.30: I only caught a glimpse of her through the fog.
 176 = LISA  # MAP3_S04.20: I must have gotten knocked out.
 177 = HERO  # MAP3_S05.19: Looks like someone's been here...
-178 = KAU  # MAP3_S00.46: So long. Good luck out there.
+178 = HERO  # MAP3_S00.46: So long. Good luck out there.
 179 = SIBYL  # MAP4_S01.32: I don't know about your daughter, but...
 180 = SIBYL  # MAP4_S01.25: Cars have completely stopped running.
 181 = KAU  # MAP3_S00.31: Ever even heard of such things?
