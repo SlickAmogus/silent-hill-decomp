@@ -1227,6 +1227,24 @@ static int qu_fetch(const char* file, const char* url, const char* path)
     return Pc_RaHttpDownloadFile(url, path, &s_dlGot);
 }
 
+/* A character pack the game has replaced with its Additional Characters
+ * downloads (pc_chara_dl.c lists it in this file). The launcher drops such a
+ * pack from its library the next time it runs; until then it must not be
+ * offered as an update. */
+static int qu_migrated(const char* essentialId)
+{
+    char* txt = qu_read_all("gamedata/chara_migrated.txt", 1 << 20, NULL);
+    char* line;
+    int   found = 0;
+
+    if (txt == NULL)
+        return 0;
+    for (line = strtok(txt, "\r\n"); line != NULL && !found; line = strtok(NULL, "\r\n"))
+        found = qu_ieq(line, essentialId);
+    free(txt);
+    return found;
+}
+
 /* Fills s_jobs with the installed mods that are out of date. 0 when the
  * catalog could not be read, so the build is not marked as checked. */
 static int qu_check(void)
@@ -1269,7 +1287,7 @@ static int qu_check(void)
         for (k = 0; k < catCount; k++)
             if (qu_ieq(cat[k].id, inst[i].essentialId))
                 break;
-        if (k == catCount)
+        if (k == catCount || qu_migrated(inst[i].essentialId))
             continue;
         snprintf(dir, sizeof(dir), "mods/%s", inst[i].name);
         if (!qu_updatable(dir))
