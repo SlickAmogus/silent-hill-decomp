@@ -16,9 +16,13 @@
  * not bury the rest. Lists scroll by wheel, keys or drag; a tap or click acts
  * on release, and not at all if it became a drag.
  * Installed ids are kept in gamedata/qol_installed.txt, each with the sha256
- * of the zip it came from. The first time a new build reaches the title, an
- * installed mod whose catalog zip has changed is downloaded again, so an
- * updated mod reaches everyone who has it. Unticking an
+ * of the zip it came from. The first time a new build reaches the title, the
+ * installed mods are compared with the catalog and, when one is out of date,
+ * the player is asked: Yes, No (ask again next start) or Don't Ask Again
+ * (qol_mods_update_ask = 0). A catalog entry may carry "verify", one
+ * "crc32 size path" line per file: those are checked against the files on
+ * disk, so the answer does not rest on the recorded sha256, which is missing
+ * for anything installed before it was kept. Unticking an
  * installed mod removes it: the catalog lists, per mod, the files it puts
  * under gamedata/, so removal needs neither the zip nor a record made at
  * install time (mods installed before removal existed have none).
@@ -72,6 +76,7 @@
 #define QM_INSTALLED    "gamedata/qol_installed.txt"
 #define QM_OFFERED_KEY  "qol_mods_offered"
 #define QM_CHECKED_KEY  "qol_mods_checked_build"
+#define QM_ASK_KEY      "qol_mods_update_ask"
 
 #if defined(__ANDROID__)
 #define QM_PLATFORM_OPTIONS "Android Options"
@@ -108,6 +113,7 @@ typedef struct
     char      instSha[72]; /* the zip it was installed from; "" if from before that was kept */
     long long size;
     char*     files;     /* '\n'-separated paths under gamedata/, from the catalog */
+    char*     verify;    /* "crc32 size path" lines for those files, or NULL */
     int       installed;
     int       want;      /* the ticked state: differs from installed = a pending change */
 } s_QmMod;
@@ -119,7 +125,8 @@ static int     s_modCount;
 /* UI state                                                            */
 /* ------------------------------------------------------------------ */
 
-enum { QM_CLOSED = 0, QM_PROMPT, QM_NOTICE, QM_LOADING, QM_ERROR, QM_LIST, QM_INFO, QM_BUSY, QM_DONE, QM_GROUP, QM_SAVING };
+enum { QM_CLOSED = 0, QM_PROMPT, QM_NOTICE, QM_LOADING, QM_ERROR, QM_LIST, QM_INFO, QM_BUSY, QM_DONE, QM_GROUP,
+       QM_SAVING, QM_UPDATE };
 static int    s_mode;
 static Uint32 s_openMs;
 static int    s_sel;          /* LIST/GROUP: view row, then the buttons; elsewhere unused */
@@ -135,6 +142,8 @@ static int    s_btnSel;       /* selected button on the button bar */
 static int    s_infoIdx;      /* QM_INFO: which mod */
 static int    s_offeredThisRun;
 static int    s_autoTried, s_auto, s_autoNotice, s_autoShown; /* the update after a new build */
+static int    s_updPending;   /* out-of-date mods are queued and the question is waiting for the title */
+static int    s_autoRestart;  /* an updated mod needs a restart to take effect */
 static int    s_titleFrames;
 static char   s_message[512]; /* QM_ERROR / QM_DONE body */
 
@@ -333,7 +342,9 @@ static int qm_parse_catalog(const char* json)
         for (k = 0; k < s_modCount; k++)
         {
             free(s_mods[k].files);
-            s_mods[k].files = NULL;
+            free(s_mods[k].verify);
+            s_mods[k].files  = NULL;
+            s_mods[k].verify = NULL;
         }
     }
     s_modCount = 0;
@@ -360,13 +371,18 @@ static int qm_parse_catalog(const char* json)
             p = js_ws(p + 1);
             val[0] = '\0';
             /* One '\n'-separated string, too long for val. */
-            if (*p == '"' && !strcmp(key, "files"))
+            if (*p == '"' && (!strcmp(key, "files") || !strcmp(key, "verify")))
             {
+                char** dst = !strcmp(key, "files") ? &m.files : &m.verify;
                 size_t cap = strlen(p) + 1;
-                free(m.files);
-                m.files = (char*)malloc(cap);
-                if (!m.files || !(p = js_str(p, m.files, cap)))
+                free(*dst);
+                *dst = (char*)malloc(cap);
+                if (!*dst || !(p = js_str(p, *dst, cap)))
+                {
+                    free(m.files);
+                    free(m.verify);
                     return s_modCount;
+                }
                 continue;
             }
             if (*p == '"')
@@ -399,7 +415,10 @@ static int qm_parse_catalog(const char* json)
             !strstr(m.file, "..") && s_modCount < QM_MAX_MODS)
             s_mods[s_modCount++] = m;
         else
+        {
             free(m.files);
+            free(m.verify);
+        }
     }
     return s_modCount;
 }
@@ -428,6 +447,149 @@ static const char* qm_after_load(const char* name)
         p++;
     }
     return NULL;
+}
+
+static int qm_copy_file(const char* from, const char* to)
+{
+    char   buf[65536];
+    size_t n;
+    int    ok = 1;
+    FILE*  in = fopen(from, "rb");
+    FILE*  out;
+
+    if (!in)
+        return 0;
+    out = fopen(to, "wb");
+    if (!out)
+    {
+        fclose(in);
+        return 0;
+    }
+    while ((n = fread(buf, 1, sizeof(buf), in)) > 0)
+        if (fwrite(buf, 1, n, out) != n)
+        {
+            ok = 0;
+            break;
+        }
+    fclose(in);
+    if (fclose(out) != 0)
+        ok = 0;
+    if (!ok)
+        remove(to);
+    return ok;
+}
+
+static int qm_crc_file(const char* path, long long* size, unsigned* crc)
+{
+    unsigned char buf[65536];
+    FILE*         f = fopen(path, "rb");
+    mz_ulong      c = MZ_CRC32_INIT;
+    long long     total = 0;
+    size_t        n;
+
+    if (!f)
+        return 0;
+    while ((n = fread(buf, 1, sizeof(buf), f)) > 0)
+    {
+        c = mz_crc32(c, buf, n);
+        total += (long long)n;
+    }
+    fclose(f);
+    *size = total;
+    *crc  = (unsigned)c;
+    return 1;
+}
+
+/* A path from the catalog, joined to gamedata/: it has to stay inside the two
+ * folders mods are installed to. */
+static int qm_safe_rel(const char* rel)
+{
+    return rel[0] && !strstr(rel, "..") && rel[0] != '/' && !strchr(rel, '\\') && !strchr(rel, ':') &&
+           (qm_has_prefix_ci(rel, "load/") || qm_has_prefix_ci(rel, "texturemods/"));
+}
+
+/* The catalog's "verify" lines against the files under gamedata/.
+ * 1 = every file is the catalog's, 0 = one differs or is missing,
+ * -1 = no usable line (the recorded sha256 decides instead). */
+static int qm_verify(const s_QmMod* m)
+{
+    const char* p     = m->verify;
+    int         lines = 0;
+
+    while (p && *p)
+    {
+        const char* e = strchr(p, '\n');
+        size_t      n = e ? (size_t)(e - p) : strlen(p);
+        char        line[600], path[700];
+        unsigned    wantCrc = 0, crc = 0;
+        long long   wantSize = 0, size = 0;
+        int         used = 0;
+
+        if (n > 0 && n < sizeof(line))
+        {
+            memcpy(line, p, n);
+            line[n] = '\0';
+            if (line[n - 1] == '\r')
+                line[n - 1] = '\0';
+            if (sscanf(line, "%8x %lld %n", &wantCrc, &wantSize, &used) >= 2 && used > 0 && line[used])
+            {
+                if (!qm_safe_rel(line + used))
+                    return -1;
+                lines++;
+                snprintf(path, sizeof(path), "gamedata/%s", line + used);
+                if (!qm_crc_file(path, &size, &crc))
+                {
+                    /* A texture pack that is switched off keeps its file under this name. */
+                    snprintf(path, sizeof(path), "gamedata/%s.disabled", line + used);
+                    if (!qm_crc_file(path, &size, &crc))
+                        return 0;
+                }
+                if (size != wantSize || crc != wantCrc)
+                    return 0;
+            }
+        }
+        p = e ? e + 1 : p + n;
+    }
+    return lines > 0 ? 1 : -1;
+}
+
+/* A texture pack recorded as installed whose zip is not in texturemods/.
+ * Until this was fixed the zip was put there with rename(), which in this
+ * program is PsyCross's memory-card call (libapi.c): it answers success for an
+ * ordinary path and moves nothing. Such an install is offered again. */
+static int qm_texture_zip_missing(const s_QmMod* m)
+{
+    char path[700];
+
+    if (!m->files || strchr(m->files, '\n') || !qm_has_prefix_ci(m->files, "texturemods/") ||
+        !qm_safe_rel(m->files))
+        return 0;
+    snprintf(path, sizeof(path), "gamedata/%s", m->files);
+    if (qm_file_size(path) >= 0)
+        return 0;
+    snprintf(path, sizeof(path), "gamedata/%s.disabled", m->files);
+    return qm_file_size(path) < 0;
+}
+
+/* Every file of the mod is message text, which the game reads again without
+ * a restart (Pc_TextOverridesReload). */
+static int qm_text_only(const s_QmMod* m)
+{
+    const char* p = m->files;
+
+    if (!p || !*p)
+        return 0;
+    while (*p)
+    {
+        const char* e = strchr(p, '\n');
+
+        if (!qm_has_prefix_ci(p, "load/text_overrides"))
+            return 0;
+        if (!e)
+            break;
+        p = e + 1;
+    }
+    return 1;
 }
 
 /* Returns 1 on success; err gets a short reason otherwise. */
@@ -462,12 +624,21 @@ static int qm_install_zip(const char* zipPath, const s_QmMod* m, char* err, size
         qm_mkdir("gamedata");
         qm_mkdir("gamedata/texturemods");
         snprintf(dest, sizeof(dest), "gamedata/texturemods/%s", m->file);
-        remove(dest);
-        if (rename(zipPath, dest) != 0)
         {
-            snprintf(err, errsz, "could not move it into texturemods");
+            /* A pack that is switched off stays off through an update. */
+            char off[540];
+            snprintf(off, sizeof(off), "%s.disabled", dest);
+            if (qm_file_size(dest) < 0 && qm_file_size(off) >= 0)
+                snprintf(dest, sizeof(dest), "%s", off);
+        }
+        remove(dest);
+        /* Copy, then delete: never rename() (see qm_texture_zip_missing). */
+        if (!qm_copy_file(zipPath, dest))
+        {
+            snprintf(err, errsz, "could not copy it into texturemods");
             return 0;
         }
+        remove(zipPath);
         return 1;
     }
 
@@ -931,10 +1102,13 @@ static void qm_begin_apply(void)
     qm_task_start(s_queue[0]);
 }
 
-/* After a new build: download again the installed mods whose catalog zip
- * changed since they were installed. One installed before the sha256 was kept
- * is taken as current. The build is only marked checked once nothing failed,
- * so a failed download is tried again next launch. */
+/* After a new build: queue the installed mods that are out of date, for the
+ * question asked at the title. Where the catalog lists a mod's files
+ * ("verify") the files decide and the recorded sha256 only follows; otherwise
+ * the record decides, and one installed before it was kept is taken as
+ * current. The build is only marked checked once nothing is out of date or
+ * the update went through, so No and a failed download both come back at the
+ * next start. */
 static void qm_auto_queue(void)
 {
     int i;
@@ -947,10 +1121,17 @@ static void qm_auto_queue(void)
     for (i = 0; i < s_modCount; i++)
     {
         s_QmMod* m = &s_mods[i];
+        int      files;
         if (!m->installed || !m->sha256[0])
             continue;
-        if (!m->instSha[0])
-            qm_mark_installed(m);
+        files = m->verify ? qm_verify(m) : -1;
+        if (files == 0 || (files < 0 && qm_texture_zip_missing(m)))
+            s_queue[s_queueLen++] = i;
+        else if (files == 1 || !m->instSha[0])
+        {
+            if (strcmp(m->instSha, m->sha256) != 0)
+                qm_mark_installed(m);
+        }
         else if (strcmp(m->instSha, m->sha256) != 0)
             s_queue[s_queueLen++] = i;
     }
@@ -959,8 +1140,50 @@ static void qm_auto_queue(void)
         PcConfig_SaveKeyValue(QM_CHECKED_KEY, SH_BUILD_GIT_HASH);
         return;
     }
-    SH_DBG("[QOL] updating %d mod(s) for build " SH_BUILD_GIT_HASH, s_queueLen);
+    SH_DBG("[QOL] %d mod(s) out of date for build " SH_BUILD_GIT_HASH ", first: %s", s_queueLen,
+           s_mods[s_queue[0]].name);
+    s_updPending = 1;
+}
+
+/* The question's text: which mods, and how much there is to download. */
+static void qm_update_message(void)
+{
+    char      names[300], size[24];
+    long long total = 0;
+    int       i;
+
+    names[0] = '\0';
+    for (i = 0; i < s_queueLen; i++)
+    {
+        size_t n = strlen(names);
+        total += s_mods[s_queue[i]].size;
+        if (i < 3)
+            snprintf(names + n, sizeof(names) - n, "%s%s", n ? ", " : "", s_mods[s_queue[i]].name);
+    }
+    if (s_queueLen > 3)
+    {
+        size_t n = strlen(names);
+        snprintf(names + n, sizeof(names) - n, " and %d more", s_queueLen - 3);
+    }
+    if (total < 1024 * 1024)
+        snprintf(size, sizeof(size), "%lld KB", total < 1024 ? 1 : total / 1024);
+    else
+        snprintf(size, sizeof(size), "%.1f MB", (double)total / (1024.0 * 1024.0));
+    if (s_queueLen == 1)
+        snprintf(s_message, sizeof(s_message), "An update is available for %s (%s). Download it now?", names, size);
+    else
+        snprintf(s_message, sizeof(s_message),
+                 "Updates are available for %d of your mods: %s (%s). Download them now?", s_queueLen, names, size);
+}
+
+static void qm_update_begin(void)
+{
+    s_updPending = 0;
+    s_queuePos = s_installedNow = s_removedNow = s_failedNow = 0;
+    s_failNames[0] = '\0';
+    s_autoRestart  = 0;
     s_auto = 1;
+    qm_set_mode(QM_BUSY);
     qm_task_start(s_queue[0]);
 }
 
@@ -973,22 +1196,27 @@ static void qm_auto_show(void)
 
 static void qm_auto_finish(void)
 {
+    size_t n;
+
     s_auto = 0;
     if (s_failedNow == 0)
         PcConfig_SaveKeyValue(QM_CHECKED_KEY, SH_BUILD_GIT_HASH);
-    if (s_installedNow == 0)
+    s_message[0] = '\0';
+    if (s_installedNow > 0)
     {
-        /* Only failures: nothing to restart for, but a list opened meanwhile
-         * is on the busy screen and needs the result. */
-        if (s_mode == QM_BUSY)
-        {
-            qm_finish_message();
-            qm_auto_show();
-        }
-        return;
+        extern void Pc_TextOverridesReload(void);
+        Pc_TextOverridesReload();
+        snprintf(s_message, sizeof(s_message), "Your Essential QoL mods were updated (%d mod%s).%s%s",
+                 s_installedNow, s_installedNow == 1 ? "" : "s", s_autoRestart ? " " : "",
+                 s_autoRestart ? QM_RESTART_TEXT : "");
     }
-    snprintf(s_message, sizeof(s_message), "Your Essential QoL mods were updated (%d mod%s). %s",
-             s_installedNow, s_installedNow == 1 ? "" : "s", QM_RESTART_TEXT);
+    if (s_failedNow > 0)
+    {
+        n = strlen(s_message);
+        snprintf(s_message + n, sizeof(s_message) - n,
+                 "%sCould not update: %s. It will be offered again the next time the game starts.", n ? " " : "",
+                 s_failNames);
+    }
     /* Shown at the title, not over the game. */
     s_autoNotice = 1;
     if (s_mode == QM_BUSY)
@@ -1022,6 +1250,7 @@ static int qm_buttons(const char* labels[3])
 #else
         case QM_DONE:   labels[0] = "OK"; return 1;
 #endif
+        case QM_UPDATE: labels[0] = "Yes"; labels[1] = "No"; labels[2] = "Don't Ask Again"; return 3;
         default: return 0;
     }
 }
@@ -1074,6 +1303,20 @@ static void qm_press_button(int b)
             s_sel = 0;
             s_scroll = 0;
             break;
+        case QM_UPDATE:
+            if (b == 0)
+            {
+                qm_update_begin();
+                break;
+            }
+            s_updPending = 0;
+            if (b == 2)
+            {
+                SH_DBG("[QOL] don't ask again (" QM_ASK_KEY " = 0)");
+                PcConfig_SaveKeyValue(QM_ASK_KEY, "0");
+            }
+            qm_close();
+            break;
         default:
             break;
     }
@@ -1084,6 +1327,7 @@ static void qm_cancel(void)
     switch (s_mode)
     {
         case QM_PROMPT: qm_set_mode(QM_NOTICE); break;
+        case QM_UPDATE: qm_press_button(1); break;
         case QM_INFO:   qm_back_from_info(); break;
         case QM_GROUP:  qm_leave_group(0); break;
         case QM_DONE:   qm_press_button(1); break;
@@ -1133,6 +1377,8 @@ static void qm_step(void)
     {
         s_mods[s_taskMod].installed = 1;
         s_installedNow++;
+        if (s_auto && !qm_text_only(&s_mods[s_taskMod]))
+            s_autoRestart = 1;
     }
     else
     {
@@ -1218,11 +1464,21 @@ int Pc_QolMods_Frame(int atTitle, int up, int down, int left, int right, int con
             Pc_MouseCursor_Show();
             return 1;
         }
+        if (s_updPending && s_taskState == QT_IDLE)
+        {
+            qm_update_message();
+            qm_set_mode(QM_UPDATE);
+            /* No is where the selection starts, as on the desktop question. */
+            s_btnSel = 1;
+            Pc_MouseCursor_Show();
+            return 1;
+        }
         if (!s_autoTried && s_offeredThisRun && s_taskState == QT_IDLE)
         {
-            const char* v = Pc_ModConfig_Value(QM_CHECKED_KEY);
+            const char* v   = Pc_ModConfig_Value(QM_CHECKED_KEY);
+            const char* ask = Pc_ModConfig_Value(QM_ASK_KEY);
             s_autoTried = 1;
-            if (!(v && strcmp(v, SH_BUILD_GIT_HASH) == 0))
+            if (!(v && strcmp(v, SH_BUILD_GIT_HASH) == 0) && !(ask && ask[0] == '0'))
             {
                 if (qm_file_size(QM_INSTALLED) > 0)
                 {
@@ -1834,7 +2090,7 @@ void Pc_QolMods_Draw(void)
     panelW = 1.25f * panelH;
     if (panelW > 0.92f * s_dvpW) panelW = 0.92f * s_dvpW;
     if (s_mode == QM_PROMPT || s_mode == QM_NOTICE || s_mode == QM_ERROR || s_mode == QM_SAVING ||
-        s_mode == QM_LOADING || s_mode == QM_DONE || s_mode == QM_BUSY)
+        s_mode == QM_LOADING || s_mode == QM_DONE || s_mode == QM_BUSY || s_mode == QM_UPDATE)
         panelH *= 0.62f;
     panelL = (s_dvpW - panelW) * 0.5f;
     panelR = panelL + panelW;
@@ -1911,6 +2167,7 @@ void Pc_QolMods_Draw(void)
             break;
         case QM_ERROR:
         case QM_DONE:
+        case QM_UPDATE:
             qm_draw_paragraph(s_message, px, panelL + pad, bodyT, panelW - 2.0f * pad, lineH, 0.92f, 0.92f, 0.95f);
             break;
         case QM_SAVING:
