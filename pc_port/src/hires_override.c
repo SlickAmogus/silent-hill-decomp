@@ -1359,6 +1359,19 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
     }
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
+    if (g_grCaps.texLevelParam)
+    {
+        /* Asked once here, where the storage changes, and handed to the
+         * renderer: its per-frame filter asked the same of every texture on
+         * every frame, a round trip to the driver each time. The driver's
+         * answer rather than what was requested above, so a chain that could
+         * not be built still falls back to plain linear there. */
+        extern void GR_NoteTextureMips(unsigned int tex, int hasMips);
+        GLint       mipW = 0;
+
+        glGetTexLevelParameteriv(GL_TEXTURE_2D, 1, GL_TEXTURE_WIDTH, &mipW);
+        GR_NoteTextureMips(*tex, mipW > 0);
+    }
 
     /* Tell the renderer this one is off-limits to the global filtering setting.
      * Filtering is applied per BIND now, so without this the mode chosen above

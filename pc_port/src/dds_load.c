@@ -26,6 +26,7 @@
 #include "bcdec.h"
 
 #include <PsyX/common/glad.h>
+#include <PsyX/PsyX_backend.h>
 
 #ifndef GL_COMPRESSED_RGBA_BPTC_UNORM
 #define GL_COMPRESSED_RGBA_BPTC_UNORM 0x8E8C
@@ -305,6 +306,16 @@ int Dds_UploadBptc(unsigned int* tex, const unsigned char* fileData, int fileSiz
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
     }
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
+    if (g_grCaps.texLevelParam)
+    {
+        /* As upload_rgba: the renderer's per-frame filter takes this instead
+         * of asking the driver for it on every frame. */
+        extern void GR_NoteTextureMips(unsigned int tex, int hasMips);
+        GLint       mipW = 0;
+
+        glGetTexLevelParameteriv(GL_TEXTURE_2D, 1, GL_TEXTURE_WIDTH, &mipW);
+        GR_NoteTextureMips(*tex, mipW > 0);
+    }
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glBindTexture(GL_TEXTURE_2D, 0);
