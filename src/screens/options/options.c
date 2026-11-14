@@ -236,10 +236,6 @@ static const s_PcOpt PCOPT_S[] = {
      * draw_distance_pct buys, rather than just thinning the haze -- the two are
      * meant to be moved together, since either alone disappoints. */
     { "Fog_Strength",     NULL, "fog_strength",         NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fogStrength,         &g_PsyX_FogStrength,         0.0f, 2.0f, 0.05f },
-    /* Preload_Chunks moved out: it needs a map reload to take effect and the
-     * launcher already exposes it. Disable_Culling takes the slot back -- it
-     * applies live, and it pairs with Fog_Strength above for seeing further. */
-    { "Disable_Culling",  &g_PcConfig.disableCulling, "disable_culling",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },
     { "FPS_Limit",        &g_PcConfig.fpsCap,         "fps_cap",          VAL_FPS,   5, LBL_FPS,   NULL, 1, PCK_INT  },
     { "FMV_Movie_Vol",    NULL, "fmv_volume",           NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fmvVolume,           &g_PcFmvVolume,             0.0f, 1.0f, 0.05f },
     /* Rain and snow step once per rendered frame at 60, or on the original
@@ -267,6 +263,9 @@ static const s_PcOpt PCOPT_C[] = {
      * camera options) once OTS got its own FOV -- the Controls page was full. */
     { "Invert_Mouse_Y",    &g_PcConfig.invertMouseY,      "invert_mouse_y",         VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Invert_Pad_Y",      &g_PcConfig.invertControllerY, "invert_controller_y",    VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    /* From the System page, which stood at 12 rows, one more than fits. Here
+     * for the room, like Bullet_Decals below. */
+    { "Disable_Culling",   &g_PcConfig.disableCulling,    "disable_culling",        VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     /* A graphics option living on the Controls page purely for room: 11 rows is
      * the real ceiling, not the 12 the Graphics comment above assumes, and this
      * page is the shortest. Adding it to Graphics pushed that page off-screen. */
@@ -1733,7 +1732,7 @@ static void Options_PcOptionsMenu_ConfigDraw(void)
     int            count, i;
     const s_PcOpt* tbl = PcOpt_Page(&count);
     char           buf[24];
-    /* System's and Controls'/Camera's labels run long ("Disable Culling",
+    /* System's and Controls'/Camera's labels run long ("Beam Intensity",
      * "Mouse Sensitivity", "Camera Collision"), so push their value column right
      * to clear them — but no further: System's widest value ("C_+_Shadows",
      * 109px) must still end before the 320px clip (its labels end by ~196, so
