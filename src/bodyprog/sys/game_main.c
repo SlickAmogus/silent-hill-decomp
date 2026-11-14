@@ -3253,12 +3253,16 @@ void MainLoop(void) // 0x80032EE0
                                 memset(g_PsyX_GpuBucketPx, 0, sizeof(g_PsyX_GpuBucketPx));
                             }
                             {
-                                extern double       g_PsyX_CpuParseMs, g_PsyX_CpuDrawMs, g_PsyX_CpuSwapMs;
-                                extern unsigned int g_PsxSplitWhy[7];
+                                extern double       g_PsyX_CpuParseMs, g_PsyX_CpuDrawMs, g_PsyX_CpuSwapMs, g_PsyX_CpuMeshMs;
+                                extern unsigned int g_PsxSplitWhy[7], g_PsxPerfMeshDraws;
                                 double              n = (double)s_perfFrames;
 
-                                SH_DBG("[PERF]   cpu per frame: build vertices %.1f ms | submit draws %.1f ms | swap (gpu + vsync wait) %.1f ms",
-                                       g_PsyX_CpuParseMs / n, g_PsyX_CpuDrawMs / n, g_PsyX_CpuSwapMs / n);
+                                SH_DBG("[PERF]   cpu per frame: build vertices %.1f ms | submit draws %.1f ms (replacement meshes: %.1f draws, %.2f ms) | "
+                                       "swap (gpu + vsync wait) %.1f ms",
+                                       g_PsyX_CpuParseMs / n, g_PsyX_CpuDrawMs / n, g_PsxPerfMeshDraws / n, g_PsyX_CpuMeshMs / n,
+                                       g_PsyX_CpuSwapMs / n);
+                                g_PsyX_CpuMeshMs   = 0.0;
+                                g_PsxPerfMeshDraws = 0;
                                 SH_DBG("[PERF]   draw calls per frame started by: texture %.0f | blend %.0f | depth mode %.0f | texture offset %.0f | "
                                        "clip %.0f | after a mesh %.0f | other %.0f",
                                        g_PsxSplitWhy[2] / n, g_PsxSplitWhy[1] / n, g_PsxSplitWhy[3] / n, g_PsxSplitWhy[4] / n,
