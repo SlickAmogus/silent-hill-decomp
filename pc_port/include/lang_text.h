@@ -107,6 +107,10 @@ void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize);
  * No-op when the file is absent or has no entry for this map. */
 void Pc_TextOverrideApply(int mapIdx);
 
+/* Forget the override files read so far, for a text mod installed or updated
+ * while the game runs. They are read again at the next map load. */
+void Pc_TextOverridesReload(void);
+
 /* Port-written menu translations (lang_menu.c — retail PAL kept every menu
  * English, the disc has no menu strings to reuse). Called from the
  * Gfx_StringDraw chokepoint: returns the translated string when one exists
