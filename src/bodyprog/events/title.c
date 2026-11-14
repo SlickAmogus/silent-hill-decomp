@@ -13,6 +13,7 @@
 #include "pc_mouse_cursor.h"
 #include "pc_native_menu_draw.h"
 #include "pc_pause_menu_core.h"
+#include "pc_qol_update.h"
 #include "pc_retroachievements.h"
 #endif
 
@@ -285,7 +286,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
     /* Neither the gameplay demo nor the intro FMV may take the screen while the
      * achievements screen is up -- the player is reading, not idle. */
     playInGameDemo = g_PcConfig.attractDemos && g_MainMenuState != MenuState_Achievements &&
-                     !s_ExitConfirm.open &&
+                     !s_ExitConfirm.open && !Pc_QolUpdate_IsOpen() &&
                      (((g_Demo_ReproducedCount + 1) % 3) != 0);
 #else
     playInGameDemo = ((g_Demo_ReproducedCount + 1) % 3) != 0;
@@ -428,6 +429,21 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 
                 g_Controller0->pulsedBtnFlags  = 0;
                 g_Controller0->clickedBtnFlags = 0;
+            }
+            else
+            {
+                /* A mod update waiting to be offered (pc_qol_update.c). While its
+                 * question is up the menu under it takes no input, the same way
+                 * the exit question holds it. */
+                NmInput in;
+
+                NmInput_FromGame(&in);
+                if (Pc_QolUpdate_TitleFrame(in.left, in.right, in.confirm, in.cancel))
+                {
+                    exitConfirmActive              = true;
+                    g_Controller0->pulsedBtnFlags  = 0;
+                    g_Controller0->clickedBtnFlags = 0;
+                }
             }
 #endif
 
@@ -867,7 +883,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
     /* Hold the idle timer at zero while the achievements screen is up. Scrolling
      * a list is not idling, and at 1740 this loads STREAM.BIN and cuts to the
      * intro movie. */
-    if (g_MainMenuState == MenuState_Achievements || s_ExitConfirm.open)
+    if (g_MainMenuState == MenuState_Achievements || s_ExitConfirm.open || Pc_QolUpdate_IsOpen())
     {
         g_SysWork.counters_1C[1] = 0;
     }

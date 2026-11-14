@@ -23,6 +23,11 @@ void* Pc_RaSymbolLookup(const char* name);
 
 int Pc_RaHttpRequest(const char* url, const char* post, char** out_body, size_t* out_len);
 
+/* GET straight into the file at `path`, for a body too large to hold in memory.
+ * *got (optional) follows the bytes written. Returns the HTTP status; anything
+ * but 200 means the file was removed. Blocks: call from a worker thread. */
+int Pc_RaHttpDownloadFile(const char* url, const char* path, volatile long long* got);
+
 #ifdef __cplusplus
 }
 #endif

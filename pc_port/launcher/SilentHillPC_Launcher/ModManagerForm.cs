@@ -41,6 +41,7 @@ namespace SilentHillPC_Launcher
 
         // Essential QoL Mods: the downloadable catalog listed at the top of the list.
         private EssentialCatalog _catalog;
+        private bool _updatesOffered;
         private bool _catalogLoading = true;
         private bool _essentialExpanded;
         private bool _charsExpanded; // the Additional Characters fold inside the section
@@ -136,6 +137,57 @@ namespace SilentHillPC_Launcher
             _essentialExpanded = _mgr.Mods.Count == 0;
             CommitOrderAndState();
             Populate();
+            OfferEssentialUpdates();
+        }
+
+        /// <summary>Essential QoL mods whose catalog copy has changed since they were
+        /// installed: offer to download them again. The launcher already does this after
+        /// it installs a game build, and the game asks at its title screen; this is for
+        /// whoever opens the Mod Manager in between. Asked once per time the window is
+        /// opened, and only when something is out of date.</summary>
+        private void OfferEssentialUpdates()
+        {
+            if (_catalog == null || _updatesOffered) return;
+            _updatesOffered = true;
+
+            List<EssentialMod> stale;
+            try { stale = EssentialMods.StaleMods(_mgr, _catalog); }
+            catch { return; }
+            if (stale.Count == 0) return;
+
+            if (MessageBox.Show(this,
+                    Loc.T("A newer version of these Essential QoL mods is available:") + "\n\n  " +
+                    string.Join("\n  ", stale.Select(m => m.Name)) + "\n\n" +
+                    Loc.T("Download and install them now?"),
+                    Loc.T("Essential QoL Mods"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                return;
+
+            var updated  = new List<string>();
+            var failures = new List<string>();
+            try
+            {
+                // UpdateMods re-reads the library from the saved state, so whatever was
+                // ticked or reordered in the moment before the catalog arrived goes to disk first.
+                CommitOrderAndState();
+                _mgr.SaveState();
+                ProgressDialog.RunCancellable(this, Loc.T("Updating Essential QoL mods…"),
+                    (r, cancelled) =>
+                    {
+                        updated = EssentialMods.UpdateMods(_mgr, stale, _chkLoose.Checked, failures, r, cancelled);
+                    });
+            }
+            catch (Exception ex) { failures.Add(ex.Message); }
+            Populate();
+
+            if (updated.Count == 0 && failures.Count == 0) return;
+            string msg = updated.Count > 0
+                ? Loc.T("These Essential QoL mods were updated:") + "\n\n  " + string.Join("\n  ", updated)
+                : "";
+            if (failures.Count > 0)
+                msg += (msg.Length > 0 ? "\n\n" : "") + Loc.T("These could not be updated:") +
+                       "\n\n  " + string.Join("\n  ", failures);
+            MessageBox.Show(this, msg, Loc.T("Essential QoL Mods"), MessageBoxButtons.OK,
+                failures.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
         }
 
         /// <summary>Ask about any archive lying in the mod folders, unpack what was agreed to

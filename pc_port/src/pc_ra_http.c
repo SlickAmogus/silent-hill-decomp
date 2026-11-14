@@ -17,6 +17,7 @@
 #define _GNU_SOURCE
 #endif
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -47,7 +48,9 @@ void* Pc_RaSymbolLookup(const char* name)
 
 #include <winhttp.h>
 
-int Pc_RaHttpRequest(const char* url, const char* post, char** out_body, size_t* out_len)
+/* The body goes to `sink` when one is given, else to *out_body. */
+static int Ra_Transfer(const char* url, const char* post, char** out_body, size_t* out_len, FILE* sink,
+                       volatile long long* got)
 {
     HINTERNET      session = NULL, connect = NULL, request = NULL;
     URL_COMPONENTS uc;
@@ -109,17 +112,39 @@ int Pc_RaHttpRequest(const char* url, const char* post, char** out_body, size_t*
                                 WINHTTP_NO_HEADER_INDEX);
             for (;;)
             {
-                DWORD avail = 0, got = 0;
+                DWORD avail = 0, nread = 0;
                 char* grown;
-                if (!WinHttpQueryDataAvailable(request, &avail) || avail == 0)
+                if (!WinHttpQueryDataAvailable(request, &avail))
+                {
+                    /* A transfer cut short must not pass for a complete file. */
+                    if (sink)
+                        status = 0;
                     break;
+                }
+                if (avail == 0)
+                    break;
+                if (sink)
+                {
+                    char  chunk[16384];
+                    DWORD want = avail < (DWORD)sizeof(chunk) ? avail : (DWORD)sizeof(chunk);
+                    if (!WinHttpReadData(request, chunk, want, &nread) || nread == 0 ||
+                        fwrite(chunk, 1, nread, sink) != nread)
+                    {
+                        status = 0;
+                        break;
+                    }
+                    bodyLen += nread;
+                    if (got)
+                        *got = (long long)bodyLen;
+                    continue;
+                }
                 grown = (char*)realloc(body, bodyLen + avail + 1);
                 if (!grown)
                     break;
                 body = grown;
-                if (!WinHttpReadData(request, body + bodyLen, avail, &got) || got == 0)
+                if (!WinHttpReadData(request, body + bodyLen, avail, &nread) || nread == 0)
                     break;
-                bodyLen += got;
+                bodyLen += nread;
             }
             if (body)
                 body[bodyLen] = '\0';
@@ -134,6 +159,29 @@ int Pc_RaHttpRequest(const char* url, const char* post, char** out_body, size_t*
     *out_body = body;
     *out_len  = bodyLen;
     return (int)status;
+}
+
+int Pc_RaHttpRequest(const char* url, const char* post, char** out_body, size_t* out_len)
+{
+    return Ra_Transfer(url, post, out_body, out_len, NULL, NULL);
+}
+
+int Pc_RaHttpDownloadFile(const char* url, const char* path, volatile long long* got)
+{
+    char*  body = NULL;
+    size_t len  = 0;
+    FILE*  f    = fopen(path, "wb");
+    int    status;
+
+    if (f == NULL)
+        return 0;
+    status = Ra_Transfer(url, NULL, &body, &len, f, got);
+    if (fclose(f) != 0)
+        status = 0;
+    free(body);
+    if (status != 200)
+        remove(path);
+    return status;
 }
 
 #elif defined(SH_RA_HAVE_CURL)
@@ -187,6 +235,56 @@ int Pc_RaHttpRequest(const char* url, const char* post, char** out_body, size_t*
     return (int)status;
 }
 
+typedef struct { FILE* f; volatile long long* got; long long n; } s_RaFileSink;
+
+static size_t Pc_RaCurlWriteFile(void* ptr, size_t size, size_t nmemb, void* userdata)
+{
+    s_RaFileSink* sink  = (s_RaFileSink*)userdata;
+    const size_t  total = size * nmemb;
+    if (fwrite(ptr, 1, total, sink->f) != total)
+        return 0;
+    sink->n += (long long)total;
+    if (sink->got)
+        *sink->got = sink->n;
+    return total;
+}
+
+int Pc_RaHttpDownloadFile(const char* url, const char* path, volatile long long* got)
+{
+    CURL*        curl;
+    s_RaFileSink sink;
+    long         status = 0;
+
+    sink.f   = fopen(path, "wb");
+    sink.got = got;
+    sink.n   = 0;
+    if (sink.f == NULL)
+        return 0;
+
+    curl = curl_easy_init();
+    if (curl)
+    {
+        curl_easy_setopt(curl, CURLOPT_URL, url);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, Pc_RaCurlWriteFile);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &sink);
+        curl_easy_setopt(curl, CURLOPT_USERAGENT, "SilentHillPC/1.0");
+        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+        /* A mod can take far longer than any fixed timeout allows: give up on
+         * a stalled transfer instead. */
+        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 30L);
+        curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT, 1024L);
+        curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME, 30L);
+        if (curl_easy_perform(curl) == CURLE_OK)
+            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
+        curl_easy_cleanup(curl);
+    }
+    if (fclose(sink.f) != 0)
+        status = 0;
+    if (status != 200)
+        remove(path);
+    return (int)status;
+}
+
 #else
 
 int Pc_RaHttpRequest(const char* url, const char* post, char** out_body, size_t* out_len)
@@ -194,6 +292,12 @@ int Pc_RaHttpRequest(const char* url, const char* post, char** out_body, size_t*
     (void)url; (void)post;
     *out_body = NULL;
     *out_len  = 0;
+    return 0;
+}
+
+int Pc_RaHttpDownloadFile(const char* url, const char* path, volatile long long* got)
+{
+    (void)url; (void)path; (void)got;
     return 0;
 }
 
