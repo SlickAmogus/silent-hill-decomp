@@ -409,6 +409,7 @@ typedef struct
     u8    bone[PC_SKIN_INFL];
     u8    n;
     u8    dom;
+    u8    whole;              /* one bone, whole bone-local units: see Skin_GteScreen */
     SVECTOR gteNormal;        /* dominant-bone-local, the ILM's inward sign */
     float   tan[4];           /* dominant-bone-local tangent, w = bitangent sign */
 } PcSkinVert;
@@ -503,6 +504,7 @@ typedef struct
     /* frame state */
     float       rv[PC_SKIN_BONES][9];
     float       tv[PC_SKIN_BONES][3];
+    MATRIX      vm[PC_SKIN_BONES]; /* the view matrices as handed over, for Skin_GteScreen */
     u8          have[PC_SKIN_BONES];
     u8          lit[PC_SKIN_BONES];
     float       rw[PC_SKIN_BONES][9]; /* bone -> world, for the ragdoll */
@@ -2300,6 +2302,29 @@ static int Skin_Load(PcSkinChara* ch, const char* path)
     }
 #undef TO_GAME
 
+    /* The vertices a native model took from the ILM sit at whole units in their
+     * bone's frame, which is what lets Skin_GteScreen put them exactly where the
+     * stock parts put the ones they share. The lids and mouth added to a face
+     * do not, and nothing stock touches those. */
+    if (ch->native)
+    {
+        int whole = 0, i;
+
+        for (j = 0; j < (size_t)ch->vertCount; j++)
+        {
+            PcSkinVert* sv = &ch->verts[j];
+
+            sv->whole = sv->n == 1;
+            for (i = 0; i < 3; i++)
+                if (fabsf(sv->l[0][i] - roundf(sv->l[0][i])) > 0.02f)
+                    sv->whole = 0;
+            whole += sv->whole;
+        }
+        if (whole == 0)
+            SH_DBG("[SKIN] %s: no vertex is at whole bone-local units, so with PGXP off its seams with the "
+                   "stock parts can show", path);
+    }
+
     /* Held weapons are modelled round Harry's 10RHAND3 fist (box centre
      * below, hand-bone frame); a shorter hand left the grip hanging below the
      * fingers. The fist measured is the closed one the weapon is shown with. */
@@ -3043,6 +3068,7 @@ void Pc_SkinChara_Bone(void* chara, int boneIdx, MATRIX* worldMat, MATRIX* viewM
             ch->rw[boneIdx][r * 3 + c] = worldMat->m[r][c] / 4096.0f;
         ch->tw[boneIdx][r] = (float)worldMat->t[r];
     }
+    ch->vm[boneIdx] = *viewMat;
     ch->have[boneIdx] = 1;
 
     /* The stock part's own lighting prelude (func_80057090 -> func_8005A21C),
@@ -3141,6 +3167,71 @@ static u8 Skin_Fog(s32 z)
     if (fa > 0x1000) fa = 0x1000;
     if (fa < 0) fa = 0;
     return (u8)((fa * 127 + 2048) >> 12);
+}
+
+/* The GTE's divide, table and all (the twin of PsyCross's gte_divide). */
+static u32 Skin_GteDivide(u16 num, u16 den)
+{
+    static const u8 unr[257] = {
+        0xff, 0xfd, 0xfb, 0xf9, 0xf7, 0xf5, 0xf3, 0xf1, 0xef, 0xee, 0xec, 0xea, 0xe8, 0xe6, 0xe4, 0xe3,
+        0xe1, 0xdf, 0xdd, 0xdc, 0xda, 0xd8, 0xd6, 0xd5, 0xd3, 0xd1, 0xd0, 0xce, 0xcd, 0xcb, 0xc9, 0xc8,
+        0xc6, 0xc5, 0xc3, 0xc1, 0xc0, 0xbe, 0xbd, 0xbb, 0xba, 0xb8, 0xb7, 0xb5, 0xb4, 0xb2, 0xb1, 0xb0,
+        0xae, 0xad, 0xab, 0xaa, 0xa9, 0xa7, 0xa6, 0xa4, 0xa3, 0xa2, 0xa0, 0x9f, 0x9e, 0x9c, 0x9b, 0x9a,
+        0x99, 0x97, 0x96, 0x95, 0x94, 0x92, 0x91, 0x90, 0x8f, 0x8d, 0x8c, 0x8b, 0x8a, 0x89, 0x87, 0x86,
+        0x85, 0x84, 0x83, 0x82, 0x81, 0x7f, 0x7e, 0x7d, 0x7c, 0x7b, 0x7a, 0x79, 0x78, 0x77, 0x75, 0x74,
+        0x73, 0x72, 0x71, 0x70, 0x6f, 0x6e, 0x6d, 0x6c, 0x6b, 0x6a, 0x69, 0x68, 0x67, 0x66, 0x65, 0x64,
+        0x63, 0x62, 0x61, 0x60, 0x5f, 0x5e, 0x5d, 0x5d, 0x5c, 0x5b, 0x5a, 0x59, 0x58, 0x57, 0x56, 0x55,
+        0x54, 0x53, 0x53, 0x52, 0x51, 0x50, 0x4f, 0x4e, 0x4d, 0x4d, 0x4c, 0x4b, 0x4a, 0x49, 0x48, 0x48,
+        0x47, 0x46, 0x45, 0x44, 0x43, 0x43, 0x42, 0x41, 0x40, 0x3f, 0x3f, 0x3e, 0x3d, 0x3c, 0x3c, 0x3b,
+        0x3a, 0x39, 0x39, 0x38, 0x37, 0x36, 0x36, 0x35, 0x34, 0x33, 0x33, 0x32, 0x31, 0x31, 0x30, 0x2f,
+        0x2e, 0x2e, 0x2d, 0x2c, 0x2c, 0x2b, 0x2a, 0x2a, 0x29, 0x28, 0x28, 0x27, 0x26, 0x26, 0x25, 0x24,
+        0x24, 0x23, 0x22, 0x22, 0x21, 0x20, 0x20, 0x1f, 0x1e, 0x1e, 0x1d, 0x1d, 0x1c, 0x1b, 0x1b, 0x1a,
+        0x19, 0x19, 0x18, 0x18, 0x17, 0x16, 0x16, 0x15, 0x15, 0x14, 0x14, 0x13, 0x12, 0x12, 0x11, 0x11,
+        0x10, 0x0f, 0x0f, 0x0e, 0x0e, 0x0d, 0x0d, 0x0c, 0x0c, 0x0b, 0x0a, 0x0a, 0x09, 0x09, 0x08, 0x08,
+        0x07, 0x07, 0x06, 0x06, 0x05, 0x05, 0x04, 0x04, 0x03, 0x03, 0x02, 0x02, 0x01, 0x01, 0x00, 0x00,
+        0x00
+    };
+    int shift = 0, r1, r2, r3;
+    u32 reciprocal;
+
+    if (num >= den * 2)
+        return 0xFFFFFFFFu;
+    while (((den << shift) & 0x8000) == 0)
+        shift++;
+    r1 = (den << shift) & 0x7fff;
+    r2 = unr[(r1 + 0x40) >> 7] + 0x101;
+    r3 = ((0x80 - (r2 * (r1 + 0x8000))) >> 8) & 0x1ffff;
+    reciprocal = (u32)(((r2 * r3) + 0x80) >> 8);
+    return (u32)((((u64)reciprocal * (u32)(num << shift)) + 0x8000) >> 16);
+}
+
+/* Where the GTE's RTPS puts a vertex at whole bone-local units, under the
+ * projection registers as they stand: the same integers, floor included, that
+ * place a stock part's vertices when PGXP is off. A native model shares its
+ * arm and hip rings with stock parts; projected in float instead, it sat up to
+ * a pixel right of and below them, which opened a gap along its left and upper
+ * edges (Harry's left shoulder, seen from behind). */
+static void Skin_GteScreen(const MATRIX* m, const float* local, float* scr)
+{
+    const s32 l[3] = { (s32)lroundf(local[0]), (s32)lroundf(local[1]), (s32)lroundf(local[2]) };
+    s32 mac[3], ir[2], sz;
+    s64 sx, sy;
+    u32 q;
+    int k;
+
+    for (k = 0; k < 3; k++)
+        mac[k] = (s32)(((((s64)m->t[k]) << 12) + (s64)m->m[k][0] * l[0] + (s64)m->m[k][1] * l[1] +
+                        (s64)m->m[k][2] * l[2]) >> 12);
+    for (k = 0; k < 2; k++)
+        ir[k] = mac[k] < -0x8000 ? -0x8000 : (mac[k] > 0x7fff ? 0x7fff : mac[k]);
+    sz = mac[2] < 0 ? 0 : (mac[2] > 0xffff ? 0xffff : mac[2]);
+    q = Skin_GteDivide((u16)C2_H, (u16)sz);
+    if (q > 0x1ffff)
+        q = 0x1ffff;
+    sx = ((s64)C2_OFX + (s64)ir[0] * q) >> 16;
+    sy = ((s64)C2_OFY + (s64)ir[1] * q) >> 16;
+    scr[0] = (float)(sx < -0x400 ? -0x400 : (sx > 0x3ff ? 0x3ff : sx));
+    scr[1] = (float)(sy < -0x400 ? -0x400 : (sy > 0x3ff ? 0x3ff : sy));
 }
 
 static u8 Skin_Scale8(int v, int pct, int max)
@@ -3771,6 +3862,7 @@ void Pc_SkinChara_End(void* chara, void* otp, int shift, int hideHead)
     float minZ = 1e30f, maxZ = 0.0f;
     int buf = g_ActiveBufferIdx & 1;
     int v, m, bucket;
+    const int whole = !g_PsxUsePgxp;
 
     if (ch == NULL || ot == NULL)
         return;
@@ -3810,6 +3902,12 @@ void Pc_SkinChara_End(void* chara, void* otp, int shift, int hideHead)
         ch->pos[v * 3] = p[0]; ch->pos[v * 3 + 1] = p[1]; ch->pos[v * 3 + 2] = p[2];
         ch->scr[v * 2] = ofx + p[0] * h / p[2] + offX;
         ch->scr[v * 2 + 1] = ofy + p[1] * h / p[2] + offY;
+        if (whole && sv->whole)
+        {
+            Skin_GteScreen(&ch->vm[sv->bone[0]], sv->l[0], &ch->scr[v * 2]);
+            ch->scr[v * 2] += offX;
+            ch->scr[v * 2 + 1] += offY;
+        }
         if (!ch->lit[sv->dom])
             ch->color[v].r = ch->color[v].g = ch->color[v].b = 128;
         ch->ok[v] = 1;
