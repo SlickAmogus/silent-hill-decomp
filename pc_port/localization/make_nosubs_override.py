@@ -5,20 +5,33 @@ Drop the output in gamedata/load/text_overrides/ (or merge it into
 gamedata/load/text_overrides.txt) to play with no subtitles on voiced dialogue
 while keeping every other piece of text on screen.
 
-Which lines are voiced is not a guess. A voiced line carries the ~J0(seconds)
+Which lines are voiced is not a guess. A voiced line carries a ~J<n>(seconds)
 command, which exists to pace the scene to its audio clip, so the game itself
 marks every line it has a recording for. Dub releases blank exactly these and
 keep the timing command; this produces the same result through the mod system.
 
+There are three of them, and the first version of this script knew one:
+    ~J0  the line cannot be skipped
+    ~J1  the line can be skipped with a button (the most common: 420 lines)
+    ~J2  a page of one long recording (the video tape)
+With only ~J0 blanked, more than half of the dialogue stayed on screen: the
+whole church scene, the boat, the carousel, every Lisa scene.
+
 That test is also what protects the rest. Examine text, item and door prompts,
-notes, memos and the cutscene lines Harry has no recording for carry no ~J0 and
+notes, memos and the cutscene lines Harry has no recording for carry no ~J and
 get no entry here, so nothing needs to know who is speaking.
 
 Empty value = blank the line. lang_text.c's TextOverrideBuild keeps the
-message's own leading ~command prefix and appends " ~E ", so an empty
-replacement still comes out voice-synced. It captures only the FIRST command
-though, so a line that leads with something else (three do, all ~D) would lose
-its ~J0; those get the timing written back explicitly as the replacement text.
+message's own leading ~command prefix and its ~E (or the lack of one), so an
+empty replacement still comes out voice-synced. It captures only the FIRST
+command though, so a line that leads with something else (three do, all ~D)
+would lose its ~J; those get the timing written back explicitly as the
+replacement text.
+
+Order matters for older builds of the game, which stop reading text overrides
+at 512 entries: the ~J0 lines come first, exactly as the first version listed
+them, so a build from before the limit was raised still blanks everything it
+did and then as many of the new lines as fit, in story order.
 
     python make_nosubs_override.py [--out <path>]
 """
@@ -53,10 +66,18 @@ def leading_prefix(orig):
     return orig[:i]
 
 
+TIMING = re.compile(r"~J([0-9]+)(\([^)]*\))?")
+
+
 def voiced_timing(orig):
-    """The ~J0(..) command on this line, as written."""
-    m = re.search(r"~J0(\([^)]*\))?", orig)
+    """The ~J<n>(..) command on this line, as written."""
+    m = TIMING.search(orig)
     return m.group(0) if m else None
+
+
+def shown_text(orig):
+    """What is left of the line once every ~command is taken out."""
+    return re.sub(r"[\s_]+", "", CMD.sub("", orig))
 
 
 def main():
@@ -66,22 +87,24 @@ def main():
 
     raw = json.load(io.open(RAW, encoding="utf-8"))
 
-    rows = []
+    first, later = [], []
     for key, val in sorted(raw.items()):
-        if not isinstance(val, str) or "~J0" not in val:
+        if not isinstance(val, str):
             continue
         if not key.upper().startswith("MAP"):
             continue  # only map messages have a map.idx key
-
         timing = voiced_timing(val)
+        if timing is None:
+            continue
+        if not shown_text(val):
+            continue  # a timed pause with no words: nothing to blank
+
         # An empty replacement is enough when the kept prefix already carries
         # the timing; otherwise write the timing back as the replacement.
-        replacement = "" if "~J0" in leading_prefix(val) else timing
-        rows.append((key.lower(), replacement, val))
+        replacement = "" if TIMING.search(leading_prefix(val)) else timing
+        (first if timing.startswith("~J0") else later).append((key.lower(), replacement, val))
 
-    by_map = {}
-    for key, replacement, orig in rows:
-        by_map.setdefault(key.rsplit(".", 1)[0], []).append((key, replacement, orig))
+    rows = first + later
 
     with io.open(args.out, "w", encoding="utf-8", newline="\n") as f:
         f.write("# Silent Hill PC port - no subtitles on voiced lines\n")
@@ -90,25 +113,35 @@ def main():
         f.write("# into gamedata/load/text_overrides.txt.\n")
         f.write("#\n")
         f.write("# Blanks only the lines the game has a recording for: those carry a\n")
-        f.write("# ~J0(seconds) command that paces the scene to its clip, and the port keeps\n")
-        f.write("# that command, so scenes run their original length with no text. Examine\n")
-        f.write("# text, item and door prompts, notes, and the cutscene lines Harry has no\n")
-        f.write("# recording for are not listed here and are unaffected.\n")
+        f.write("# ~J<n>(seconds) command that paces the scene to its clip, and the port\n")
+        f.write("# keeps that command, so scenes run their original length with no text.\n")
+        f.write("# Examine text, item and door prompts, notes, and the cutscene lines Harry\n")
+        f.write("# has no recording for are not listed here and are unaffected.\n")
         f.write("#\n")
         f.write("# Generated by pc_port/localization/make_nosubs_override.py\n")
-        f.write("# %d voiced lines across %d maps.\n" % (len(rows), len(by_map)))
+        f.write("# %d voiced lines across %d maps.\n" % (len(rows), len({k.rsplit(".", 1)[0] for k, _, _ in rows})))
+        f.write("#\n")
+        f.write("# Version 2: the first version listed only the lines that cannot be\n")
+        f.write("# skipped (~J0). Lines that can be skipped (~J1) and the pages of one long\n")
+        f.write("# recording (~J2) are voiced too and were left on screen.\n")
 
         explicit = 0
-        for mapname in sorted(by_map):
-            f.write("\n# %s\n" % mapname)
-            for key, replacement, orig in by_map[mapname]:
-                if replacement:
-                    explicit += 1
-                    f.write("# leads with another command, so its timing is written back\n")
-                f.write("%s = %s\n" % (key, replacement))
+        for title, part in (("lines that cannot be skipped (~J0)", first),
+                            ("lines that can be skipped (~J1) and pages of one recording (~J2)", later)):
+            by_map = {}
+            for key, replacement, orig in part:
+                by_map.setdefault(key.rsplit(".", 1)[0], []).append((key, replacement, orig))
+            f.write("\n# ---- %s ----\n" % title)
+            for mapname in sorted(by_map):
+                f.write("\n# %s\n" % mapname)
+                for key, replacement, orig in by_map[mapname]:
+                    if replacement:
+                        explicit += 1
+                        f.write("# leads with another command, so its timing is written back\n")
+                    f.write("%s = %s\n" % (key, replacement))
 
     print("wrote %s" % args.out)
-    print("  %d voiced lines, %d maps" % (len(rows), len(by_map)))
+    print("  %d voiced lines (%d ~J0, %d ~J1/~J2)" % (len(rows), len(first), len(later)))
     print("  %d needed their timing written back explicitly" % explicit)
 
 
