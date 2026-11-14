@@ -306,6 +306,7 @@ int Dds_UploadBptc(unsigned int* tex, const unsigned char* fileData, int fileSiz
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
     }
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
+#if !defined(__ANDROID__) && !defined(SH_IOS) && !defined(__EMSCRIPTEN__)
     if (g_grCaps.texLevelParam)
     {
         /* As upload_rgba: the renderer's per-frame filter takes this instead
@@ -316,6 +317,7 @@ int Dds_UploadBptc(unsigned int* tex, const unsigned char* fileData, int fileSiz
         glGetTexLevelParameteriv(GL_TEXTURE_2D, 1, GL_TEXTURE_WIDTH, &mipW);
         GR_NoteTextureMips(*tex, mipW > 0);
     }
+#endif
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glBindTexture(GL_TEXTURE_2D, 0);

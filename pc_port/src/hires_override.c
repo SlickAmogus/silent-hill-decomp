@@ -1359,6 +1359,9 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
     }
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
+/* Compiled out for the phones and the browser: their GL headers have no such
+ * query at all, and their renderer never asked this of a texture either. */
+#if !defined(__ANDROID__) && !defined(SH_IOS) && !defined(__EMSCRIPTEN__)
     if (g_grCaps.texLevelParam)
     {
         /* Asked once here, where the storage changes, and handed to the
@@ -1372,6 +1375,7 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
         glGetTexLevelParameteriv(GL_TEXTURE_2D, 1, GL_TEXTURE_WIDTH, &mipW);
         GR_NoteTextureMips(*tex, mipW > 0);
     }
+#endif
 
     /* Tell the renderer this one is off-limits to the global filtering setting.
      * Filtering is applied per BIND now, so without this the mode chosen above
