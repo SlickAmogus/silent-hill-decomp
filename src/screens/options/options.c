@@ -140,6 +140,9 @@ extern float g_PcFmvVolume;
 /* Internal render resolution, read by the renderer every frame. Writing it is
  * not enough -- the target is rebuilt by PsyX_RenderScaleApply below. */
 extern float g_cfg_renderScale;
+/* How the present stretches that smaller target onto the screen
+ * (PsyX_render.cpp GR_PresentBlit), read every frame. */
+extern int g_PcPresentScale;
 
 /* The volume-bar labels are far longer once translated ("Głośność Efektów",
  * "Musiklautstärke") than the English "BGM Volume" the retail x=184 bar origin
@@ -155,10 +158,10 @@ s32 g_PcOptionsMenu_SelectedEntry     = 0;
 s32 g_PcOptionsMenu_PrevSelectedEntry = 0;
 static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System, 2 = Controls, 3 = Camera, 4 = HUD */
 #if defined(SH_IOS) || defined(__ANDROID__)
-/* A sixth page on a phone. Every page there is at its 11-row ceiling (a
- * twelfth row runs Back off the screen), so a new Controls row needed a page
- * to push the overflow onto. PCOPT_M, after HUD. */
-#define PCOPT_PAGE_COUNT 6
+/* Two more pages on a phone. Every page there is at its 11-row ceiling (a
+ * twelfth row runs Back off the screen), so a new row needs a page to push
+ * the overflow onto: PCOPT_M after HUD, then PCOPT_P. */
+#define PCOPT_PAGE_COUNT 7
 #else
 #define PCOPT_PAGE_COUNT 5
 #endif
@@ -264,6 +267,8 @@ static const int VAL_TOUCH[]  = { TouchControls_Auto, TouchControls_On, TouchCon
 /* Weather simulation rate. 60 = one step per rendered frame (default), 30 = the
  * console cadence the particle code was authored at. */
 static const int VAL_WHZ[]    = { 30, 60 };
+/* The launcher's Scaling list, in its order (config key: scaling). */
+static const int VAL_SCALE[]  = { 0, 1, 2, 3 };
 
 static const char* const LBL_WIN[]   = { "Windowed", "Fullscreen", "Borderless" };
 static const char* const LBL_VSYNC[] = { "Off", "On" };
@@ -289,6 +294,9 @@ static const int VAL_TSTYLE[] = { TouchStyle_Context, TouchStyle_ContextFixed,
                                   TouchStyle_Gamepad };
 static const char* const LBL_TSTYLE[] = { "Context", "Context_Fixed", "Gamepad" };
 static const char* const LBL_WHZ[]    = { "30_Hz", "60_Hz" };
+/* "Sharp" is sharp bilinear: the full name runs past the 320px clip from where
+ * its page's value column starts. */
+static const char* const LBL_SCALE[]  = { "Integer", "Nearest", "Bilinear", "Sharp" };
 
 static const int RES_W[] = { 640, 1280, 1366, 1600, 1920, 2560, 3840 };
 static const int RES_H[] = { 480,  720,  768,  900, 1080, 1440, 2160 };
@@ -482,7 +490,7 @@ static const s_PcOpt PCOPT_H[] = {
     { "Minimap_Reqs_Map",  &g_PcConfig.minimapRequireMap,  "minimap_require_map",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
 #if !defined(SH_IOS) && !defined(__ANDROID__)
     /* Pulsing red edge glow below 20 hp (pc_combat.c Pc_LowHealthGlowUpdate).
-     * On a phone it sits on the last page instead, with PCOPT_M. */
+     * On a phone it sits on PCOPT_M instead. */
     { "Low_HP_Glow",       &g_PcConfig.lowHealthGlow,      "low_health_glow",       VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
 #endif
     /* From the System page; a crosshair is HUD, and that page needed the room. */
@@ -516,16 +524,29 @@ static const s_PcOpt PCOPT_M[] = {
     /* Pulsing red edge glow below 20 hp (pc_combat.c Pc_LowHealthGlowUpdate),
      * moved off the HUD page to the last one. */
     { "Low_HP_Glow",       &g_PcConfig.lowHealthGlow,     "low_health_glow",     VAL_ONOFF,  2, LBL_ONOFF,  NULL, 1, PCK_INT },
+    /* Asks before it acts; see PCOPT_TOTITLE_WINDOW_MS. */
+    { "Return_to_Title",   NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_TOTITLE },
+    { "Prev_Page",         NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_PREV },
+    /* Not the last page: PCOPT_P follows. */
+    { "Next_Page",         NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_NEXT },
+    { "Back",              NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_BACK },
+};
+
+/* Page 7, phones only: what a device short of GPU or memory reaches for. Split
+ * off PCOPT_M when Scaling arrived and that page had no row left to give. */
+static const s_PcOpt PCOPT_P[] = {
     /* The biggest lever a weak GPU has: draw into a smaller target and stretch
      * it on present, the only setting that cuts PIXEL COUNT rather than
      * per-pixel work. 100% is the original path exactly. Applies live. */
     { "Render_Scale",      NULL,                          "render_scale",        NULL,       0, NULL,       NULL, 1, PCK_SLIDER, &g_PcConfig.renderScale, &g_cfg_renderScale, 0.25f, 1.0f, 0.05f, 1 },
+    /* The launcher's Scaling list on desktop; a phone has no launcher, and the
+     * key could only be typed into config.cfg. Nothing to see at 100%, where
+     * the picture is not stretched at all. Applies live. */
+    { "Scaling",           &g_PcConfig.scaling,           "scaling",             VAL_SCALE,  4, LBL_SCALE,  &g_PcPresentScale, 1, PCK_INT },
     /* Off = the ten vanilla VRAM pages only, which is what a device short of
      * memory and fill rate wants, and the first thing to try without a texture
      * pack. Needs a restart: the pool is sized at startup. */
     { "Resident_Textures", &g_PcConfig.residentTextures,  "resident_textures",   VAL_ONOFF,  2, LBL_ONOFF,  NULL, 0, PCK_INT },
-    /* Asks before it acts; see PCOPT_TOTITLE_WINDOW_MS. */
-    { "Return_to_Title",   NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_TOTITLE },
     { "Prev_Page",         NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_PREV },
     { "Back",              NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_BACK },
 };
@@ -569,6 +590,7 @@ const s_PcOpt* PcOpt_PageByIndex(int page, int* count)
     if (page == 3) { *count = (int)(sizeof(PCOPT_T) / sizeof(PCOPT_T[0])); return PCOPT_T; }
 #if defined(SH_IOS) || defined(__ANDROID__)
     if (page == 5) { *count = (int)(sizeof(PCOPT_M) / sizeof(PCOPT_M[0])); return PCOPT_M; }
+    if (page == 6) { *count = (int)(sizeof(PCOPT_P) / sizeof(PCOPT_P[0])); return PCOPT_P; }
 #endif
     *count = (int)(sizeof(PCOPT_H) / sizeof(PCOPT_H[0]));
     return PCOPT_H;
@@ -582,6 +604,7 @@ static const s_PcOpt* PcOpt_Page(int* count)
     if (g_PcOptionsMenu_Page == 3) { *count = (int)(sizeof(PCOPT_T) / sizeof(PCOPT_T[0])); return PCOPT_T; }
 #if defined(SH_IOS) || defined(__ANDROID__)
     if (g_PcOptionsMenu_Page == 5) { *count = (int)(sizeof(PCOPT_M) / sizeof(PCOPT_M[0])); return PCOPT_M; }
+    if (g_PcOptionsMenu_Page == 6) { *count = (int)(sizeof(PCOPT_P) / sizeof(PCOPT_P[0])); return PCOPT_P; }
 #endif
     *count = (int)(sizeof(PCOPT_H) / sizeof(PCOPT_H[0]));
     return PCOPT_H;
