@@ -892,21 +892,52 @@ static void cd_launcher_set_enabled(const char* modName, int enabled)
 static void cd_migrate_downloads(void);
 static int  cd_crc_file(const char* path, long long* size, unsigned* crc);
 
+/* Which folder holds a model, as last looked up. The skin loader asks for
+ * every character on every frame it is drawn, and each answer was two lookups
+ * on disk; the answer only moves when a file is installed, removed or migrated,
+ * and each of those ends in Cd_LocalScan, which forgets these. */
+#define CD_RESOLVE_MEMO 64
+static struct
+{
+    char base[200];
+    char inDl;
+} s_resolveMemo[CD_RESOLVE_MEMO];
+static int s_resolveMemoCount, s_resolveMemoNext;
+
+static void cd_resolve_forget(void)
+{
+    s_resolveMemoCount = s_resolveMemoNext = 0;
+}
+
 const char* Cd_ResolveBase(const char* base, char* out, int outSz)
 {
     const char* at = base ? strstr(base, "/load/CHARA/") : NULL;
     char        p[400];
+    int         i, inDl;
 
     if (at == NULL)
         return base;
     snprintf(out, (size_t)outSz, "%.*s/load/CHARA_dl/%s", (int)(at - base), base, at + 12);
+    for (i = 0; i < s_resolveMemoCount; i++)
+        if (strcmp(s_resolveMemo[i].base, base) == 0)
+            return s_resolveMemo[i].inDl ? out : base;
     snprintf(p, sizeof(p), "%s.glb", out);
-    if (cd_exists(p))
-        return out;
-    snprintf(p, sizeof(p), "%s.gltf", out);
-    if (cd_exists(p))
-        return out;
-    return base;
+    inDl = cd_exists(p);
+    if (!inDl)
+    {
+        snprintf(p, sizeof(p), "%s.gltf", out);
+        inDl = cd_exists(p);
+    }
+    if (strlen(base) < sizeof(s_resolveMemo[0].base))
+    {
+        i = s_resolveMemoNext;
+        s_resolveMemoNext = (s_resolveMemoNext + 1) % CD_RESOLVE_MEMO;
+        if (s_resolveMemoCount < CD_RESOLVE_MEMO)
+            s_resolveMemoCount++;
+        snprintf(s_resolveMemo[i].base, sizeof(s_resolveMemo[i].base), "%s", base);
+        s_resolveMemo[i].inDl = (char)inDl;
+    }
+    return inDl ? out : base;
 }
 
 void Cd_LocalScan(void)
@@ -920,6 +951,7 @@ void Cd_LocalScan(void)
     cd_records_load();
 
     cd_migrate_downloads();
+    cd_resolve_forget();
 
     /* A model in the downloads folder with no record (the records file was
      * lost, or the folder came from another install) still loads ahead of
