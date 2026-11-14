@@ -2422,7 +2422,11 @@ void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
  * own order and the mod on top wins a conflict. Mods that touch different lines
  * simply all apply. */
 
-#define TEXT_OVR_MAX       512
+/* Every text mod shares this table. 512 was two thirds of one mod: the game has
+ * 693 voiced lines with words on them, and No Subtitles lists each. Reading
+ * stopped at the limit without a word, so the scenes late in the file kept
+ * their subtitles. */
+#define TEXT_OVR_MAX       2048
 #define TEXT_OVR_FILES_MAX 64
 
 typedef struct {
@@ -2600,6 +2604,15 @@ static void TextOverridesLoad(void)
     }
 
     SH_LOG("[MODTEXT] loaded %d text override(s) from %d file(s)", s_TextOvrCount, files);
+    if (s_TextOvrCount >= TEXT_OVR_MAX)
+        SH_LOG("[MODTEXT] the table is full at %d: any override after that was not read", TEXT_OVR_MAX);
+}
+
+/* The files are read again at the next map load. The strings of the old table
+ * are left allocated: the map in memory may still point at them until then. */
+void Pc_TextOverridesReload(void)
+{
+    s_TextOvrCount = -1;
 }
 
 /* Keep orig's leading ~J..(..) timing prefix (+ following whitespace), then the
