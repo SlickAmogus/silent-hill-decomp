@@ -880,6 +880,15 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
     }
 
 #ifdef SH_PC_PORT
+    /* The mouse and touch are the player too, and the pad bits above never see
+     * them: someone pointing at the menu was not idle, yet the demo started. */
+    if (Pc_MouseCursor_PointerActive())
+    {
+        g_SysWork.counters_1C[1] = 0;
+    }
+#endif
+
+#ifdef SH_PC_PORT
     /* Hold the idle timer at zero while the achievements screen is up. Scrolling
      * a list is not idling, and at 1740 this loads STREAM.BIN and cuts to the
      * intro movie. */

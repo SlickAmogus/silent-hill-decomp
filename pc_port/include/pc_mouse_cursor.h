@@ -52,6 +52,12 @@ int Pc_MouseCursor_MenuRowHover(int baseY, int stepY, int count, unsigned int vi
  * keyboard/pad for the menu selection. */
 int Pc_MouseCursor_Moved(void);
 
+/* 1 if the mouse or a finger was used since the previous frame (a move, a
+ * button, the wheel, a touch), whether or not the menu cursor is on and
+ * even while gameplay has the mouse captured. The title's idle timer and the
+ * attract demo treat it as the player being there. */
+int Pc_MouseCursor_PointerActive(void);
+
 /* Raw pointer position in the text-authoring space (the coordinates
  * Gfx_StringSetPosition takes). Returns 0 (outputs untouched) when the cursor
  * is disabled/captured/outside the viewport — menus with non-uniform layouts
