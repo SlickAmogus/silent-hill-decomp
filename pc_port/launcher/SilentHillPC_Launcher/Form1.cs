@@ -90,6 +90,13 @@ public partial class Form1 : Form
     {
         InitializeComponent();
         this.Icon = SilentHillPC_Launcher.Properties.Resources.launchericon;
+        comboPillarbox.SelectedIndexChanged += (s, e) => RefreshDitherChoices();
+        comboDithering.SelectedIndexChanged += (s, e) =>
+        {
+            var c = comboDithering.SelectedItem as DitherChoice;
+            if (!_ditherRefreshing && c != null)
+                _ditherWanted = c.Value;
+        };
         PopulateDisplayOptions();
         LoadConfig();
         SetupTooltips();
@@ -230,6 +237,94 @@ public partial class Form1 : Form
      * width/height kept as the WINDOW size the game scales its own modes into. */
     private string _nativeResText;
 
+    /* One Dithering entry: its text and the dither_resolution it stands for. */
+    private sealed class DitherChoice
+    {
+        public readonly string Text;
+        public readonly int Value;
+        public DitherChoice(string text, int value) { Text = text; Value = value; }
+        public override string ToString() { return Text; }
+    }
+    private const int DitherOff = -2;
+    private static readonly int[] DitherLines = { 240, 480, 720, 1080, 1440, 2160, 2880, 4320 };
+    /* The choice made (DitherOff or a dither_resolution), kept apart from the
+     * list: the list is rebuilt whenever the resolution or the 3D aspect
+     * changes, and under Native (PSX) it shrinks to Off and Native. */
+    private int _ditherWanted = 480;
+    private bool _ditherRefreshing;
+
+    /* The 3D view's size in rendered pixels for the settings on screen, the
+     * way the game works it out: the chosen resolution (borderless renders at
+     * it too), times render_scale, and 4:3 inside that when the 3D view is
+     * pillarboxed. 0x0 under Native (PSX), where the game renders at the PSX's
+     * own size. */
+    private void DitherViewport(out int vw, out int vh)
+    {
+        vw = vh = 0;
+        string sel = comboResolution.SelectedItem != null ? comboResolution.SelectedItem.ToString() : null;
+        if (sel == null || sel == _nativeResText)
+            return;
+        var p = sel.Split('x');
+        int w, h;
+        if (p.Length != 2 || !int.TryParse(p[0], out w) || !int.TryParse(p[1], out h) || w <= 0 || h <= 0)
+            return;
+        double s;
+        if (!double.TryParse(config.Get("render_scale", "1"), System.Globalization.NumberStyles.Float,
+                             System.Globalization.CultureInfo.InvariantCulture, out s) || s <= 0 || s > 1)
+            s = 1;
+        if (s < 0.999)
+        {
+            int sw = (int)(w * s + 0.5) & ~1, sh = (int)(h * s + 0.5) & ~1;
+            w = sw < 256 ? Math.Min(w, 256) : sw;
+            h = sh < 192 ? Math.Min(h, 192) : sh;
+        }
+        if (comboPillarbox.SelectedIndex == 0 && w * 3 > h * 4)
+            w = (int)(h * 4.0 / 3.0 + 0.5);
+        vw = w;
+        vh = h;
+    }
+
+    /* The list the game's Dithering row shows for these settings: Off, Native
+     * (PSX), the standard heights below the 3D view's own, then the view's own
+     * size, each named for the view's aspect (854x480 at 16:9). */
+    private void RefreshDitherChoices()
+    {
+        int vw, vh;
+        DitherViewport(out vw, out vh);
+
+        _ditherRefreshing = true;
+        comboDithering.BeginUpdate();
+        comboDithering.Items.Clear();
+        comboDithering.Items.Add(new DitherChoice(Loc.T("Off"), DitherOff));
+        comboDithering.Items.Add(new DitherChoice(Loc.T("Native (PSX)"), 0));
+        if (vh > 0)
+        {
+            foreach (int lines in DitherLines)
+                if (lines < vh)
+                    comboDithering.Items.Add(new DitherChoice(
+                        $"{2 * (int)Math.Round(lines * (double)vw / vh / 2.0)}x{lines}", lines));
+            comboDithering.Items.Add(new DitherChoice($"{vw}x{vh}", -1));
+        }
+
+        /* A height at or past the view's is drawn as the view itself, and one
+         * typed between two offered heights shows as the one below it. */
+        int pick = -1, below = -1, belowLines = 0;
+        for (int i = 0; i < comboDithering.Items.Count; i++)
+        {
+            int v = ((DitherChoice)comboDithering.Items[i]).Value;
+            if (v == _ditherWanted)
+                pick = i;
+            if (v > 0 && v <= _ditherWanted && v > belowLines) { below = i; belowLines = v; }
+        }
+        if (pick < 0 && _ditherWanted > 0)
+            pick = (vh > 0 && _ditherWanted >= vh) ? comboDithering.Items.Count - 1 : below;
+        if (pick < 0)
+            pick = 1;
+        comboDithering.SelectedIndex = pick;
+        comboDithering.EndUpdate();
+        _ditherRefreshing = false;
+    }
+
     /// Build the Game Language row: Automatic, the languages every disc family
     /// carries, then whatever packs are installed in gamedata/lang.
     ///
@@ -313,7 +408,7 @@ public partial class Form1 : Form
         Loc.LocalizeItems(comboSkipIntros);
         Loc.LocalizeItems(comboPillarbox);
         Loc.LocalizeItems(comboFiltering);
-        Loc.LocalizeItems(comboDithering);
+        RefreshDitherChoices();
         Loc.LocalizeItems(comboScaling);
         Loc.LocalizeItems(comboAA);
         Loc.LocalizeItems(comboPost);
@@ -798,6 +893,9 @@ public partial class Form1 : Form
         const string ditheringTip =
             "The PSX 4x4 ordered dither plus a 5-bit quantize: the original look.\n" +
             "It also hides texture-page seams as noise instead of hard edges.\n" +
+            "Native (PSX): one dither cell per PSX pixel, as the console drew it.\n" +
+            "A resolution: square cells that fine (480 lines, 720, ...); the last\n" +
+            "entry is one cell per rendered pixel, the finest.\n" +
             "Separate from Filtering, so the two can be combined.";
         Set(ditheringLabel, ditheringTip);
         Set(comboDithering, ditheringTip);
@@ -1343,7 +1441,12 @@ public partial class Form1 : Form
 
         if (filterIdx < 0 || filterIdx >= comboFiltering.Items.Count) filterIdx = 0;
         comboFiltering.SelectedIndex = filterIdx;
-        comboDithering.SelectedIndex = ditherOn;
+        {
+            int ditherRes;
+            if (!int.TryParse(config.Get("dither_resolution", "480"), out ditherRes) || ditherRes < -1)
+                ditherRes = 480;
+            _ditherWanted = ditherOn != 0 ? ditherRes : DitherOff;
+        }
 
         /* Scaling: how a render resolution below the window is scaled up to it.
          * 0 integer, 1 nearest, 2 bilinear, 3 sharp bilinear. */
@@ -1509,6 +1612,8 @@ public partial class Form1 : Form
         radioPreloadYes.Checked = config.Get("preload_chunks", "1") == "1";
         radioPreloadNo.Checked = !radioPreloadYes.Checked;
 
+        /* Last: its list depends on the resolution and the 3D aspect above. */
+        RefreshDitherChoices();
     }
 
     private void SaveConfig()
@@ -1599,8 +1704,12 @@ public partial class Form1 : Form
          * leaving it alone keeps it from overriding these two on the next boot. */
         if (comboFiltering.SelectedIndex >= 0)
             config.Set("texture_filter", comboFiltering.SelectedIndex.ToString());
-        if (comboDithering.SelectedIndex >= 0)
-            config.Set("dithering", comboDithering.SelectedIndex == 1 ? "1" : "0");
+        /* The choice, not what the list shows: under Native (PSX) the list
+         * shrinks to Native, and moving back to a resolution should find the
+         * choice still there. Off leaves dither_resolution for the next On. */
+        config.Set("dithering", _ditherWanted == DitherOff ? "0" : "1");
+        if (_ditherWanted != DitherOff)
+            config.Set("dither_resolution", _ditherWanted.ToString());
         if (comboScaling.SelectedIndex >= 0)
             config.Set("scaling", comboScaling.SelectedIndex.ToString());
         config.Set("menu_filter", checkBox1.Checked ? "1" : "0");
@@ -2349,7 +2458,7 @@ public partial class Form1 : Form
 
     private void comboResolution_SelectedIndexChanged(object sender, EventArgs e)
     {
-
+        RefreshDitherChoices();
     }
 
     private void btnManager_Click(object sender, EventArgs e)
