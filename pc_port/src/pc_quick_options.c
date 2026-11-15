@@ -202,6 +202,8 @@ typedef struct
  * stripe per row on a desktop and, on a phone, four chunks under one title. */
 static const QoRowDef s_page0[] = {
     { ROW_OPT,   "texture_filter",       0, NULL },  /* Texture_Filter */
+    /* Was the "Dither" step of Texture_Filter before the two rows split. */
+    { ROW_OPT,   "dithering",            0, NULL },  /* Dithering */
     { ROW_OPT,   "msaa",                 0, NULL },  /* Antialiasing (restart) */
     { ROW_OPT,   "post_process",         0, NULL },
     { ROW_OPT,   "tonemap",              0, NULL },
