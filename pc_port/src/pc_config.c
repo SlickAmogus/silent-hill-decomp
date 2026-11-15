@@ -54,6 +54,7 @@ s_PcConfig g_PcConfig = {
     .showConsole    = 0,
     .psxDither      = -1, /* -1 = absent; see the dithering/texture_filter migration */
     .dithering      = 1,  /* PSX ordered dither on, the long-standing default */
+    .ditherResolution = 480,
     .textureFilter  = 0,  /* point sampling */
     .scaling        = 2,  /* bilinear: what the present blit always did */
     .imageAdjustScope = 1, /* world frames only; menus and FMVs left alone */
@@ -723,6 +724,11 @@ void PcConfig_Load(const char* path)
         {
             g_PcConfig.dithering = (atoi(value) != 0);
             s_sawDitherKeys = 1;
+        }
+        else if (strcmp(key, "dither_resolution") == 0)
+        {
+            int v = atoi(value);
+            g_PcConfig.ditherResolution = (v < -1) ? -1 : v;
         }
         else if (strcmp(key, "texture_filter") == 0)
         {
@@ -1699,17 +1705,6 @@ else if (strcmp(key, "enable_plugins") == 0)
         }
         SH_LOG("[CFG] psx_dither = %d migrated to dithering = %d, texture_filter = %d",
                g_PcConfig.psxDither, g_PcConfig.dithering, g_PcConfig.textureFilter);
-    }
-    else
-    {
-        /* The reverse: psxDither is what the in-game Texture_Filter row cycles,
-         * one 8-way value over the pair. Composed here so the row opens on
-         * what is in effect instead of on a stale legacy key -- without this it
-         * showed whatever psx_dither happened to say, which for everyone whose
-         * config has the new keys is the default, not their setting. */
-        g_PcConfig.psxDither = g_PcConfig.dithering ? 1
-                             : (g_PcConfig.textureFilter == 0 ? 0
-                                                              : g_PcConfig.textureFilter + 1);
     }
 
     /* Default migration: reapply a changed persisted DEFAULT to users still sitting

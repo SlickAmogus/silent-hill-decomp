@@ -1881,6 +1881,7 @@ int main(int argc, char* argv[])
      * rather than one excluding the other. texture_filter 3..6 is anisotropic,
      * where the value carries the tap count as well as the mode. */
     g_cfg_psxDither = g_PcConfig.dithering ? 1 : 0;
+    { extern int g_cfg_ditherResolution; g_cfg_ditherResolution = g_PcConfig.ditherResolution; }
     switch (g_PcConfig.textureFilter) {
     case 1:  g_cfg_textureFilter = 1; break;
     case 2:  g_cfg_textureFilter = 2; break;

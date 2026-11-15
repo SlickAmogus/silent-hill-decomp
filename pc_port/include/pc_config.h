@@ -139,6 +139,13 @@ typedef struct {
      * express. Default on. */
     int dithering;
 
+    /* Where the dither's 4x4 cells fall (config key: dither_resolution):
+     * 0 = one cell per PSX pixel, on the PSX image's grid; N = square cells,
+     * N of them down the 3D view; -1 = one per rendered pixel. Default 480,
+     * the nearest choice to the fixed two-pixel cell of earlier builds at
+     * 1080p. */
+    int ditherResolution;
+
     /* Texture filtering, dither excluded (config key: texture_filter):
      * 0 = off (point), 1 = bilinear, 2 = trilinear, 3..6 = anisotropic
      * 2x/4x/8x/16x. */
