@@ -101,6 +101,7 @@ static s32 g_ExtraOptionsMenu_BulletMultMax;
 /* Live render globals mirrored for realtime settings (defined in PsyCross /
  * main_pc.c — the same ones main_pc.c seeds from g_PcConfig at boot). */
 extern int g_cfg_psxDither;
+extern int g_cfg_ditherResolution;
 extern int g_cfg_textureFilter;
 extern int g_cfg_bilinearFiltering;
 extern int g_cfg_anisoLevel;
@@ -116,6 +117,7 @@ extern int g_PsyX_UseFlashlightShadows;
  * mode, vsync) so they take effect immediately instead of next launch. */
 extern void PsyX_ApplyWindowState(int width, int height, int fullscreen);
 extern void PsyX_ApplyVsync(int vsync);
+extern void PsyX_GetDitherViewport(int* w, int* h);
 
 #if defined(SH_IOS) || defined(__ANDROID__)
 /* Preferred controller picker (PsyX_pad.cpp). */
@@ -189,7 +191,7 @@ int Pc_ExitToMenuRowActive(void)
 }
 
 
-enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_PAD, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_RESET, PCK_STORAGE, PCK_RALOGIN, PCK_TOTITLE, PCK_QOLMODS, PCK_CHARA };
+enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_PAD, PCK_DITHER, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_RESET, PCK_STORAGE, PCK_RALOGIN, PCK_TOTITLE, PCK_QOLMODS, PCK_CHARA };
 
 #if defined(SH_IOS) || defined(__ANDROID__)
 /* Return to the title, armed by one confirm and done by a second.
@@ -243,11 +245,11 @@ typedef struct {
 } s_PcOpt;
 
 /* Defined with the other quick-row helpers below, used by the adjust above. */
-static void PcOpt_FilterApply(int combined);
+static void PcOpt_FilterApply(int filter);
 
 static const int VAL_WIN[]   = { 0, 1, 2 };
 static const int VAL_VSYNC[] = { 0, 1 };
-static const int VAL_FILT[]  = { 0, 1, 2, 3, 4, 5, 6, 7 };
+static const int VAL_FILT[]  = { 0, 1, 2, 3, 4, 5, 6 };
 static const int VAL_ONOFF[] = { 0, 1 };
 static const int VAL_AA[]    = { 0, 2, 4, 8 };
 static const int VAL_POST[]  = { 0, 1, 2, 3, 4, 5, 6, 7, 8 };
@@ -269,7 +271,7 @@ static const int VAL_SCALE[]  = { 0, 1, 2, 3 };
 
 static const char* const LBL_WIN[]   = { "Windowed", "Fullscreen", "Borderless" };
 static const char* const LBL_VSYNC[] = { "Off", "On" };
-static const char* const LBL_FILT[]  = { "Off", "Dither", "Bilinear", "Trilinear",
+static const char* const LBL_FILT[]  = { "Off", "Bilinear", "Trilinear",
                                          "Aniso_2x", "Aniso_4x", "Aniso_8x", "Aniso_16x" };
 static const char* const LBL_ONOFF[] = { "Off", "On" };
 static const char* const LBL_AA[]    = { "Off", "2x", "4x", "8x" };
@@ -310,7 +312,10 @@ static const s_PcOpt PCOPT_G[] = {
     { "Window_Mode",    &g_PcConfig.fullscreen,         "fullscreen",           VAL_WIN,   3, LBL_WIN,   NULL,                          1, PCK_WINMODE },
 #endif
     { "VSync",          &g_PcConfig.vsync,              "vsync",                VAL_VSYNC, 2, LBL_VSYNC, NULL,                          1, PCK_VSYNC   },
-    { "Texture_Filter", &g_PcConfig.psxDither,          "texture_filter",       VAL_FILT,  8, LBL_FILT,  NULL,                          1, PCK_FILTER },
+    { "Texture_Filter", &g_PcConfig.textureFilter,      "texture_filter",       VAL_FILT,  7, LBL_FILT,  NULL,                          1, PCK_FILTER },
+    /* Its own row, as in the launcher: Off, the PSX pixel grid, or a cell
+     * size given as a resolution (PcOpt_DitherChoices). */
+    { "Dithering",      NULL,                           "dithering",            NULL,      0, NULL,      NULL,                          1, PCK_DITHER },
     { "PGXP",           &g_PcConfig.usePgxp,            "use_pgxp",             VAL_ONOFF, 2, LBL_ONOFF, &g_PsxUsePgxp,                 1, PCK_INT    },
     { "Post_Process",   &g_PcConfig.postProcess,        "post_process",         VAL_POST,  9, LBL_POST,  &g_cfg_postProcess,            1, PCK_INT    },
     { "Tone_Mapping",   &g_PcConfig.tonemap,            "tonemap",              VAL_TONE,  4, LBL_TONE,  &g_cfg_tonemap,                1, PCK_INT    },
@@ -323,9 +328,10 @@ static const s_PcOpt PCOPT_G[] = {
      * moved to the System page to keep this one at 11 rows; it needs a
      * restart either way. */
     { "Character_Customization", NULL,                NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_CHARA  },
-#if defined(__ANDROID__) || defined(SH_IOS)
-    /* Below Character_Customization on a phone, where that row is the one
-     * people come to this page for. */
+#if defined(SH_IOS)
+    /* Below Character_Customization on iOS, where that row is the one people
+     * come to this page for. Android's is on the last page: its Graphics page
+     * needed the room for Dithering. */
     { "Map",            NULL,                           "map",                  NULL,      0, NULL,      NULL,                          1, PCK_MAP    },
 #endif
 #if defined(__ANDROID__)
@@ -525,6 +531,10 @@ static const s_PcOpt PCOPT_M[] = {
     { "Set_Up_QoL_Mods",   NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_QOLMODS },
     /* Asks before it acts; see PCOPT_TOTITLE_WINDOW_MS. */
     { "Return_to_Title",   NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_TOTITLE },
+#if defined(__ANDROID__)
+    /* New-Game start map, from Graphics, which needed the room for Dithering. */
+    { "Map",               NULL,                          "map",                    NULL,      0, NULL,      NULL, 1, PCK_MAP },
+#endif
     { "Prev_Page",         NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_PREV },
     /* Not the last page: PCOPT_P follows. */
     { "Next_Page",         NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_NEXT },
@@ -607,6 +617,98 @@ static const s_PcOpt* PcOpt_Page(int* count)
 #endif
     *count = (int)(sizeof(PCOPT_H) / sizeof(PCOPT_H[0]));
     return PCOPT_H;
+}
+
+/* ---- Dithering row ----
+ * The list follows the 3D view's size, so it changes with Resolution and
+ * Render_Scale: Off, the PSX pixel grid, the standard heights below the view's
+ * own, then the view itself (one cell per rendered pixel). Turning dithering
+ * off keeps dither_resolution, so turning it back on restores the choice. */
+#define PCOPT_DITHER_OFF (-2)
+static const int PCOPT_DITHER_LINES[] = { 240, 480, 720, 1080, 1440, 2160, 2880, 4320 };
+
+static int PcOpt_DitherChoices(int* out, int max)
+{
+    int w, h, i, n = 0;
+
+    PsyX_GetDitherViewport(&w, &h);
+    out[n++] = PCOPT_DITHER_OFF;
+    out[n++] = 0;
+    for (i = 0; i < (int)(sizeof(PCOPT_DITHER_LINES) / sizeof(PCOPT_DITHER_LINES[0])) && n < max - 1; i++)
+        if (PCOPT_DITHER_LINES[i] < h)
+            out[n++] = PCOPT_DITHER_LINES[i];
+    out[n++] = -1;
+    return n;
+}
+
+static int PcOpt_DitherCurrent(void)
+{
+    int w, h;
+
+    if (!g_PcConfig.dithering)
+        return PCOPT_DITHER_OFF;
+    PsyX_GetDitherViewport(&w, &h);
+    /* The renderer draws a height at or past the view's as the view itself. */
+    if (g_PcConfig.ditherResolution > 0 && g_PcConfig.ditherResolution >= h)
+        return -1;
+    return g_PcConfig.ditherResolution;
+}
+
+static const char* PcOpt_DitherLabel(int v, char* buf, int bufsz)
+{
+    int w, h;
+
+    if (v == PCOPT_DITHER_OFF)
+        return "Off";
+    if (v == 0)
+        return "Native_PSX";
+    PsyX_GetDitherViewport(&w, &h);
+    if (v > 0 && h > 0)
+    {
+        /* Even widths, the way 16:9 sizes are usually written (854x480). */
+        w = 2 * (int)((float)v * (float)w / (float)h / 2.0f + 0.5f);
+        h = v;
+    }
+    snprintf(buf, bufsz, "%dx%d", w, h);
+    return buf;
+}
+
+static void PcOpt_DitherSet(int v)
+{
+    char buf[16];
+
+    g_PcConfig.dithering = (v != PCOPT_DITHER_OFF);
+    if (v != PCOPT_DITHER_OFF)
+        g_PcConfig.ditherResolution = v;
+    g_cfg_psxDither        = g_PcConfig.dithering;
+    g_cfg_ditherResolution = g_PcConfig.ditherResolution;
+    snprintf(buf, sizeof(buf), "%d", g_PcConfig.dithering);
+    PcConfig_SaveKeyValue("dithering", buf);
+    snprintf(buf, sizeof(buf), "%d", g_PcConfig.ditherResolution);
+    PcConfig_SaveKeyValue("dither_resolution", buf);
+}
+
+static void PcOpt_DitherStep(int dir)
+{
+    int vals[16];
+    int n   = PcOpt_DitherChoices(vals, 16);
+    int cur = PcOpt_DitherCurrent();
+    int i, idx = -1;
+
+    for (i = 0; i < n; i++)
+        if (vals[i] == cur)
+            idx = i;
+    if (idx < 0)
+    {
+        /* A height typed into config.cfg between two offered ones steps from
+         * the one below it. */
+        idx = 1;
+        for (i = 2; i < n - 1; i++)
+            if (vals[i] < cur)
+                idx = i;
+    }
+    idx = (idx + dir + n) % n;
+    PcOpt_DitherSet(vals[idx]);
 }
 
 static int PcOpt_ValIndex(const s_PcOpt* e)
@@ -722,6 +824,9 @@ static const char* PcOpt_ValueLabel(const s_PcOpt* e, char* buf, int bufsz)
     }
     if (e->kind == PCK_MAP) {
         return g_PcConfig.mapName[0] ? g_PcConfig.mapName : "map0_s00";
+    }
+    if (e->kind == PCK_DITHER) {
+        return PcOpt_DitherLabel(PcOpt_DitherCurrent(), buf, bufsz);
     }
 #if defined(__ANDROID__)
     if (e->kind == PCK_STORAGE) {
@@ -921,6 +1026,11 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
         return;
     }
 #endif
+    if (e->kind == PCK_DITHER) {
+        PcOpt_DitherStep(dir);
+        SH_DBG_ECHO("%s: %s", e->name, PcOpt_ValueLabel(e, vbuf, sizeof(vbuf)));
+        return;
+    }
     if (e->field == NULL)
         return;
 
@@ -928,9 +1038,7 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
         int idx = (PcOpt_ValIndex(e) + dir + e->nVals) % e->nVals;
         *e->field = e->vals[idx];
         snprintf(buf, sizeof(buf), "%d", *e->field);
-        /* PCK_FILTER writes two keys of its own, on a different scale from the
-         * combined value this row cycles. */
-        if (e->key && e->kind != PCK_FILTER) PcConfig_SaveKeyValue(e->key, buf);
+        if (e->key) PcConfig_SaveKeyValue(e->key, buf);
 
         if (e->kind == PCK_FILTER) {
             PcOpt_FilterApply(*e->field);
@@ -1025,49 +1133,18 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
 
 extern void Pc_QuickOptions_InvalidateRows(void);
 
-/* Texture_Filter is one 8-way row -- off, dither, bilinear, trilinear, aniso
- * 2x/4x/8x/16x -- over what config.cfg stores as the two INDEPENDENT keys
- * `dithering` and `texture_filter`. It used to persist its combined value under
- * psx_dither, the single key those two replaced, which the loader discards
- * whenever either new key is present: i.e. always, since the shipped config.cfg
- * carries both. So the row applied live and then lost the change on the next
- * launch, and it disagreed with the launcher, which writes the pair. psxDither
- * is composed back from the pair at load (pc_config.c) so the row still opens
- * on whatever is actually in effect.
- *
- * Both callers route through here: the adjust and the reset-to-default. */
-static void PcOpt_FilterApply(int combined)
+/* Texture_Filter's live side, for the adjust and the reset-to-default (both
+ * save texture_filter themselves). Dithering has its own row now, as it has in
+ * the launcher. */
+static void PcOpt_FilterApply(int filter)
 {
-    char buf[16];
-    int  dither = (combined == 1) ? 1 : 0;
-    int  filter;
-
-    switch (combined) {
-        case 2:  filter = 1; break;   /* bilinear  */
-        case 3:  filter = 2; break;   /* trilinear */
-        case 4:  filter = 3; break;   /* aniso 2x  */
-        case 5:  filter = 4; break;   /* aniso 4x  */
-        case 6:  filter = 5; break;   /* aniso 8x  */
-        case 7:  filter = 6; break;   /* aniso 16x */
-        default: filter = 0; break;   /* off, or dither-only */
-    }
-
-    g_PcConfig.dithering     = dither;
-    g_PcConfig.textureFilter = filter;
-
     /* The renderer takes the mode and the tap count separately: modes 3..6 are
      * all g_cfg_textureFilter 3 with 2/4/8/16 taps. Same split main_pc.c makes
      * at boot. */
-    g_cfg_psxDither     = dither;
     g_cfg_textureFilter = (filter >= 3) ? 3 : filter;
     if (filter >= 3)
         g_cfg_anisoLevel = 2 << (filter - 3);
     g_cfg_bilinearFiltering = (g_cfg_textureFilter > 0);
-
-    snprintf(buf, sizeof(buf), "%d", dither);
-    PcConfig_SaveKeyValue("dithering", buf);
-    snprintf(buf, sizeof(buf), "%d", filter);
-    PcConfig_SaveKeyValue("texture_filter", buf);
 }
 
 static const int         QO_SHADOW_SIZES[] = { 256, 512, 1024, 2048, 4096, 8192 };
@@ -1841,12 +1918,17 @@ static void PcOpt_ResetEntry(const s_PcOpt* e)
         return;
     }
 
+    if (e->kind == PCK_DITHER) {
+        PcOpt_DitherSet(d->dithering ? d->ditherResolution : PCOPT_DITHER_OFF);
+        return;
+    }
+
     if (e->field == NULL) return;
     {
         int dv = *(const int*)((const char*)d + ((const char*)e->field - (const char*)&g_PcConfig));
         *e->field = dv;
         snprintf(buf, sizeof(buf), "%d", dv);
-        if (e->key && e->kind != PCK_FILTER) PcConfig_SaveKeyValue(e->key, buf);
+        if (e->key) PcConfig_SaveKeyValue(e->key, buf);
 
         if (e->kind == PCK_FILTER) {
             PcOpt_FilterApply(dv);
