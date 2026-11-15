@@ -408,6 +408,19 @@ bool Demo_ControllerDataUpdate(void) // 0x8008F7CC
         return true;
     }
 
+#ifdef SH_PC_PORT
+    /* The mouse and touch end a demo the way a button does. */
+    {
+        extern int Pc_MouseCursor_PointerActive(void);
+
+        if (Pc_MouseCursor_PointerActive())
+        {
+            Demo_ExitDemo();
+            return true;
+        }
+    }
+#endif
+
     g_Demo_FrameCount = 0;
 
     if (g_Demo_CurFrameData != NULL)

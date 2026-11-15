@@ -473,11 +473,40 @@ static void Mc_PollTouchpad(void)
     s_touchPrevClick = click;
 }
 
+/* Counted from an SDL event watch: the state the cursor reads below is frozen
+ * while the menu cursor is off or the camera has the mouse captured. */
+static SDL_atomic_t s_pointerEvents;
+static int          s_pointerWatching;
+static int          s_pointerActive;
+
+static int SDLCALL Mc_PointerWatch(void* userdata, SDL_Event* e)
+{
+    (void)userdata;
+    /* A warp (SDL_WarpMouseInWindow, a capture ending) reports no movement.
+     * Slow movement arrives one pixel at a time, so a one-pixel event counts. */
+    if ((e->type == SDL_MOUSEMOTION && (e->motion.xrel != 0 || e->motion.yrel != 0)) ||
+        e->type == SDL_MOUSEBUTTONDOWN || e->type == SDL_MOUSEWHEEL || e->type == SDL_FINGERDOWN)
+        SDL_AtomicAdd(&s_pointerEvents, 1);
+    return 1;
+}
+
+int Pc_MouseCursor_PointerActive(void)
+{
+    return s_pointerActive;
+}
+
 void Pc_MouseCursor_FrameUpdate(void)
 {
     int    mx, my, leftUp;
     Uint32 btn;
     float  fx, fy;
+
+    if (!s_pointerWatching)
+    {
+        SDL_AddEventWatch(Mc_PointerWatch, NULL);
+        s_pointerWatching = 1;
+    }
+    s_pointerActive = SDL_AtomicSet(&s_pointerEvents, 0) != 0;
 
     s_leftEdge = s_rightEdge = 0;
     s_puzzleOverrode = 0;
