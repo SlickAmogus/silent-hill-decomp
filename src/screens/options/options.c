@@ -83,6 +83,7 @@ static s32 g_ExtraOptionsMenu_BulletMultMax;
 /* Live render globals mirrored for realtime settings (defined in PsyCross /
  * main_pc.c — the same ones main_pc.c seeds from g_PcConfig at boot). */
 extern int g_cfg_psxDither;
+extern int g_cfg_ditherResolution;
 extern int g_cfg_textureFilter;
 extern int g_cfg_bilinearFiltering;
 extern int g_cfg_anisoLevel;
@@ -98,6 +99,7 @@ extern int g_PsyX_UseFlashlightShadows;
  * mode, vsync) so they take effect immediately instead of next launch. */
 extern void PsyX_ApplyWindowState(int width, int height, int fullscreen);
 extern void PsyX_ApplyVsync(int vsync);
+extern void PsyX_GetDitherViewport(int* w, int* h);
 
 /* Per-pixel flashlight beam live floats (PsyCross); mirrored by the sliders. */
 extern float g_PsyX_FlashlightIntensity;
@@ -121,8 +123,7 @@ extern float g_PcFmvVolume;
 
 s32 g_PcOptionsMenu_SelectedEntry     = 0;
 s32 g_PcOptionsMenu_PrevSelectedEntry = 0;
-static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System, 2 = Controls, 3 = Camera, 4 = HUD */
-#define PCOPT_PAGE_COUNT 5
+static s32 g_PcOptionsMenu_Page       = 0; /* index into PCOPT_PAGES */
 
 /* Mouse hover moves the selection WITHOUT resetting g_Options_SelectionHighlightTimer:
  * a reset re-arms the LINE_CURSOR_TIMER_MAX gate, which then swallows the click that
@@ -135,7 +136,7 @@ static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System, 2 = Cont
  * which is the right behaviour for a pointer that is already there. */
 s32 g_PcOptions_HighlightSnap = 0;
 
-enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_CHARA };
+enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_DITHER, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_CHARA };
 
 /* PC-options row origin. The heading sits at y=20 and the rows used to start at 56,
  * leaving a full empty row beneath it while the pages ran off the BOTTOM of the
@@ -163,11 +164,11 @@ typedef struct {
 } s_PcOpt;
 
 /* Defined with the other quick-row helpers below, used by the adjust above. */
-static void PcOpt_FilterApply(int combined);
+static void PcOpt_FilterApply(int filter);
 
 static const int VAL_WIN[]   = { 0, 1, 2 };
 static const int VAL_VSYNC[] = { 0, 1 };
-static const int VAL_FILT[]  = { 0, 1, 2, 3, 4, 5, 6, 7 };
+static const int VAL_FILT[]  = { 0, 1, 2, 3, 4, 5, 6 };
 static const int VAL_ONOFF[] = { 0, 1 };
 static const int VAL_AA[]    = { 0, 2, 4, 8 };
 static const int VAL_POST[]  = { 0, 1, 2, 3, 4, 5, 6, 7, 8 };
@@ -183,7 +184,7 @@ static const int VAL_WHZ[]    = { 30, 60 };
 
 static const char* const LBL_WIN[]   = { "Windowed", "Fullscreen", "Borderless" };
 static const char* const LBL_VSYNC[] = { "Off", "On" };
-static const char* const LBL_FILT[]  = { "Off", "Dither", "Bilinear", "Trilinear",
+static const char* const LBL_FILT[]  = { "Off", "Bilinear", "Trilinear",
                                          "Aniso_2x", "Aniso_4x", "Aniso_8x", "Aniso_16x" };
 static const char* const LBL_ONOFF[] = { "Off", "On" };
 static const char* const LBL_AA[]    = { "Off", "2x", "4x", "8x" };
@@ -211,14 +212,27 @@ static const s_PcOpt PCOPT_G[] = {
      * one at 11 rows. */
     { "Render_Scale",   NULL, "render_scale", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.renderScale, &g_cfg_renderScale, 0.25f, 1.0f, 0.05f },
     { "VSync",          &g_PcConfig.vsync,              "vsync",                VAL_VSYNC, 2, LBL_VSYNC, NULL,                          1, PCK_VSYNC   },
-    { "Texture_Filter", &g_PcConfig.psxDither,          "texture_filter",       VAL_FILT,  8, LBL_FILT,  NULL,                          1, PCK_FILTER },
+    { "Texture_Filter", &g_PcConfig.textureFilter,      "texture_filter",       VAL_FILT,  7, LBL_FILT,  NULL,                          1, PCK_FILTER },
+    /* Its own row, as in the launcher: Off, the PSX pixel grid, or a cell
+     * size given as a resolution (PcOpt_DitherChoices). */
+    { "Dithering",      NULL,                           "dithering",            NULL,      0, NULL,      NULL,                          1, PCK_DITHER },
     { "PGXP",           &g_PcConfig.usePgxp,            "use_pgxp",             VAL_ONOFF, 2, LBL_ONOFF, &g_PsxUsePgxp,                 1, PCK_INT    },
     { "Post_Process",   &g_PcConfig.postProcess,        "post_process",         VAL_POST,  9, LBL_POST,  &g_cfg_postProcess,            1, PCK_INT    },
     { "Tone_Mapping",   &g_PcConfig.tonemap,            "tonemap",              VAL_TONE,  4, LBL_TONE,  &g_cfg_tonemap,                1, PCK_INT    },
-    /* Opens the Character Select screen (pc_chara_select.c). Antialiasing
-     * moved to the System page to keep this one at 11 rows; it needs a
-     * restart either way. */
+    /* Character_Customization went to the next page to make room for
+     * Dithering; Antialiasing went to System earlier for the same reason. */
+    { "Next_Page",      NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_NEXT   },
+    { "Back",           NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_BACK   },
+};
+
+/* Page 2: who you play as and where a New Game starts. Every other page was at
+ * the 11-row ceiling when Dithering joined Graphics. */
+static const s_PcOpt PCOPT_N[] = {
+    /* Opens the Character Select screen (pc_chara_select.c). */
     { "Character_Customization", NULL,                NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_CHARA  },
+    /* New-Game start map, from the Controls page. */
+    { "Map",            NULL,                           "map",                  NULL,      0, NULL,      NULL,                          1, PCK_MAP    },
+    { "Prev_Page",      NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_PREV   },
     { "Next_Page",      NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_NEXT   },
     { "Back",           NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_BACK   },
 };
@@ -270,8 +284,6 @@ static const s_PcOpt PCOPT_C[] = {
      * the real ceiling, not the 12 the Graphics comment above assumes, and this
      * page is the shortest. Adding it to Graphics pushed that page off-screen. */
     { "Bullet_Decals",     &g_PcConfig.bulletDecals,      "bullet_decals",          VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
-    /* New-Game start map; here for room, like Bullet_Decals above. */
-    { "Map",               NULL,                          "map",                    NULL,      0, NULL,      NULL, 1, PCK_MAP },
     { "Prev_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_PREV },
     { "Next_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_NEXT },
     { "Back",              NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_BACK },
@@ -324,6 +336,25 @@ static const s_PcOpt PCOPT_H[] = {
     { "Back",              NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_BACK },
 };
 
+/* Page order, and where each page's value column starts. Graphics' labels end
+ * early; System's widest value ("C_+_Shadows", 109px) must end before the
+ * 320px clip, so its column sits at 204; the rest hold short values and can
+ * afford 240, clear of their long labels ("Mouse Sensitivity"). */
+static const struct
+{
+    const s_PcOpt* rows;
+    int            count;
+    int            valX;
+} PCOPT_PAGES[] = {
+    { PCOPT_G, (int)(sizeof(PCOPT_G) / sizeof(PCOPT_G[0])), 196 },
+    { PCOPT_N, (int)(sizeof(PCOPT_N) / sizeof(PCOPT_N[0])), 240 },
+    { PCOPT_S, (int)(sizeof(PCOPT_S) / sizeof(PCOPT_S[0])), 204 },
+    { PCOPT_C, (int)(sizeof(PCOPT_C) / sizeof(PCOPT_C[0])), 240 },
+    { PCOPT_T, (int)(sizeof(PCOPT_T) / sizeof(PCOPT_T[0])), 240 },
+    { PCOPT_H, (int)(sizeof(PCOPT_H) / sizeof(PCOPT_H[0])), 240 },
+};
+#define PCOPT_PAGE_COUNT ((int)(sizeof(PCOPT_PAGES) / sizeof(PCOPT_PAGES[0])))
+
 static void Options_PcOptionsMenu_EntryStringsDraw(void);
 static void Options_PcOptionsMenu_ConfigDraw(void);
 static void Options_PcOptionsMenu_SelectionHighlightDraw(void);
@@ -354,22 +385,107 @@ static void PcMouse_InjectDir(int dir)
 
 const s_PcOpt* PcOpt_PageByIndex(int page, int* count)
 {
-    if (page == 0) { *count = (int)(sizeof(PCOPT_G) / sizeof(PCOPT_G[0])); return PCOPT_G; }
-    if (page == 1) { *count = (int)(sizeof(PCOPT_S) / sizeof(PCOPT_S[0])); return PCOPT_S; }
-    if (page == 2) { *count = (int)(sizeof(PCOPT_C) / sizeof(PCOPT_C[0])); return PCOPT_C; }
-    if (page == 3) { *count = (int)(sizeof(PCOPT_T) / sizeof(PCOPT_T[0])); return PCOPT_T; }
-    *count = (int)(sizeof(PCOPT_H) / sizeof(PCOPT_H[0]));
-    return PCOPT_H;
+    if (page < 0 || page >= PCOPT_PAGE_COUNT)
+        page = PCOPT_PAGE_COUNT - 1;
+    *count = PCOPT_PAGES[page].count;
+    return PCOPT_PAGES[page].rows;
 }
 
 static const s_PcOpt* PcOpt_Page(int* count)
 {
-    if (g_PcOptionsMenu_Page == 0) { *count = (int)(sizeof(PCOPT_G) / sizeof(PCOPT_G[0])); return PCOPT_G; }
-    if (g_PcOptionsMenu_Page == 1) { *count = (int)(sizeof(PCOPT_S) / sizeof(PCOPT_S[0])); return PCOPT_S; }
-    if (g_PcOptionsMenu_Page == 2) { *count = (int)(sizeof(PCOPT_C) / sizeof(PCOPT_C[0])); return PCOPT_C; }
-    if (g_PcOptionsMenu_Page == 3) { *count = (int)(sizeof(PCOPT_T) / sizeof(PCOPT_T[0])); return PCOPT_T; }
-    *count = (int)(sizeof(PCOPT_H) / sizeof(PCOPT_H[0]));
-    return PCOPT_H;
+    return PcOpt_PageByIndex(g_PcOptionsMenu_Page, count);
+}
+
+/* ---- Dithering row ----
+ * The list follows the 3D view's size, so it changes with Resolution and
+ * Render_Scale: Off, the PSX pixel grid, the standard heights below the view's
+ * own, then the view itself (one cell per rendered pixel). Turning dithering
+ * off keeps dither_resolution, so turning it back on restores the choice. */
+#define PCOPT_DITHER_OFF (-2)
+static const int PCOPT_DITHER_LINES[] = { 240, 480, 720, 1080, 1440, 2160, 2880, 4320 };
+
+static int PcOpt_DitherChoices(int* out, int max)
+{
+    int w, h, i, n = 0;
+
+    PsyX_GetDitherViewport(&w, &h);
+    out[n++] = PCOPT_DITHER_OFF;
+    out[n++] = 0;
+    for (i = 0; i < (int)(sizeof(PCOPT_DITHER_LINES) / sizeof(PCOPT_DITHER_LINES[0])) && n < max - 1; i++)
+        if (PCOPT_DITHER_LINES[i] < h)
+            out[n++] = PCOPT_DITHER_LINES[i];
+    out[n++] = -1;
+    return n;
+}
+
+static int PcOpt_DitherCurrent(void)
+{
+    int w, h;
+
+    if (!g_PcConfig.dithering)
+        return PCOPT_DITHER_OFF;
+    PsyX_GetDitherViewport(&w, &h);
+    /* The renderer draws a height at or past the view's as the view itself. */
+    if (g_PcConfig.ditherResolution > 0 && g_PcConfig.ditherResolution >= h)
+        return -1;
+    return g_PcConfig.ditherResolution;
+}
+
+static const char* PcOpt_DitherLabel(int v, char* buf, int bufsz)
+{
+    int w, h;
+
+    if (v == PCOPT_DITHER_OFF)
+        return "Off";
+    if (v == 0)
+        return "Native_PSX";
+    PsyX_GetDitherViewport(&w, &h);
+    if (v > 0 && h > 0)
+    {
+        /* Even widths, the way 16:9 sizes are usually written (854x480). */
+        w = 2 * (int)((float)v * (float)w / (float)h / 2.0f + 0.5f);
+        h = v;
+    }
+    snprintf(buf, bufsz, "%dx%d", w, h);
+    return buf;
+}
+
+static void PcOpt_DitherSet(int v)
+{
+    char buf[16];
+
+    g_PcConfig.dithering = (v != PCOPT_DITHER_OFF);
+    if (v != PCOPT_DITHER_OFF)
+        g_PcConfig.ditherResolution = v;
+    g_cfg_psxDither        = g_PcConfig.dithering;
+    g_cfg_ditherResolution = g_PcConfig.ditherResolution;
+    snprintf(buf, sizeof(buf), "%d", g_PcConfig.dithering);
+    PcConfig_SaveKeyValue("dithering", buf);
+    snprintf(buf, sizeof(buf), "%d", g_PcConfig.ditherResolution);
+    PcConfig_SaveKeyValue("dither_resolution", buf);
+}
+
+static void PcOpt_DitherStep(int dir)
+{
+    int vals[16];
+    int n   = PcOpt_DitherChoices(vals, 16);
+    int cur = PcOpt_DitherCurrent();
+    int i, idx = -1;
+
+    for (i = 0; i < n; i++)
+        if (vals[i] == cur)
+            idx = i;
+    if (idx < 0)
+    {
+        /* A height typed into config.cfg between two offered ones steps from
+         * the one below it. */
+        idx = 1;
+        for (i = 2; i < n - 1; i++)
+            if (vals[i] < cur)
+                idx = i;
+    }
+    idx = (idx + dir + n) % n;
+    PcOpt_DitherSet(vals[idx]);
 }
 
 static int PcOpt_ValIndex(const s_PcOpt* e)
@@ -395,6 +511,9 @@ static const char* PcOpt_ValueLabel(const s_PcOpt* e, char* buf, int bufsz)
     }
     if (e->kind == PCK_MAP) {
         return g_PcConfig.mapName[0] ? g_PcConfig.mapName : "map0_s00";
+    }
+    if (e->kind == PCK_DITHER) {
+        return PcOpt_DitherLabel(PcOpt_DitherCurrent(), buf, bufsz);
     }
     if (e->field == NULL)
         return "";
@@ -484,6 +603,11 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
         }
         return;
     }
+    if (e->kind == PCK_DITHER) {
+        PcOpt_DitherStep(dir);
+        SH_DBG_ECHO("%s: %s", e->name, PcOpt_ValueLabel(e, vbuf, sizeof(vbuf)));
+        return;
+    }
     if (e->field == NULL)
         return;
 
@@ -491,9 +615,7 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
         int idx = (PcOpt_ValIndex(e) + dir + e->nVals) % e->nVals;
         *e->field = e->vals[idx];
         snprintf(buf, sizeof(buf), "%d", *e->field);
-        /* PCK_FILTER writes two keys of its own, on a different scale from the
-         * combined value this row cycles. */
-        if (e->key && e->kind != PCK_FILTER) PcConfig_SaveKeyValue(e->key, buf);
+        if (e->key) PcConfig_SaveKeyValue(e->key, buf);
 
         if (e->kind == PCK_FILTER) {
             PcOpt_FilterApply(*e->field);
@@ -573,49 +695,18 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
 
 extern void Pc_QuickOptions_InvalidateRows(void);
 
-/* Texture_Filter is one 8-way row -- off, dither, bilinear, trilinear, aniso
- * 2x/4x/8x/16x -- over what config.cfg stores as the two INDEPENDENT keys
- * `dithering` and `texture_filter`. It used to persist its combined value under
- * psx_dither, the single key those two replaced, which the loader discards
- * whenever either new key is present: i.e. always, since the shipped config.cfg
- * carries both. So the row applied live and then lost the change on the next
- * launch, and it disagreed with the launcher, which writes the pair. psxDither
- * is composed back from the pair at load (pc_config.c) so the row still opens
- * on whatever is actually in effect.
- *
- * Both callers route through here: the adjust and the reset-to-default. */
-static void PcOpt_FilterApply(int combined)
+/* Texture_Filter's live side, for the adjust and the reset-to-default (both
+ * save texture_filter themselves). Dithering has its own row now, as it has in
+ * the launcher. */
+static void PcOpt_FilterApply(int filter)
 {
-    char buf[16];
-    int  dither = (combined == 1) ? 1 : 0;
-    int  filter;
-
-    switch (combined) {
-        case 2:  filter = 1; break;   /* bilinear  */
-        case 3:  filter = 2; break;   /* trilinear */
-        case 4:  filter = 3; break;   /* aniso 2x  */
-        case 5:  filter = 4; break;   /* aniso 4x  */
-        case 6:  filter = 5; break;   /* aniso 8x  */
-        case 7:  filter = 6; break;   /* aniso 16x */
-        default: filter = 0; break;   /* off, or dither-only */
-    }
-
-    g_PcConfig.dithering     = dither;
-    g_PcConfig.textureFilter = filter;
-
     /* The renderer takes the mode and the tap count separately: modes 3..6 are
      * all g_cfg_textureFilter 3 with 2/4/8/16 taps. Same split main_pc.c makes
      * at boot. */
-    g_cfg_psxDither     = dither;
     g_cfg_textureFilter = (filter >= 3) ? 3 : filter;
     if (filter >= 3)
         g_cfg_anisoLevel = 2 << (filter - 3);
     g_cfg_bilinearFiltering = (g_cfg_textureFilter > 0);
-
-    snprintf(buf, sizeof(buf), "%d", dither);
-    PcConfig_SaveKeyValue("dithering", buf);
-    snprintf(buf, sizeof(buf), "%d", filter);
-    PcConfig_SaveKeyValue("texture_filter", buf);
 }
 
 static const int         QO_SHADOW_SIZES[] = { 256, 512, 1024, 2048, 4096, 8192 };
@@ -1279,12 +1370,17 @@ static void PcOpt_ResetEntry(const s_PcOpt* e)
         return;
     }
 
+    if (e->kind == PCK_DITHER) {
+        PcOpt_DitherSet(d->dithering ? d->ditherResolution : PCOPT_DITHER_OFF);
+        return;
+    }
+
     if (e->field == NULL) return;
     {
         int dv = *(const int*)((const char*)d + ((const char*)e->field - (const char*)&g_PcConfig));
         *e->field = dv;
         snprintf(buf, sizeof(buf), "%d", dv);
-        if (e->key && e->kind != PCK_FILTER) PcConfig_SaveKeyValue(e->key, buf);
+        if (e->key) PcConfig_SaveKeyValue(e->key, buf);
 
         if (e->kind == PCK_FILTER) {
             PcOpt_FilterApply(dv);
@@ -1582,12 +1678,12 @@ void Options_PcOptionsMenu_Control(void)
         if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.enter) {
             if (sel->kind == PCK_NEXT) {
                 Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
-                g_PcOptionsMenu_Page++; /* Graphics -> System -> Controls -> Camera -> HUD */
+                g_PcOptionsMenu_Page++; /* in PCOPT_PAGES order */
                 g_PcOptionsMenu_SelectedEntry = 0;
                 g_Options_SelectionHighlightTimer = 0;
             } else if (sel->kind == PCK_PREV) {
                 Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
-                g_PcOptionsMenu_Page--; /* HUD -> Camera -> Controls -> System -> Graphics */
+                g_PcOptionsMenu_Page--;
                 g_PcOptionsMenu_SelectedEntry = 0;
                 g_Options_SelectionHighlightTimer = 0;
             } else if (sel->kind == PCK_BACK) {
@@ -1732,13 +1828,8 @@ static void Options_PcOptionsMenu_ConfigDraw(void)
     int            count, i;
     const s_PcOpt* tbl = PcOpt_Page(&count);
     char           buf[24];
-    /* System's and Controls'/Camera's labels run long ("Beam Intensity",
-     * "Mouse Sensitivity", "Camera Collision"), so push their value column right
-     * to clear them — but no further: System's widest value ("C_+_Shadows",
-     * 109px) must still end before the 320px clip (its labels end by ~196, so
-     * 204 clears both ways). Controls and Camera hold only short values (numbers
-     * and On/Off), so they can afford 240. */
-    int            valX = (g_PcOptionsMenu_Page == 0) ? 196 : (g_PcOptionsMenu_Page == 1) ? 204 : 240;
+    int            valX = PCOPT_PAGES[(g_PcOptionsMenu_Page >= 0 && g_PcOptionsMenu_Page < PCOPT_PAGE_COUNT)
+                                          ? g_PcOptionsMenu_Page : 0].valX;
 
     valX = PC_AR_USA(320 - valX, valX);
 
