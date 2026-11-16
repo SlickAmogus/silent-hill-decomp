@@ -125,6 +125,10 @@ static s32 g_PrevVBlanks = 0;
 static PACKET* s_PcPacketBufs[2] = { NULL, NULL };
 static PACKET* s_PcPacketBufEnds[2] = { NULL, NULL };
 
+/* Bytes of primitives the frame's state update wrote: how much the frame
+ * draws, which is what set the console's frame time (xa_seek_model.c). */
+int g_PcFramePacketBytes = 0;
+
 /* Exposes the active packet arena's end so the wide-LM drawer (pc_wide_lm_draw.c)
  * can bounds-check every emit — the GsOUT_PACKET_P arena has no emit-time guard,
  * and a dense modded model can emit far more prims than any stock walker. */
@@ -2766,7 +2770,8 @@ void MainLoop(void) // 0x80032EE0
 #endif
         g_GameStateUpdateFuncs[g_GameWork.gameState]();
 #ifdef SH_PC_PORT
-        s_sfUpdEnd = (unsigned int)SDL_GetTicks();
+        s_sfUpdEnd           = (unsigned int)SDL_GetTicks();
+        g_PcFramePacketBytes = (int)(GsOUT_PACKET_P - s_PcPacketBufs[g_ActiveBufferIdx]);
         /* The touch overlay, for EVERY game state, drawn right after the state
          * that owns the frame has queued its own prims.
          *

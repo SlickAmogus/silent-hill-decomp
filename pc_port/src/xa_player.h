@@ -50,15 +50,17 @@ extern float g_PcXaVolume;
 void XaPlayer_SetMasterVolume(float v);
 
 /* PSX voice-start model (xa_seek_model.c): a shadow of the console's sound
- * task pool. sd_call.c reports every voice request as it queues it and calls
- * Frame once per pool pass; the model answers with how long the player holds
- * the line's first sound (consumed once per line) and whether a voiced page is
- * still waiting for its line (0 no, 1 hold an undrawn page, 2 the console's
- * streaming state 4). */
+ * task pool. sd_call.c reports every voice request as it queues it, every
+ * other task (music, sound banks) with the music volume and the loaded banks
+ * of that moment, and calls Frame once per pool pass; the model answers with
+ * how long the player holds the line's first sound (consumed once per line)
+ * and whether a voiced page is still waiting for its line (0 no, 1 hold an
+ * undrawn page, 2 the console's streaming state 4). */
 void     Pc_XaSeek_PlayRequest(uint16_t xaIdx);
 void     Pc_XaSeek_StopRequest(void);
 void     Pc_XaSeek_PreloadRequest(uint16_t xaIdx);
 void     Pc_XaSeek_StopIfActive(void);
+void     Pc_XaSeek_TaskAdd(int task, int bgmVol, const uint16_t* lastVab);
 void     Pc_XaSeek_Frame(void);
 void     Pc_XaSeek_OnPlayTask(uint16_t xaIdx, int xaVol);
 uint32_t Pc_XaSeek_LineDelayMs(void);
