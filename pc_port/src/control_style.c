@@ -161,20 +161,11 @@ static int SwapShoulder_MouseButton(const char* name)
     return 0;
 }
 
-/* Menus force the classic scheme into the input layer (see the block at the
- * end of Pc_ControlStyleUpdate); kept at file scope so a runtime bind edit can
- * re-apply whichever scheme is live right now. */
-static int s_forcedClassic = 0;
-
 void Pc_ControlStyle_ReapplyBinds(void)
 {
-    extern void Pc_ApplyClassicControlScheme(void);
     extern void Pc_ApplyActiveControlScheme(void);
 
-    if (s_forcedClassic)
-        Pc_ApplyClassicControlScheme();
-    else
-        Pc_ApplyActiveControlScheme();
+    Pc_ApplyActiveControlScheme();
 }
 
 void Pc_ControlStyleUpdate(void)
@@ -234,27 +225,12 @@ void Pc_ControlStyleUpdate(void)
     prevKey = curKey;
     prevPad = curPad;
 
-    /* Menus always use the classic control scheme. An alternate camera's binds
-     * (mouse-look, remapped confirm/cancel) would otherwise apply to menu /
-     * pause / inventory navigation. Swap to classic when leaving gameplay and
-     * restore the camera-matched scheme on return. No-op in classic mode.
-     * EXCEPTION: examining a world object (SysState_ReadMessage) freezes the
-     * world but isn't a menu — keep the alternate-camera scheme so the player's
-     * configured confirm/cancel binds still dismiss the description. */
-    {
-        int examining = (g_SysWork.sysState == SysState_ReadMessage);
-        int wantForceClassic = (!inGameplay && !examining && g_DebugThirdPersonCam) ? 1 : 0;
-        if (wantForceClassic != s_forcedClassic)
-        {
-            extern void Pc_ApplyClassicControlScheme(void);
-            extern void Pc_ApplyActiveControlScheme(void);
-            if (wantForceClassic)
-                Pc_ApplyClassicControlScheme();
-            else
-                Pc_ApplyActiveControlScheme();
-            s_forcedClassic = wantForceClassic;
-        }
-    }
+    /* Menus, the map, subtitles and messages answer to the scheme of the camera
+     * in use, the one the bind panel shows. They used to drop to the classic
+     * scheme outside gameplay, so a player on an alternate camera had to bind
+     * both schemes alike (issue #166). Mouse-look is held to gameplay below,
+     * and the menus already discount mouse-bound buttons where the cursor
+     * takes the click. */
 
     /* Swap the OTS shoulder side (default middle mouse) — gameplay + OTS only. */
     {
