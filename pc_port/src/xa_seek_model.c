@@ -2,43 +2,56 @@
 /* The wait between a voice line being asked for and being heard, as the
  * PlayStation had it.
  *
- * On the console a line is two or three sound tasks, run one state per game
- * frame by Sd_TaskPoolExecute:
+ * On the console every sound job is a task in one queue, and
+ * Sd_TaskPoolExecute runs one state of the task at its head per game frame.
+ * A line is two or three of them:
  *   Sd_XaAudioStop  fade the last line out 24 a frame, mute, CdlPause, clean up;
  *   Sd_XaAudioStop  again when the request came from a page turn: SD_Call(19)
  *                   queues one, the play request queues another, and the pool
  *                   never merges an entry with the one at its head;
  *   Sd_XaAudioPlay  set up, CdlSetmode, filter, CdlSetfilter, sector, CdlSeekL,
  *                   CdlReadN once the seek has completed, switch the CD input on.
- * Every command waits for the one before it (Sd_CdPrimitiveCmdTry polls
- * CdSync), so the seek is the part that varies.
+ * and it waits its turn behind whatever else is queued. A change of music is
+ * Sd_StopBgm (fade the track 4 a frame), Sd_VabLoad (the song's sound bank,
+ * read 25 sectors at a time) and Sd_KdtLoad (its sequence), two to three
+ * seconds of frames and reads in front of the line.
  *
  * Sd_AudioStreamingCheck() reports 4 from the request until CdlReadN is sent,
- * and for that long a voiced page (Gfx_MapMsg_Draw) draws nothing and does not
- * run its timer. Subtitle and voice therefore arrive together, a third to two
- * thirds of a second after the page before them ended, and every scene's
- * message timers were authored on top of that.
+ * and a voiced page (Gfx_MapMsg_Draw) draws nothing and does not run its timer
+ * until that has come and gone. Subtitle and voice therefore arrive together,
+ * and every scene's message timers were authored on top of the wait.
  *
- * The PC port runs those tasks in one frame and its player starts at once, so
- * this file replays the console's side on a shadow of the pool and the task
- * states, stepped at the console's frame rate, with a model of the drive
- * answering the commands. It is fed the same requests as the real pool and
- * gives back two things: whether the page is still held (Pc_XaSeek_PageGate)
- * and how long the player holds the line's first sound
+ * The wait is a count of frames more than anything the drive does: sixteen
+ * for a page turn, of which the seek is one or two. So its length is the
+ * console's frame time, and that was the scene's own. Outside gameplay the
+ * frame loop waits for one vblank after the frame's work, whatever that took;
+ * in DuckStation the cafe scene runs at four vblanks a frame (15 fps) with
+ * both characters in shot and three with one, a second or more per line.
+ * ConsoleFrameMs() estimates it from how much the frame draws.
+ *
+ * The PC port runs those tasks in a frame or a few and its player starts at
+ * once, so this file replays the console's side on a shadow of the pool and
+ * the task states, stepped at the console's frame time, with a model of the
+ * drive answering the commands. It is fed the same requests as the real pool
+ * and gives back two things: whether the page is still held
+ * (Pc_XaSeek_PageGate) and how long the player holds the line's first sound
  * (Pc_XaSeek_LineDelayMs). Dialog Pause (cutscene_line_gap_ms) scales the
  * whole sequence: 300 is the console, 0 switches it off.
  *
- * Drive timings are the ones DuckStation measured against hardware: a command
- * is acknowledged after about 0.74 ms; a pause from reading takes one turn of
- * the disc back to the hold point; a jump that leaves the sled where it is
- * takes about 50 ms below a distance that shrinks from ~330 sectors at the
- * start of the disc to ~60 at its end, and about 100 ms above it; a sled move
- * takes 0.3 s to 0.9 s; the first sector after CdlReadN waits for the hold
- * point to come round. They are written here from those figures. */
+ * Drive timings are DuckStation's, which were measured against hardware: a
+ * command is acknowledged after about 0.74 ms; a pause from reading takes one
+ * turn of the disc back to the hold point; a jump that leaves the sled where
+ * it is takes about 50 ms below a distance that shrinks from ~330 sectors at
+ * the start of the disc to ~60 at its end, and about 100 ms above it; a sled
+ * move takes 0.3 s to 0.9 s; the first sector after CdlReadN waits for the
+ * hold point to come round. They are written here from those figures, and the
+ * task states were checked frame for frame against a trace of the game
+ * running in it. */
 #include "xa_player.h"
 #include "pc_config.h"
 #include "sh_log.h"
 #include "common.h"
+#include "game.h"
 #include "main/fileinfo.h"
 #include "bodyprog/sound/sound_system.h"
 #include <SDL_timer.h>
@@ -47,23 +60,61 @@
 
 extern int      g_PsxCdHeadLba;
 extern unsigned g_PsxCdHeadEpoch;
-extern s32      g_IntervalVBlanks;
 extern int      g_PcFastForward;
+extern int      g_PcFramePacketBytes;
 extern int      GetVideoMode(void);
 
 #define XS_POOL          32
 #define XS_XA_COUNT      727
+#define XS_AUDIO_COUNT   127
 #define XS_NORMAL_MS     300.0            /* cutscene_line_gap_ms of the "Normal" preset */
-#define XS_SECTOR_MS     (1000.0 / 150.0) /* CdlModeSpeed: the voice stream reads at double speed */
+#define XS_SECTOR_MS     (1000.0 / 150.0) /* CdlModeSpeed: voices and data both read at double speed */
 #define XS_ACK_MS        0.738
 #define XS_PAUSE_IDLE_MS 0.218
 #define XS_PAUSE_MIN_MS  29.5
-#define XS_JITTER_MS     4.1              /* 0.5 ms up to 1 ms and a sector on hardware; the middle */
+#define XS_JITTER_MS     0.8
 #define XS_SLED_SECTORS  7200
 #define XS_DISC_SECTORS  (72.0 * 60.0 * 75.0)
 #define XS_PI            3.14159265358979
+#define XS_VAB_CHUNK     0xC800           /* VAB_BUFFER_LIMIT: a bank is read and sent to the SPU in pieces this size */
+
+/* The console's frame time from the frame's primitives.
+ *
+ * Work per frame against the bytes of primitives the game had written when
+ * Sd_TaskPoolExecute ran, both read out of DuckStation: in gameplay, where a
+ * frame over two vblanks is not rounded, 39.7 ms at 56 KB, 46.5 ms at 61 KB
+ * and 49.8 ms at 80 KB; in the cafe scene, three vblanks a frame below about
+ * 69 KB, four above, still four at 111 KB. One slope fits both, with the
+ * scene 3.7 ms dearer than gameplay at the same load. A frame that draws no
+ * world (a prompt over a frozen picture) runs in one vblank.
+ *
+ * The port's count for the same frame runs 1.3 to 1.9 times the console's:
+ * its primitives carry a 12-byte tag where the console's is 4, and its mesh
+ * drawers keep polygons out to a wider bound. Scaled by this, the cafe
+ * scene's two-shots come out at four vblanks and its one-character shots at
+ * three, as in DuckStation; the window's aspect does not change the count. */
+#define XS_PSX_PER_PC_BYTE  0.56
+#define XS_WORK_MS_PER_BYTE 0.00036
+#define XS_WORK_SCENE_MS    25.3
+#define XS_WORK_PLAY_MS     21.6
+#define XS_WORK_IDLE_MS     6.0
+#define XS_WORLD_BYTES      8000.0
 
 enum { XS_STOP_FADE, XS_STOP_MUTE, XS_STOP_PAUSE, XS_STOP_CLEANUP };
+/* e_AudioLoadState, shared by the bank and sequence loads. */
+enum
+{
+    XS_LOAD_RESET,
+    XS_LOAD_STOP,
+    XS_LOAD_SETOFF,
+    XS_LOAD_FILE,
+    XS_LOAD_CHECK,
+    XS_LOAD_MOVE,
+    XS_LOAD_SETNEXT,
+    XS_LOAD_MOVENEXT,
+    XS_LOAD_MOVELAST,
+    XS_LOAD_FINALIZE
+};
 enum
 {
     XS_PLAY_INIT,
@@ -76,12 +127,32 @@ enum
     XS_PLAY_ENABLE
 };
 
+enum { XS_REQ_PLAY, XS_REQ_STOP, XS_REQ_PRELOAD, XS_REQ_STOP_ACTIVE, XS_REQ_TASK };
+
 typedef struct
 {
-    u8  pool[XS_POOL]; /* g_Sd_TaskPool, holding only tasks 1 (play), 2 (stop), 6 (preload) */
+    int      type;
+    int      arg;        /* the clip, or the task */
+    int      bgmVol;
+    int      lastVab[3];
+    unsigned frame;      /* the game frame that asked */
+} XaRequest;
+
+#define XS_QUEUE 16
+
+typedef struct
+{
+    u8  pool[XS_POOL]; /* g_Sd_TaskPool */
     int stopState;
     int playState;
     int preState;
+    int loadState;     /* g_Sd_AudioStreamingStates.audioLoadState_0 */
+    int loading;       /* g_Sd_AudioWork.isAudioLoading_15 */
+    int loadLba;
+    int loadSize;
+    int loadMoved;     /* g_Sd_DataMoved */
+    int lastVab[3];    /* g_Sd_AudioWork.lastVabAudioLoadedIdx_8 */
+    int bgmVol;        /* gSDVolConfig.volumeBgm_8 */
     int volXa;         /* gSDVolConfig.volumeXa_0 */
     int lineVol;       /* what the play task's first state will set it to */
     int idxCheck;      /* g_Sd_AudioWork.xaAudioIdxCheck_2 */
@@ -96,6 +167,7 @@ typedef struct
 
     double   busyUntilMs; /* CdSync reports the last command complete from here */
     double   seekDoneMs;
+    double   dataDoneMs;  /* CdReadSync reports the read in flight done from here */
     int      reading;
     double   readStartMs;
     int      readStartLba;
@@ -107,6 +179,7 @@ typedef struct
     int    gridOn;
     int    gridPending;
     double nextTickMs;
+    double lineFrameMs; /* the frame time the line on its way was planned with */
 
     unsigned reqSeq;   /* play requests so far */
     unsigned playSeq;  /* the request the running play task serves */
@@ -116,6 +189,12 @@ typedef struct
     double   readNMs;
     double   audioMs;
 
+    XaRequest queue[XS_QUEUE]; /* requests of later game frames, one frame's worth let in per pass */
+    int       queued;
+    unsigned  batchFrame;      /* the game frame whose requests went in last */
+    int       ticked;          /* a pass has run since they did */
+    unsigned  askSeq;          /* play requests made: in the pool, or waiting here */
+
     int    logHead;
     int    logTarget;
     int    logStops;
@@ -124,9 +203,9 @@ typedef struct
 } XaShadow;
 
 /* No page waits longer than this (times the Dialog Pause scale) for its
- * line, whatever the shadow believes: the longest real case, a full-disc seek
- * behind two stop tasks, is about a second and a half. */
-#define XS_PAGE_LIMIT_MS 4000.0
+ * line, whatever the shadow believes: the longest real case, a line behind
+ * a change of music with a large bank, is about five seconds. */
+#define XS_PAGE_LIMIT_MS 8000.0
 
 static XaShadow s_live;
 static int      s_ready       = 0;
@@ -134,6 +213,8 @@ static int      s_paused      = 0;
 static double   s_pauseStart  = 0.0;
 static double   s_lastNow     = 0.0;
 static Uint32   s_lineDelayMs = 0;
+static double   s_loadBytes   = -1.0;
+static unsigned s_gameFrame   = 0;
 
 static double NowMs(void)
 {
@@ -147,20 +228,37 @@ static double Scale(void)
     return gap > 0 ? gap / XS_NORMAL_MS : 0.0;
 }
 
+/* 263 lines of 3413 GPU clocks at 53.693175 MHz, and PAL's 314 of 3406 at
+ * 53.203425 MHz: the game's modes are not interlaced. */
 static double VblankHz(void)
 {
-    return GetVideoMode() == 1 ? 50.0 : 60.0;
+    return GetVideoMode() == 1 ? 49.761 : 59.826;
 }
 
-static double FrameMs(void)
+static double ConsoleFrameMs(void)
 {
-    int vbl = g_IntervalVBlanks;
+    const double vbl   = 1000.0 / VblankHz();
+    const double bytes = s_loadBytes > 0.0 ? s_loadBytes : 0.0;
+    const int    play  = (g_SysWork.sysState == SysState_Gameplay);
+    double       work  = bytes * XS_WORK_MS_PER_BYTE;
+    double       frame;
 
-    /* Dialogue runs in the frame loop's wait-one-vblank branch, where the
-     * console took the two its frame needed; a 1 here is a PC menu state. */
-    if (vbl < 2) vbl = 2;
-    if (vbl > 4) vbl = 4;
-    return 1000.0 * vbl / VblankHz();
+    if (bytes < XS_WORLD_BYTES)
+        work += XS_WORK_IDLE_MS;
+    else
+        work += play ? XS_WORK_PLAY_MS : XS_WORK_SCENE_MS;
+
+    /* The frame loop's two branches: gameplay waits until two vblanks have
+     * gone by and no longer; everything else waits for the next vblank. */
+    if (play)
+        frame = (work < 2.0 * vbl) ? 2.0 * vbl : work;
+    else
+        frame = (floor(work / vbl) + 1.0) * vbl;
+
+    /* Four vblanks is the slowest frame the game was built to take (its
+     * delta time stops there), and the port can draw far more than the
+     * console ever did: wider views, longer draw distances, denser models. */
+    return (frame > 4.0 * vbl) ? 4.0 * vbl : frame;
 }
 
 static long long Vblanks(double ms)
@@ -185,13 +283,15 @@ static int XaLength(int idx)
     return XaValid(idx) ? (int)g_XaItemData[idx].audioLength_8 : 0;
 }
 
-/* Constant linear velocity: 1.3 m/s past the head, tracks 1.6 um apart,
- * the first one 25 mm out. */
+/* Constant linear velocity, tracks 1.6 um apart. The speed and the first
+ * track's radius are the pair that puts DuckStation's turns where its pause
+ * times show them: 8 sectors at the start of the disc, 9 at LBA 21000, 10
+ * from 22900 to 25400, 11 from 39400. */
 static int SectorsPerTurn(int lba)
 {
     const double seconds = ((lba > 0 ? lba : 0) + 150) / 75.0;
-    const double radius  = sqrt(0.025 * 0.025 + 1.3 * 1.6e-6 * seconds / XS_PI);
-    const int    n       = (int)(2.0 * XS_PI * radius * 75.0 / 1.3);
+    const double radius  = sqrt(0.02167 * 0.02167 + 1.2 * 1.6e-6 * seconds / XS_PI);
+    const int    n       = (int)(2.0 * XS_PI * radius * 75.0 / 1.2);
 
     return n < 8 ? 8 : n;
 }
@@ -391,6 +491,28 @@ static void DriveRead(XaShadow* s, double t, double scale)
     s->busyUntilMs  = t + XS_ACK_MS * scale;
 }
 
+/* CdRead of a file: the drive seeks to the Setloc position and reads, its
+ * first sector three sector times after the seek; with the last one in, the
+ * library pauses the drive, and CdReadSync reports the read done once that
+ * pause has completed. */
+static void DriveData(XaShadow* s, double t, int lba, int sectors, double scale)
+{
+    const int    end   = lba + sectors;
+    const int    spt   = SectorsPerTurn(end);
+    const double seek  = SeekMs(DriveHead(s, t, scale), lba);
+    double       pause = (spt - 2) * XS_SECTOR_MS - XS_ACK_MS;
+
+    if (pause < XS_PAUSE_MIN_MS)
+        pause = XS_PAUSE_MIN_MS;
+
+    s->reading     = 0;
+    s->dataDoneMs  = t + (XS_ACK_MS + seek + (2 + sectors) * XS_SECTOR_MS + XS_ACK_MS + pause) * scale;
+    s->busyUntilMs = s->dataDoneMs;
+    s->holdLba     = end - 1;
+    s->holdSinceMs = s->dataDoneMs;
+    s->holdPhase   = spt - 2;
+}
+
 static void StopStep(XaShadow* s, double t, double scale)
 {
     switch (s->stopState)
@@ -528,6 +650,164 @@ static void PreloadStep(XaShadow* s, double t, double scale)
     }
 }
 
+static const s_AudioItemData* AudioItem(int idx)
+{
+    return (idx >= 0 && idx < XS_AUDIO_COUNT) ? &g_AudioData[idx] : NULL;
+}
+
+static void LoadDone(XaShadow* s)
+{
+    s->loadState = XS_LOAD_RESET;
+    s->loading   = 0;
+    PoolUpdate(s);
+}
+
+/* The Setloc and CdRead states shared by both loads: 1 once the read is on
+ * its way. */
+static int LoadRead(XaShadow* s, double t, int sectorOfs, int bytes, int next, double scale)
+{
+    if (!DriveIdle(s, t))
+        return 0;
+
+    if (s->loadState == XS_LOAD_SETOFF || s->loadState == XS_LOAD_SETNEXT)
+        s->busyUntilMs = t + XS_ACK_MS * scale;
+    else
+        DriveData(s, t, s->loadLba + sectorOfs, (bytes + 2047) / 2048, scale);
+    s->loadState = next;
+    return 1;
+}
+
+/* Sd_VabLoad. Handing a piece to the SPU is over within the frame, so the
+ * two states that wait for it never do. */
+static void VabStep(XaShadow* s, double t, int task, double scale)
+{
+    const s_AudioItemData* item = AudioItem(task - 160);
+    int                    left;
+
+    if (item == NULL)
+    {
+        LoadDone(s);
+        return;
+    }
+
+    left = s->loadSize - s->loadMoved;
+    switch (s->loadState)
+    {
+        case XS_LOAD_RESET:
+            if (item->typeIdx_0 >= 1 && item->typeIdx_0 <= 3)
+            {
+                if (s->lastVab[item->typeIdx_0 - 1] == task)
+                {
+                    LoadDone(s);
+                    break;
+                }
+                s->lastVab[item->typeIdx_0 - 1] = task;
+            }
+            s->loadLba   = item->fileOffset_8;
+            s->loadSize  = (int)item->fileSize_4;
+            s->loadState = XS_LOAD_STOP;
+            break;
+
+        case XS_LOAD_STOP:
+            s->loadMoved = 0;
+            s->loadState = XS_LOAD_SETOFF;
+            break;
+
+        case XS_LOAD_SETOFF:
+            DriveSync(s, t);
+            LoadRead(s, t, 0, 0, XS_LOAD_FILE, scale);
+            break;
+
+        case XS_LOAD_FILE:
+            LoadRead(s, t, 0, (s->loadSize < XS_VAB_CHUNK) ? s->loadSize : XS_VAB_CHUNK, XS_LOAD_CHECK, scale);
+            break;
+
+        case XS_LOAD_CHECK:
+            if (t >= s->dataDoneMs)
+                s->loadState = XS_LOAD_MOVE;
+            break;
+
+        case XS_LOAD_MOVE:
+            if (s->loadSize < XS_VAB_CHUNK)
+            {
+                s->loadMoved = s->loadSize;
+                s->loadState = XS_LOAD_FINALIZE;
+            }
+            else
+            {
+                s->loadMoved = XS_VAB_CHUNK;
+                s->loadState = XS_LOAD_SETNEXT;
+            }
+            break;
+
+        case XS_LOAD_SETNEXT:
+            LoadRead(s, t, 0, 0, XS_LOAD_MOVENEXT, scale);
+            break;
+
+        case XS_LOAD_MOVENEXT:
+            LoadRead(s, t, (s->loadMoved + 2047) / 2048, (left < XS_VAB_CHUNK) ? left : XS_VAB_CHUNK, XS_LOAD_MOVELAST, scale);
+            break;
+
+        case XS_LOAD_MOVELAST:
+            if (t < s->dataDoneMs)
+                break;
+            if (left < XS_VAB_CHUNK)
+            {
+                s->loadMoved = s->loadSize;
+                s->loadState = XS_LOAD_FINALIZE;
+            }
+            else
+            {
+                s->loadMoved += XS_VAB_CHUNK;
+                s->loadState  = XS_LOAD_SETNEXT;
+            }
+            break;
+
+        default:
+            LoadDone(s);
+            break;
+    }
+}
+
+/* Sd_KdtLoad. */
+static void KdtStep(XaShadow* s, double t, int task, double scale)
+{
+    const s_AudioItemData* item = AudioItem(54 + task);
+
+    if (item == NULL)
+    {
+        LoadDone(s);
+        return;
+    }
+
+    switch (s->loadState)
+    {
+        case XS_LOAD_RESET:
+            s->loadLba   = item->fileOffset_8;
+            s->loadSize  = (int)item->fileSize_4;
+            s->loadState = XS_LOAD_STOP;
+            break;
+
+        case XS_LOAD_STOP:
+            s->loadState = XS_LOAD_SETOFF;
+            break;
+
+        case XS_LOAD_SETOFF:
+            DriveSync(s, t);
+            LoadRead(s, t, 0, 0, XS_LOAD_FILE, scale);
+            break;
+
+        case XS_LOAD_FILE:
+            LoadRead(s, t, 0, s->loadSize, XS_LOAD_CHECK, scale);
+            break;
+
+        default:
+            if (t >= s->dataDoneMs)
+                LoadDone(s);
+            break;
+    }
+}
+
 /* One console frame of Sd_TaskPoolExecute. */
 static void Tick(XaShadow* s, double t, double scale)
 {
@@ -535,10 +815,34 @@ static void Tick(XaShadow* s, double t, double scale)
 
     switch (task)
     {
+        case 0: break;
         case 1: PlayStep(s, t, scale);    break;
         case 2: StopStep(s, t, scale);    break;
         case 6: PreloadStep(s, t, scale); break;
-        default: break;
+
+        case 7: /* func_80046A70: the track starts, at full volume */
+            s->bgmVol = 40;
+            PoolUpdate(s);
+            break;
+
+        case 8: /* Sd_StopBgm */
+            if (s->bgmVol > 0)
+                s->bgmVol -= 4;
+            if (s->bgmVol <= 0)
+            {
+                s->bgmVol = 0;
+                PoolUpdate(s);
+            }
+            break;
+
+        default:
+            if (task >= 160)
+                VabStep(s, t, task, scale);
+            else if (task >= 32)
+                KdtStep(s, t, task, scale);
+            else
+                PoolUpdate(s);
+            break;
     }
 
     if (s->idx4 != 0)
@@ -555,19 +859,123 @@ static void Tick(XaShadow* s, double t, double scale)
     }
 }
 
+/* A line on its way keeps the frame time its player's delay was worked out
+ * with, so its page and its voice stay together through a change of shot. */
+static double FrameMs(const XaShadow* s)
+{
+    return (s->lineFrameMs > 0.0 && s->heardSeq != s->askSeq) ? s->lineFrameMs : ConsoleFrameMs();
+}
+
+static void Apply(XaShadow* s, const XaRequest* r, double t)
+{
+    int i, music = 0, bank = 0;
+
+    switch (r->type)
+    {
+        case XS_REQ_PLAY:
+            /* Sd_XaAudioPlayTaskAdd, in its order: a play still queued behind
+             * the head is withdrawn by the stop, and takes the pending flag
+             * with it. */
+            s->idxCheck     = r->arg;
+            s->startPending = 1;
+            s->wdStartMs    = t;
+            s->wdElapsed    = 0;
+            s->logStops     = 0;
+            s->logFades     = 0;
+            PoolAdd(s, 2);
+            s->idx4 = r->arg;
+            PoolAdd(s, 1);
+            s->reqSeq++;
+            break;
+
+        case XS_REQ_STOP:
+            PoolAdd(s, 2);
+            s->notPlaying = 1;
+            break;
+
+        case XS_REQ_PRELOAD:
+            s->idxCheck     = r->arg;
+            s->startPending = 1;
+            if (s->idx4 != 0)
+                PoolAdd(s, 2);
+            PoolAdd(s, 6);
+            break;
+
+        case XS_REQ_STOP_ACTIVE:
+            if (s->idx4 != 0)
+                PoolAdd(s, 2);
+            break;
+
+        default:
+            /* The game's music volume and loaded banks are the console's at
+             * this point unless the shadow still has a task of that kind
+             * queued, which the port's pool has long since run. */
+            for (i = 0; i < XS_POOL; i++)
+            {
+                music |= (s->pool[i] == 7 || s->pool[i] == 8);
+                bank  |= (s->pool[i] >= 160);
+            }
+            if (!music)
+                s->bgmVol = r->bgmVol;
+            if (!bank)
+            {
+                for (i = 0; i < 3; i++)
+                    s->lastVab[i] = r->lastVab[i];
+            }
+            if (r->arg >= 32)
+                s->loading = 1;
+            PoolAdd(s, r->arg);
+            break;
+    }
+
+    if (!s->gridOn)
+        s->gridPending = 1;
+}
+
+/* One console frame: a pass of the pool, then the next game frame's requests.
+ *
+ * On the console the requests of two game frames always had a pass between
+ * them: a page turn stops the old line in one frame and the next line is
+ * asked for in the next, by which time the stop has run a state (and a stop
+ * that was on its last one has left the head, which decides whether the
+ * request's own stop joins it or is merged away). The port's frames are a
+ * quarter as long, so both would usually arrive between two passes. Requests
+ * from a later game frame therefore wait here for the pass. */
+static void Step(XaShadow* s, double t, double scale)
+{
+    Tick(s, t, scale);
+    s->ticked = 1;
+
+    if (s->queued > 0)
+    {
+        const unsigned frame = s->queue[0].frame;
+        int            n     = 0;
+
+        while (n < s->queued && s->queue[n].frame == frame)
+        {
+            Apply(s, &s->queue[n], t);
+            n++;
+        }
+        memmove(s->queue, s->queue + n, (size_t)(s->queued - n) * sizeof(s->queue[0]));
+        s->queued    -= n;
+        s->batchFrame = frame;
+        s->ticked     = 0;
+    }
+}
+
 static void Advance(XaShadow* s, double now, double scale)
 {
     int guard = 0;
 
     while (s->gridOn && s->nextTickMs <= now)
     {
-        Tick(s, s->nextTickMs, scale);
-        s->nextTickMs += FrameMs() * scale;
-        if (s->pool[0] == 0 && s->idx4 == 0)
+        Step(s, s->nextTickMs, scale);
+        s->nextTickMs += FrameMs(s) * scale;
+        if (s->pool[0] == 0 && s->idx4 == 0 && s->queued == 0)
             s->gridOn = 0;
         if (++guard > 20000)
         {
-            s->nextTickMs = now + FrameMs() * scale;
+            s->nextTickMs = now + FrameMs(s) * scale;
             break;
         }
     }
@@ -580,6 +988,7 @@ static void Reset(void)
     s_live.lineVol = 84;
     s_live.holdLba = g_PsxCdHeadLba;
     s_live.epoch   = g_PsxCdHeadEpoch;
+    s_live.ticked  = 1;
     s_ready        = 1;
 }
 
@@ -603,81 +1012,106 @@ static XaShadow* Live(double now)
     return &s_live;
 }
 
-static void Requested(XaShadow* s)
+static void Ask(int type, int arg, int bgmVol, const uint16_t* lastVab)
 {
-    if (!s->gridOn)
-        s->gridPending = 1;
+    const double now = NowMs();
+    XaShadow*    s   = Live(now);
+    XaRequest    r;
+    int          i;
+
+    if (s == NULL)
+        return;
+
+    r.type   = type;
+    r.arg    = arg;
+    r.bgmVol = bgmVol;
+    r.frame  = s_gameFrame;
+    for (i = 0; i < 3; i++)
+        r.lastVab[i] = lastVab ? lastVab[i] : 0;
+
+    /* A scene step that asks for the same thing every frame until it moves
+     * on (the cafe's preload) made one request per pass on the console. */
+    if (s->queued > 0)
+    {
+        const XaRequest* last = &s->queue[s->queued - 1];
+
+        if (last->frame != r.frame && last->type == r.type && last->arg == r.arg)
+            return;
+    }
+
+    if (type == XS_REQ_PLAY)
+    {
+        s->askSeq++;
+        s->reqMs       = now;
+        s->lineFrameMs = 0.0;
+    }
+
+    if (s->queued == XS_QUEUE)
+    {
+        for (i = 0; i < s->queued; i++)
+            Apply(s, &s->queue[i], now);
+        s->queued = 0;
+        s->ticked = 1;
+    }
+
+    if (s->queued == 0 && (s->ticked || r.frame == s->batchFrame))
+    {
+        Apply(s, &r, now);
+        s->batchFrame = r.frame;
+        s->ticked     = 0;
+    }
+    else
+    {
+        s->queue[s->queued++] = r;
+    }
 }
 
 void Pc_XaSeek_PlayRequest(uint16_t xaIdx)
 {
-    const double now = NowMs();
-    XaShadow*    s   = Live(now);
-
-    if (s == NULL)
-        return;
-
-    /* Sd_XaAudioPlayTaskAdd, in its order: a play still queued behind the
-     * head is withdrawn by the stop, and takes the pending flag with it. */
-    s->idxCheck     = xaIdx;
-    s->startPending = 1;
-    s->wdStartMs    = now;
-    s->wdElapsed    = 0;
-    s->reqMs        = now;
-    s->logStops     = 0;
-    s->logFades     = 0;
-    PoolAdd(s, 2);
-    s->idx4 = xaIdx;
-    PoolAdd(s, 1);
-    s->reqSeq++;
-    Requested(s);
+    Ask(XS_REQ_PLAY, xaIdx, 0, NULL);
 }
 
 void Pc_XaSeek_StopRequest(void)
 {
-    XaShadow* s = Live(NowMs());
-
-    if (s == NULL)
-        return;
-    PoolAdd(s, 2);
-    s->notPlaying = 1;
-    Requested(s);
+    Ask(XS_REQ_STOP, 0, 0, NULL);
 }
 
 void Pc_XaSeek_PreloadRequest(uint16_t xaIdx)
 {
-    XaShadow* s = Live(NowMs());
-
-    if (s == NULL)
-        return;
-    s->idxCheck     = xaIdx;
-    s->startPending = 1;
-    if (s->idx4 != 0)
-        PoolAdd(s, 2);
-    PoolAdd(s, 6);
-    Requested(s);
+    Ask(XS_REQ_PRELOAD, xaIdx, 0, NULL);
 }
 
 void Pc_XaSeek_StopIfActive(void)
 {
-    XaShadow* s = Live(NowMs());
+    Ask(XS_REQ_STOP_ACTIVE, 0, 0, NULL);
+}
 
-    if (s == NULL || s->idx4 == 0)
-        return;
-    PoolAdd(s, 2);
-    Requested(s);
+void Pc_XaSeek_TaskAdd(int task, int bgmVol, const uint16_t* lastVab)
+{
+    Ask(XS_REQ_TASK, task, bgmVol, lastVab);
 }
 
 void Pc_XaSeek_Frame(void)
 {
     const double now = NowMs();
-    XaShadow*    s   = Live(now);
+    XaShadow*    s;
 
+    /* A quarter of each frame's load: a cut settles within a few frames and
+     * a single odd frame does not move a boundary. */
+    if (!s_paused)
+    {
+        const double bytes = g_PcFramePacketBytes * XS_PSX_PER_PC_BYTE;
+
+        s_loadBytes = (s_loadBytes < 0.0) ? bytes : s_loadBytes + (bytes - s_loadBytes) * 0.25;
+    }
+
+    s = Live(now);
+    s_gameFrame++;
     if (s == NULL || s_paused)
         return;
 
     /* The console ran the first state at the end of the frame that asked. */
-    if (s->gridPending)
+    if (s->gridPending || (s->queued > 0 && !s->gridOn))
     {
         s->gridPending = 0;
         if (!s->gridOn)
@@ -702,32 +1136,33 @@ void Pc_XaSeek_OnPlayTask(uint16_t xaIdx, int xaVol)
     if (s == NULL || !XaValid(xaIdx))
         return;
 
-    s->lineVol = xaVol;
+    s->lineVol     = xaVol;
+    s->lineFrameMs = ConsoleFrameMs();
 
     /* Run a copy ahead to the frame this line's CD input comes on. */
     c     = *s;
-    frame = FrameMs() * scale;
-    if (c.gridPending && !c.gridOn)
+    frame = s->lineFrameMs * scale;
+    if ((c.gridPending || c.queued > 0) && !c.gridOn)
     {
         c.gridOn     = 1;
         c.nextTickMs = now;
     }
-    for (i = 0; i < 900 && c.heardSeq != s->reqSeq && c.gridOn; i++)
+    for (i = 0; i < 900 && c.heardSeq != s->askSeq && c.gridOn; i++)
     {
-        Tick(&c, c.nextTickMs, scale);
+        Step(&c, c.nextTickMs, scale);
         c.nextTickMs += frame;
     }
-    if (c.heardSeq != s->reqSeq)
+    if (c.heardSeq != s->askSeq)
         return;
 
     page  = (c.readNMs > now) ? c.readNMs - now : 0.0;
     voice = (c.audioMs > now) ? c.audioMs - now : 0.0;
-    if (voice > 5000.0)
-        voice = 5000.0;
+    if (voice > XS_PAGE_LIMIT_MS * (scale > 1.0 ? scale : 1.0))
+        voice = XS_PAGE_LIMIT_MS * (scale > 1.0 ? scale : 1.0);
     s_lineDelayMs = (Uint32)voice;
 
-    SH_DBG("[XASEEK] t=%.0f xa=%u head=%d target=%d seek=%.0fms stops=%d fades=%d frame=%.1fms page=%.0fms voice=%.0fms",
-           now, (unsigned)xaIdx, c.logHead, c.logTarget, c.logSeekMs, c.logStops, c.logFades, frame, page, voice);
+    SH_DBG("[XASEEK] t=%.0f xa=%u head=%d target=%d seek=%.0fms stops=%d fades=%d load=%.0f frame=%.1fms page=%.0fms voice=%.0fms",
+           now, (unsigned)xaIdx, c.logHead, c.logTarget, c.logSeekMs, c.logStops, c.logFades, s_loadBytes, frame, page, voice);
 }
 
 uint32_t Pc_XaSeek_LineDelayMs(void)
@@ -752,23 +1187,23 @@ int Pc_XaSeek_PageGate(void)
     if (s == NULL)
         return 0;
 
-    if (s->readSeq != s->reqSeq && !s_paused &&
+    if (s->readSeq != s->askSeq && !s_paused &&
         now - s->reqMs > XS_PAGE_LIMIT_MS * (Scale() > 1.0 ? Scale() : 1.0))
     {
         SH_DBG("[XASEEK] page released after %.0f ms without its line (task %d, play state %d)",
                now - s->reqMs, (int)s->pool[0], s->playState);
-        s->readSeq      = s->reqSeq;
+        s->readSeq      = s->askSeq;
         s->startPending = 0;
     }
 
     /* Sd_AudioStreamingCheck() == 4, on the shadow's flags. */
-    if (s->idx4 == 0 && s->preState == 0 && s->startPending)
+    if (s->idx4 == 0 && !s->loading && s->preState == 0 && s->startPending)
     {
-        if (s->pool[0] != 0 || s->gridPending)
+        if (s->pool[0] != 0 || s->gridPending || s->queued > 0)
             return 2;
         s->startPending = 0;
     }
-    return (s->readSeq != s->reqSeq) ? 1 : 0;
+    return (s->readSeq != s->askSeq) ? 1 : 0;
 }
 
 void Pc_XaSeek_SetPauseHold(int hold)
@@ -791,6 +1226,7 @@ void Pc_XaSeek_SetPauseHold(int hold)
         s_live.wdStartMs   += held;
         s_live.busyUntilMs += held;
         s_live.seekDoneMs  += held;
+        s_live.dataDoneMs  += held;
         s_live.readStartMs += held;
         s_live.holdSinceMs += held;
         s_live.nextTickMs  += held;
