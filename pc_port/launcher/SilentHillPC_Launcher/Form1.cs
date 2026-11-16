@@ -1067,7 +1067,7 @@ public partial class Form1 : Form
 
         const string lineGapTip =
             "Emulates the PlayStation's wait before each spoken line.\n" +
-            "On the console the screen stayed without a subtitle for about half a second\n" +
+            "On the console the screen stayed without a subtitle for about a second\n" +
             "while the drive stopped and sought the next clip, then subtitle and voice came\n" +
             "in together; the PC loads instantly. Normal matches the console, Short and Long\n" +
             "halve and double the wait, Off removes it.";
