@@ -64,10 +64,14 @@ XA_DISPATCH_VOID(XaPlayer_SetVolume, PcLegacyXa_SetVolume, PcSoftwareXa_SetVolum
 void XaPlayer_SetPauseHold(int hold)
 {
     Pc_XaSeek_SetPauseHold(hold);
+#if defined(SH_NO_OPENAL)
+    PcSoftwareXa_SetPauseHold(hold);
+#else
     if (PcAudioConfig_UsesSoftwareSpu())
         PcSoftwareXa_SetPauseHold(hold);
     else
         PcLegacyXa_SetPauseHold(hold);
+#endif
 }
 XA_DISPATCH_VOID(XaPlayer_SetMasterVolume, PcLegacyXa_SetMasterVolume,
                  PcSoftwareXa_SetMasterVolume, (float volume), (volume))
