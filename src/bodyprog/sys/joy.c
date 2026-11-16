@@ -87,6 +87,14 @@ void Joy_ControllerDataUpdate(void) // 0x80034494
         {
             cont->heldBtnFlags = ~cont->analogController.digitalButtons & 0xFFFF;
         }
+#ifdef SH_PC_PORT
+        if (cont == g_Controller0)
+        {
+            extern unsigned int Pc_ControlStyle_MenuHeld(unsigned int held);
+
+            cont->heldBtnFlags = Pc_ControlStyle_MenuHeld(cont->heldBtnFlags);
+        }
+#endif
 
         // TODO: Demagic hex values.
         ControllerData_AnalogToDigital(cont, (*(u16*)&cont->analogController.status & 0x5300) == 0x5300);

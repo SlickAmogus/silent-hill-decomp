@@ -826,15 +826,8 @@ static void Pc_TpsCamera_Apply(void)
                 {
                     static Uint32 s_lastMoveMs = 0;
                     Uint32 now   = SDL_GetTicks();
-                    s32    held2 = g_Controller0->heldBtnFlags;
-                    int    moving = (g_sdlKeyboardState[SDL_SCANCODE_W] != 0) ||
-                                    (g_sdlKeyboardState[SDL_SCANCODE_A] != 0) ||
-                                    (g_sdlKeyboardState[SDL_SCANCODE_S] != 0) ||
-                                    (g_sdlKeyboardState[SDL_SCANCODE_D] != 0) ||
-                                    (held2 & (ControllerFlag_LStickUp   | ControllerFlag_LStickDown  |
-                                              ControllerFlag_LStickLeft | ControllerFlag_LStickRight |
-                                              ControllerFlag_DpadUp     | ControllerFlag_DpadDown    |
-                                              ControllerFlag_DpadLeft   | ControllerFlag_DpadRight));
+                    extern int Pc_AltCamMoveInput(void);
+                    int    moving = Pc_AltCamMoveInput();
                     Uint32 still;
                     if (moving) s_lastMoveMs = now;
                     still = now - s_lastMoveMs;
