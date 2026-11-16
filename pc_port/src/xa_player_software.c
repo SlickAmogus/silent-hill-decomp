@@ -30,16 +30,17 @@ static Uint32 s_xaPrevFireMs  = 0;
  * signal until the PSX watchdog moment (play start + (length+32)/60 s). */
 static Uint32 s_xaPadEndMs = 0;
 
-/* PSX CD seek before a voice line. On the console every XA clip started only
- * after the drive sought to it, so each voice began a beat after its subtitle
- * while the scene kept running on its authored timers. The PC loads instantly
- * and the voice landed on the subtitle, which is the "pauses between lines
- * are gone" report. Hold the START of playback by the modelled seek and
- * sound-task time (xa_seek_model.c; loose voice files keep the flat
- * cutscene_line_gap_ms, having no disc position); the
- * page timers and the drain gate are untouched, so nothing shifts except where
- * the voice sits inside its page. (The earlier end-of-line hold moved the page
- * advance instead, which is why it could drift tightly timed scenes.) */
+/* The console's wait before a voice line: its stop and play tasks and the
+ * drive's seek took a third to two thirds of a second, and the line's page
+ * stayed blank with its timer stopped until the drive was told to read. The
+ * PC loads at once, which is the "pauses between lines are gone" report.
+ * xa_seek_model.c replays that wait: the page is held by Gfx_MapMsg_Draw
+ * through Pc_XaSeek_PageGate, and the first sound is held here until the
+ * moment the console's first sector would have arrived, a few frames after
+ * the page. Loose voice files have no disc position and keep the flat
+ * cutscene_line_gap_ms. (An earlier end-of-line hold padded every page
+ * instead, on top of timers that already allowed for the voice, and drifted
+ * tightly timed scenes.) */
 static Uint32 s_xaSeekEndMs = 0;
 
 /* Console-freeze hold: the console zeroes game dt but host audio kept playing,
