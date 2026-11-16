@@ -49,12 +49,21 @@ int Xa_IsVoiceAudioDraining(void);
 extern float g_PcXaVolume;
 void XaPlayer_SetMasterVolume(float v);
 
-/* PSX voice-start delay model (xa_seek_model.c). The sound task pool reports
- * its Stop and Play tasks; the players hold each disc line's audio start by
- * the modelled CD seek + task-state time, consumed once per line. */
-void     Pc_XaSeek_OnStopTask(void);
+/* PSX voice-start model (xa_seek_model.c): a shadow of the console's sound
+ * task pool. sd_call.c reports every voice request as it queues it and calls
+ * Frame once per pool pass; the model answers with how long the player holds
+ * the line's first sound (consumed once per line) and whether a voiced page is
+ * still waiting for its line (0 no, 1 hold an undrawn page, 2 the console's
+ * streaming state 4). */
+void     Pc_XaSeek_PlayRequest(uint16_t xaIdx);
+void     Pc_XaSeek_StopRequest(void);
+void     Pc_XaSeek_PreloadRequest(uint16_t xaIdx);
+void     Pc_XaSeek_StopIfActive(void);
+void     Pc_XaSeek_Frame(void);
 void     Pc_XaSeek_OnPlayTask(uint16_t xaIdx, int xaVol);
 uint32_t Pc_XaSeek_LineDelayMs(void);
+int      Pc_XaSeek_PageGate(void);
+void     Pc_XaSeek_SetPauseHold(int hold);
 
 #ifdef __cplusplus
 }
