@@ -31,7 +31,7 @@ static Uint32 s_xaPrevFireMs  = 0;
 static Uint32 s_xaPadEndMs = 0;
 
 /* The console's wait before a voice line: its stop and play tasks and the
- * drive's seek took a third to two thirds of a second, and the line's page
+ * drive's seek took about a second, and the line's page
  * stayed blank with its timer stopped until the drive was told to read. The
  * PC loads at once, which is the "pauses between lines are gone" report.
  * xa_seek_model.c replays that wait: the page is held by Gfx_MapMsg_Draw

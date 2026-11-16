@@ -223,8 +223,8 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
                     u8 xaState = Sd_AudioStreamingCheck();
 
                     /* On the console state 4 lasts from the voice request until
-                     * the drive is told to read, a third to two thirds of a
-                     * second of stop tasks and seek, and the two tests in the
+                     * the drive is told to read, about a second of stop tasks
+                     * and seek, and the two tests in the
                      * #else below keep the page undrawn and its timer stopped
                      * for all of it. The port's tasks finish in the frame of the
                      * request, so that stretch is never seen here and each
