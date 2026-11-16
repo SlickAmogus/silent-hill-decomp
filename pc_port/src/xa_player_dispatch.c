@@ -59,8 +59,16 @@ XA_DISPATCH_VOID(XaPlayer_Stop, PcLegacyXa_Stop, PcSoftwareXa_Stop, (void), ())
 XA_DISPATCH_VOID(XaPlayer_Update, PcLegacyXa_Update, PcSoftwareXa_Update, (void), ())
 XA_DISPATCH_VOID(XaPlayer_SetVolume, PcLegacyXa_SetVolume, PcSoftwareXa_SetVolume,
                  (int16_t left, int16_t right), (left, right))
-XA_DISPATCH_VOID(XaPlayer_SetPauseHold, PcLegacyXa_SetPauseHold,
-                 PcSoftwareXa_SetPauseHold, (int hold), (hold))
+/* The seek model's clock stops with the voice, or a console freeze would use
+ * up the wait before a line while that line stood still. */
+void XaPlayer_SetPauseHold(int hold)
+{
+    Pc_XaSeek_SetPauseHold(hold);
+    if (PcAudioConfig_UsesSoftwareSpu())
+        PcSoftwareXa_SetPauseHold(hold);
+    else
+        PcLegacyXa_SetPauseHold(hold);
+}
 XA_DISPATCH_VOID(XaPlayer_SetMasterVolume, PcLegacyXa_SetMasterVolume,
                  PcSoftwareXa_SetMasterVolume, (float volume), (volume))
 XA_DISPATCH_VOID(XaPlayer_StopFile, PcLegacyXa_StopFile, PcSoftwareXa_StopFile, (void), ())

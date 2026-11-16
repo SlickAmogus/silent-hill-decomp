@@ -218,13 +218,31 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
                  * so a missing line degrades to silence, not a hang. */
                 {
                     extern int g_PcMapMsgVoiceDropped;
+                    extern int Pc_XaSeek_PageGate(void);
                     static Uint32 s_voiceWaitStartMs = 0;
                     u8 xaState = Sd_AudioStreamingCheck();
 
-                    if (xaState == 4)
+                    /* On the console state 4 lasts from the voice request until
+                     * the drive is told to read, a third to two thirds of a
+                     * second of stop tasks and seek, and the two tests in the
+                     * #else below keep the page undrawn and its timer stopped
+                     * for all of it. The port's tasks finish in the frame of the
+                     * request, so that stretch is never seen here and each
+                     * voiced page came up that much early. The seek model
+                     * replays it (xa_seek_model.c): 2 is the console's state 4,
+                     * 1 a line still on its way, which holds a page that has not
+                     * been released yet. */
+                    const int pcStart = Pc_XaSeek_PageGate();
+
+                    if (xaState == 4 || pcStart == 2)
                     {
                         D_800BCD74         = 0;
                         s_voiceWaitStartMs = 0;
+                        break;
+                    }
+
+                    if (D_800BCD74 != 0 && pcStart == 1)
+                    {
                         break;
                     }
 
