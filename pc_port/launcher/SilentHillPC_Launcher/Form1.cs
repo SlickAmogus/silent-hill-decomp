@@ -1066,10 +1066,11 @@ public partial class Form1 : Form
         Set(lblFogValue, fogTip);
 
         const string lineGapTip =
-            "Emulates the PlayStation's CD seek before each spoken line in cutscenes.\n" +
-            "On the console a voice line started a beat after its subtitle while the disc\n" +
-            "sought the clip; the PC loads instantly. Scene and subtitle timing are unchanged,\n" +
-            "only the voice starts later. Normal is the default.";
+            "Emulates the PlayStation's wait before each spoken line.\n" +
+            "On the console the screen stayed without a subtitle for about half a second\n" +
+            "while the drive stopped and sought the next clip, then subtitle and voice came\n" +
+            "in together; the PC loads instantly. Normal matches the console, Short and Long\n" +
+            "halve and double the wait, Off removes it.";
         Set(lblLineGap, lineGapTip);
         Set(comboLineGap, lineGapTip);
 
@@ -1499,7 +1500,8 @@ public partial class Form1 : Form
             comboFlash.SelectedIndex = fmIdx;
         }
 
-        // cutscene_line_gap_ms: minimum pause after a voiced cutscene line.
+        // cutscene_line_gap_ms: the console's wait before each voiced line, as a
+        // scale (300 = the console).
         // Presets only; a hand-set value that matches none shows the nearest
         // preset and stays in the file unless the dropdown is changed.
         {
