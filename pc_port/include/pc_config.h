@@ -77,9 +77,9 @@ typedef struct {
                             * parts differ (snow's random walk, spawn/rest counters, the wind
                             * ramp); fall speed and wind are delta-scaled either way.
                             * (config key: weather_sim_hz, console: WEATHERHZ) */
-    int cutsceneLineGapMs; /* min silence (ms) between cutscene voice lines — simulates PSX CD
-                            * seek latency so tightly-timed lines don't run together. Applied as a
-                            * MINIMUM (never shortens an authored gap). 0 = off. Default 300. */
+    int cutsceneLineGapMs; /* Dialog Pause: the console's wait before each voiced line (stop and
+                            * play tasks, CD seek), replayed by xa_seek_model.c. A scale, not a
+                            * length: 300 is the console, 150 half of it, 600 double, 0 off. */
     /* "Dark Harry" easter egg (pc_dark_harry.c), NOT original-game behaviour.
      * darkHarry 0 = off entirely. afkSec = seconds of no input before he
      * appears; distance = how far out, in world units, which wants to be the
