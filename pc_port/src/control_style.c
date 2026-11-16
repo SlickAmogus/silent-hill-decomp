@@ -176,6 +176,31 @@ static int SwapShoulder_MouseButton(const char* name)
     return 0;
 }
 
+/* An alternate camera's scheme has Sidestep on the keys beside Move Up/Down
+ * (A and D by default) and Turn somewhere else (the arrows), so outside
+ * gameplay Sidestep Left/Right stand in for Left and Right. They stop being
+ * the shoulder buttons they are bound to while they do: those flip pages and
+ * screens in the options menus, and one key would move the cursor and flip
+ * the page together. The classic scheme is left alone. */
+unsigned int Pc_ControlStyle_MenuHeld(unsigned int held)
+{
+    extern int                Pc_ConsoleIsOpen(void);
+    extern int                g_PcQuickOptionsActive;
+    const s_ControllerConfig* cfg = &g_GameWorkPtr->config.controllerConfig;
+
+    if (!g_DebugThirdPersonCam)
+        return held;
+    if (g_GameWork.gameState == GameState_InGame && g_SysWork.sysState == SysState_Gameplay &&
+        !Pc_ConsoleIsOpen() && !g_PcQuickOptionsActive)
+        return held;
+
+    if (held & cfg->stepLeft)
+        held = (held & ~(unsigned int)cfg->stepLeft) | ControllerFlag_DpadLeft;
+    if (held & cfg->stepRight)
+        held = (held & ~(unsigned int)cfg->stepRight) | ControllerFlag_DpadRight;
+    return held;
+}
+
 void Pc_ControlStyle_ReapplyBinds(void)
 {
     extern void Pc_ApplyActiveControlScheme(void);
