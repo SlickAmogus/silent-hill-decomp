@@ -1444,6 +1444,15 @@ void Sd_TaskPoolAdd(u8 task) // 0x800478DC
     static s32 i;
     static s32 y;
 
+#ifdef SH_PC_PORT
+    /* The voice tasks reach the seek model through their requests, which know
+     * the line. Everything else in the queue delays a line just the same. */
+    if (task != 1 && task != 2 && task != 6)
+    {
+        Pc_XaSeek_TaskAdd(task, gSDVolConfig.volumeBgm_8, g_Sd_AudioWork.lastVabAudioLoadedIdx_8);
+    }
+#endif
+
     // If `task` is 2, shift field next to element containing value that matches 1 in `g_Sd_TaskPool`.
     if (task == 2)
     {
@@ -2065,6 +2074,15 @@ void Sd_TaskPoolExecute(void) // 0x800485D8
             break;
 
         default:
+        {
+#ifdef SH_PC_PORT
+            /* As for task 6: the seek model reads these files on the
+             * console's clock and moves the head it keeps itself. */
+            extern int      g_PsxCdHeadLba;
+            extern unsigned g_PsxCdHeadEpoch;
+            const int       headLba   = g_PsxCdHeadLba;
+            const unsigned  headEpoch = g_PsxCdHeadEpoch;
+#endif
             if (g_Sd_CurrentTask >= 160)
             {
                 Sd_VabLoad();
@@ -2077,7 +2095,12 @@ void Sd_TaskPoolExecute(void) // 0x800485D8
             {
                 Sd_TaskPoolUpdate();
             }
+#ifdef SH_PC_PORT
+            g_PsxCdHeadLba   = headLba;
+            g_PsxCdHeadEpoch = headEpoch;
+#endif
             break;
+        }
     }
 
     if (g_Sd_AudioWork.xaAudioIdx_4 != 0)
