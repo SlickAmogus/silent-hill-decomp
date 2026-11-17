@@ -2029,6 +2029,7 @@ int main(int argc, char* argv[])
         extern float g_PsyX_FlashlightIntensityFps, g_PsyX_FlashlightSizeFps;
         g_PsyX_FlashlightIntensity = g_PcConfig.flashlightIntensity;
         g_cfg_postProcessIntensity = g_PcConfig.postProcessIntensity;
+        { extern float g_cfg_postProcessScale; g_cfg_postProcessScale = g_PcConfig.postProcessScale; }
         g_cfg_tonemapIntensity     = g_PcConfig.tonemapIntensity;
         /* Without this fog_strength only took effect once the options slider was
          * touched, because the slider writes g_PsyX_FogStrength directly and

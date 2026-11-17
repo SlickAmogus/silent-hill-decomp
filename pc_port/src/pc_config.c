@@ -105,6 +105,7 @@ s_PcConfig g_PcConfig = {
     .flashlightFollowAim    = 0,
     .flashlightFollowAimFps = 1,
     .postProcessIntensity = 1.0f, /* post-process effect mix, 0..1 */
+    .postProcessScale     = 1.0f,
     .tonemapIntensity     = 1.0f, /* tone-map mix, 0..1 */
     .brightness           = 1.0f, /* output image brightness; 1.0 = neutral */
     .contrast             = 1.0f, /* output image contrast;   1.0 = neutral */
@@ -968,6 +969,13 @@ void PcConfig_Load(const char* path)
             if (v < 0.0f) v = 0.0f;
             if (v > 1.0f) v = 1.0f;
             g_PcConfig.postProcessIntensity = v;
+        }
+        else if (strcmp(key, "post_process_scale") == 0)
+        {
+            float v = (float)atof(value);
+            if (v < 0.1f) v = 0.1f;
+            if (v > 1.0f) v = 1.0f;
+            g_PcConfig.postProcessScale = v;
         }
         else if (strcmp(key, "tonemap_intensity") == 0)
         {
