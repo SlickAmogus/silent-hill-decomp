@@ -2708,6 +2708,19 @@ void Pc_ConsoleExec(const char* line)
             PcConfig_SaveKeyValue("post_process_intensity", buf);
         }
         cprintf("post-process intensity: %.2f (0..1)", g_cfg_postProcessIntensity);
+    } else if (strcmp(cmd, "POSTSCALE") == 0) {
+        extern float g_cfg_postProcessScale;
+        if (arg[0] != '\0') {
+            char buf[16];
+            float v = (float)atof(arg);
+            if (v < 0.1f) v = 0.1f;
+            if (v > 1.0f) v = 1.0f;
+            g_cfg_postProcessScale      = v;
+            g_PcConfig.postProcessScale = v;
+            snprintf(buf, sizeof(buf), "%.2f", v);
+            PcConfig_SaveKeyValue("post_process_scale", buf);
+        }
+        cprintf("post-process scale: %.2f (0.1..1; 0.5 = grain, CRT mask and sharpen drawn at half the window's resolution)", g_cfg_postProcessScale);
     } else if (strcmp(cmd, "TMINTENSITY") == 0 || strcmp(cmd, "TMINT") == 0) {
         extern float g_cfg_tonemapIntensity;
         if (arg[0] != '\0') {

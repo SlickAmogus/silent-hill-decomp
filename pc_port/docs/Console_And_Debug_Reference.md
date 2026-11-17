@@ -170,6 +170,7 @@ when it is off.
 | `alpha [0\|1]` | Slope-alpha invisible-wall fix (`1` = capped/fixed, `0` = original). |
 | `add <0\|1\|2>` | Debug the additive render layer (`0` = skip, `1` = normal, `2` = depth-tested). |
 | `postintensity <0..1>` / `postint` | Post-process effect mix. **(saved)** |
+| `postscale <0.1..1>` | Resolution the post-process looks draw their pixel-sized detail at (film grain, the CRT mask, the sharpen radius), as a fraction of the window's. `0.5` draws them as if the window had half as many pixels each way, so they stay visible at high resolutions. The picture itself keeps its resolution. Console only. **(saved)** |
 | `tmintensity <0..1>` / `tmint` | Tone-map mix. **(saved)** |
 
 ## Inventory presentation
