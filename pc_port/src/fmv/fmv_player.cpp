@@ -437,6 +437,14 @@ static void DrawVideoFrameEx(const unsigned char* pixels, int image_w, int image
      * showed only the stale black backbuffer — FMVs went dark exactly when the
      * borderless resolution was below the desktop's. GR_SwapWindow also picks
      * the right swap call for the backend (ANGLE never goes through SDL). */
+    /* The look filter, tonemap and image adjustments are applied to a finished
+     * frame on its way to GR_SwapWindow in PsyX_EndScene. A movie frame takes
+     * this way out instead, and went to the screen without them. */
+    {
+        extern void GR_PostProcess(void);
+
+        GR_PostProcess();
+    }
     GR_SwapWindow();
 }
 
