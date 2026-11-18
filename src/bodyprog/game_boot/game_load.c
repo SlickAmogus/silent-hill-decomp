@@ -370,7 +370,17 @@ void GameBoot_GameStartup(void) // 0x80034964
             break;
 
         case 11:
+#ifdef SH_PC_PORT
+            /* An elevator door is not done while its second sound is still
+             * counting down (SysFlag_LoadActive). That count only advances
+             * during a transition, so leaving with it pending parks it, and the
+             * sound then plays in whichever later doorway finishes it. Retail's
+             * 60 at full speed always let it finish; a slow frame rate does
+             * not. Normally the out-fade has already used the 21 frames up. */
+            if (g_SysWork.counters_1C[0] >= 60 && !(g_SysWork.sysFlags & SysFlag_LoadActive))
+#else
             if (g_SysWork.counters_1C[0] >= 60)
+#endif
             {
                 if (g_SysWork.processFlags == ProcessFlag_RoomTransition)
                 {
