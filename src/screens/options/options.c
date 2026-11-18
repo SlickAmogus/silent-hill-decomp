@@ -200,9 +200,29 @@ static const char* const LBL_MMCNR[]  = { "Top_L", "Top_R", "Bottom_L", "Bottom_
 static const char* const LBL_MMMODE[] = { "Off", "Square", "Circle" };
 static const char* const LBL_WHZ[]    = { "30_Hz", "60_Hz" };
 
-static const int RES_W[] = { 640, 1280, 1366, 1600, 1920, 2560, 3840 };
-static const int RES_H[] = { 480,  720,  768,  900, 1080, 1440, 2160 };
-#define PC_RES_COUNT ((int)(sizeof(RES_W) / sizeof(RES_W[0])))
+#include <SDL.h>
+
+/* The last slot is filled with the display's own mode when the fixed list does
+ * not have it, so an ultrawide or odd-sized screen can always pick its native
+ * size here. Builds without the launcher have no other place to choose one. */
+static int RES_W[] = { 640, 1280, 1366, 1600, 1920, 2560, 2560, 3440, 3840, 0 };
+static int RES_H[] = { 480,  720,  768,  900, 1080, 1080, 1440, 1440, 2160, 0 };
+#define PC_RES_FIXED ((int)(sizeof(RES_W) / sizeof(RES_W[0])) - 1)
+
+static int PcOpt_ResCount(void)
+{
+    SDL_DisplayMode dm;
+    int             i;
+
+    if (SDL_GetDesktopDisplayMode(0, &dm) != 0 || dm.w <= 0 || dm.h <= 0)
+        return PC_RES_FIXED;
+    for (i = 0; i < PC_RES_FIXED; i++)
+        if (RES_W[i] == dm.w && RES_H[i] == dm.h)
+            return PC_RES_FIXED;
+    RES_W[PC_RES_FIXED] = dm.w;
+    RES_H[PC_RES_FIXED] = dm.h;
+    return PC_RES_FIXED + 1;
+}
 
 static const s_PcOpt PCOPT_G[] = {
     { "Resolution",     NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_RES    },
@@ -563,9 +583,10 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
 
     if (e->kind == PCK_RES) {
         int i, idx = 0;
-        for (i = 0; i < PC_RES_COUNT; i++)
+        int count = PcOpt_ResCount();
+        for (i = 0; i < count; i++)
             if (RES_W[i] == g_PcConfig.windowWidth && RES_H[i] == g_PcConfig.windowHeight) { idx = i; break; }
-        idx = (idx + dir + PC_RES_COUNT) % PC_RES_COUNT;
+        idx = (idx + dir + count) % count;
         g_PcConfig.windowWidth  = RES_W[idx];
         g_PcConfig.windowHeight = RES_H[idx];
         snprintf(buf, sizeof(buf), "%d", g_PcConfig.windowWidth);  PcConfig_SaveKeyValue("width", buf);
