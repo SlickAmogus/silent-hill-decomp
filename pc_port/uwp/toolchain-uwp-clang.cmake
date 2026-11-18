@@ -63,6 +63,7 @@ endif()
 set(CMAKE_C_COMPILER   "${SH_UWP_LLVM}/bin/clang.exe")
 set(CMAKE_CXX_COMPILER "${SH_UWP_LLVM}/bin/clang++.exe")
 set(CMAKE_AR           "${SH_UWP_LLVM}/bin/llvm-ar.exe")
+set(CMAKE_RC_COMPILER  "${SH_UWP_LLVM}/bin/llvm-rc.exe")
 set(CMAKE_C_COMPILER_TARGET   x86_64-pc-windows-msvc)
 set(CMAKE_CXX_COMPILER_TARGET x86_64-pc-windows-msvc)
 

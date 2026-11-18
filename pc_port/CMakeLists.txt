@@ -286,7 +286,10 @@ add_executable(SilentHillPC
     ${SH_APP_RESOURCES}
 )
 if(SH_UWP)
-    target_sources(SilentHillPC PRIVATE "${CMAKE_SOURCE_DIR}/uwp/uwp_main.cpp")
+    enable_language(RC)
+    target_sources(SilentHillPC PRIVATE
+        "${CMAKE_SOURCE_DIR}/uwp/uwp_main.cpp"
+        "${CMAKE_SOURCE_DIR}/uwp/uwp_resources.rc")
     # WIN32_EXECUTABLE: the entry is WinMain in uwp_main.cpp, which hands
     # main() to SDL's WinRT app object; a console-subsystem app has no view.
     set_target_properties(SilentHillPC PROPERTIES

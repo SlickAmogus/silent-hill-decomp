@@ -1,0 +1,5 @@
+// The transparent cursor SDL's WinRT backend looks up by this ID when the game
+// hides the pointer. Without it SDL hides the pointer by clearing the window's
+// cursor, and a UWP window with no cursor is sent no pointer positions at all.
+// The .cur is SDL's own (src/main/winrt, zlib licence).
+5000 CURSOR "SDL2-WinRTResource_BlankCursor.cur"
