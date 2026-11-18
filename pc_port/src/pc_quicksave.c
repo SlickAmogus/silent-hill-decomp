@@ -61,6 +61,13 @@ int Pc_QuickSave_BossActive(void)
     return 0;
 }
 
+/* The player can lift the block (console bosssave, off by default): a save
+ * made mid-fight is theirs to regret. */
+int Pc_QuickSave_BossBlocks(void)
+{
+    return !g_PcConfig.quickSaveBoss && Pc_QuickSave_BossActive();
+}
+
 void Pc_QuickSave_OpenSaveScreen(void)
 {
     SysWork_SavegameUpdatePlayer();
@@ -127,7 +134,7 @@ void Pc_QuickSaveLoadUpdate(void)
         g_SysWork.sysState == SysState_Gameplay &&
         !Pc_ConsoleIsOpen())
     {
-        if (curSave && !prevSave && Pc_QuickSave_BossActive()) {
+        if (curSave && !prevSave && Pc_QuickSave_BossBlocks()) {
             SH_DBG_ECHO("Can't quick save during a boss fight");
         } else if (curSave && !prevSave) {
             SH_DBG("[QUICK] opening save screen (%s)", g_PcConfig.keyQuickSave);

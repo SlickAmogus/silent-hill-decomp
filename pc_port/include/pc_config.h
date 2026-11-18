@@ -264,6 +264,7 @@ typedef struct {
     int   flashlightFollowAim;    /* TPS/OTS: the beam follows the camera fully while aiming and by pitch only otherwise (config key: flashlight_follow_aim, console FLASHLIGHTAIM, F10 row) */
     float postProcessIntensity; /* post-process effect mix, 0..1 (config key: post_process_intensity) */
     float postProcessScale;     /* resolution the looks draw their pixel-sized detail at, 0.1..1 of the window (config key: post_process_scale; console only) */
+    int   quickSaveBoss;        /* 1 = quick save and the pause menu's Save work during a boss fight (config key: quicksave_boss; console only, default 0) */
     float tonemapIntensity;     /* tone-map mix, 0..1 (config key: tonemap_intensity) */
     /* Image adjustments applied to the final frame every time (independent of the
      * post_process filter). 1.0 = neutral for all three. Driven by the in-game

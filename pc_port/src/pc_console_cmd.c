@@ -2755,6 +2755,11 @@ void Pc_ConsoleExec(const char* line)
             PcConfig_SaveKeyValue("post_process_intensity", buf);
         }
         cprintf("post-process intensity: %.2f (0..1)", g_cfg_postProcessIntensity);
+    } else if (strcmp(cmd, "BOSSSAVE") == 0) {
+        int on = (arg[0] == '1') ? 1 : (arg[0] == '0') ? 0 : !g_PcConfig.quickSaveBoss;
+        g_PcConfig.quickSaveBoss = on;
+        PcConfig_SaveKeyValue("quicksave_boss", on ? "1" : "0");
+        cprintf("quick save during boss fights %s", on ? "ON" : "OFF (the default)");
     } else if (strcmp(cmd, "POSTSCALE") == 0) {
         extern float g_cfg_postProcessScale;
         if (arg[0] != '\0') {

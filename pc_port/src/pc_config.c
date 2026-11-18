@@ -935,6 +935,10 @@ void PcConfig_Load(const char* path)
             if (v > 1.0f) v = 1.0f;
             g_PcConfig.postProcessIntensity = v;
         }
+        else if (strcmp(key, "quicksave_boss") == 0)
+        {
+            g_PcConfig.quickSaveBoss = (atoi(value) != 0);
+        }
         else if (strcmp(key, "post_process_scale") == 0)
         {
             float v = (float)atof(value);
