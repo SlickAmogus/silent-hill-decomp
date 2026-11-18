@@ -403,8 +403,17 @@ void GameBoot_GameStartup(void) // 0x80034964
              * Honouring the number stopped honouring the behaviour. Console:
              * TXNHOLD <frames>, 60 restores the literal constant for non-door
              * loads. A ready door does not owe an artificial black hold: its
-             * fade/sound and all load/init stages still run unchanged. */
-            if (Pc_IsDoorLoad() || g_SysWork.counters_1C[0] >= g_PcTxnHoldFrames)
+             * fade/sound and all load/init stages still run unchanged.
+             *
+             * An elevator door is not ready while its second sound is still
+             * counting down (SysFlag_LoadActive). That count only advances
+             * during a transition, so leaving with it pending parks it, and the
+             * sound then plays in whichever later doorway finishes it. Retail's
+             * 60 above is what always let it finish; this is the same guarantee
+             * without the hold, and normally the out-fade has already used the
+             * 21 frames up. */
+            if (Pc_IsDoorLoad() ? !(g_SysWork.sysFlags & SysFlag_LoadActive)
+                                : g_SysWork.counters_1C[0] >= g_PcTxnHoldFrames)
 #else
             if (g_SysWork.counters_1C[0] >= 60)
 #endif
