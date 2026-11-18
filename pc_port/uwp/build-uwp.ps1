@@ -69,7 +69,7 @@ Copy-Item (Join-Path $pcPort 'assets\*') (Join-Path $layout 'data') -Recurse
 Copy-Item (Join-Path $pcPort 'config.cfg') (Join-Path $layout 'data')
 
 Invoke-Tool python @((Join-Path $PSScriptRoot 'make_logos.py'),
-    (Join-Path $pcPort 'res\app_icon.ico'), (Join-Path $layout 'Assets'))
+    (Join-Path $PSScriptRoot 'icon.png'), (Join-Path $layout 'Assets'))
 
 (Get-Content (Join-Path $PSScriptRoot 'AppxManifest.xml.in') -Raw).
     Replace('@SH_UWP_PUBLISHER@', $Publisher).

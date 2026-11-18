@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Render the package's tile and splash images from the desktop icon.
+"""Render the package's tile and splash images from one square picture.
 
-usage: make_logos.py <app_icon.ico> <out dir>
+usage: make_logos.py <icon.png> <out dir>
 """
 import os
 import sys
@@ -12,18 +12,16 @@ from PIL import Image
 LOGOS = {
     "StoreLogo.png": (50, 50, 50),
     "Square44x44Logo.png": (44, 44, 44),
-    "Square150x150Logo.png": (150, 150, 110),
-    "Square310x310Logo.png": (310, 310, 220),
-    "Wide310x150Logo.png": (310, 150, 120),
-    "SplashScreen.png": (620, 300, 200),
+    "Square150x150Logo.png": (150, 150, 150),
+    "Square310x310Logo.png": (310, 310, 310),
+    "Wide310x150Logo.png": (310, 150, 150),
+    "SplashScreen.png": (620, 300, 256),
 }
 
 
 def main():
     ico_path, out_dir = sys.argv[1], sys.argv[2]
-    ico = Image.open(ico_path)
-    ico.size = max(ico.info["sizes"])
-    icon = ico.convert("RGBA")
+    icon = Image.open(ico_path).convert("RGBA")
 
     os.makedirs(out_dir, exist_ok=True)
     for name, (w, h, edge) in LOGOS.items():
