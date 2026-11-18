@@ -18,6 +18,12 @@ Two different renderers, two different rules:
           (Esc, PgUp, F10), Latin acronyms and Ё are all fine there.
 """
 
+# Written the same in Russian on purpose. lang_coverage.py reads this set and
+# counts these as chosen, so its report only lists what is really missing.
+SAME = {
+    'QUICK.HRTF',
+}
+
 # --- PC Options and the other game-font rows (Cyrillic only) ---------------
 MENU = {
     # Save/load screen, brightness and controller presets: raw literals
@@ -227,6 +233,8 @@ QUICK = {
     'Pixel Aspect': 'Форма пикселя',
     'OTS Aim (while in TPS)': 'Прицел из-за плеча (в режиме 3-го лица)',
     'Aim Zoom': 'Приближение при прицеливании',
+    'Rest Zoom': 'Приближение в покое',
+    'Crosshair Style': 'Вид прицела',
     'Rest X (left/right)': 'Покой X (влево/вправо)',
     'Rest Y (up/down)': 'Покой Y (вверх/вниз)',
     'Aim X (left/right)': 'Прицел X (влево/вправо)',
