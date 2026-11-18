@@ -411,8 +411,17 @@ void GameBoot_GameStartup(void) // 0x80034964
              * saw it. With PC loading at disk speed we arrive early and wait out
              * the remainder as dead black, a second retail never actually showed.
              * Honouring the number stopped honouring the behaviour. Console:
-             * TXNHOLD <frames>, 60 restores the literal constant. */
-            if (g_SysWork.counters_1C[0] >= g_PcTxnHoldFrames)
+             * TXNHOLD <frames>, 60 restores the literal constant.
+             *
+             * An elevator door is not done while its second sound is still
+             * counting down (SysFlag_LoadActive). That count only advances
+             * during a transition, so leaving with it pending parks it, and the
+             * sound then plays in whichever later doorway finishes it. Retail's
+             * 60 at full speed is what always let it finish; the shorter hold
+             * and a slow frame rate do not. Normally the out-fade has already
+             * used the 21 frames up. */
+            if (g_SysWork.counters_1C[0] >= g_PcTxnHoldFrames &&
+                !(g_SysWork.sysFlags & SysFlag_LoadActive))
 #else
             if (g_SysWork.counters_1C[0] >= 60)
 #endif
