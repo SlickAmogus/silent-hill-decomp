@@ -1495,7 +1495,7 @@ RU: Сила размытия сна
 [QUICK.Crosshair_Style]
 NOTE: row name
 EN: Crosshair Style
-RU: 
+RU: Вид прицела
 
 [QUICK.Speaker_Layout]
 NOTE: row name
@@ -1585,7 +1585,7 @@ RU: Приближение при прицеливании
 [QUICK.Rest_Zoom]
 NOTE: row name
 EN: Rest Zoom
-RU: 
+RU: Приближение в покое
 
 [QUICK.Rest_X_(left/right)]
 NOTE: row name
