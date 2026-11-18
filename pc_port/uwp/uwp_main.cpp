@@ -19,6 +19,8 @@
 
 #include <string>
 
+#include <winrt/Windows.UI.ViewManagement.h>
+
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_system.h>
 
@@ -96,6 +98,24 @@ static bool Uwp_DirHasBin(const std::wstring& dir)
     return true;
 }
 
+/* A console draws an app inside the TV-safe area by default, which leaves a
+ * border on every side of the picture. The game already has its own safe-area
+ * handling for the 4:3 frame, so ask for the whole CoreWindow. No effect on a
+ * desktop window. */
+static void Uwp_UseWholeScreen(void)
+{
+    using namespace winrt::Windows::UI::ViewManagement;
+
+    try
+    {
+        ApplicationView::GetForCurrentView().SetDesiredBoundsMode(
+            ApplicationViewBoundsMode::UseCoreWindow);
+    }
+    catch (...)
+    {
+    }
+}
+
 extern "C" int Uwp_EnterDataDir(void)
 {
     const wchar_t* local   = SDL_WinRTGetFSPathUNICODE(SDL_WINRT_PATH_LOCAL_FOLDER);
@@ -103,6 +123,11 @@ extern "C" int Uwp_EnterDataDir(void)
 
     if (local == NULL || _wchdir(local) != 0)
         return 0;
+
+    /* B on a gamepad is the system Back button to a UWP app, and unhandled it
+     * backs out of the app. It is Circle here; SDL marks the request handled. */
+    SDL_SetHint(SDL_HINT_WINRT_HANDLE_BACK_BUTTON, "1");
+    Uwp_UseWholeScreen();
     s_localDir   = local;
     s_installDir = install ? install : L"";
 
