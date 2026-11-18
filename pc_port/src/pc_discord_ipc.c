@@ -17,7 +17,18 @@ long long ShDiscordIpc_NowUnix(void)
     return (long long)time(NULL);
 }
 
-#ifdef _WIN32
+#if defined(SH_UWP)
+
+/* An app container may not open another process's named pipe, so there is no
+ * Discord client to reach. Never connecting leaves the rest of presence idle. */
+int ShDiscordIpc_Pid(void) { return 0; }
+int ShDiscordIpc_Connect(void) { return 0; }
+int ShDiscordIpc_IsOpen(void) { return 0; }
+int ShDiscordIpc_Write(const void* data, unsigned int len) { (void)data; (void)len; return 0; }
+int ShDiscordIpc_Read(void* buf, unsigned int cap) { (void)buf; (void)cap; return 0; }
+void ShDiscordIpc_Close(void) {}
+
+#elif defined(_WIN32)
 
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX

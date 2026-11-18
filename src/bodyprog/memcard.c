@@ -1433,6 +1433,13 @@ s32 MemCard_FileRename(s32 deviceId, char* prevName, char* newName) // 0x8003037
     strcat(prevBuf, prevName);
     strcat(newBuf, newName);
 
+#ifdef SH_UWP
+    {
+        /* PsyCross's memory-card rename; see the note on it in libapi.c. */
+        extern int PsyX_McRename(const char* oldpath, const char* newpath);
+        return PsyX_McRename(prevBuf, newBuf);
+    }
+#endif
     return rename(prevBuf, newBuf);
 
     #undef BUF_SIZE

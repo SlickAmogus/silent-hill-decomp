@@ -811,6 +811,22 @@ int Sh_LogSetEnabled(int on)
 
 int main(int argc, char* argv[])
 {
+#ifdef SH_UWP
+    {
+        extern int Uwp_EnterDataDir(void);
+        extern int Uwp_FindDiscDir(char* out, int outSize);
+
+        if (!Uwp_EnterDataDir())
+        {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                         "Could not enter the app's LocalState folder - the disc image "
+                         "and config.cfg cannot be found.");
+            return 1;
+        }
+        Uwp_FindDiscDir(g_GameDataPath, sizeof(g_GameDataPath));
+    }
+#endif
+
     /* Log file is NOT opened until after config load. SH_DBG calls before
      * that point are silently no-ops (the macro short-circuits on a NULL
      * handle). Avoids creating SilentHill.log when enable_debug_log=0.

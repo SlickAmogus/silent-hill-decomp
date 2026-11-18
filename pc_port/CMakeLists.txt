@@ -19,6 +19,30 @@ endif()
 # almost nothing and keep the generated code honest to what the source means.
 add_compile_options(-fno-strict-aliasing -fwrapv)
 
+# UWP (uwp/toolchain-uwp-clang.cmake sets SH_UWP). An app container cannot load
+# a library from outside its package, so the overlays are linked in, and the
+# pieces that need desktop-only Win32 (WinHTTP, runtime-loaded ffmpeg) are left
+# out rather than stubbed.
+if(SH_UWP)
+    set(SH_STATIC_MAPS ON CACHE BOOL "" FORCE)
+    set(SH_FMV_FFMPEG OFF CACHE BOOL "" FORCE)
+    set(SH_ENABLE_RETROACHIEVEMENTS OFF CACHE BOOL "" FORCE)
+    # Clang 16+ makes these errors; the decomp relies on them being warnings,
+    # as they are on the GCC 13 the desktop build uses.
+    add_compile_options(
+        $<$<COMPILE_LANGUAGE:C>:-Wno-error=implicit-function-declaration>
+        $<$<COMPILE_LANGUAGE:C>:-Wno-error=implicit-int>
+        $<$<COMPILE_LANGUAGE:C>:-Wno-error=int-conversion>
+        $<$<COMPILE_LANGUAGE:C>:-Wno-error=incompatible-pointer-types>
+        $<$<COMPILE_LANGUAGE:C>:-Wno-error=incompatible-function-pointer-types>
+        $<$<COMPILE_LANGUAGE:C>:-Wno-error=return-type>
+        -Wno-unknown-warning-option)
+    # <dirent.h> and <unistd.h>, which the desktop build gets from MinGW, along
+    # with the BSD string compares its <string.h> declares.
+    include_directories(BEFORE "${CMAKE_SOURCE_DIR}/uwp/compat")
+    add_compile_definitions(strcasecmp=_stricmp strncasecmp=_strnicmp)
+endif()
+
 # Build everything position-independent. On Linux the map overlays are .so
 # shared objects that link the static psycross_static archive; linking a
 # static (non-PIC) archive into a shared object fails, so force PIC globally.
@@ -184,7 +208,7 @@ list(FILTER PC_PORT_SOURCES EXCLUDE REGEX "combat_target\\.c$")
 
 # Windows: compile the .rc so the exe carries an application icon (Explorer,
 # taskbar, title bar). windres resolves the ICON path relative to the .rc dir.
-if(WIN32)
+if(WIN32 AND NOT SH_UWP)
     enable_language(RC)
     # windres resolves the ICON path relative to its include dirs, not the .rc
     # location, so point it at res/ explicitly.
@@ -261,6 +285,13 @@ add_executable(SilentHillPC
     ${MAP_SOURCES}
     ${SH_APP_RESOURCES}
 )
+if(SH_UWP)
+    target_sources(SilentHillPC PRIVATE "${CMAKE_SOURCE_DIR}/uwp/uwp_main.cpp")
+    # WIN32_EXECUTABLE: the entry is WinMain in uwp_main.cpp, which hands
+    # main() to SDL's WinRT app object; a console-subsystem app has no view.
+    set_target_properties(SilentHillPC PROPERTIES
+        OUTPUT_NAME "SilentHillUWP" WIN32_EXECUTABLE ON)
+endif()
 
 # Export symbols from the executable so map overlay DLLs can link against it.
 # On Linux, ENABLE_EXPORTS adds -rdynamic so dlopen'd libraries see exe symbols.
@@ -316,7 +347,7 @@ add_custom_command(TARGET SilentHillPC POST_BUILD
 # macOS: the same directory holds libEGL.dylib + libGLESv2.dylib for the
 # renderer=metal backend (ANGLE's Metal device). make_app.sh moves them into
 # Contents/Frameworks when packaging the app.
-if((WIN32 OR APPLE) AND EXISTS "${CMAKE_SOURCE_DIR}/angle")
+if((WIN32 OR APPLE) AND NOT SH_UWP AND EXISTS "${CMAKE_SOURCE_DIR}/angle")
     add_custom_command(TARGET SilentHillPC POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 "${CMAKE_SOURCE_DIR}/angle" "$<TARGET_FILE_DIR:SilentHillPC>"
@@ -332,7 +363,7 @@ endif()
 # build carries the Switch 2 controller driver. Copied file by file so the
 # README and licences stay out of the build folder.
 option(SH_SDL3_RUNTIME "Run on SDL3 through sdl2-compat (pc_port/sdl/)" ON)
-if(WIN32 AND SH_SDL3_RUNTIME AND EXISTS "${CMAKE_SOURCE_DIR}/sdl/SDL3.dll")
+if(WIN32 AND NOT SH_UWP AND SH_SDL3_RUNTIME AND EXISTS "${CMAKE_SOURCE_DIR}/sdl/SDL3.dll")
     add_custom_command(TARGET SilentHillPC POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${CMAKE_SOURCE_DIR}/sdl/SDL2.dll"
@@ -623,7 +654,25 @@ if(SH_FMV_FFMPEG)
     endif()
 endif()
 
-if(WIN32)
+if(SH_UWP)
+    # WindowsApp.lib (from the toolchain) is the whole OS surface an app gets.
+    #
+    # C and C++ share plain globals here; see uwp/gen_alternatenames.py for why
+    # that needs help under the MSVC ABI. The objects exist by PRE_LINK, and the
+    # response file is read by the link that follows in the same build step.
+    find_program(SH_UWP_NM NAMES llvm-nm REQUIRED)
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    set(SH_UWP_ALIASES "${CMAKE_BINARY_DIR}/uwp_alternatenames.rsp")
+    add_custom_command(TARGET SilentHillPC PRE_LINK
+        COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/uwp/gen_alternatenames.py"
+                --nm "${SH_UWP_NM}" --out "${SH_UWP_ALIASES}"
+                "$<TARGET_FILE:psycross_static>"
+                "${CMAKE_BINARY_DIR}/CMakeFiles/SilentHillPC.dir/**/*.cpp.obj"
+        COMMENT "Bridging C/C++ globals for the MSVC ABI"
+        VERBATIM)
+    target_link_options(SilentHillPC PRIVATE "@${SH_UWP_ALIASES}"
+                                             "SHELL:-Xlinker /ERRORLIMIT:0")
+elseif(WIN32)
     target_link_libraries(SilentHillPC PRIVATE opengl32 winmm m)
 elseif(UNIX)
     find_package(OpenGL REQUIRED)
@@ -800,11 +849,13 @@ if(SH_STATIC_MAPS)
         list(APPEND SH_MAP_ARCHIVES "$<TARGET_FILE:${m}>")
         if(APPLE)
             target_link_options(SilentHillPC PRIVATE "LINKER:-force_load,$<TARGET_FILE:${m}>")
+        elseif(SH_UWP)
+            target_link_options(SilentHillPC PRIVATE "SHELL:-Xlinker /WHOLEARCHIVE:$<TARGET_FILE:${m}>")
         elseif(MSVC)
             target_link_options(SilentHillPC PRIVATE "/WHOLEARCHIVE:$<TARGET_FILE:${m}>")
         endif()
     endforeach()
-    if(NOT APPLE AND NOT MSVC)
+    if(NOT APPLE AND NOT MSVC AND NOT SH_UWP)
         # One group around every archive, not a pair per archive: CMake
         # de-duplicates identical link options, which would collapse 43
         # --whole-archive/--no-whole-archive pairs into a single pair wrapping
