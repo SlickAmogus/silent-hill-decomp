@@ -472,6 +472,9 @@ const char* Pc_LangQuick(const char* en)
             /* These TrueType-dialog strings have no disc-font equivalent. */
             static const struct { const char* en; const char* ru; } text[] = {
                 { "RESET SETTINGS", "СБРОС НАСТРОЕК" },
+                { "GAME DATA", "ПАПКА ДАННЫХ" },
+                { "Pick a new location next time the game starts? Your files stay where they are.", "Выбрать другую папку при следующем запуске? Текущие файлы останутся на месте." },
+                { "Seeing the whole town through thin fog needs PGXP. Turn PGXP on?", "Для отображения дальних частей города при слабом тумане нужен PGXP. Включить PGXP?" },
                 { "Reset all PC options to their defaults?", "Вернуть все настройки ПК к значениям по умолчанию?" },
                 { "Yes", "Да" }, { "No", "Нет" },
                 { "Left/Right select", "Влево/вправо: выбор" },
