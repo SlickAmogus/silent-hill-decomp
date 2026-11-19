@@ -955,6 +955,16 @@ void SysState_LoadArea_Update(void) // 0x80039C40
         /* Retail plays the door-open SFX under the fade, not after it. */
         SD_Call(SFX_PAIRS[g_SysWork.sfxPairIdx_2283].sfx_0);
 
+        /* An elevator door's pair has no closing sound. Its second sound is the
+         * two SFX GameState_LoadMapScreen_Update plays 21 frames after the one
+         * above, and retail starts that count on this same frame -- so it is
+         * armed here, with the SFX, rather than once the fade has finished. */
+        if (g_SysWork.sfxPairIdx_2283 == SfxPairIdx_7)
+        {
+            D_800BCDD4          = 0;
+            g_SysWork.sysFlags |= SysFlag_LoadActive;
+        }
+
         /* Attract demos consume one recorded input entry per frame, so extra
          * frames desync the recording -- they keep today's presentation and must
          * not get a fade nothing waits for. A scripted scene that already handed
@@ -969,6 +979,24 @@ void SysState_LoadArea_Update(void) // 0x80039C40
              * read, so there is no constant to match -- this reads as a deliberate
              * fade without dominating a transition whose load is fast. */
             g_ScreenFadeTimestep = g_PcTxnFadeTimestep;
+        }
+    }
+    else if (g_SysWork.sysFlags & SysFlag_LoadActive)
+    {
+        /* Retail has no out-fade: its load screen begins the frame after the
+         * door-open SFX, and that screen is the only thing that advances the
+         * count. The frames spent fading here are those same frames, so they
+         * have to count as well. Left to the load screen alone the sounds came
+         * late, and a load screen shorter than 21 frames left the count parked
+         * until a later doorway finished it. */
+        D_800BCDD4++;
+
+        if (D_800BCDD4 >= 21)
+        {
+            g_SysWork.sysFlags &= ~SysFlag_LoadActive;
+
+            SD_Call(Sfx_Unk1502);
+            SD_Call(Sfx_Unk1501);
         }
     }
 
@@ -1000,13 +1028,13 @@ void SysState_LoadArea_Update(void) // 0x80039C40
 
 #ifndef SH_PC_PORT
     SD_Call(SFX_PAIRS[g_SysWork.sfxPairIdx_2283].sfx_0);
-#endif
 
     if (g_SysWork.sfxPairIdx_2283 == SfxPairIdx_7)
     {
         D_800BCDD4            = 0;
         g_SysWork.sysFlags |= SysFlag_LoadActive;
     }
+#endif
 
     D_800BCDB0 = g_MapOverlayHdr.mapPoints[g_MapEventData->eventParam];
 
