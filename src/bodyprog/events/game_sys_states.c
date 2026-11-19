@@ -1043,6 +1043,33 @@ void SysState_Fmv_Update(void) // 0x80039A58
         return;
     }
 
+#ifdef SH_PC_PORT
+    /* The console cannot start a movie before the movie player has come off the
+     * disc, and for as long as that takes the frame loop keeps running the map's
+     * music. A room that starts a track for its movie counts on it: the alternate
+     * hospital's examination room asks for track 31, layer 2 only, at an instant
+     * fade, and that layer is up only until the movie has played -- it is the
+     * music of Lisa's introduction. A track's layers all start at volume 0 and
+     * stay there until Bgm_Update's first volume pass, four frames after the
+     * room first asks for it. Here the player is ready at once, the movie began
+     * a frame before that pass and then blocks the loop, so the track ran
+     * silent underneath for the whole movie.
+     *
+     * It only happens arriving from a room whose own track was playing, which
+     * is every real playthrough: Bgm_Update then spends one more frame noticing
+     * the old track has stopped. Started fresh on this map the pass lands a
+     * frame earlier and the music plays, so test this from a real save.
+     *
+     * Give the track its first volume pass before blocking. One or two frames
+     * on a screen that is already black, and bounded, so a track that cannot
+     * start never holds a movie back. */
+    if (Pc_Bgm_StartPending() && g_SysWork.sysStateSteps[1] < 30)
+    {
+        g_SysWork.sysStateSteps[1]++;
+        return;
+    }
+#endif
+
     // Copy framebuffer into `IMAGE_BUFFER_0` before movie playback.
     DrawSync(SyncMode_Wait);
     StoreImage(&D_800A9A6C, (u32*)IMAGE_BUFFER_0);

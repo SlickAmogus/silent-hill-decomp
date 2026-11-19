@@ -114,6 +114,13 @@ void func_800363D0(void);
 
 void Bgm_TrackChange(s32 bgmIdx);
 
+#ifdef SH_PC_PORT
+/** @brief PC: `true` while the map is asking for music that has not had its layer
+ * volumes written yet (a track just told to play, or about to be).
+ */
+bool Pc_Bgm_StartPending(void);
+#endif
+
 void Game_MapRoomIdxUpdate(void);
 
 /** @unused */
