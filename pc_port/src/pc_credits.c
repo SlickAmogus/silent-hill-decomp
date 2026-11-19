@@ -68,6 +68,8 @@ static const s_PcCreditRow s_Rows[] = {
     { PcCreditRow_Blank,  NULL, NULL },
     { PcCreditRow_Pair,   "Miau", "WhoisMiau0x1" },
     { PcCreditRow_Blank,  NULL, NULL },
+    { PcCreditRow_Pair,   "T-ReXx", "thetrexx" },
+    { PcCreditRow_Blank,  NULL, NULL },
     { PcCreditRow_Blank,  NULL, NULL },
     { PcCreditRow_Header, "Special Thanks", NULL },
     { PcCreditRow_Blank,  NULL, NULL },
