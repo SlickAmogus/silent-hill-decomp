@@ -38,6 +38,20 @@ static s32 D_800BCD5C;
 static s32 D_800A99A0 = 0;
 static u8  g_Bgm_LayerLimits[8] = { 128, 128, 128, 128, 128, 128, 128, 128 };
 
+#ifdef SH_PC_PORT
+/* The map wants a layer to sound and the track has not been given the map's
+ * volumes yet: from the frame a room asks for music with none on, through
+ * Bgm_ChannelSet and the two frames after it. Until that first pass a layered
+ * song's channels sit at the volume 0 it starts them at, so nothing is heard.
+ * Rebuilt by every Bgm_Update, so it cannot outlive the map that set it. */
+static bool s_pcBgmStartPending;
+
+bool Pc_Bgm_StartPending(void)
+{
+    return s_pcBgmStartPending;
+}
+#endif
+
 // ========================================
 // MUSIC UPDATE
 // ========================================
@@ -45,6 +59,9 @@ static u8  g_Bgm_LayerLimits[8] = { 128, 128, 128, 128, 128, 128, 128, 128 };
 void Bgm_TrackUpdate(bool arg0) // 0x80035DB4
 {
     D_800BCD5C = false;
+#ifdef SH_PC_PORT
+    s_pcBgmStartPending = false;
+#endif
 
     if (g_MapOverlayHdr.bgmEvent != NULL) // Checks if function exists.
     {
@@ -352,6 +369,12 @@ void Bgm_Update(s32 bgmFlags, q19_12 fadeSpeed, s_BgmLayerLimits* layerLimits) /
             D_800A99A0 = 3;
         }
     }
+
+#ifdef SH_PC_PORT
+    /* Bgm_ChannelSet does nothing for these two, so they never get a first pass. */
+    s_pcBgmStartPending = isBgmLayerActive && !(isMusicPlayer && cond0) &&
+                          g_GameWork.bgmIdx != BgmTrackIdx_None && g_GameWork.bgmIdx != BgmTrackIdx_1;
+#endif
 
     D_800BCD5C = true;
 }
