@@ -2054,7 +2054,11 @@ void DbgOverlay_Update(void)
                 Sd_PlaySfx(Sfx_MenuCancel, 0, Q8(0.25f));
                 g_GameWork.gameStateSteps[0] = OptionsMenuState_LeaveBrightness;
             } else if (g_GameWork.gameState == GameState_MainMenu) {
+                /* Not in the browser: exit() there halts the game inside a
+                 * page that stays open, and the tab is closed instead. */
+#ifndef __EMSCRIPTEN__
                 exit(0);
+#endif
             } else {
                 g_SysWork.sysFlags |= SysFlag_DoWarmReset;
                 SH_DBG_ECHO("Exiting to title...");

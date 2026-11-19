@@ -67,8 +67,14 @@ void MainMenu_FogUpdate(void);
 static s32 g_MainMenuState              = 0;
 static s32 g_MainMenu_SelectedEntry     = MainMenuEntry_Start;
 #ifdef SH_PC_PORT
-/* The port adds an Exit row, always available alongside Option. */
+/* The port adds an Exit row, always available alongside Option. Not in the
+ * browser: exit() there halts the game inside a page that stays open, and the
+ * tab is closed instead. */
+#ifdef __EMSCRIPTEN__
+#define MAINMENU_BASE_ENTRY_FLAGS ((1 << MainMenuEntry_Start) | (1 << MainMenuEntry_Option))
+#else
 #define MAINMENU_BASE_ENTRY_FLAGS ((1 << MainMenuEntry_Start) | (1 << MainMenuEntry_Option) | (1 << MainMenuEntry_Exit))
+#endif
 #else
 #define MAINMENU_BASE_ENTRY_FLAGS ((1 << MainMenuEntry_Start) | (1 << MainMenuEntry_Option))
 #endif
