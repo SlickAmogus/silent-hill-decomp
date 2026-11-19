@@ -194,12 +194,6 @@ namespace SilentHillPC_Launcher
         /// (cancellable), then re-index and repopulate.</summary>
         private void ExtractThenScan()
         {
-            // Names known before this pass, so the post-extraction DLL screen
-            // below only fires for mods that just appeared (closes the rar/7z
-            // hole: those archives can't be peeked at drop time, but once
-            // extracted their DLLs are ordinary files).
-            var known = new HashSet<string>(_mgr.Mods.Select(m => m.Name ?? ""));
-
             var pending = _mgr.PendingWork();
             if (pending.Count > 0)
             {
@@ -216,36 +210,6 @@ namespace SilentHillPC_Launcher
             }
             _mgr.Scan();
             try { CharacterCatalog.DropMigratedPacks(_mgr); } catch { }
-
-            foreach (var m in _mgr.Mods.ToList())
-            {
-                if (known.Contains(m.Name ?? "")) continue;
-                if (m.Type != ModType.Gameplay && m.Type != ModType.TotalConversion) continue;
-                if (string.IsNullOrEmpty(m.LibraryPath) || !Directory.Exists(m.LibraryPath)) continue;
-
-                var suspicious = PeImports.ScanModForSuspiciousDlls(m.LibraryPath);
-                if (suspicious.Count == 0) continue;
-
-                string extra = Loc.T("This mod contains DLLs that do NOT look like edited game code " +
-                                     "(edited maps only use the game and the C runtime):") + "\n\n - " +
-                               string.Join("\n - ", suspicious.Take(5)) +
-                               (suspicious.Count > 5 ? "\n - ..." : "") +
-                               "\n\n" + Loc.T("Only continue if you trust this mod completely.") + " " +
-                               Loc.T("Cancel removes it from the library.");
-                var choice = DllWarningDialog.Show(this, extra);
-                if (choice == DllWarningDialog.Result.Cancel)
-                {
-                    try { Directory.Delete(m.LibraryPath, true); } catch { }
-                    _mgr.Scan();
-                }
-                else if (choice == DllWarningDialog.Result.DontShowAgain)
-                {
-                    // The generic notice can be silenced; a NAMED suspicious-import
-                    // alarm intentionally cannot -- treat it as Continue.
-                    _mgr.DllWarningAck = true;
-                    _mgr.SaveState();
-                }
-            }
 
             Populate();
         }
@@ -1058,52 +1022,6 @@ namespace SilentHillPC_Launcher
 
             var others = paths.Where(p => !bins.Contains(p)).ToArray();
             if (others.Length == 0) return;
-
-            // DLL mods execute code; get explicit consent before they enter the library.
-            bool anyDllMod = others.Any(p =>
-            {
-                var t = ModManager.DetectDroppedType(p);
-                return t == ModType.Gameplay || t == ModType.TotalConversion;
-            });
-            if (anyDllMod)
-            {
-                // Import screening (PeImports mirrors the game's fingerprint):
-                // a DLL that doesn't look like edited game code gets NAMED in
-                // the dialog, and that stronger warning shows even after
-                // "Don't show me again" -- it is a different, targeted alarm.
-                var suspicious = new List<string>();
-                foreach (var mp in others)
-                {
-                    var t = ModManager.DetectDroppedType(mp);
-                    if (t != ModType.Gameplay && t != ModType.TotalConversion) continue;
-                    string mext = Path.GetExtension(mp).ToLowerInvariant();
-                    if (mext == ".rar" || mext == ".7z")
-                        suspicious.Add(Loc.F("{0} (archive can't be pre-screened; its DLLs are checked by the game at load)", Path.GetFileName(mp)));
-                    else
-                        suspicious.AddRange(PeImports.ScanModForSuspiciousDlls(mp));
-                }
-
-                string extra = null;
-                if (suspicious.Count > 0)
-                {
-                    extra = Loc.T("This mod contains DLLs that do NOT look like edited game code " +
-                                  "(edited maps only use the game and the C runtime):") + "\n\n - " +
-                            string.Join("\n - ", suspicious.Take(5)) +
-                            (suspicious.Count > 5 ? "\n - ..." : "") +
-                            "\n\n" + Loc.T("Only continue if you trust this mod completely.");
-                }
-
-                if (extra != null || !_mgr.DllWarningAck)
-                {
-                    var choice = DllWarningDialog.Show(this, extra);
-                    if (choice == DllWarningDialog.Result.Cancel) return;
-                    if (choice == DllWarningDialog.Result.DontShowAgain)
-                    {
-                        _mgr.DllWarningAck = true;
-                        _mgr.SaveState();
-                    }
-                }
-            }
 
             CommitOrderAndState();
             _mgr.SaveState();
@@ -2205,11 +2123,47 @@ namespace SilentHillPC_Launcher
             if (files.Count > max) sb.Append("  ").Append(Loc.F("... and {0} more", files.Count - max)).Append('\n');
         }
 
+        /// <summary>The first Apply of each mod with game code of its own (DLLs) shows a
+        /// short note naming it; agreed to once, that mod does not ask again. Asked here,
+        /// not at import, because nothing in the library runs until Apply deploys it,
+        /// and an archive's DLLs can be read only once it is unpacked.</summary>
+        private bool ConfirmNewCodeMods()
+        {
+            var names   = new List<string>();
+            var unusual = new List<string>();
+            var asked   = new List<ModEntry>();
+            var keys    = new List<string>();
+            foreach (var m in _mgr.Mods)
+            {
+                if (!m.Enabled || !ModManager.IsCodeMod(m)) continue;
+                var odd = PeImports.ScanModForSuspiciousDlls(m.LibraryPath);
+                string key = ModManager.CodeModAckKey(m, odd);
+                if (_mgr.DllModsAcked.Contains(key)) continue;
+                names.Add(m.Label);
+                unusual.AddRange(odd);
+                asked.Add(m);
+                keys.Add(key);
+            }
+            if (names.Count == 0) return true;
+            if (!DllWarningDialog.Show(this, names, unusual)) return false;
+            // A mod asked again (its DLLs changed) keeps only its newest answer.
+            foreach (var m in asked)
+            {
+                string name = m.Name ?? "";
+                _mgr.DllModsAcked.RemoveWhere(k => k.Equals(name, StringComparison.OrdinalIgnoreCase) ||
+                                                   k.StartsWith(name + "|", StringComparison.OrdinalIgnoreCase));
+            }
+            foreach (var k in keys) _mgr.DllModsAcked.Add(k);
+            _mgr.SaveState();
+            return true;
+        }
+
         private void OnApply(object sender, EventArgs e)
         {
             CommitOrderAndState();
             if (!ApplyCharacterChanges()) return;
             if (!InstallTickedEssentials()) return;
+            if (!ConfirmNewCodeMods()) return;
             try
             {
                 // Files of the user's own in gamedata/load or gamedata/FMV: ones they
@@ -2251,6 +2205,10 @@ namespace SilentHillPC_Launcher
                     "Applied.\n\nActive texture packs: {0}\nData overlays (load/): {1}\nGameplay (Code / DLL) mods: {2}\nFMV video mods: {3}\n" +
                     "Loose file support: {4}\nFiles copied: {5} ({6} already in place, left as is)",
                     r.Texture, r.Load, r.Gameplay, r.Fmv, Loc.T(r.LooseEnabled ? "On" : "Off"), r.Files, r.Skipped);
+                if (r.PluginMods > 0)
+                    msg += "\n" + Loc.F("Plugins: on ({0} mod(s) use them)", r.PluginMods);
+                else if (r.PluginsTurnedOff)
+                    msg += "\n" + Loc.T("Plugins: off (no applied mod uses them)");
                 if (r.Warnings.Count > 0)
                     msg += "\n\n" + Loc.T("Warnings:") + "\n - " + string.Join("\n - ", r.Warnings);
 

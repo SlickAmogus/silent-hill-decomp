@@ -1,108 +1,112 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Windows.Forms;
 
 namespace SilentHillPC_Launcher
 {
     /// <summary>
-    /// Consent dialog shown before a DLL (gameplay / total conversion) mod is
-    /// imported. WinForms MessageBox cannot label three buttons, hence a form.
-    /// "Don't show me again" is persisted by the caller (ModManager.DllWarningAck).
+    /// Note shown the first time each mod with game code of its own (DLLs) is
+    /// applied; ModManager.DllModsAcked remembers the mods it was agreed to for.
+    /// A form rather than a MessageBox for the second section, which names DLLs
+    /// whose imports reach past what game mods use (PeImports: a pointer for the
+    /// reader, not a verdict either way).
     /// </summary>
     public static class DllWarningDialog
     {
-        public enum Result { Continue, Cancel, DontShowAgain }
+        /// <summary>"x.dll (imports: a, b, c, d, ...)" cut to three names: a DLL can
+        /// import dozens, and a wall of them buries the one line that matters.</summary>
+        static string Shorten(string finding)
+        {
+            const string tag = " (imports: ";
+            int i = finding.IndexOf(tag, StringComparison.Ordinal);
+            if (i < 0 || !finding.EndsWith(")")) return finding;
+            var names = finding.Substring(i + tag.Length, finding.Length - i - tag.Length - 1)
+                               .Split(new[] { ", " }, StringSplitOptions.None);
+            if (names.Length <= 3) return finding;
+            return finding.Substring(0, i) + tag + string.Join(", ", names.Take(3)) + ", " +
+                   Loc.F("... and {0} more", names.Length - 3) + ")";
+        }
 
-        public static Result Show(IWin32Window owner) { return Show(owner, null); }
-
-        public static Result Show(IWin32Window owner, string extraWarning)
+        /// <summary>True = go ahead and apply.</summary>
+        public static bool Show(IWin32Window owner, IList<string> mods, IList<string> unusual)
         {
             using (var f = new Form())
             {
-                f.Text            = Loc.T("DLL Mod Warning");
+                f.Text            = Loc.T("Mods with game code");
                 f.FormBorderStyle = FormBorderStyle.FixedDialog;
                 f.StartPosition   = FormStartPosition.CenterParent;
                 f.MinimizeBox     = false;
                 f.MaximizeBox     = false;
                 f.ShowInTaskbar   = false;
-                bool tall = !string.IsNullOrEmpty(extraWarning);
-                f.ClientSize      = new Size(480, tall ? 280 : 170);
+                f.ClientSize      = new Size(480, 200);
 
                 var icon = new PictureBox
                 {
-                    Image    = SystemIcons.Warning.ToBitmap(),
+                    Image    = SystemIcons.Information.ToBitmap(),
                     SizeMode = PictureBoxSizeMode.CenterImage,
-                    Bounds   = new Rectangle(14, 18, 40, 40)
+                    Bounds   = new Rectangle(14, 14, 40, 40)
                 };
                 f.Controls.Add(icon);
 
-                var lbl = new Label
+                const int shown = 8;
+                string list = string.Join("\n", mods.Take(shown).Select(m => "      " + m)) +
+                              (mods.Count > shown ? "\n      " + Loc.F("... and {0} more", mods.Count - shown) : "");
+                var labels = new List<Label>
                 {
-                    Text = Loc.T("Warning: You are about to install a DLL mod. These mods alter the " +
-                                 "source code of the game, and technically execute code on your machine. " +
-                                 "Please make sure you trust the person or site you have downloaded it from."),
-                    Bounds = new Rectangle(64, 14, 402, 96),
-                    AutoSize = false
-                };
-                f.Controls.Add(lbl);
-
-                if (tall)
-                {
-                    var lbl2 = new Label
+                    new Label
                     {
-                        Text      = extraWarning,
-                        ForeColor = Color.Firebrick,
-                        Bounds    = new Rectangle(64, 112, 402, 106),
-                        AutoSize  = false
-                    };
-                    f.Controls.Add(lbl2);
+                        Text = Loc.T(mods.Count == 1 ? "This mod comes with its own game code (DLL files):"
+                                                     : "These mods come with their own game code (DLL files):") +
+                               "\n\n" + list + "\n\n" +
+                               Loc.T("Like any program you download, that code runs on your PC, so only use mods " +
+                                     "from people you trust. You'll only see this once for each mod.")
+                    }
+                };
+                if (unusual != null && unusual.Count > 0)
+                {
+                    labels.Add(new Label
+                    {
+                        Text = Loc.T("Have a look first: these DLLs use parts of Windows that game mods don't usually need:") +
+                               "\n\n - " + string.Join("\n - ", unusual.Take(5).Select(Shorten)) + (unusual.Count > 5 ? "\n - ..." : "") +
+                               "\n\n" + Loc.T("Only go ahead if you know why the mod needs them."),
+                        ForeColor = Color.Firebrick
+                    });
                 }
 
-                Result result = Result.Cancel;
-
-                int by = tall ? 232 : 122;
-                var btnContinue = new Button { Text = Loc.T("Continue"), Bounds = new Rectangle(120, by, 90, 30) };
-                btnContinue.Click += (s, e) => { result = Result.Continue; f.DialogResult = DialogResult.OK; };
-                f.Controls.Add(btnContinue);
-
-                var btnCancel = new Button { Text = Loc.T("Cancel"), Bounds = new Rectangle(218, by, 90, 30) };
-                btnCancel.Click += (s, e) => { result = Result.Cancel; f.DialogResult = DialogResult.Cancel; };
-                f.Controls.Add(btnCancel);
-
-                var btnNever = new Button { Text = Loc.T("Don't show me again"), Bounds = new Rectangle(316, by, 150, 30) };
-                btnNever.Click += (s, e) => { result = Result.DontShowAgain; f.DialogResult = DialogResult.OK; };
-                f.Controls.Add(btnNever);
-
-                // The fixed heights above fit the English; a longer translation
-                // grows its label and pushes the button row down instead of clipping.
-                int bottom = lbl.Top + Math.Max(lbl.Height,
-                    TextRenderer.MeasureText(lbl.Text, f.Font, new Size(lbl.Width, 0), TextFormatFlags.WordBreak).Height);
-                lbl.Height = bottom - lbl.Top;
-                foreach (Control c in f.Controls)
+                // Each label as tall as its text at this width, so a long list or a
+                // longer translation pushes the buttons down instead of clipping.
+                int y = 18;
+                foreach (var l in labels)
                 {
-                    var l2 = c as Label;
-                    if (l2 == null || ReferenceEquals(l2, lbl)) continue;
-                    l2.Top = Math.Max(l2.Top, bottom + 4);
-                    l2.Height = Math.Max(l2.Height,
-                        TextRenderer.MeasureText(l2.Text, f.Font, new Size(l2.Width, 0), TextFormatFlags.WordBreak).Height);
-                    bottom = l2.Bottom;
+                    l.AutoSize = false;
+                    l.Bounds   = new Rectangle(64, y, 402,
+                        TextRenderer.MeasureText(l.Text, f.Font, new Size(402, 0), TextFormatFlags.WordBreak).Height);
+                    f.Controls.Add(l);
+                    y = l.Bottom + 12;
                 }
-                int btnTop = Math.Max(by, bottom + 12);
-                int right = f.ClientSize.Width - 14;
-                foreach (var b in new[] { btnNever, btnCancel, btnContinue })
+
+                bool ok = false;
+                var btnEnable = new Button { Text = Loc.T("Enable") };
+                btnEnable.Click += (s, e) => { ok = true; f.DialogResult = DialogResult.OK; };
+                var btnCancel = new Button { Text = Loc.T("Cancel"), DialogResult = DialogResult.Cancel };
+
+                int btnTop = Math.Max(y + 4, icon.Bottom + 16);
+                int right  = f.ClientSize.Width - 14;
+                foreach (var b in new[] { btnCancel, btnEnable })
                 {
-                    b.Width = Math.Max(b.Width, TextRenderer.MeasureText(b.Text, f.Font).Width + 18);
-                    b.Top = btnTop;
-                    b.Left = right - b.Width;
+                    b.Size = new Size(Math.Max(90, TextRenderer.MeasureText(b.Text, f.Font).Width + 18), 30);
+                    b.Location = new Point(right - b.Width, btnTop);
                     right = b.Left - 8;
+                    f.Controls.Add(b);
                 }
-                f.ClientSize = new Size(f.ClientSize.Width, btnTop + 30 + 18);
-
-                f.AcceptButton = btnContinue;
+                f.ClientSize   = new Size(f.ClientSize.Width, btnTop + 30 + 14);
+                f.AcceptButton = btnEnable;
                 f.CancelButton = btnCancel;
 
                 f.ShowDialog(owner);
-                return result;
+                return ok;
             }
         }
     }
