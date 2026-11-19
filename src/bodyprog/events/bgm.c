@@ -39,16 +39,26 @@ static s32 D_800A99A0 = 0;
 static u8  g_Bgm_LayerLimits[8] = { 128, 128, 128, 128, 128, 128, 128, 128 };
 
 #ifdef SH_PC_PORT
-/* The map wants a layer to sound and the track has not been given the map's
- * volumes yet: from the frame a room asks for music with none on, through
- * Bgm_ChannelSet and the two frames after it. Until that first pass a layered
- * song's channels sit at the volume 0 it starts them at, so nothing is heard.
- * Rebuilt by every Bgm_Update, so it cannot outlive the map that set it. */
+/* The map is bringing music up and it is not there yet, in one of two ways.
+ * Start pending: the track has not been given the map's volumes at all, from
+ * the frame a room asks for music with none on, through Bgm_ChannelSet and the
+ * two frames after it. Until that first pass a layered song's channels sit at
+ * the volume 0 it starts them at, so nothing is heard.
+ * Layer rising: the track is playing and a layer the map wants is still
+ * fading in.
+ * Both are rebuilt by every Bgm_Update, so they cannot outlive the map that
+ * set them. */
 static bool s_pcBgmStartPending;
+static bool s_pcBgmLayerRising;
 
 bool Pc_Bgm_StartPending(void)
 {
     return s_pcBgmStartPending;
+}
+
+bool Pc_Bgm_LayerRising(void)
+{
+    return s_pcBgmLayerRising;
 }
 #endif
 
@@ -61,6 +71,7 @@ void Bgm_TrackUpdate(bool arg0) // 0x80035DB4
     D_800BCD5C = false;
 #ifdef SH_PC_PORT
     s_pcBgmStartPending = false;
+    s_pcBgmLayerRising  = false;
 #endif
 
     if (g_MapOverlayHdr.bgmEvent != NULL) // Checks if function exists.
@@ -153,6 +164,9 @@ void Bgm_Update(s32 bgmFlags, q19_12 fadeSpeed, s_BgmLayerLimits* layerLimits) /
     q3_12*    layerVols;
     u8*       layerLimitsCpy;
     static s8 bgmLayerVolumes[8];
+#ifdef SH_PC_PORT
+    bool      pcLayerRising = false;
+#endif
 
     // Setup.
     flagsCpy       = bgmFlags;
@@ -251,6 +265,17 @@ void Bgm_Update(s32 bgmFlags, q19_12 fadeSpeed, s_BgmLayerLimits* layerLimits) /
 
         layerVols[i] = curLayerVol;
     }
+
+#ifdef SH_PC_PORT
+    /* Read here, before the start-up steps below zero the volumes again. */
+    for (i = 0; i < endLayerIdx; i++)
+    {
+        if (((flagsCpy >> i) & BgmFlag_Layer0) && layerVols[i] < Q12(1.0f))
+        {
+            pcLayerRising = true;
+        }
+    }
+#endif
 
     isBgmLayerActive = false;
     temp_v0          = Q12(1.0f) - layerVols[8];
@@ -382,6 +407,7 @@ void Bgm_Update(s32 bgmFlags, q19_12 fadeSpeed, s_BgmLayerLimits* layerLimits) /
     /* Bgm_ChannelSet does nothing for these two, so they never get a first pass. */
     s_pcBgmStartPending = isBgmLayerActive && !(isMusicPlayer && cond0) &&
                           g_GameWork.bgmIdx != BgmTrackIdx_None && g_GameWork.bgmIdx != BgmTrackIdx_1;
+    s_pcBgmLayerRising  = isMusicPlayer && cond0 && pcLayerRising;
 #endif
 
     D_800BCD5C = true;

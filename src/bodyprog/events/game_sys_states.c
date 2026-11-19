@@ -856,6 +856,11 @@ void SysState_Fmv_Update(void) // 0x80039A58
             break;
     }
 
+#ifdef SH_PC_PORT
+    /* Time since the movie was asked for, for the wait below. */
+    g_SysWork.sysStateSteps[1] += (g_DeltaTimeRaw > Q12(0.0f)) ? g_DeltaTimeRaw : TIMESTEP_60_FPS;
+#endif
+
     if (D_800A9A0C == 0)
     {
         return;
@@ -864,26 +869,37 @@ void SysState_Fmv_Update(void) // 0x80039A58
 #ifdef SH_PC_PORT
     /* The console cannot start a movie before the movie player has come off the
      * disc, and for as long as that takes the frame loop keeps running the map's
-     * music. A room that starts a track for its movie counts on it: the alternate
-     * hospital's examination room asks for track 31, layer 2 only, at an instant
-     * fade, and that layer is up only until the movie has played -- it is the
-     * music of Lisa's introduction. A track's layers all start at volume 0 and
-     * stay there until Bgm_Update's first volume pass, four frames after the
-     * room first asks for it. Here the player is ready at once, the movie began
-     * a frame before that pass and then blocks the loop, so the track ran
-     * silent underneath for the whole movie.
+     * music. Rooms that open with a movie count on it. Here the player is ready
+     * at once and the movie then blocks the loop, so whatever the music had
+     * reached is what plays under the whole movie.
      *
-     * It only happens arriving from a room whose own track was playing, which
-     * is every real playthrough: Bgm_Update then spends one more frame noticing
-     * the old track has stopped. Started fresh on this map the pass lands a
-     * frame earlier and the music plays, so test this from a real save.
+     * A track that starts with its movie never got that far. Its layers all
+     * start at volume 0 and stay there until Bgm_Update's first volume pass,
+     * four frames after the room first asks for it, and the movie began a frame
+     * before that pass: the track ran silent underneath. That was the music of
+     * Lisa's introduction (alternate hospital examination room, track 31,
+     * layer 2). It only happens when another track was playing just before,
+     * which is every real playthrough: Bgm_Update then spends one more frame
+     * noticing the old track has stopped. Started fresh on the map the pass
+     * lands a frame earlier and the music plays, so test this from a real save.
      *
-     * Give the track its first volume pass before blocking. One or two frames
-     * on a screen that is already black, and bounded, so a track that cannot
-     * start never holds a movie back. */
-    if (Pc_Bgm_StartPending() && g_SysWork.sysStateSteps[1] < 30)
+     * The sewer under the amusement park is the slow version: its track starts
+     * on arrival with one layer fading in over a second and a half, the arrival
+     * movie fires at once, and the console's wait is what lets that layer come
+     * up underneath.
+     *
+     * So the movie waits, on a screen that is already black, while the map is
+     * still bringing music up. For a track's first volume pass that is a frame
+     * or two. For a fade it is no longer than the console itself takes from
+     * asking for a movie to playing it: 38 sectors of movie player at double
+     * speed after a seek across the disc from the map's data, about three
+     * quarters of a second, the fade to black included because the console
+     * reads during it. Both are bounded, and nothing is held when no music is
+     * coming up. */
+    if ((Pc_Bgm_StartPending() && g_SysWork.sysStateSteps[2] < 30) ||
+        (Pc_Bgm_LayerRising() && g_SysWork.sysStateSteps[1] < Q12(0.75f)))
     {
-        g_SysWork.sysStateSteps[1]++;
+        g_SysWork.sysStateSteps[2]++;
         return;
     }
 #endif
