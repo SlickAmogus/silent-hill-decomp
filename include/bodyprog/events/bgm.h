@@ -119,6 +119,11 @@ void Bgm_TrackChange(s32 bgmIdx);
  * volumes written yet (a track just told to play, or about to be).
  */
 bool Pc_Bgm_StartPending(void);
+
+/** @brief PC: `true` while the track is playing and a layer the map wants is still
+ * fading in.
+ */
+bool Pc_Bgm_LayerRising(void);
 #endif
 
 void Game_MapRoomIdxUpdate(void);
