@@ -60,15 +60,38 @@ static void Pc_BgEtcSpriteBandUvFix(POLY_FT4* poly)
 /* Snow flake / beam tip sprite: BG_ETC holds a plus of opaque texels inside a
  * 4x4 box (CLUT indices 0 and 1; index 2 is the transparent entry of the snow
  * CLUT rows at VRAM y 96..103). Vanilla covers that box with a right triangle
- * and saves a vertex, because the PSX rasterizes a 1-4 pixel primitive by
- * pixel corner, so the hypotenuse never clips a texel it should have drawn.
- * Above 320x240 the same hypotenuse cuts through the texels themselves: the
- * plus loses its lower-right arms and the 2x2 mid-distance flake loses its
- * bottom-right quarter, which is why the snow renders as little wedges.
+ * and saves a vertex, because the PSX rasterizes by pixel corner: at its own
+ * resolution the hypotenuse never clips a texel it should have drawn.
  *
- * Re-emit the primitive as the whole box, one texel per PSX pixel. Every texel
- * the triangle left out is transparent, so this is the PSX pixel coverage at
- * any resolution. */
+ * What the triangle looks like anywhere else was settled against DuckStation
+ * (four reference shots, 1x and 4x, PGXP on and off), and each of the four is
+ * matched here:
+ *
+ * - Upscaled, PGXP off: the triangle as it is. Its hypotenuse cuts the
+ *   lower-right texel diagonally, so a flake is a small wedge. Drawing the
+ *   whole box instead, as this did at every resolution for a while, made the
+ *   flakes square.
+ * - Upscaled, PGXP on: the same triangle with corner 0 at the GTE's sub-pixel
+ *   position and the two built corners on whole pixels, which is what an
+ *   emulator's PGXP makes of `x1 = x0; y1 = y0 + n`. Every flake is tilted a
+ *   little differently (Shadow_SpriteCorners).
+ * - About one target pixel per PSX pixel, PGXP off: the whole box, one texel
+ *   per pixel. A triangle sampled at pixel centres instead of corners would
+ *   lose whole texels and the one-pixel far flake; every texel it left out is
+ *   transparent, so the box is the PSX's own coverage.
+ * - The same with PGXP on: the precise triangle moved half a pixel, which
+ *   leaves one to three pixels of each flake, as DuckStation's 1x picture has
+ *   it.
+ *
+ * The texels are never filtered: a flake is a pixel pattern two or three
+ * texels across, and the references draw it as one. */
+static bool Pc_SpriteAtNativeScale(void)
+{
+    extern int g_windowHeight; /* PsyCross: lines in the target the scene is drawn into. */
+
+    return g_windowHeight < FRAMEBUFFER_HEIGHT_PROGRESSIVE * 2;
+}
+
 static POLY_FT4* Pc_SpriteTriToQuad(POLY_FT3* tri)
 {
     POLY_FT4* quad  = (POLY_FT4*)tri;
@@ -115,6 +138,19 @@ static POLY_FT4* Pc_SpriteTriToQuad(POLY_FT3* tri)
     quad->v3 = v + h;
 
     return quad;
+}
+
+/* Call with all three corners final, before the primitive is linked. */
+static void Pc_SpriteFinish(POLY_FT3* tri)
+{
+    const bool nativeScale = Pc_SpriteAtNativeScale();
+
+    PsyX_SetPrimUnfiltered(tri);
+
+    if (!Shadow_SpriteCorners(&tri->x0, &tri->x1, &tri->x2, nativeScale) && nativeScale)
+    {
+        Pc_SpriteTriToQuad(tri);
+    }
 }
 
 /* On PSX `sharedData_800DD58C_0_s00` IS `g_ParticlesAddedCount[1]` — one object,
@@ -2818,6 +2854,9 @@ void Particle_SnowDraw(s_Particle* part)
         setPolyFT3(polyFt3);
 
         gte_stsxy(&polyFt3->x0);
+#ifdef SH_PC_PORT
+        PGXP_StoreXy(&polyFt3->x0);
+#endif
         gte_stszotz(&zScreenStart);
 
         if (D_800C39A0 == 1 || D_800C39A0 == 4)
@@ -2918,7 +2957,7 @@ void Particle_SnowDraw(s_Particle* part)
             }
 
 #ifdef SH_PC_PORT
-            Pc_SpriteTriToQuad(polyFt3);
+            Pc_SpriteFinish(polyFt3);
 #endif
 
 #if defined(MAP1_S00) || defined(MAP6_S00)
@@ -4599,7 +4638,7 @@ void Particle_HyperBlasterBeamDraw(VECTOR3* vec0, q3_12* rotX, q3_12* rotY)
             }
 
 #ifdef SH_PC_PORT
-            Pc_SpriteTriToQuad(polyFt3);
+            Pc_SpriteFinish(polyFt3);
 #endif
 
             if (zScreenStart >= 1 && zScreenStart < 0xFF)
