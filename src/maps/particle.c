@@ -60,15 +60,31 @@ static void Pc_BgEtcSpriteBandUvFix(POLY_FT4* poly)
 /* Snow flake / beam tip sprite: BG_ETC holds a plus of opaque texels inside a
  * 4x4 box (CLUT indices 0 and 1; index 2 is the transparent entry of the snow
  * CLUT rows at VRAM y 96..103). Vanilla covers that box with a right triangle
- * and saves a vertex, because the PSX rasterizes a 1-4 pixel primitive by
- * pixel corner, so the hypotenuse never clips a texel it should have drawn.
- * Above 320x240 the same hypotenuse cuts through the texels themselves: the
- * plus loses its lower-right arms and the 2x2 mid-distance flake loses its
- * bottom-right quarter, which is why the snow renders as little wedges.
+ * and saves a vertex, because the PSX rasterizes by pixel corner: at its own
+ * resolution the hypotenuse never clips a texel it should have drawn.
  *
- * Re-emit the primitive as the whole box, one texel per PSX pixel. Every texel
- * the triangle left out is transparent, so this is the PSX pixel coverage at
- * any resolution. */
+ * What that triangle does anywhere else depends on how big a PSX pixel is.
+ *
+ * Upscaled, the hypotenuse cuts the flake's lower-right texel diagonally, and
+ * that wedge IS the snow as an upscaling renderer of this game draws it
+ * (DuckStation at 4x, PGXP off). The triangle is left alone there. Drawing the
+ * whole box instead, as this did at every resolution for a while, made the
+ * flakes square.
+ *
+ * At about one target pixel per PSX pixel the triangle is sampled at pixel
+ * centres, not corners, so it loses whole texels and the one-pixel far flake
+ * altogether. Only there is the box drawn, one texel per PSX pixel: every
+ * texel the triangle left out is transparent, so that is the PSX's coverage.
+ *
+ * pc-port also follows DuckStation's PGXP for this sprite and never filters
+ * it. Both live in PsyCross code that this tree's renderer does not use. */
+static bool Pc_SpriteNeedsBox(void)
+{
+    extern int g_windowHeight; /* Lines in the target the scene is drawn into. */
+
+    return g_windowHeight < FRAMEBUFFER_HEIGHT_PROGRESSIVE * 2;
+}
+
 static POLY_FT4* Pc_SpriteTriToQuad(POLY_FT3* tri)
 {
     POLY_FT4* quad  = (POLY_FT4*)tri;
@@ -2918,7 +2934,10 @@ void Particle_SnowDraw(s_Particle* part)
             }
 
 #ifdef SH_PC_PORT
-            Pc_SpriteTriToQuad(polyFt3);
+            if (Pc_SpriteNeedsBox())
+            {
+                Pc_SpriteTriToQuad(polyFt3);
+            }
 #endif
 
 #if defined(MAP1_S00) || defined(MAP6_S00)
@@ -4599,7 +4618,10 @@ void Particle_HyperBlasterBeamDraw(VECTOR3* vec0, q3_12* rotX, q3_12* rotY)
             }
 
 #ifdef SH_PC_PORT
-            Pc_SpriteTriToQuad(polyFt3);
+            if (Pc_SpriteNeedsBox())
+            {
+                Pc_SpriteTriToQuad(polyFt3);
+            }
 #endif
 
             if (zScreenStart >= 1 && zScreenStart < 0xFF)
