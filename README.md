@@ -1,3 +1,4 @@
+MOVED TO ITS OWN REPO: https://github.com/SlickAmogus/silenthill-online/
 # Silent Hill Online
 
 The multiplayer branch of the Silent Hill native PC port. It adds online play on top of the regular port without changing how single-player works: start a normal game and nothing here touches it. This page assumes you already know the base port (installation, options, controls) and covers only what is online.
