@@ -122,6 +122,13 @@ def sha256_of(path):
 
 def http_get(url):
     req = urllib.request.Request(url, headers={"User-Agent": "realtime-publish"})
+    # The API gives an unsigned caller 60 requests an hour per address, and a
+    # shared runner's address is often spent already (HTTP 403 "rate limit
+    # exceeded"): sign API calls with the job's token. Unredirected, so it never
+    # follows a release download to the CDN, which refuses it.
+    token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    if token and url.startswith("https://api.github.com/"):
+        req.add_unredirected_header("Authorization", "Bearer " + token)
     with urllib.request.urlopen(req, timeout=300) as r:
         return r.read()
 
