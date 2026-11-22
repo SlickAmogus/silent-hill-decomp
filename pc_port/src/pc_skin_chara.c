@@ -524,6 +524,8 @@ typedef struct
     float       breathPhase, breathPeriod;
     float       mouth;
     float       grip[2];
+    float       palm[2][3]; /* model space: the side each hand's fingers curl to */
+    int         palmOk[2];
     float       gunOff[3]; /* right-hand bone frame */
     int         lightLogged;
     int         gunRaise, gunOut, gunFwd;    /* ini: mm */
@@ -1532,6 +1534,8 @@ static void Skin_BuildGrip(PcSkinChara* ch, const float* gpos, float jointPos[][
         q[0] = c[1] * a[2] - c[2] * a[1];
         q[1] = c[2] * a[0] - c[0] * a[2];
         q[2] = c[0] * a[1] - c[1] * a[0];
+        memcpy(ch->palm[side], q, sizeof(q));
+        ch->palmOk[side] = 1;
 
         for (i = 0; i < ch->vertCount; i++)
             if (ch->verts[i].dom == bone)
@@ -1716,6 +1720,7 @@ static int Skin_Load(PcSkinChara* ch, const char* path)
     int dirCount[PC_SKIN_BONES];
     float R[PC_SKIN_BONES][9], axis[PC_SKIN_BONES][3], k[PC_SKIN_BONES];
     float foreSwing[9] = { 1, 0, 0, 0, 1, 0, 0, 0, 1 };
+    float foreAxis[3] = { 0, 0, 0 };
     float* gpos = NULL;
     float* gnrm = NULL;
     float* gtan = NULL;
@@ -2201,14 +2206,55 @@ static int Skin_Load(PcSkinChara* ch, const char* path)
          * sits well off his forearm's line, every open hand came out bent out
          * at the wrist with the palm forward. The gun hand still takes the
          * turn: held weapons are placed in that frame. */
+        /* The swing sets the forearm's direction but not its roll, so the
+         * palm came out wherever the model's bind pose left it: on most
+         * models it faced forward or out from the thigh. The hand now also
+         * rolls about the forearm until the side its fingers curl to faces
+         * where Harry's palm does: his thigh, turned 34 degrees toward his
+         * back (the flat of 06LHAND at HB_BASE keyframe 0). A roll past 60
+         * degrees means the curl side itself was misread (Dante's left
+         * hand, whose fingers and thumb disagree), so the hand stays as it
+         * was. */
         else if (b == 6)
-            M3_Mul(foreSwing, restR, R[b]);
+        {
+            float tw[9] = { 1, 0, 0, 0, 1, 0, 0, 0, 1 }, tmp[9];
+            if (ch->palmOk[0] && V3_Len(foreAxis) > 1e-3f)
+            {
+                float g[3], p[3], n[3] = { rb->T[0] < 0 ? 0.82f : -0.82f, 0.0f, -0.56f }, x[3], dp, dn, th, cs, sn, lg2;
+                lg2 = V3_Len(foreAxis);
+                for (i = 0; i < 3; i++) g[i] = foreAxis[i] / lg2;
+                M3_MulTV(foreSwing, ch->palm[0], p);
+                dp = p[0] * g[0] + p[1] * g[1] + p[2] * g[2];
+                dn = n[0] * g[0] + n[1] * g[1] + n[2] * g[2];
+                for (i = 0; i < 3; i++) { p[i] -= dp * g[i]; n[i] -= dn * g[i]; }
+                x[0] = n[1] * p[2] - n[2] * p[1];
+                x[1] = n[2] * p[0] - n[0] * p[2];
+                x[2] = n[0] * p[1] - n[1] * p[0];
+                th = atan2f(x[0] * g[0] + x[1] * g[1] + x[2] * g[2], n[0] * p[0] + n[1] * p[1] + n[2] * p[2]);
+                if (V3_Len(p) > 1e-4f && V3_Len(n) > 1e-4f && fabsf(th) <= 1.0472f)
+                {
+                    cs = cosf(th);
+                    sn = sinf(th);
+                    tw[0] = cs + g[0] * g[0] * (1 - cs);        tw[1] = g[0] * g[1] * (1 - cs) - g[2] * sn; tw[2] = g[0] * g[2] * (1 - cs) + g[1] * sn;
+                    tw[3] = g[1] * g[0] * (1 - cs) + g[2] * sn; tw[4] = cs + g[1] * g[1] * (1 - cs);        tw[5] = g[1] * g[2] * (1 - cs) - g[0] * sn;
+                    tw[6] = g[2] * g[0] * (1 - cs) - g[1] * sn; tw[7] = g[2] * g[1] * (1 - cs) + g[0] * sn; tw[8] = cs + g[2] * g[2] * (1 - cs);
+                    SH_DBG("[SKIN] empty hand rolled %.0f deg about the forearm to face the thigh", th * 57.29578f);
+                }
+                else if (V3_Len(p) > 1e-4f)
+                    SH_DBG("[SKIN] empty hand left as modelled (palm reads %.0f deg off)", th * 57.29578f);
+            }
+            M3_Mul(foreSwing, tw, tmp);
+            M3_Mul(tmp, restR, R[b]);
+        }
         else
         {
             M3_Align(gd, md, swing);
             M3_Mul(swing, restR, R[b]);
             if (b == 5)
+            {
                 memcpy(foreSwing, swing, sizeof(foreSwing));
+                memcpy(foreAxis, gd, sizeof(foreAxis));
+            }
         }
         if (s_scaled[b] && lm > 1e-3f && s_childA[b] >= 0)
         {
