@@ -134,6 +134,8 @@ jobs:
           Runtime dependencies (install via your package manager):
             SDL2, OpenAL (libopenal1), OpenGL drivers
             Debian/Ubuntu:  sudo apt install libsdl2-2.0-0 libopenal1
+            Fedora/Nobara:  sudo dnf install SDL2 openal-soft
+            Arch:           sudo pacman -S sdl2 openal
           Run:  ./SilentHillPC
           EOF
           tar -C "$RUNNER_TEMP" -czf "$RUNNER_TEMP/SHPC-linux-x64.tar.gz" SHPC-linux-x64

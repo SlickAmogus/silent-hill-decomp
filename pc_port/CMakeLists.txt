@@ -422,7 +422,15 @@ endif()
 # libjpeg (for FMV playback - MJPG decoding)
 # =============================================================================
 find_package(PkgConfig QUIET)
-find_library(JPEG_LIBRARY NAMES jpeg turbojpeg)
+# Linux takes the static archive when there is one: the shared library's name
+# and symbol versions differ between distributions (Debian and Ubuntu ship
+# libjpeg.so.8 with LIBJPEG_8.0, Fedora libjpeg.so.62 with LIBJPEG_6.2), so a
+# binary linked against one would not start on the other.
+if(UNIX AND NOT APPLE)
+    find_library(JPEG_LIBRARY NAMES libjpeg.a jpeg turbojpeg)
+else()
+    find_library(JPEG_LIBRARY NAMES jpeg turbojpeg)
+endif()
 find_path(JPEG_INCLUDE_DIR jpeglib.h)
 
 # =============================================================================
