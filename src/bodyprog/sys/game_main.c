@@ -3811,10 +3811,14 @@ void MainLoop(void) // 0x80032EE0
         /* Suppress dither on 2D-only states (logos, menus, map screen,
          * inventory, options, save/load). Dither makes flat-shaded UI
          * art look chewed-up at high resolution. Keep it for 3D gameplay
-         * + cutscenes (InGame state covers both). Read by PsyCross via
+         * + cutscenes (InGame state covers both), and for the loading
+         * screens (Harry running, the area pictures), which the console
+         * dithers like gameplay. Read by PsyCross via
          * extern int g_PsxDitherSuppressed in PsyX_render.cpp. */
         extern int g_PsxDitherSuppressed;
-        g_PsxDitherSuppressed = (g_GameWork.gameState == GameState_InGame) ? 0 : 1;
+        g_PsxDitherSuppressed = (g_GameWork.gameState == GameState_InGame ||
+                                 g_GameWork.gameState == GameState_MainLoadScreen ||
+                                 g_GameWork.gameState == GameState_LoadMapScreen) ? 0 : 1;
 
         /* Set by the game (game_sys_states.c) while a state freezes the world and presents
          * the captured FOGGY gameplay frame behind a message: the literal PAUSED screen
