@@ -30,6 +30,8 @@
  *                             collision except the ground
  *   BIND <key> <cmds>    - run one or more console commands from a key;
  *                          BIND LIST / UNBIND <key> / UNBINDALL
+ *                          BIND pad:<input> <cmd> (controller) / ADDCONTROL <cmd> / REMOVECONTROL <cmd>
+ *   NEXTGUN / NEXTMELEE    - next owned gun / melee weapon (works with the weapon raised)
  *   ABOUT                - PC port credits (same block the staff roll appends)
  *   PCCREDITS [0|1]      - toggle that block in the staff roll (persists)
  *   LOGA / LOGB          - stamp an incremental A#/B# position mark
@@ -719,7 +721,7 @@ static const char* const s_gbNames[] = {
 #define GB_STEPS ((int)(sizeof(s_gbNames) / sizeof(s_gbNames[0])))
 
 static int          s_gbStep = -1, s_gbFrames;
-static double       s_gbGpu0;
+static double       s_gbGpu0, s_gbPx0;
 static int          s_gbGpuN0;
 static unsigned int s_gbMs0;
 static struct { int texFilter, aniso, pplight, hero, pgxp, flMode, timerWanted; } s_gbSaved;
@@ -757,6 +759,7 @@ void Pc_ConsoleGpuBenchUpdate(void)
     extern double g_PsyX_GpuMsSum;
     extern int    g_PsyX_GpuMsCount;
     extern int    g_PsyX_GpuTimerWanted;
+    extern double g_PsyX_GpuSamplesSum;
 
     if (s_gbStep < 0)
         return;
@@ -764,6 +767,7 @@ void Pc_ConsoleGpuBenchUpdate(void)
     s_gbFrames++;
     if (s_gbFrames == GB_SETTLE) {
         s_gbGpu0  = g_PsyX_GpuMsSum;
+        s_gbPx0   = g_PsyX_GpuSamplesSum;
         s_gbGpuN0 = g_PsyX_GpuMsCount;
         s_gbMs0   = SDL_GetTicks();
         return;
@@ -781,7 +785,8 @@ void Pc_ConsoleGpuBenchUpdate(void)
         double frm = (double)(SDL_GetTicks() - s_gbMs0) / GB_MEASURE;
 
         if (gpu >= 0.0)
-            SH_DBG_ECHO("[GPUBENCH] %-24s gpu %6.2f ms   frame %6.2f ms", s_gbNames[s_gbStep], gpu, frm);
+            SH_DBG_ECHO("[GPUBENCH] %-24s gpu %6.2f ms   frame %6.2f ms   shaded %5.0f Mpx", s_gbNames[s_gbStep], gpu, frm,
+                        (g_PsyX_GpuSamplesSum - s_gbPx0) / n / 1.0e6);
         else
             SH_DBG_ECHO("[GPUBENCH] %-24s gpu    n/a      frame %6.2f ms", s_gbNames[s_gbStep], frm);
     }
@@ -1662,6 +1667,15 @@ void Pc_ConsoleExec(const char* line)
             push_lines(DEBUG_PAGE1, (int)(sizeof(DEBUG_PAGE1) / sizeof(DEBUG_PAGE1[0])));
     } else if (strcmp(cmd, "AMBSFX") == 0) {
         cmd_ambsfx(arg);
+    } else if (strcmp(cmd, "NEXTGUN") == 0 || strcmp(cmd, "NEXTMELEE") == 0) {
+        extern const char* Pc_NextWeaponRequest(int guns);
+        const char* why = Pc_NextWeaponRequest(cmd[4] == 'G');
+        if (why != NULL)
+            cprintf("%s", why);
+    } else if (strcmp(cmd, "ADDCONTROL") == 0) {
+        PcBinds_CmdAddControl(arg);
+    } else if (strcmp(cmd, "REMOVECONTROL") == 0) {
+        PcBinds_CmdRemoveControl(arg);
     } else if (strcmp(cmd, "BIND") == 0) {
         PcBinds_CmdBind(arg);
     } else if (strcmp(cmd, "UNBIND") == 0) {
@@ -2381,6 +2395,39 @@ void Pc_ConsoleExec(const char* line)
         else if (arg[0] == '0') g_PsxMixedShader = 0;
         else g_PsxMixedShader = !g_PsxMixedShader;
         cprintf("mixed-format shader: %s", g_PsxMixedShader ? "ON (fewer draw calls)" : "OFF (one program per format)");
+    } else if (strcmp(cmd, "FRAMEINTERP") == 0) {
+        /* frameinterp 0|1|2 [targetfps] -- 2 shows the reprojection error
+         * (black where the camera-motion estimate is right). */
+        extern int g_PsyX_FrameInterp, g_PsyX_FrameInterpTargetHz, g_PsyX_FrameInterpLastCount;
+        extern int g_PsxUsePgxp;
+        int mode = g_PsyX_FrameInterp, hz = g_PsyX_FrameInterpTargetHz;
+        char b[16];
+        if (arg[0] != 0) {
+            if (strncmp(arg, "check", 5) == 0 || strncmp(arg, "CHECK", 5) == 0) {
+                extern int g_PsyX_FrameInterpCheck;
+                g_PsyX_FrameInterpCheck = 12;
+                cprintf("frame interpolation: logging the next 12 ticks to the log ([FGCHK])");
+            } else
+            if (sscanf(arg, "%d %d", &mode, &hz) < 1) mode = !g_PsyX_FrameInterp;
+            if (mode < 0 || mode > 2) mode = 0;
+            if (hz < 0) hz = 0;
+            g_PcConfig.frameInterp    = g_PsyX_FrameInterp         = mode;
+            g_PcConfig.frameInterpFps = g_PsyX_FrameInterpTargetHz = hz;
+            snprintf(b, sizeof(b), "%d", mode); PcConfig_SaveKeyValue("frame_interp", b);
+            snprintf(b, sizeof(b), "%d", hz);   PcConfig_SaveKeyValue("frame_interp_fps", b);
+        }
+        cprintf("frame interpolation: %s, target %d fps%s, fps_cap %d, +%d frames last tick%s",
+                mode == 2 ? "ERROR VIEW" : mode ? "ON" : "OFF", hz, hz ? "" : " (display)",
+                g_PcConfig.fpsCap, g_PsyX_FrameInterpLastCount,
+                g_PsxUsePgxp ? "" : " -- needs PGXP on");
+    } else if (strcmp(cmd, "LEANSHADER") == 0) {
+        /* leanshader 0|1 -- A/B for the stripped PSX programs used while
+         * texture filtering and flashlight shadows are off. */
+        extern int g_PsyX_LeanShaders;
+        if (arg[0] == '1') g_PsyX_LeanShaders = 1;
+        else if (arg[0] == '0') g_PsyX_LeanShaders = 0;
+        else g_PsyX_LeanShaders = !g_PsyX_LeanShaders;
+        cprintf("lean shaders: %s", g_PsyX_LeanShaders ? "ON" : "OFF (full programs always)");
     } else if (strcmp(cmd, "FLMODE") == 0) {
         /* flmode 0..3 | classic | classicshadows | modern | modernshadows */
         int mode = g_PcConfig.flashlightMode;
@@ -2708,6 +2755,11 @@ void Pc_ConsoleExec(const char* line)
             PcConfig_SaveKeyValue("post_process_intensity", buf);
         }
         cprintf("post-process intensity: %.2f (0..1)", g_cfg_postProcessIntensity);
+    } else if (strcmp(cmd, "BOSSSAVE") == 0) {
+        int on = (arg[0] == '1') ? 1 : (arg[0] == '0') ? 0 : !g_PcConfig.quickSaveBoss;
+        g_PcConfig.quickSaveBoss = on;
+        PcConfig_SaveKeyValue("quicksave_boss", on ? "1" : "0");
+        cprintf("quick save during boss fights %s", on ? "ON" : "OFF (the default)");
     } else if (strcmp(cmd, "POSTSCALE") == 0) {
         extern float g_cfg_postProcessScale;
         if (arg[0] != '\0') {

@@ -277,7 +277,7 @@ void Pc_PauseMenu_Update(void)
         {
             block = PM_BLOCK_RANDO;
         }
-        else if (Pc_QuickSave_BossActive())
+        else if (Pc_QuickSave_BossBlocks())
         {
             block = PM_BLOCK_BOSS;
         }

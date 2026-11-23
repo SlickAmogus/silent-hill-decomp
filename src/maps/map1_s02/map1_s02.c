@@ -1332,6 +1332,15 @@ void Map_WorldObjectsInit(void) // 0x800DD494
     WorldObject_Init(&g_WorldObject5, "RING2_HI", 60.5f, -1.04f, -59.0f, 0.0f, 0.0f, 0.0f);
     WorldObject_Init(&g_WorldObject6, "DOOR2_HI", 58.4f, 0.0f, -60.4f, 0.0f, 0.0f, 0.0f);
     WorldObject_Init(&g_WorldObject7, "DOOR1_HI", 58.4f, 0.0f, -59.6f, 0.0f, 0.0f, 0.0f);
+#ifdef SH_PC_PORT
+    /* The walkway's position is not saved; the game rebuilds it from flag 362
+     * every frame Harry is outside the boiler room, which on the PlayStation
+     * always came before he could see it. A quick save made inside the room
+     * loads straight into it, so the zeroed init above stood: walkway shut and
+     * flag 362 cleared on the first frame. Seed it the way the update does. */
+    g_WorldObject6.rotation.vy = Q12_ANGLE(180.0f);
+    g_WorldObject7.rotation.vy = Savegame_EventFlagGet(EventFlag_362) ? Q12_ANGLE(180.0f) : Q12_ANGLE(90.0f);
+#endif
     WorldObject_PlacementInit(&g_WorldObject0, "BOX_HIDE", 54.47f, 0.0f, -60.0f);
     WorldObject_Init(&g_WorldObject8, "KEY_HIDE", 139.199f, -0.8753f, 99.3733f, 0.0f, 46.2f, 0.0f);
     WorldObject_Init(&g_WorldObject9, "PHONE3_H", 18.974f, -0.9f, 143.515f, 0.0f, -78.3f, 0.0f);

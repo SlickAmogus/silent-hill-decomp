@@ -464,7 +464,8 @@ typedef struct
 /* GRIP_L/GRIP_R curl the fingers of game hand 6/10 round a held item. BREATH
  * is built from the chest at load, so every model gets it. */
 enum { PC_SKIN_MORPH_BLINK, PC_SKIN_MORPH_MOUTH, PC_SKIN_MORPH_GRIP_L, PC_SKIN_MORPH_GRIP_R, PC_SKIN_MORPH_BREATH,
-       PC_SKIN_MORPH_COUNT };
+       PC_SKIN_MORPH_SHAPE, /* mouth_A .. mouth_H, mouth_X: painted mouth shapes, PC_LIP_SHAPES of them */
+       PC_SKIN_MORPH_COUNT = PC_SKIN_MORPH_SHAPE + PC_LIP_SHAPES };
 
 /* One frame's lights for the per-pixel path, in view space: the GTE light
  * rows and back colour of the bone that lights the most vertices, and the
@@ -523,12 +524,17 @@ typedef struct
     float       blinkClock, blinkNext;
     float       breathPhase, breathPeriod;
     float       mouth;
+    float       shapeW[PC_LIP_SHAPES];
     float       grip[2];
+    float       palm[2][3]; /* model space: the side each hand's fingers curl to */
+    int         palmOk[2];
     float       gunOff[3]; /* right-hand bone frame */
     int         lightLogged;
     int         gunRaise, gunOut, gunFwd;    /* ini: mm */
     int         gunTwist, gunPitch, gunYaw; /* ini: degrees */
     int         handRelax; /* ini: percent of the fist held with empty hands */
+    int         armOut;    /* ini: degrees the empty-handed arm hangs further out */
+    int         gunSet;    /* the ini placed the gun itself */
     int         female;
     int         native; /* built in game space (SH_NATIVE node): the game's own parts */
     u32         nativeBones; /* the bones whose stock parts it replaces */
@@ -874,10 +880,15 @@ static void Skin_FindGrip(const cgltf_skin* skin, float jointPos[][3], int handJ
             continue;
         if (named < 0)
         {
+            /* Nearest the wrist, but never a hub: a joint that branches into
+             * two fingers (Joker's) sits as close to the wrist as his thumb,
+             * and taken for it, the palm read backwards. */
             if (thumb < 0)
                 for (i = 0; i < rootCount; i++)
                 {
                     float d = 0.0f;
+                    if (skin->joints[roots[i]]->children_count >= 2)
+                        continue;
                     for (f = 0; f < 3; f++)
                         d += (jointPos[roots[i]][f] - jointPos[handJoint[side]][f]) * (jointPos[roots[i]][f] - jointPos[handJoint[side]][f]);
                     if (d < thumbD)
@@ -911,15 +922,39 @@ static void Skin_FindGrip(const cgltf_skin* skin, float jointPos[][3], int handJ
                 fingerJoint[side][f] = Skin_JointIndex(skin, n);
                 n = n->children_count ? n->children[0] : NULL;
             }
-            for (i = 0; i < rootCount; i++)
+            /* The far end of the knuckle row: the finger root farthest from
+             * the index finger's LINE. Measured from its root point, a palm
+             * hub joint near the wrist (Joker's carries two fingers) won on
+             * its distance back along the hand, and the "row" it gave ran
+             * through the palm's thickness, so the palm read 90 degrees off.
+             * A hub's own fingers count as roots. */
             {
-                float d = 0.0f;
-                if (i == named || i == thumb)
-                    continue;
-                for (f = 0; f < 3; f++)
-                    d += (jointPos[roots[i]][f] - jointPos[roots[named]][f]) * (jointPos[roots[i]][f] - jointPos[roots[named]][f]);
-                if (d > farD)
-                    farD = d, fingerJoint[side][3] = roots[i];
+                float dir[3] = { 0, 0, 0 }, ld;
+                if (fingerJoint[side][1] >= 0)
+                    for (f = 0; f < 3; f++)
+                        dir[f] = jointPos[fingerJoint[side][1]][f] - jointPos[roots[named]][f];
+                ld = V3_Len(dir);
+                for (f = 0; f < 3; f++) dir[f] = ld > 1e-6f ? dir[f] / ld : 0.0f;
+                for (i = 0; i < rootCount; i++)
+                {
+                    const cgltf_node* r = skin->joints[roots[i]];
+                    size_t ci;
+                    if (i == named || i == thumb)
+                        continue;
+                    for (ci = 0; ci <= r->children_count; ci++)
+                    {
+                        const cgltf_node* cand = ci == 0 ? r : r->children[ci - 1];
+                        int cj = Skin_JointIndex(skin, cand);
+                        float o[3], al, d = 0.0f;
+                        if (cj < 0 || (ci > 0 && r->children_count < 2))
+                            continue;
+                        for (f = 0; f < 3; f++) o[f] = jointPos[cj][f] - jointPos[roots[named]][f];
+                        al = o[0] * dir[0] + o[1] * dir[1] + o[2] * dir[2];
+                        for (f = 0; f < 3; f++) d += (o[f] - al * dir[f]) * (o[f] - al * dir[f]);
+                        if (d > farD)
+                            farD = d, fingerJoint[side][3] = cj;
+                    }
+                }
             }
             if (thumb >= 0)
             {
@@ -1248,6 +1283,8 @@ static int Skin_MorphKind(const char* name, int haveBothBlink)
     }
     if (strstr(l, "jawopen") || strstr(l, "mouthopen") || strstr(l, "mouth_open") || strstr(l, "viseme_aa"))
         return PC_SKIN_MORPH_MOUTH;
+    if (strncmp(l, "mouth_", 6) == 0 && l[7] == '\0' && ((l[6] >= 'a' && l[6] <= 'h') || l[6] == 'x'))
+        return PC_SKIN_MORPH_SHAPE + (l[6] == 'x' ? PC_LIP_SHAPES - 1 : l[6] - 'a');
     return -1;
 }
 
@@ -1457,6 +1494,7 @@ static void Skin_BuildGrip(PcSkinChara* ch, const float* gpos, float jointPos[][
     {
         int bone = side ? 10 : 6, f, i, n = 0;
         float P[6][3], a[3], c[3], q[3], d1[3], d2[3], len, ca, L = 0.0f, kap, rad;
+        int row = 0;
         PcSkinMorph* m = &ch->morph[PC_SKIN_MORPH_GRIP_L + side];
 
         if (handJoint[side] < 0)
@@ -1486,6 +1524,7 @@ static void Skin_BuildGrip(PcSkinChara* ch, const float* gpos, float jointPos[][
             P[f][1] = -src[1] * scale + offY;
             P[f][2] = src[2] * scale + offZ;
         }
+        row = indexJoint[side][3] >= 0;
         for (i = 0; i < 3; i++)
         {
             a[i] = P[1][i] - P[0][i];
@@ -1503,8 +1542,10 @@ static void Skin_BuildGrip(PcSkinChara* ch, const float* gpos, float jointPos[][
         for (i = 0; i < 3; i++) c[i] -= ca * a[i];
         len = V3_Len(c);
         /* A dead-straight index finger gives no curl direction. The knuckle
-         * row still gives the bend axis, and the thumb tip rests on the palm
-         * side of it, which picks the way the fingers fold. */
+         * row still gives the bend axis. Which way the fingers fold: a T or A
+         * pose holds the palm to the ground, which the thumb tip only roughly
+         * follows (Joker's lies on the back of his hand, and both his fists
+         * folded backwards). The thumb decides only for a hand held upright. */
         if (len < 0.05f * V3_Len(d1) * V3_Len(d2))
         {
             float t;
@@ -1522,6 +1563,12 @@ static void Skin_BuildGrip(PcSkinChara* ch, const float* gpos, float jointPos[][
             q[1] = c[2] * a[0] - c[0] * a[2];
             q[2] = c[0] * a[1] - c[1] * a[0];
             t = (P[5][0] - P[1][0]) * q[0] + (P[5][1] - P[1][1]) * q[1] + (P[5][2] - P[1][2]) * q[2];
+            if (fabsf(q[1]) > 0.3f)
+            {
+                if ((q[1] > 0.0f) != (t > 0.0f))
+                    SH_DBG("[SKIN] game hand %d: palm taken as the side facing down, not the thumb's", bone);
+                t = q[1];
+            }
             if (t < 0.0f)
                 for (i = 0; i < 3; i++) c[i] = -c[i];
             SH_DBG("[SKIN] game hand %d: straight fingers, curl taken from the knuckles and thumb", bone);
@@ -1532,6 +1579,29 @@ static void Skin_BuildGrip(PcSkinChara* ch, const float* gpos, float jointPos[][
         q[0] = c[1] * a[2] - c[2] * a[1];
         q[1] = c[2] * a[0] - c[0] * a[2];
         q[2] = c[0] * a[1] - c[1] * a[0];
+        memcpy(ch->palm[side], q, sizeof(q));
+        ch->palmOk[side] = 1;
+        /* The index finger's own bend axis is seldom square to the palm (it
+         * put Joker's and Heather's palms 54 degrees apart on alike hands), so
+         * the palm the empty hand is rolled by is the flat of the hand, across
+         * the knuckle row; the curl only says which side of it the palm is. */
+        if (row)
+        {
+            float k[3], pn[3], dk, lp;
+            for (i = 0; i < 3; i++) k[i] = P[4][i] - P[1][i];
+            dk = k[0] * a[0] + k[1] * a[1] + k[2] * a[2];
+            for (i = 0; i < 3; i++) k[i] -= dk * a[i];
+            pn[0] = k[1] * a[2] - k[2] * a[1];
+            pn[1] = k[2] * a[0] - k[0] * a[2];
+            pn[2] = k[0] * a[1] - k[1] * a[0];
+            lp = V3_Len(pn);
+            if (lp > 1e-4f)
+            {
+                if (pn[0] * q[0] + pn[1] * q[1] + pn[2] * q[2] < 0.0f)
+                    lp = -lp;
+                for (i = 0; i < 3; i++) ch->palm[side][i] = pn[i] / lp;
+            }
+        }
 
         for (i = 0; i < ch->vertCount; i++)
             if (ch->verts[i].dom == bone)
@@ -1716,6 +1786,7 @@ static int Skin_Load(PcSkinChara* ch, const char* path)
     int dirCount[PC_SKIN_BONES];
     float R[PC_SKIN_BONES][9], axis[PC_SKIN_BONES][3], k[PC_SKIN_BONES];
     float foreSwing[9] = { 1, 0, 0, 0, 1, 0, 0, 0, 1 };
+    float foreAxis[3] = { 0, 0, 0 };
     float* gpos = NULL;
     float* gnrm = NULL;
     float* gtan = NULL;
@@ -2201,14 +2272,55 @@ static int Skin_Load(PcSkinChara* ch, const char* path)
          * sits well off his forearm's line, every open hand came out bent out
          * at the wrist with the palm forward. The gun hand still takes the
          * turn: held weapons are placed in that frame. */
+        /* The swing sets the forearm's direction but not its roll, so the
+         * palm came out wherever the model's bind pose left it: on most
+         * models it faced forward or out from the thigh. The hand now also
+         * rolls about the forearm until the side its fingers curl to faces
+         * where Harry's palm does: his thigh, turned 34 degrees toward his
+         * back (the flat of 06LHAND at HB_BASE keyframe 0). A roll past 60
+         * degrees means the curl side itself was misread (Dante's left
+         * hand, whose fingers and thumb disagree), so the hand stays as it
+         * was. */
         else if (b == 6)
-            M3_Mul(foreSwing, restR, R[b]);
+        {
+            float tw[9] = { 1, 0, 0, 0, 1, 0, 0, 0, 1 }, tmp[9];
+            if (ch->palmOk[0] && V3_Len(foreAxis) > 1e-3f)
+            {
+                float g[3], p[3], n[3] = { rb->T[0] < 0 ? 0.82f : -0.82f, 0.0f, -0.56f }, x[3], dp, dn, th, cs, sn, lg2;
+                lg2 = V3_Len(foreAxis);
+                for (i = 0; i < 3; i++) g[i] = foreAxis[i] / lg2;
+                M3_MulTV(foreSwing, ch->palm[0], p);
+                dp = p[0] * g[0] + p[1] * g[1] + p[2] * g[2];
+                dn = n[0] * g[0] + n[1] * g[1] + n[2] * g[2];
+                for (i = 0; i < 3; i++) { p[i] -= dp * g[i]; n[i] -= dn * g[i]; }
+                x[0] = n[1] * p[2] - n[2] * p[1];
+                x[1] = n[2] * p[0] - n[0] * p[2];
+                x[2] = n[0] * p[1] - n[1] * p[0];
+                th = atan2f(x[0] * g[0] + x[1] * g[1] + x[2] * g[2], n[0] * p[0] + n[1] * p[1] + n[2] * p[2]);
+                if (V3_Len(p) > 1e-4f && V3_Len(n) > 1e-4f && fabsf(th) <= 1.0472f)
+                {
+                    cs = cosf(th);
+                    sn = sinf(th);
+                    tw[0] = cs + g[0] * g[0] * (1 - cs);        tw[1] = g[0] * g[1] * (1 - cs) - g[2] * sn; tw[2] = g[0] * g[2] * (1 - cs) + g[1] * sn;
+                    tw[3] = g[1] * g[0] * (1 - cs) + g[2] * sn; tw[4] = cs + g[1] * g[1] * (1 - cs);        tw[5] = g[1] * g[2] * (1 - cs) - g[0] * sn;
+                    tw[6] = g[2] * g[0] * (1 - cs) - g[1] * sn; tw[7] = g[2] * g[1] * (1 - cs) + g[0] * sn; tw[8] = cs + g[2] * g[2] * (1 - cs);
+                    SH_DBG("[SKIN] empty hand rolled %.0f deg about the forearm to face the thigh (palm %.2f %.2f %.2f)", th * 57.29578f, p[0], p[1], p[2]);
+                }
+                else if (V3_Len(p) > 1e-4f)
+                    SH_DBG("[SKIN] empty hand left as modelled (palm reads %.0f deg off)", th * 57.29578f);
+            }
+            M3_Mul(foreSwing, tw, tmp);
+            M3_Mul(tmp, restR, R[b]);
+        }
         else
         {
             M3_Align(gd, md, swing);
             M3_Mul(swing, restR, R[b]);
             if (b == 5)
+            {
                 memcpy(foreSwing, swing, sizeof(foreSwing));
+                memcpy(foreAxis, gd, sizeof(foreAxis));
+            }
         }
         if (s_scaled[b] && lm > 1e-3f && s_childA[b] >= 0)
         {
@@ -2460,6 +2572,8 @@ static void Skin_LoadSettings(PcSkinChara* ch, const char* base)
     ch->gunRaise = ch->gunOut = ch->gunFwd = 0;
     ch->gunTwist = ch->gunPitch = ch->gunYaw = 0;
     ch->handRelax = 0;
+    ch->armOut = 0;
+    ch->gunSet = 0;
     snprintf(path, sizeof(path), "%s.ini", base);
     f = fopen(path, "r");
     if (f == NULL)
@@ -2485,25 +2599,27 @@ static void Skin_LoadSettings(PcSkinChara* ch, const char* base)
         else if (strcmp(key, "flashlight_z") == 0)
             ch->lightOff[2] = val;
         else if (strcmp(key, "gun_raise") == 0)
-            ch->gunRaise = val;
+            ch->gunRaise = val, ch->gunSet = 1;
         else if (strcmp(key, "gun_out") == 0)
-            ch->gunOut = val;
+            ch->gunOut = val, ch->gunSet = 1;
         else if (strcmp(key, "gun_forward") == 0)
-            ch->gunFwd = val;
+            ch->gunFwd = val, ch->gunSet = 1;
         else if (strcmp(key, "gun_twist") == 0)
-            ch->gunTwist = val;
+            ch->gunTwist = val, ch->gunSet = 1;
         else if (strcmp(key, "gun_pitch") == 0)
-            ch->gunPitch = val;
+            ch->gunPitch = val, ch->gunSet = 1;
         else if (strcmp(key, "gun_yaw") == 0)
-            ch->gunYaw = val;
+            ch->gunYaw = val, ch->gunSet = 1;
         else if (strcmp(key, "hand_relax") == 0)
             ch->handRelax = val < 0 ? 0 : (val > 100 ? 100 : val);
+        else if (strcmp(key, "arm_out") == 0)
+            ch->armOut = val < -30 ? -30 : (val > 30 ? 30 : val);
     }
     fclose(f);
     SH_DBG("[SKIN] %s: female=%d brightness=%d fog=%d flashlight=%d at (%d %d %d)", path, ch->female,
            ch->brightness, ch->fogPct, ch->beamPct, ch->lightOff[0], ch->lightOff[1], ch->lightOff[2]);
-    SH_DBG("[SKIN] %s: gun raise=%d out=%d forward=%d twist=%d pitch=%d yaw=%d hand_relax=%d", path, ch->gunRaise,
-           ch->gunOut, ch->gunFwd, ch->gunTwist, ch->gunPitch, ch->gunYaw, ch->handRelax);
+    SH_DBG("[SKIN] %s: gun raise=%d out=%d forward=%d twist=%d pitch=%d yaw=%d hand_relax=%d arm_out=%d", path,
+           ch->gunRaise, ch->gunOut, ch->gunFwd, ch->gunTwist, ch->gunPitch, ch->gunYaw, ch->handRelax, ch->armOut);
 }
 
 int Pc_SkinChara_ReloadSettings(void)
@@ -2584,9 +2700,19 @@ int Pc_SkinChara_HeroGunAdjust(MATRIX* adj)
     for (i = 0; i < 3; i++)
         for (k = 0; k < 3; k++)
             r[i][k] = rz[i][0] * t2[0][k] + rz[i][1] * t2[1][k] + rz[i][2] * t2[2][k];
-    o[0] = hero->gunOff[0] + (float)hero->gunOut * 0.255f;
-    o[1] = hero->gunOff[1] + (float)hero->gunFwd * 0.255f;
-    o[2] = hero->gunOff[2] - (float)hero->gunRaise * 0.255f;
+    /* The fist box centre leaves the gun about 36 mm too far forward (the
+     * slide in the fingers), 11 mm out and 5 mm low on every model hand-fitted
+     * so far (Heather and both James reskins agree within 4 units once this
+     * is taken off), so a model whose ini places no gun starts from there.
+     * Native models keep Harry's own hands. */
+    {
+        int out = hero->gunOut, fwd = hero->gunFwd, raise = hero->gunRaise;
+        if (!hero->gunSet && !hero->native)
+            out = -11, fwd = -36, raise = -5;
+        o[0] = hero->gunOff[0] + (float)out * 0.255f;
+        o[1] = hero->gunOff[1] + (float)fwd * 0.255f;
+        o[2] = hero->gunOff[2] - (float)raise * 0.255f;
+    }
     for (i = 0; i < 3; i++)
     {
         float t = pivot[i] + o[i];
@@ -3662,11 +3788,16 @@ static float Skin_BreathWeight(PcSkinChara* ch)
  * by the speaker table, or for an untabled line, when its pitch matches this
  * character's voice. Opening is quick and closing slower, so syllables read
  * as movement rather than a flicker. */
+/* How far each painted shape opens the jaw: the shape is the mouth, the chin
+ * only follows it (A = M/B/P shut, D = wide open, X = rest). */
+static const float s_shapeJaw[PC_LIP_SHAPES] = { 0.0f, 0.15f, 0.4f, 0.8f, 0.45f, 0.2f, 0.1f, 0.4f, 0.0f };
+
 static float Skin_MouthWeight(PcSkinChara* ch)
 {
     float dt = g_DeltaTime / 4096.0f, target = 0.0f, rate;
     const char* speaker;
-    int female, mine;
+    int female, mine, k, shape = -1;
+    const int shapes = ch->morph[PC_SKIN_MORPH_SHAPE + PC_LIP_SHAPES - 1].count > 0;
     float level = Pc_Lip_Level(&speaker, &female);
 
     /* A line with no speaker on record falls back to the voice's pitch. Every
@@ -3676,8 +3807,27 @@ static float Skin_MouthWeight(PcSkinChara* ch)
      * wears Cheryl's model but still says what Harry says. */
     mine = speaker != NULL ? strcmp(speaker, ch->isPlayer ? "HERO" : ch->def->voice != NULL ? ch->def->voice : ch->name) == 0
                            : (ch->isPlayer ? female == ch->female : female == ch->def->femaleVoice) && (!ch->native || ch->isPlayer);
-    if (level > 0.0f && mine && !(s_rd.active && ch->isPlayer))
-        target = level;
+    if (level >= 0.0f && mine && !(s_rd.active && ch->isPlayer))
+    {
+        target = level > 0.0f ? level : 0.0f;
+        /* A face with painted shapes takes the line's track; a line without
+         * one (a voice mod, an untabled speaker) picks from the loudness. */
+        if (shapes)
+        {
+            shape = Pc_Lip_Shape();
+            if (shape < 0)
+                shape = level <= 0.05f ? PC_LIP_SHAPES - 1 : level < 0.35f ? 1 : level < 0.7f ? 2 : 3;
+            target = s_shapeJaw[shape];
+        }
+    }
+    /* Crossfaded over about 50 ms: each shape's patch sits a hair in front of
+     * the last, so two never fight while one hands over to the next. */
+    for (k = 0; k < PC_LIP_SHAPES && shapes; k++)
+    {
+        float t = (k == shape) ? 1.0f : 0.0f, step = dt / 0.05f;
+        ch->shapeW[k] = ch->shapeW[k] < t ? (ch->shapeW[k] + step > t ? t : ch->shapeW[k] + step)
+                                          : (ch->shapeW[k] - step < t ? t : ch->shapeW[k] - step);
+    }
     rate = target > ch->mouth ? 30.0f : 14.0f;
     ch->mouth += (target - ch->mouth) * (dt * rate > 1.0f ? 1.0f : dt * rate);
     return ch->mouth;
@@ -3718,6 +3868,8 @@ static void Skin_ApplyMorphs(PcSkinChara* ch, float h, float ofx, float ofy, flo
     w[PC_SKIN_MORPH_MOUTH] = ch->morph[PC_SKIN_MORPH_MOUTH].count ? Skin_MouthWeight(ch) : 0.0f;
     Skin_GripWeights(ch, &w[PC_SKIN_MORPH_GRIP_L]);
     w[PC_SKIN_MORPH_BREATH] = ch->morph[PC_SKIN_MORPH_BREATH].count ? Skin_BreathWeight(ch) : 0.0f;
+    for (k = 0; k < PC_LIP_SHAPES; k++)
+        w[PC_SKIN_MORPH_SHAPE + k] = ch->morph[PC_SKIN_MORPH_SHAPE + k].count ? ch->shapeW[k] : 0.0f;
     for (k = 0; k < PC_SKIN_MORPH_COUNT; k++)
     {
         const PcSkinMorph* m = &ch->morph[k];
@@ -3867,6 +4019,33 @@ void Pc_SkinChara_End(void* chara, void* otp, int shift, int hideHead)
     if (ch == NULL || ot == NULL)
         return;
     Skin_Ragdoll(ch);
+    /* A skirt or coat wider than Harry's hips swallowed the hand his arm
+     * angle hangs at (Lisa DBD). The left arm turns out about the shoulder,
+     * around the chest's forward axis; the right arm is left alone, as a held
+     * weapon is drawn from the game's own hand matrix and would part from it. */
+    if (ch->armOut != 0 && ch->have[1] && ch->have[4])
+    {
+        float th = ch->armOut * 0.0174533f * (ch->def->rest[4].T[0] < 0 ? 1.0f : -1.0f);
+        float rz[9] = { cosf(th), -sinf(th), 0, sinf(th), cosf(th), 0, 0, 0, 1 }, t1[9], rt1[9], R[9], piv[3];
+        int b, i, j;
+        for (i = 0; i < 3; i++)
+            for (j = 0; j < 3; j++)
+                rt1[i * 3 + j] = ch->rv[1][j * 3 + i];
+        M3_Mul(ch->rv[1], rz, t1);
+        M3_Mul(t1, rt1, R);
+        memcpy(piv, ch->tv[4], sizeof(piv));
+        for (b = 4; b <= 6; b++)
+        {
+            float nr[9], d[3], o[3];
+            if (!ch->have[b])
+                continue;
+            M3_Mul(R, ch->rv[b], nr);
+            memcpy(ch->rv[b], nr, sizeof(nr));
+            for (i = 0; i < 3; i++) d[i] = ch->tv[b][i] - piv[i];
+            M3_MulV(R, d, o);
+            for (i = 0; i < 3; i++) ch->tv[b][i] = o[i] + piv[i];
+        }
+    }
     beam = 1.0f - ch->beamPct / 100.0f;
     /* The player's +2 self-beam flag, as func_8003DA9C sets for the stock body. */
     if (ch->isPlayer)

@@ -1044,6 +1044,11 @@ static void ParseArgs(int argc, char* argv[])
             s_RendererArg = argv[i + 1];
             i++;
         }
+        else if (strcmp(argv[i], "-fullshaders") == 0)
+        {
+            extern int g_PsyX_LeanShaders;
+            g_PsyX_LeanShaders = 0;
+        }
         else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0)
         {
             printf("Usage: SilentHillPC [options]\n");
@@ -1732,6 +1737,13 @@ int main(int argc, char* argv[])
      * multisampled (the native target is scaled onto it by a blit). */
     {
         extern int g_PcNativeRender;
+        extern float g_cfg_renderScale;
+        g_cfg_renderScale = g_PcConfig.renderScale;
+        {
+            extern int g_PsyX_FrameInterp, g_PsyX_FrameInterpTargetHz;
+            g_PsyX_FrameInterp         = g_PcConfig.frameInterp;
+            g_PsyX_FrameInterpTargetHz = g_PcConfig.frameInterpFps;
+        }
         g_PcNativeRender = g_PcConfig.nativeResolution;
         if (g_PcNativeRender)
             SH_LOG("Render: native PSX resolution, %dx%d window", windowWidth, windowHeight);

@@ -1250,8 +1250,9 @@ public class ControlsForm : Form
         }
 
         // Open on the scheme the game will actually use: with any alternate
-        // camera style the classic binds only drive menus, so editing them (the
-        // old fixed default page) looked like the launcher not saving.
+        // camera style the classic binds are not used at all, menus included, so
+        // editing them (the old fixed default page) looked like the launcher not
+        // saving.
         activeScheme = config.Get("control_style", "classic") != "classic" ? 1 : 0;
         chkAltCamControls.Checked = activeScheme == 1;
         foreach (Control c in rearLookControls) c.Enabled = activeScheme == 1;

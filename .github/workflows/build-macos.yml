@@ -5,7 +5,7 @@ name: Build PC Port (macOS arm64)
 # artifact this run uploads and attaches it to the nightly release alongside the
 # Windows build. The Windows launcher never consumes these files.
 #
-# macos-14 runners are Apple Silicon (arm64). The binary is UNSIGNED — Gatekeeper
+# macos-15 runners are Apple Silicon (arm64). The binary is UNSIGNED — Gatekeeper
 # will warn; users right-click->Open once or run:
 #   xattr -dr com.apple.quarantine .   (whole folder: binary + map .dylibs)
 
@@ -27,7 +27,7 @@ jobs:
     if: github.repository == 'SlickAmogus/silent-hill-decomp'
     permissions:
       contents: write
-    runs-on: macos-14
+    runs-on: macos-15
 
     steps:
       - name: Checkout (with PsyCross submodule)

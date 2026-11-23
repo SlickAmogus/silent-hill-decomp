@@ -1843,6 +1843,75 @@ static int cd_legacy_done(const char* id)
     return done;
 }
 
+/* ------------------------------------------------------------------------ */
+/* updates to downloaded characters                                          */
+
+#define CD_UPD_NOASK    "gamedata/chara_update_noask"
+#define CD_UPD_DECLINED "gamedata/chara_update_declined.txt"
+
+static int cd_updatable(const CdEntry* e)
+{
+    return Cd_IsDownloaded(e) && Cd_NeedsUpdate(e);
+}
+
+int Cd_UpdatesOffered(void)
+{
+    char* t;
+    int   i, n = 0;
+
+    if (s_catState != CD_CAT_READY)
+        return 0;
+    t = cd_read_all(CD_UPD_DECLINED, 1 << 20);
+    for (i = 0; i < s_catCount; i++)
+    {
+        const CdEntry* e = &s_cat[i];
+        char line[CD_ID_MAX + 16 + 65 + 4];
+
+        if (!cd_updatable(e))
+            continue;
+        snprintf(line, sizeof(line), "%s\t%s\t%s\n", e->id, e->version, e->sha256);
+        if (t == NULL || strstr(t, line) == NULL)
+            n++;
+    }
+    free(t);
+    return n;
+}
+
+void Cd_DeclineUpdates(void)
+{
+    FILE* f = fopen(CD_UPD_DECLINED, "w");
+    int   i;
+
+    if (f == NULL)
+        return;
+    for (i = 0; i < s_catCount; i++)
+        if (cd_updatable(&s_cat[i]))
+            fprintf(f, "%s\t%s\t%s\n", s_cat[i].id, s_cat[i].version, s_cat[i].sha256);
+    fclose(f);
+}
+
+void Cd_QueueUpdates(void)
+{
+    int i;
+
+    for (i = 0; i < s_catCount; i++)
+        if (cd_updatable(&s_cat[i]))
+            Cd_QueueInstall(i);
+}
+
+int Cd_UpdateNoAsk(void) { return cd_exists(CD_UPD_NOASK); }
+
+void Cd_SetUpdateNoAsk(void)
+{
+    FILE* f = fopen(CD_UPD_NOASK, "w");
+
+    if (f != NULL)
+    {
+        fputs("The character update offer was turned off (Don't ask again). Delete to be asked again.\n", f);
+        fclose(f);
+    }
+}
+
 int Cd_OldJojoNoAsk(void) { return cd_exists(CD_JOJO_NOASK); }
 
 void Cd_SetOldJojoNoAsk(void)

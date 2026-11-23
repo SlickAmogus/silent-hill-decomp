@@ -83,6 +83,66 @@ final class LauncherModel: ObservableObject {
             })
     }
 
+    /* Dithering, one choice over two keys: "off", or the dither_resolution it
+     * stands for (0 = Native PSX, N = lines, -1 = one cell per rendered pixel).
+     * Off leaves dither_resolution for the next time it is turned on. */
+    var dithering: Binding<String> {
+        Binding(
+            get: {
+                if (self.values["dithering"] ?? "1") == "0" { return "off" }
+                let v = Int(self.values["dither_resolution"] ?? "480") ?? 480
+                let h = self.ditherViewport.1
+                if h == 0 { return "0" }
+                if v == -1 || v >= h { return "-1" }
+                return String(v)
+            },
+            set: { v in
+                if v == "off" {
+                    self.write(["dithering": "0"])
+                } else {
+                    self.write(["dithering": "1", "dither_resolution": v])
+                }
+            })
+    }
+
+    /* The list the game's Dithering row shows for these settings: Off, Native
+     * (PSX), the standard heights below the 3D view's own, then the view's own
+     * size, named for its aspect (854 × 480 at 16:9). */
+    var ditherOptions: [Option] {
+        var opts: [Option] = [("Off", "off"), ("Native (PSX)", "0")]
+        let (w, h) = ditherViewport
+        guard h > 0 else { return opts }
+        for lines in [240, 480, 720, 1080, 1440, 2160, 2880, 4320] where lines < h {
+            let lw = 2 * Int((Double(lines) * Double(w) / Double(h) / 2.0).rounded())
+            opts.append(("\(lw) × \(lines)", String(lines)))
+        }
+        opts.append(("\(w) × \(h)", "-1"))
+        return opts
+    }
+
+    /* The 3D view's size in rendered pixels, worked out as the game does: the
+     * chosen resolution times render_scale, 4:3 inside it when the 3D view is
+     * pillarboxed. 0x0 under Native (PSX), where the game renders at the PSX's
+     * own size. */
+    private var ditherViewport: (Int, Int) {
+        if values["native_resolution"] == "1" { return (0, 0) }
+        guard var w = Int(values["width"] ?? "640"), var h = Int(values["height"] ?? "480"), w > 0, h > 0 else {
+            return (0, 0)
+        }
+        var s = Double(values["render_scale"] ?? "1") ?? 1
+        if !(s > 0 && s <= 1) { s = 1 }
+        if s < 0.999 {
+            let sw = Int(Double(w) * s + 0.5) & ~1
+            let sh = Int(Double(h) * s + 0.5) & ~1
+            w = sw < 256 ? min(w, 256) : sw
+            h = sh < 192 ? min(h, 192) : sh
+        }
+        if values["widescreen_mode"] == "0" && w * 3 > h * 4 {
+            w = Int(Double(h) * 4.0 / 3.0 + 0.5)
+        }
+        return (w, h)
+    }
+
     private func write(_ changes: [String: String]) {
         guard let config else { return }
         for (k, v) in changes {
@@ -360,11 +420,12 @@ struct LauncherView: View {
             }
 
             Section("Graphics") {
+                OptionPicker(title: "Renderer", selection: model.value("renderer", "gl"), options: Self.renderers)
                 OptionPicker(title: "Texture filtering", selection: model.value("texture_filter", "0"), options: [
                     ("Off (PSX)", "0"), ("Bilinear", "1"), ("Trilinear", "2"),
                     ("Anisotropic 2x", "3"), ("Anisotropic 4x", "4"), ("Anisotropic 8x", "5"), ("Anisotropic 16x", "6"),
                 ])
-                Toggle("PSX dithering", isOn: model.flag("dithering"))
+                OptionPicker(title: "PSX dithering", selection: model.dithering, options: model.ditherOptions)
                 OptionPicker(title: "Antialiasing", selection: model.value("msaa", "0"), options: [
                     ("Off", "0"), ("2x MSAA", "2"), ("4x MSAA", "4"), ("8x MSAA", "8"),
                 ])
@@ -440,6 +501,16 @@ struct LauncherView: View {
             model.addDisc(url)
         }
     }
+
+    /// Metal runs through ANGLE, which make_app.sh bundles only when pc_port/angle/
+    /// holds the dylibs. Offer it when it can actually be honoured; the game falls
+    /// back to OpenGL (and says so in the log) if the files go missing later.
+    private static let renderers: [Option] = {
+        let egl = Bundle.main.bundleURL.appendingPathComponent("Contents/Frameworks/libEGL.dylib").path
+        var list: [Option] = [("OpenGL", "gl")]
+        if FileManager.default.fileExists(atPath: egl) { list.append(("Metal (via ANGLE)", "metal")) }
+        return list
+    }()
 
     private static let resolutions: [Option] = {
         var res = ["640x480", "1024x768", "1280x720", "1280x960", "1600x1200", "1920x1080", "2560x1440", "3840x2160"]

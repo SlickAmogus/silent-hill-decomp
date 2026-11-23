@@ -230,6 +230,52 @@ void BindInput_KeyLabel(const char* v, char* out, size_t n)
     snprintf(out, n, "%s", (label != NULL && label[0] != '\0') ? label : (v != NULL ? v : ""));
 }
 
+int BindInput_MouseCode(const char* name)
+{
+    if (name != NULL && SDL_strncasecmp(name, "Mouse", 5) == 0 && name[5] >= '1' && name[5] <= '5' && name[6] == '\0')
+    {
+        static const int button[5] = { SDL_BUTTON_LEFT, SDL_BUTTON_RIGHT, SDL_BUTTON_MIDDLE, SDL_BUTTON_X1, SDL_BUTTON_X2 };
+
+        return BIND_MOUSE_BASE + button[name[5] - '1'];
+    }
+    return 0;
+}
+
+int BindInput_Code(const char* name)
+{
+    const int mouse = BindInput_MouseCode(name);
+
+    if (mouse != 0)
+        return mouse;
+    return (name != NULL && name[0] != '\0') ? (int)SDL_GetScancodeFromName(name) : 0;
+}
+
+int BindInput_CodeHeld(int code)
+{
+    if (code > BIND_MOUSE_BASE)
+        return (SDL_GetMouseState(NULL, NULL) & SDL_BUTTON(code - BIND_MOUSE_BASE)) != 0;
+    if (code > 0 && code < SDL_NUM_SCANCODES)
+    {
+        const Uint8* ks = SDL_GetKeyboardState(NULL);
+
+        return ks != NULL && ks[code];
+    }
+    return 0;
+}
+
+const char* BindInput_MouseName(int code)
+{
+    switch (code - BIND_MOUSE_BASE)
+    {
+        case SDL_BUTTON_LEFT:   return "Mouse1";
+        case SDL_BUTTON_RIGHT:  return "Mouse2";
+        case SDL_BUTTON_MIDDLE: return "Mouse3";
+        case SDL_BUTTON_X1:     return "Mouse4";
+        case SDL_BUTTON_X2:     return "Mouse5";
+    }
+    return NULL;
+}
+
 int BindInput_ScancodeFromLabel(const char* label)
 {
     SDL_Keycode  key = SDL_GetKeyFromName(label);

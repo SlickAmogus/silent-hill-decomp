@@ -23,6 +23,12 @@ void Pc_ConfirmDialog_Open3(const char* title, const char* message, const char* 
 /* A notice: the message and OK alone. Update answers PC_CONFIRM_YES for OK,
  * PC_CONFIRM_NO for Cancel. The title is shown upper-cased. */
 void Pc_ConfirmDialog_OpenOk(const char* title, const char* message);
+/* A working notice: the message and nothing to press, for work that must not
+ * be interrupted. Update answers PC_CONFIRM_NONE until the caller closes it
+ * with Pc_ConfirmDialog_Cancel. The title is shown upper-cased. */
+void Pc_ConfirmDialog_OpenBusy(const char* title, const char* message);
+/* Replace the message of the dialog that is open (a progress line). */
+void Pc_ConfirmDialog_SetMessage(const char* message);
 
 /* Dismiss without an answer, for a host closing underneath the dialog. */
 void Pc_ConfirmDialog_Cancel(void);
