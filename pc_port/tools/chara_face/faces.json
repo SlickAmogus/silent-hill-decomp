@@ -20,7 +20,8 @@
     6.0,
     5.5
    ],
-   "open": 2.56
+   "open": 3.84,
+   "visemes": true
   }
  },
  "SIBYL": {
@@ -44,7 +45,8 @@
     5.0,
     5.5
    ],
-   "open": 2.4
+   "open": 3.6,
+   "visemes": true
   }
  },
  "LISA": {
@@ -68,7 +70,8 @@
     6.6,
     5.0
    ],
-   "open": 2.4
+   "open": 3.6,
+   "visemes": true
   }
  },
  "BLISA": {
@@ -92,7 +95,8 @@
     6.6,
     5.0
    ],
-   "open": 2.4
+   "open": 3.6,
+   "visemes": true
   }
  },
  "KAU": {
@@ -116,7 +120,8 @@
     -2.7,
     5.5
    ],
-   "open": 3.2
+   "open": 4.8,
+   "visemes": true
   }
  },
  "SRL": {
@@ -140,7 +145,8 @@
     6.25,
     5.0
    ],
-   "open": 2.08
+   "open": 3.12,
+   "visemes": true
   }
  },
  "DARIA": {
@@ -164,7 +170,8 @@
     4.0,
     5.5
    ],
-   "open": 2.4
+   "open": 3.6,
+   "visemes": true
   }
  },
  "AR": {
@@ -188,7 +195,8 @@
     8.4,
     5.0
    ],
-   "open": 2.08
+   "open": 3.12,
+   "visemes": true
   }
  },
  "MSB": {
@@ -212,7 +220,8 @@
     5.0,
     5.5
    ],
-   "open": 2.4
+   "open": 3.6,
+   "visemes": true
   }
  }
 }

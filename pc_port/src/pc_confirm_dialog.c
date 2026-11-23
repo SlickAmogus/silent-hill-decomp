@@ -48,7 +48,7 @@ static Uint32 s_phaseStart;
 #define CD_CLOSE_MS 140u
 
 static int  s_sel;          /* 0 = Yes (or OK), 1 = No, 2 = the third button */
-static int  s_btnCount = 2; /* 1 = OK alone */
+static int  s_btnCount = 2; /* 1 = OK alone, 0 = a working notice with nothing to press */
 static char s_third[CD_TEXT_MAX];
 static char s_title[CD_TEXT_MAX];
 static char s_message[CD_TEXT_MAX];
@@ -557,6 +557,27 @@ void Pc_ConfirmDialog_OpenOk(const char* title, const char* message)
     s_sel      = 0;
 }
 
+void Pc_ConfirmDialog_OpenBusy(const char* title, const char* message)
+{
+    char up[CD_TEXT_MAX];
+
+    if (s_phase == CD_OPENING || s_phase == CD_SHOWN)
+        return;
+    Pc_ConfirmDialog_Open(NULL, message);
+    Pc_LangUtf8Upper(title ? Pc_LangQuick(title) : "", up, (int)sizeof(up));
+    snprintf(s_title, sizeof(s_title), "%s", up);
+    s_btnCount = 0;
+    s_sel      = 0;
+}
+
+void Pc_ConfirmDialog_SetMessage(const char* message)
+{
+    if (s_phase == CD_CLOSED || strcmp(s_message, message ? message : "") == 0)
+        return;
+    snprintf(s_message, sizeof(s_message), "%s", message ? message : "");
+    s_textDirty = 1;
+}
+
 static void cd_close(void)
 {
     s_phase      = CD_CLOSING;
@@ -579,6 +600,8 @@ int Pc_ConfirmDialog_Update(int left, int right, int confirm, int cancel)
     float mx, my;
 
     if (s_phase != CD_SHOWN) /* ignore input while animating in/out */
+        return PC_CONFIRM_NONE;
+    if (s_btnCount == 0)
         return PC_CONFIRM_NONE;
     if (Pc_ResetSettings_InputMode() == PC_INPUT_TOUCH &&
         SDL_GetTicks() - s_openTicks < CD_TOUCH_GUARD_MS)
@@ -742,7 +765,7 @@ void Pc_ConfirmDialog_Draw(void)
         float need = (3.0f * ((float)s_thirdW + pad) + 2.0f * pad) / (1.0f - 2.0f * 0.06f);
         if (panelW < need) panelW = need;
     }
-    if (panelW < (float)s_hintW + 2.0f * pad) panelW = (float)s_hintW + 2.0f * pad;
+    if (s_btnCount > 0 && panelW < (float)s_hintW + 2.0f * pad) panelW = (float)s_hintW + 2.0f * pad;
     if (panelW > 0.90f * vpW) panelW = 0.90f * vpW;
     /* One line sits in the room between the rule and the buttons; more lines
      * make the panel that much taller. */
@@ -762,6 +785,9 @@ void Pc_ConfirmDialog_Draw(void)
         btnW = (float)s_thirdW + pad;
     btnB   = panelB + hintH + base * 0.08f;
     btnT   = btnB + btnH;
+    /* Nothing to press: the message takes the whole body. */
+    if (s_btnCount == 0)
+        btnT = panelB;
     btnL[0] = (vpW - ((float)s_btnCount * btnW + (float)(s_btnCount - 1) * btnGap)) * 0.5f;
     for (b = 1; b < s_btnCount; b++)
         btnL[b] = btnL[b - 1] + btnW + btnGap;
@@ -859,7 +885,7 @@ void Pc_ConfirmDialog_Draw(void)
         }
     }
 
-    if (s_texHint)
+    if (s_texHint && s_btnCount > 0)
     {
         float hx = panelL + (panelW - (float)s_hintW) * 0.5f;
         float hy = panelB + hintH * 0.78f;

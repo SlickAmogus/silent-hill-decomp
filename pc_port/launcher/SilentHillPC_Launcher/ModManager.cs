@@ -81,7 +81,8 @@ namespace SilentHillPC_Launcher
     public class ModStateFile
     {
         [DataMember] public List<ModStateDto> Mods;
-        [DataMember] public bool DllWarningAck; /* "Don't show me again" on the DLL-mod install warning */
+        [DataMember] public List<string> DllModsAcked; /* the one-time game-code note, agreed to (CodeModAckKey) */
+        [DataMember] public bool PluginsTurnedOn;      /* enable_plugins is on because Apply turned it on */
     }
 
     /// <summary>
@@ -106,6 +107,7 @@ namespace SilentHillPC_Launcher
 
         public  string ModsDir         { get { return Path.Combine(_gameRoot, "mods"); } }
         private string GamedataDir     { get { return Path.Combine(_gameRoot, "gamedata"); } }
+        public string GameRoot         { get { return _gameRoot; } }
         private string TexturemodsDir  { get { return Path.Combine(GamedataDir, "texturemods"); } }
         private string LoadDir         { get { return Path.Combine(GamedataDir, "load"); } }
         private string FmvDir          { get { return Path.Combine(GamedataDir, "FMV"); } }
@@ -117,8 +119,12 @@ namespace SilentHillPC_Launcher
 
         public List<ModEntry> Mods = new List<ModEntry>();
 
-        /// <summary>"Don't show me again" on the DLL-mod install warning (persisted).</summary>
-        public bool DllWarningAck;
+        /// <summary>Mods the one-time game-code note was agreed to for, by
+        /// <see cref="CodeModAckKey"/> (persisted).</summary>
+        public HashSet<string> DllModsAcked = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>enable_plugins is on because Apply turned it on (persisted).</summary>
+        private bool _pluginsTurnedOn;
 
         public ModManager(string gameRoot, ConfigManager config)
         {
@@ -331,7 +337,8 @@ namespace SilentHillPC_Launcher
         {
             Directory.CreateDirectory(ModsDir);
             var state  = LoadState();
-            DllWarningAck = state.DllWarningAck;
+            DllModsAcked = new HashSet<string>(state.DllModsAcked ?? new List<string>(), StringComparer.OrdinalIgnoreCase);
+            _pluginsTurnedOn = state.PluginsTurnedOn;
             var byName = new Dictionary<string, ModStateDto>(StringComparer.OrdinalIgnoreCase);
             foreach (var s in state.Mods) if (s.Name != null) byName[s.Name] = s;
 
@@ -593,7 +600,8 @@ namespace SilentHillPC_Launcher
                     Name = m.Name, Enabled = m.Enabled, DisplayName = m.DisplayName, Author = m.Author,
                     Description = m.Description, EssentialId = m.EssentialId, EssentialSha = m.EssentialSha
                 }).ToList(),
-                DllWarningAck = DllWarningAck
+                DllModsAcked    = DllModsAcked.OrderBy(s => s, StringComparer.OrdinalIgnoreCase).ToList(),
+                PluginsTurnedOn = _pluginsTurnedOn
             };
             using (var fs = File.Create(StatePath))
                 new DataContractJsonSerializer(typeof(ModStateFile)).WriteObject(fs, f);
@@ -883,6 +891,8 @@ namespace SilentHillPC_Launcher
         public class ApplyResult
         {
             public int Texture, Load, Fmv, Gameplay, Files, Skipped;
+            public int PluginMods;          /* applied mods that ship plugins/*.dll */
+            public bool PluginsTurnedOff;   /* this Apply turned enable_plugins back off */
             public bool LooseEnabled;
             public List<string> Warnings = new List<string>();
         }
@@ -931,6 +941,9 @@ namespace SilentHillPC_Launcher
             // 3) Deploy library mods (Gameplay, Load, FMV, TotalConversion, Preset)
             if (report != null) report(0, 0, Loc.T("Deploying mods…"));
             var plan = BuildDeployPlan(result);
+            // Read first: it moves downloads still sitting in load\CHARA out of the
+            // way of the undeploy below.
+            CharacterCatalog.ReadRecords(_gameRoot);
             var keep = new HashSet<string>(plan.Keys.Select(Rel), StringComparer.OrdinalIgnoreCase);
             var old  = ReadManifest();
             Undeploy(keep);
@@ -958,6 +971,29 @@ namespace SilentHillPC_Launcher
 
             bool loose = looseFileSupport || loadMods.Count > 0 || codeMods.Count > 0;
             _config.Set("allow_loose_files", loose ? "1" : "0");
+
+            // The game loads plugins/*.dll only with enable_plugins on. On while an
+            // applied mod ships a plugin; back off only if it was turned on here, so
+            // a value set by hand stays as it is. Read from disk first: the game
+            // and text editors write config.cfg too.
+            _config.RefreshFromDisk();
+            int pluginsVal;
+            bool pluginsOn = int.TryParse(_config.Get("enable_plugins", "0").Trim(), out pluginsVal) && pluginsVal != 0;
+            result.PluginMods = codeMods.Count(UsesPlugins);
+            if (result.PluginMods > 0 && !pluginsOn)
+            {
+                _config.Set("enable_plugins", "1");
+                _pluginsTurnedOn = true;
+            }
+            else if (result.PluginMods == 0 && _pluginsTurnedOn)
+            {
+                if (pluginsOn)
+                {
+                    _config.Set("enable_plugins", "0");
+                    result.PluginsTurnedOff = true;
+                }
+                _pluginsTurnedOn = false;
+            }
 
             _config.Save();
             result.LooseEnabled = loose;
@@ -1089,12 +1125,50 @@ namespace SilentHillPC_Launcher
             return true;
         }
 
-        /// <summary>Deploy a gameplay mod's DLLs. WHITELISTED: only maps/*.dll ever
-        /// reaches the game folder -- a gameplay mod must never be able to overwrite
-        /// the game or launcher executables, config, or anything else in the root.
-        /// (A plugins/ runtime channel was reviewed and cut: no consumer, pure
-        /// attack surface.) load/ and FMV/ content is deployed by its own tracked
-        /// copiers; everything not on the whitelist is skipped and reported.</summary>
+        /// <summary>The DLLs Apply deploys from a library mod, as "maps/x.dll" or
+        /// "plugins/y.dll": the whitelist <see cref="CopyGameplayTracked"/> applies.</summary>
+        public static List<string> DeployableDlls(string libraryPath)
+        {
+            var list = new List<string>();
+            if (string.IsNullOrEmpty(libraryPath) || !Directory.Exists(libraryPath)) return list;
+            foreach (var file in Directory.GetFiles(libraryPath, "*.dll", SearchOption.AllDirectories))
+            {
+                string rel = file.Substring(libraryPath.Length).TrimStart('\\', '/').ToLowerInvariant().Replace('\\', '/');
+                if (rel.EndsWith(".dll") && !rel.Contains("..") && rel.Count(c => c == '/') == 1 &&
+                    (rel.StartsWith("maps/") || rel.StartsWith("plugins/")))
+                    list.Add(rel);
+            }
+            return list;
+        }
+
+        /// <summary>A library mod that brings game code of its own to deploy.</summary>
+        public static bool IsCodeMod(ModEntry m)
+        {
+            return m.Source == ModSource.Library &&
+                   (m.Type == ModType.Gameplay || m.Type == ModType.TotalConversion) &&
+                   DeployableDlls(m.LibraryPath).Count > 0;
+        }
+
+        private static bool UsesPlugins(ModEntry m)
+        {
+            return DeployableDlls(m.LibraryPath).Any(r => r.StartsWith("plugins/"));
+        }
+
+        /// <summary>What the one-time game-code note is remembered by: the mod's
+        /// name, plus the DLLs it named as unusual, so a mod that starts importing
+        /// something new is shown again.</summary>
+        public static string CodeModAckKey(ModEntry m, List<string> unusual)
+        {
+            string name = m.Name ?? "";
+            return unusual.Count == 0 ? name
+                 : name + "|" + string.Join(";", unusual.OrderBy(s => s, StringComparer.OrdinalIgnoreCase));
+        }
+
+        /// <summary>Deploy a gameplay mod's DLLs. WHITELISTED: only maps/*.dll and
+        /// plugins/*.dll, one level deep, ever reach the game folder -- a gameplay mod
+        /// must never be able to overwrite the game or launcher executables, config,
+        /// or anything else in the root. load/ and FMV/ content is deployed by its own
+        /// tracked copiers; everything not on the whitelist is skipped and reported.</summary>
         private int CopyGameplayTracked(string src, string dstRoot, List<string> manifest, List<string> warnings)
         {
             int n = 0;
@@ -1202,7 +1276,32 @@ namespace SilentHillPC_Launcher
                 catch (Exception ex) { result.Warnings.Add(m.Label + ": " + ex.Message); }
             }
 
+            // Downloads load after load\CHARA, so every mod's file of the same name wins
+            // over one -- except jojo670's old unversioned pack, which the downloads
+            // replace: its copy of a downloaded character is not deployed.
+            var downloaded = CharacterCatalog.DownloadedRels(_gameRoot);
+            var oldJojoRoots = loadMods.Where(IsOldJojoPack)
+                                       .Select(m => DeploySourceRoot(m.LibraryPath, ModType.Load)).ToList();
+            foreach (var dst in plan.Keys.ToList())
+                if (downloaded.Contains(Rel(dst)) &&
+                    oldJojoRoots.Any(r => plan[dst].StartsWith(r, StringComparison.OrdinalIgnoreCase)))
+                    plan.Remove(dst);
+
             return plan;
+        }
+
+        /// <summary>jojo670's Additional Characters from before the catalog: modinfo id
+        /// additionalcharacters, his name as author, and no version line.</summary>
+        private static bool IsOldJojoPack(ModEntry m)
+        {
+            if (!string.Equals(m.ModInfoId, "additionalcharacters", StringComparison.OrdinalIgnoreCase)) return false;
+            Dictionary<string, string> info;
+            try { info = ReadModInfo(m); } catch { return false; }
+            string v;
+            if (info == null) return false;
+            bool his = (info.TryGetValue("author", out v) && v.IndexOf("jojo670", StringComparison.OrdinalIgnoreCase) >= 0) ||
+                       (m.Author ?? "").IndexOf("jojo670", StringComparison.OrdinalIgnoreCase) >= 0;
+            return his && !(info.TryGetValue("version", out v) && !string.IsNullOrWhiteSpace(v));
         }
 
         private static void PlanTree(string src, string dstRoot, Dictionary<string, string> plan,

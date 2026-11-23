@@ -7,15 +7,30 @@ using System.Linq;
 namespace SilentHillPC_Launcher
 {
     /// <summary>
-    /// Minimal PE import-table reader for install-time screening of DLL mods.
-    /// Mirrors the game's dll_security.c fingerprint: edited game code (map
+    /// Minimal PE import-table reader for screening DLL mods before their first
+    /// Apply. Mirrors the game's dll_security.c fingerprint: edited game code (map
     /// overlay DLLs) imports only libraries the game itself already loads.
     /// The allowlist is derived from the installed game exe (SetGameExe), so
     /// a DLL importing anything the game does NOT use is worth naming in the
-    /// install warning. This is a lint for the consent dialog, not a proof.
+    /// game-code note (DllWarningDialog). A plugins/*.dll is held to the game's
+    /// plugin rule instead (DLL_AUDIT_PLUGIN). This is a lint, not a proof.
     /// </summary>
     public static class PeImports
     {
+        // The only imports the game's plugin audit refuses (dll_security.c,
+        // s_blockedDlls). Any other library is a plugin's own business: a Visual
+        // C++ build imports its runtime, one with a window user32.
+        static readonly string[] PluginBlocked =
+        {
+            "ws2_32.dll", "wsock32.dll", "wininet.dll", "urlmon.dll", "winhttp.dll", "shell32.dll"
+        };
+
+        static bool InPluginsFolder(string path)
+        {
+            string dir = Path.GetFileName(Path.GetDirectoryName(path.Replace('/', '\\')) ?? "");
+            return dir.Equals("plugins", StringComparison.OrdinalIgnoreCase);
+        }
+
         // Baseline always allowed even if the game exe can't be read; the real
         // allowlist is DERIVED from the installed game exe's own imports (see
         // SetGameExe) so it matches whatever libraries that build links --
@@ -123,10 +138,10 @@ namespace SilentHillPC_Launcher
             catch { return null; }
         }
 
-        /// <summary>Scan every DLL inside a dropped mod (folder or .zip) and
-        /// report those that don't look like edited game code, as
-        /// "name.dll (imports: user32.dll, ws2_32.dll)" lines. .rar/.7z can't
-        /// be peeked here; those get a generic note from the caller.</summary>
+        /// <summary>Scan every DLL inside a mod (folder or .zip) and report those
+        /// that don't look like edited game code, as
+        /// "name.dll (imports: user32.dll, ws2_32.dll)" lines. .rar/.7z can't be
+        /// peeked; the Mod Manager scans those once unpacked into the library.</summary>
         public static List<string> ScanModForSuspiciousDlls(string path)
         {
             var findings = new List<string>();
@@ -135,7 +150,7 @@ namespace SilentHillPC_Launcher
                 if (Directory.Exists(path))
                 {
                     foreach (var f in Directory.GetFiles(path, "*.dll", SearchOption.AllDirectories))
-                        Check(Path.GetFileName(f), File.ReadAllBytes(f), findings);
+                        Check(Path.GetFileName(f), File.ReadAllBytes(f), findings, InPluginsFolder(f));
                 }
                 else if (File.Exists(path) && Path.GetExtension(path).Equals(".zip", StringComparison.OrdinalIgnoreCase))
                 {
@@ -149,7 +164,7 @@ namespace SilentHillPC_Launcher
                             using (var es = en.Open())
                             {
                                 es.CopyTo(ms);
-                                Check(en.FullName, ms.ToArray(), findings);
+                                Check(en.FullName, ms.ToArray(), findings, InPluginsFolder(en.FullName));
                             }
                         }
                     }
@@ -159,7 +174,7 @@ namespace SilentHillPC_Launcher
             return findings;
         }
 
-        static void Check(string name, byte[] img, List<string> findings)
+        static void Check(string name, byte[] img, List<string> findings, bool plugin)
         {
             var imports = GetImportedDlls(img);
             if (imports == null)
@@ -167,7 +182,8 @@ namespace SilentHillPC_Launcher
                 findings.Add(name + " (not a valid 64-bit DLL)");
                 return;
             }
-            var odd = imports.Where(d => !IsAllowed(d)).Distinct().ToList();
+            var odd = imports.Where(d => plugin ? PluginBlocked.Contains(d.ToLowerInvariant()) : !IsAllowed(d))
+                             .Distinct().ToList();
             if (odd.Count > 0)
                 findings.Add(name + " (imports: " + string.Join(", ", odd) + ")");
         }

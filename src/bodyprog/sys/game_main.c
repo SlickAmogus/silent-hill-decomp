@@ -16,11 +16,18 @@ extern int g_PcHorPlusEnabled;
 extern int g_PsxSkipFramebufferStore;
 extern int g_PcAllowDebugControls;
 int g_PcMapScreenActive = 0; /* set while paper-map overlay is displayed */
+extern int  g_PsyX_FrameInterp;
+extern void PsyX_FrameInterp_CaptureWorld(const short* rot, const int* trans, int worldValid, int tickHz);
+extern void PsyX_FrameInterp_SetActors(const int* xyz, const int* ids, int count);
 
 /* 1 once this frame's Gfx_InGameDraw has submitted the world. The fog-colored
  * clear is only correct on a frame that actually drew the world behind it; on a
  * frame that drew nothing it IS the visible image, which is the grey flash. */
 int g_PcWorldDrawnThisFrame = 0;
+/* How often MainLoop is producing frames right now, for frame
+ * interpolation: it has to know how long a tick lasts to space the frames
+ * it adds. 0 = uncapped. */
+static int s_PcFrameTickHz = 0;
 
 /* The framing the WORLD was last actually drawn with. HUD elements that lay
  * themselves out earlier in the frame than the world is submitted (the minimap
@@ -3123,6 +3130,7 @@ void MainLoop(void) // 0x80032EE0
                 VSync(SyncMode_Wait);
                 ML_TRACE("VSync-Wait-done");
 #ifdef SH_PC_PORT
+                s_PcFrameTickHz = 60;
                 /* Backstop that makes the wait above a real one-per-frame gate.
                  * In-game cutscenes run here (SysState_EventCallback), and this
                  * single wait is the whole reason they cannot exceed 60. But
@@ -3176,12 +3184,16 @@ void MainLoop(void) // 0x80032EE0
                     static Uint64 s_lastFrameTime = 0;
                     int effectiveMin = g_IntervalVBlanks;
                     int screenUnlocked = Pc_ScreenFpsUnlocked();
+                    s_PcFrameTickHz = (g_IntervalVBlanks > 0) ? (60 / g_IntervalVBlanks) : 0;
                     if (g_GameWork.gameState == GameState_InGame || screenUnlocked)
                     {
                         int effectiveFps;
 
                         /* vsync + explicit refresh rate: let the display pacing be the cap */
-                        if (g_PcConfig.vsync != 0 && g_PcConfig.refreshRate > 0)
+                        /* ...unless frames are being interpolated: then the
+                         * display rate is reached by the added frames and the
+                         * game keeps its own cap. */
+                        if (g_PcConfig.vsync != 0 && g_PcConfig.refreshRate > 0 && !g_PsyX_FrameInterp)
                             effectiveFps = g_PcConfig.refreshRate;
                         else if (g_DebugUnlockFps || g_PcConfig.fpsCap == 0)
                             effectiveFps = 0; /* uncapped */
@@ -3225,6 +3237,8 @@ void MainLoop(void) // 0x80032EE0
                         if (Pc_ScriptOwnsScene() &&
                             (effectiveFps <= 0 || effectiveFps > 60))
                             effectiveFps = 60;
+
+                        s_PcFrameTickHz = (effectiveFps > 0) ? effectiveFps : 0;
 
                         if (effectiveFps <= 0)
                         {
@@ -3314,6 +3328,7 @@ void MainLoop(void) // 0x80032EE0
             {
                 static Uint32 s_perfLastMs = 0, s_perfAccumMs = 0, s_perfWorstMs = 0;
                 static u32    s_perfFrames = 0, s_perfVbAccum = 0;
+                static int    s_perfEarly = 0;
                 /* The same phases as [SLOWFRAME], summed over the window, so an
                  * area that is slow throughout says whether the game (update)
                  * or the GPU (present, sync) is holding it back. */
@@ -3367,7 +3382,22 @@ void MainLoop(void) // 0x80032EE0
                     /* A 30-second window, not 256 frames: at 240 fps the frame count
                      * logged every second and was the third-largest source in the log. */
                     s_perfFrames++;
-                    if (s_perfAccumMs >= 30000)
+                    /* A stretch of slow frames reports without waiting out the
+                     * window: once as it starts, so the frames before it do not
+                     * dilute it, then every few seconds while it lasts. Sessions
+                     * that hit one tend to end before 30 seconds of it pass. */
+                    {
+                        static int s_slowStreak = 0, s_slowReports = 0;
+
+                        s_slowStreak = (dt >= 50) ? s_slowStreak + 1 : 0;
+                        s_perfEarly  = 0;
+                        if (s_slowReports < 16 && (s_slowStreak == 20 || (s_slowStreak > 20 && s_perfAccumMs >= 4000)))
+                        {
+                            s_slowReports++;
+                            s_perfEarly = 1;
+                        }
+                    }
+                    if (s_perfAccumMs >= 30000 || s_perfEarly)
                     {
                         {
                         /* Per-frame GPU work, alongside the timing. A full VRAM
@@ -3462,6 +3492,89 @@ void MainLoop(void) // 0x80032EE0
                                        g_PsxPerfCharaVerts / n, g_PsxPerfCover / n, g_PsxPerfCoverWorst, g_PsxPerfBigTris / n,
                                        g_PsxUsePgxp, g_cfg_textureFilter, g_PcConfig.perPixelLighting, g_PcConfig.heroLight,
                                        g_PcConfig.flashlightMode);
+                            }
+                            /* Out of video memory reads exactly like a GPU that is too
+                             * slow, and nothing drawn explains it; this is the only
+                             * figure that tells the two apart. */
+                            {
+                                extern void HiresOverride_VramReport(int* totalMb, int* freeMb, int* packMb);
+                                int vTotal = 0, vFree = 0, vPack = 0;
+
+                                HiresOverride_VramReport(&vTotal, &vFree, &vPack);
+                                if (vTotal > 0)
+                                    SH_DBG("[PERF]   video memory: %d MB free of %d MB | texture packs hold %d MB (budget %d MB)",
+                                           vFree, vTotal, vPack, g_PcConfig.texpackBudgetMb);
+                                {
+                                    extern int Pc_Vram_Process(int* usedMb, int* budgetMb);
+                                    int        used = 0, budget = 0;
+
+                                    if (Pc_Vram_Process(&used, &budget))
+                                        SH_DBG("[PERF]   video memory, this game: %d MB of the %d MB Windows allows it%s", used, budget,
+                                               used > budget ? " (OVER: Windows is moving its textures to system memory)" : "");
+                                }
+                            }
+                            /* cover above is bounding boxes; this is what the card
+                             * shaded. Screens are of the window, so supersampling and
+                             * the shadow map's own pass count on top. */
+                            {
+                                extern double g_PsyX_GpuSamplesSum;
+                                extern int    g_PsyX_GpuMsCount, g_windowWidth, g_windowHeight;
+
+                                if (g_PsyX_GpuMsCount > 0 && g_windowWidth > 0 && g_windowHeight > 0)
+                                {
+                                    double px = g_PsyX_GpuSamplesSum / g_PsyX_GpuMsCount;
+                                    SH_DBG("[PERF]   shaded per frame: %.1f million pixels = %.1f screens of %dx%d",
+                                           px / 1.0e6, px / ((double)g_windowWidth * g_windowHeight),
+                                           g_windowWidth, g_windowHeight);
+                                }
+                                g_PsyX_GpuSamplesSum = 0.0;
+                            }
+                            {
+                                extern double g_PsyX_GpuBucketMs[4], g_PsyX_GpuBucketPx[4];
+                                extern int    g_PsyX_GpuMsCount;
+
+                                if (g_PsyX_GpuMsCount > 0)
+                                {
+                                    double n = (double)g_PsyX_GpuMsCount;
+                                    SH_DBG("[PERF]   gpu by pass, ms / million pixels per frame: shadow map %.1f / %.1f | PSX prims %.1f / %.1f | "
+                                           "skinned meshes %.1f / %.1f | rest %.1f / %.1f",
+                                           g_PsyX_GpuBucketMs[0] / n, g_PsyX_GpuBucketPx[0] / n / 1.0e6,
+                                           g_PsyX_GpuBucketMs[1] / n, g_PsyX_GpuBucketPx[1] / n / 1.0e6,
+                                           g_PsyX_GpuBucketMs[2] / n, g_PsyX_GpuBucketPx[2] / n / 1.0e6,
+                                           g_PsyX_GpuBucketMs[3] / n, g_PsyX_GpuBucketPx[3] / n / 1.0e6);
+                                }
+                                memset(g_PsyX_GpuBucketMs, 0, sizeof(g_PsyX_GpuBucketMs));
+                                memset(g_PsyX_GpuBucketPx, 0, sizeof(g_PsyX_GpuBucketPx));
+                            }
+                            {
+                                extern double       g_PsyX_CpuParseMs, g_PsyX_CpuDrawMs, g_PsyX_CpuSwapMs, g_PsyX_CpuMeshMs;
+                                extern unsigned int g_PsxSplitWhy[7], g_PsxPerfMeshDraws;
+                                double              n = (double)s_perfFrames;
+
+                                SH_DBG("[PERF]   cpu per frame: build vertices %.1f ms | submit draws %.1f ms (replacement meshes: %.1f draws, %.2f ms) | "
+                                       "swap (gpu + vsync wait) %.1f ms",
+                                       g_PsyX_CpuParseMs / n, g_PsyX_CpuDrawMs / n, g_PsxPerfMeshDraws / n, g_PsyX_CpuMeshMs / n,
+                                       g_PsyX_CpuSwapMs / n);
+                                g_PsyX_CpuMeshMs   = 0.0;
+                                g_PsxPerfMeshDraws = 0;
+                                SH_DBG("[PERF]   draw calls per frame started by: texture %.0f | blend %.0f | depth mode %.0f | texture offset %.0f | "
+                                       "clip %.0f | after a mesh %.0f | other %.0f",
+                                       g_PsxSplitWhy[2] / n, g_PsxSplitWhy[1] / n, g_PsxSplitWhy[3] / n, g_PsxSplitWhy[4] / n,
+                                       g_PsxSplitWhy[5] / n, g_PsxSplitWhy[0] / n, g_PsxSplitWhy[6] / n);
+                                {
+                                    extern unsigned int g_PcNightCulled, g_PcNightSeen, g_PcNightBlack, g_PcNightMeshes;
+                                    extern int          g_PcNightCull;
+                                    extern s32          g_PcNightFarLast, g_PcNightEnv[3];
+
+                                    SH_DBG("[PERF]   night cull %s: %.0f world faces per frame dropped | meshes %.0f, faces tested %.0f, lit black %.0f | "
+                                           "fog %d far %d, light mode %d, cull depth %d",
+                                           g_PcNightCull ? "on" : "off", g_PcNightCulled / n, g_PcNightMeshes / n, g_PcNightSeen / n,
+                                           g_PcNightBlack / n, (int)g_PcNightEnv[0], (int)g_PcNightEnv[1],
+                                           (int)g_PcNightEnv[2], (int)g_PcNightFarLast);
+                                    g_PcNightCulled = g_PcNightSeen = g_PcNightBlack = g_PcNightMeshes = 0;
+                                }
+                                g_PsyX_CpuParseMs = g_PsyX_CpuDrawMs = g_PsyX_CpuSwapMs = 0.0;
+                                memset(g_PsxSplitWhy, 0, sizeof(g_PsxSplitWhy));
                             }
                             g_PsxPerfSplits = g_PsxPerfBinds = g_PsxPerfFilterSets = g_PsxPerfTris = 0;
                             g_PsxPerfBigTris = g_PsxPerfCharaVerts = g_PsxPerfFrames = 0;
@@ -3989,10 +4102,14 @@ void MainLoop(void) // 0x80032EE0
         /* Suppress dither on 2D-only states (logos, menus, map screen,
          * inventory, options, save/load). Dither makes flat-shaded UI
          * art look chewed-up at high resolution. Keep it for 3D gameplay
-         * + cutscenes (InGame state covers both). Read by PsyCross via
+         * + cutscenes (InGame state covers both), and for the loading
+         * screens (Harry running, the area pictures), which the console
+         * dithers like gameplay. Read by PsyCross via
          * extern int g_PsxDitherSuppressed in PsyX_render.cpp. */
         extern int g_PsxDitherSuppressed;
-        g_PsxDitherSuppressed = (g_GameWork.gameState == GameState_InGame) ? 0 : 1;
+        g_PsxDitherSuppressed = (g_GameWork.gameState == GameState_InGame ||
+                                 g_GameWork.gameState == GameState_MainLoadScreen ||
+                                 g_GameWork.gameState == GameState_LoadMapScreen) ? 0 : 1;
 
         /* Set by the game (game_sys_states.c) while a state freezes the world and presents
          * the captured FOGGY gameplay frame behind a message: the literal PAUSED screen
@@ -4390,6 +4507,53 @@ void MainLoop(void) // 0x80032EE0
                 g_PsxWorldDepthAlways = 0;
             GsDrawOt(&g_OrderingTable0[g_ActiveBufferIdx]);
             g_PsxWorldDepthAlways = prevWorldDepthAlways;
+
+            /* The target holds the 3D world alone at this point. The item
+             * and map screens run their own camera through the same
+             * globals, so GsWSMATRIX does not describe those frames. */
+            if (g_PsyX_FrameInterp)
+            {
+                extern int g_PcPickupItemActive;
+                extern int g_PsxPresentLastFrame;
+                short      rot[9];
+                int        trans[3];
+                int        i;
+
+                for (i = 0; i < 9; i++)
+                    rot[i] = GsWSMATRIX.m[i / 3][i % 3];
+                for (i = 0; i < 3; i++)
+                    trans[i] = (int)GsWSMATRIX.t[i];
+
+                /* Characters carry their own motion; positions are Q12
+                 * metres, the view matrix works in Q8. */
+                {
+                    int actXyz[8 * 3];
+                    int actIds[8];
+                    int n = 0;
+
+                    actIds[n]         = 1;
+                    actXyz[n * 3 + 0] = Q12_TO_Q8(g_SysWork.playerWork.player.position.vx);
+                    actXyz[n * 3 + 1] = Q12_TO_Q8(g_SysWork.playerWork.player.position.vy);
+                    actXyz[n * 3 + 2] = Q12_TO_Q8(g_SysWork.playerWork.player.position.vz);
+                    n++;
+                    for (i = 0; i < NPC_COUNT_MAX && n < 8; i++)
+                    {
+                        if (g_SysWork.npcs[i].model.charaId == Chara_None)
+                            continue;
+                        actIds[n]         = 2 + i;
+                        actXyz[n * 3 + 0] = Q12_TO_Q8(g_SysWork.npcs[i].position.vx);
+                        actXyz[n * 3 + 1] = Q12_TO_Q8(g_SysWork.npcs[i].position.vy);
+                        actXyz[n * 3 + 2] = Q12_TO_Q8(g_SysWork.npcs[i].position.vz);
+                        n++;
+                    }
+                    PsyX_FrameInterp_SetActors(actXyz, actIds, n);
+                }
+
+                PsyX_FrameInterp_CaptureWorld(rot, trans,
+                    g_GameWork.gameState == GameState_InGame && g_PcWorldDrawnThisFrame &&
+                    !g_PcPickupItemActive && !g_PcMapScreenActive && !g_PsxPresentLastFrame,
+                    s_PcFrameTickHz);
+            }
         }
 #else
         GsDrawOt(&g_OrderingTable0[g_ActiveBufferIdx]);

@@ -1,5 +1,257 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.11.15.1 -- 2026-11-15
+- New Character Select screen: choose which model each character uses, with a live preview you can turn with the mouse and click to play its animations. It's under Character Customization in PC Options and in the quick menu, or type charmenu in the console
+- Additional Characters: download new character models right from the game. The first row of Character Select lists them by series with a preview; tick a character, a whole series or Download All and they install. The launcher's Mod Manager has the same list in its Additional Characters section, and it takes over from the old character packs (it asks before replacing them)
+- New pause menu with Continue, Quick Menu, Save, Load, Option and Exit, and Exit on the title screen now asks before quitting (credit to T-ReXx)
+- Character Face Animation (WIP): the original human characters can now blink, lip sync and breathe. It's off by default while it's being finished; turn it on in the quick menu (Graphics page) or set "chara_face_anim2 = 1". Lip sync also had a number of lines on the wrong speaker, those are fixed
+- The Arabic translations now work: the USA patch by Mansour (ETRD) and the PAL patch by Ahmed Khaled, M2D, r.h.h (Obeid) and RITO both display properly, with right-to-left menus and the port's own menus, achievements and quick menu in Arabic
+- Dithering is now its own option, separate from Texture Filter, in the launcher, PC Options and the quick menu, and you can choose its size: Native PSX, then 320x240, 640x480 and up (or the widescreen equivalent) to your full resolution ("dither_resolution" in config.cfg)
+- New Render Scale option in PC Options and the quick menu that renders the game at a fraction of your resolution for weaker GPUs ("render_scale", 0.25 to 1.0)
+- Auto Reload option in the quick menu (Controls page): Original (default) tops up the clip when you raise the gun like the original game, After Dry Fire reloads with the animation after you fire an empty clip, and Off leaves it to the reload button ("auto_reload")
+- The flashlight can follow your aim in Third Person and Over-the-Shoulder too, with separate settings for first and third person ("Flashlight Follows Aim" in the quick menu, "flashlight_follow_aim" and "flashlight_follow_aim_fps"). Fences and other see-through world art now cast proper flashlight shadows, and Beam Intensity and Beam Size go higher (up to 6.0 and 5.0)
+- Reset all settings from PC Options or the quick menu with R, or both triggers on a controller, and the brightness screen has its own Reset row and works with the mouse
+- The original game's options (music and sound effect volume, vibration, brightness, screen position and auto load) are now kept between launches even if you don't save
+- The alternate cameras can look further down, and Harry leans toward where you're aiming
+- Classic aim: Left and Right switch the locked target again
+- New option to hide the crosshair unless a gun is equipped ("crosshair_hide_melee", quick menu HUD page), and the katana's lunge now works in the alternate cameras
+- 2D Controls: under the fixed cameras, up on the stick is now straight up the screen at Harry's position, and a held direction keeps Harry walking the same way when the camera turns ("control_2d_hold", on by default)
+- Mouse buttons (the side buttons too) now work on Reload, Quick Heal, Quick Turn, Rear Look and the port's other actions, and new nextgun / nextmelee commands switch to your next gun or melee weapon. Command binds can use controller buttons as well, and they show up on the controls screen
+- Keyboard layouts other than QWERTY, and IMEs, now work properly: the console types by your layout and keys show their real names, in the game and the launcher (credit to T-ReXx)
+- The puzzle cursor follows the mouse directly, and the DualShock 4 / DualSense touchpad works as a trackpad on puzzles (credit to T-ReXx)
+- Switch 2 controllers now work on Windows (the game runs on SDL3 now)
+- If the Vulkan or Direct3D 11 renderer loses its device the game restarts itself on OpenGL, and "-renderer <name>" picks a renderer for one run
+- macOS: optional Metal renderer (Thanks to datamothra PR on github), and the release now bundles everything it needs to run (Thanks to kevin-coyle PR)
+- Better performance: leaner shaders when texture filtering and flashlight shadows are off, character models use a fraction of the texture memory, the texture budget follows your free video memory instead of the card's total, dark areas at night skip faces you can't see, and turning culling off no longer draws the whole map in fog
+- Bullet decals no longer show up on invisible walls, and shots at the cafe's windows leave a glass bullet hole
+- Essential QoL mods and character packs update themselves after a game update, and the game asks at the title screen when one of your Essential QoL mods has a newer version
+- From this launcher on, Realtime updates also bring new launchers: it checks the newest official release for a newer one
+- Shorter black screens during door transitions (Thanks to DurkaEbanaya PR on github)
+- Fixed hospital room occlusion, the kitchen phone camera clipping and the hospital elevator siren sound, the Hanged Scratcher sinking through the floor while dying, the Larval Stalker lingering as a dark figure after it fades out, the inventory bottle's liquid and item previews with PGXP, and the Japanese Rev 0 disc's animations and intro Mumbler model (Also thanks to DurkaEbanaya PRs)
+- Fixed the equipped weapon and reserve ammo lookup when loading a save (Thanks to BaktashGorgani PR on github)
+- Fixed a crash when starting a game in map1_s04
+- Fixed a case where picking up an item or ammo could overwrite another item in the inventory
+- Fixed the boiler room walkway disappearing after a quick load made inside the room
+- Fixed Harry's held weapon showing through his fingers
+- Fixed the No Subtitles mod missing some voiced lines, voice mod lines that play over another voice line, and the ending's "What the!?" being cut off
+- Fixed the PAL brightness setting hiding item models in the inventory, and the brightness and fog overlays not reaching the bottom of the screen with a tall field of view
+- BC7 .dds texture mods now work on every GPU and renderer
+- Attract demos don't start while you're using the mouse
+- World Visibility is in the quick menu again (Full or Off, shown when Fog Strength is below 1.0), and the Language option is only on the title screen now
+
+Commit summaries:
+- Update README with screenshot and feature details
+- Quick menu: FPS Limit row on PC and web
+- Language row: title screen only, on every disc
+- Update README to remove HD texture pack reference
+- Play As: -/+ cycle characters in the keyframe viewer, playas next/previous
+- textures: BC7 .dds mods work on ANGLE and other GPUs without BPTC
+- macOS: include stddef.h in pc_lipsync.h for Homebrew GCC 16 (PR #181 by datamothra)
+- macOS CI: bundle every Homebrew dylib in the zip release (PR #195 by kevin-coyle)
+- Reduce unnecessary black-screen waits during door transitions (PR #191 by DurkaEbanaya)
+- Stop stale SFX before freeing their VAB sample bank (hospital elevator siren) (PR #193 by DurkaEbanaya)
+- Fix hospital room occlusion and kitchen phone camera clipping (PR #192 by DurkaEbanaya)
+- Fix NTSC-J Rev 0 animation pointers and introductory Mumbler model (PR #194 by DurkaEbanaya)
+- Puzzle mouse cursor: direct placement, pointer held to puzzle bounds (PR #186 by thetrexx)
+- Puzzle cursor: DualShock 4 / DualSense touchpad as a trackpad (PR #188 by thetrexx)
+- Keyboard layouts and IMEs: detach the IME, layout-aware console and key labels (PR #189 by thetrexx)
+- Launcher 2026.10.27.1: layout-aware key capture from PR #189
+- Mix text-box voice files over a still-playing disc line instead of refusing them
+- Fix the ending's "What the!?" cut-off and the Voices tool labels around ~J2 pages
+- Fix inventory bottle liquid geometry and transparency (PR #197 by DurkaEbanaya)
+- Fix PGXP backface culling for inventory item previews (PR #198 by DurkaEbanaya)
+- Relaunch on OpenGL after a lost Vulkan/D3D11 device; -renderer argument
+- Quick menu: rename Character Lighting to Addon Character Lighting
+- Pause menu: CONTINUE / SAVE / LOAD / OPTION / EXIT, title EXIT confirm (PR #200 by thetrexx)
+- Pause menu: Japanese, Chinese, Polish, Portuguese and Russian strings
+- Skin: Monster Cybil wears the Cybil replacement
+- Skinned characters: PGXP-off depth on the OT bucket ramp, heads keep their own lean
+- Skinned characters: chest keeps its lean, empty hand follows its forearm, fuller blink
+- Brightness and fog overlays reach the bottom row at vfov > 1
+- Hero Light drops out while the flashlight is lit, unless kept
+- Launcher 2026.10.29.1: Additional Characters fold in the Essential QoL Mods section
+- Texture composites install directly as NAME.png / NAME.dds
+- Extract BIN composites: build before deleting TIMs, keep them beside, load as-is
+- Extract BIN: option to put the reference composites in a subfolder
+- Character Face Animation: stock humans blink, lip sync and breathe; all replaceable
+- Pointer: a request to show it lasts three presents, not one
+- Face animation: seams follow their owner bone, preload, wider mouths
+- Character Face Animation off by default until the joints are checked
+- Inventory: lay out translated labels by their real width
+- Pause menu: QUICK MENU row under CONTINUE
+- Pause menu: QUICK MENU actually opens the panel; blocked SAVE toasts
+- Pause menu: LOAD stays available during a boss fight
+- Skinned characters: a missing file no longer takes a model slot
+- Launcher: character packs update themselves after a game update
+- Modern meshes: fresh vertex storage per upload
+- Skinned characters: a fraction of the texture memory
+- Whole map: not in the dark exteriors
+- [PERF]: per-phase averages over the window
+- Launcher: every Essential QoL mod updates after a game update
+- [PERF]: the phase line prints on PC, with GPU time
+- Loading-screen motion blur: the PS1 loop, decaying per screen step
+- Framebuffer feedback: the cutscene overlays and soft focus at render resolution
+- PsyCross patch series: comment fix appended
+- PsyCross: framebuffer feedback at render resolution (loading trail, cutscene overlays, soft focus)
+- Melee crosshair toggle, katana lunge in alt cameras, pickup freeze continuity, pause and quit prompt layout
+- Pause menu: row pitch 15 to match the 75% rows
+- Pause menu: scaled rows are not filtered as world geometry
+- Pause menu: original row size and pitch below 480 lines
+- [PERF] GPU time measured only while a log is open
+- XA dispatch: FileAudible resolves to the software renderer where OpenAL is not built
+- gpubench: the GPU cost of each graphics setting, measured in place
+- Auto Reload option; the clip no longer fills silently when the gun is raised
+- Classic aim: Left/Right switches the locked target again
+- Classic aim: the body snap on a target switch reads the hold frame as the switch does
+- config_version shares one numbering with the mobile branches: pad defaults are step 6
+- Weapon keyframe table D_800294F4 from the right address; target switch at the hold frame
+- Quick menu: a click beside the panel turns the page (left forward, right back)
+- Culling off keeps the fog far plane as a draw cap at fog strength >= 1
+- Skins: rig an unrigged T-pose OBJ into a swap glb (tools/rig_static_obj.py)
+- rig_static_obj: joints on each segment's own depth, sleeve-wide arm gate
+- Character Select: per-character model choice with a live preview
+- Character Select: under PC Options as Character_Customization, not the title
+- Quick menu: Enable logging row on the Debug page
+- Character Select preview: no mat3() cast, the legacy GLSL dialect lacks it
+- Character Select fills the window: columns laid out against the wide field
+- Texture uploads: no zero prefill on NVIDIA; keep a loose PNG's texture on re-registration
+- Hide Character Select until it is finished
+- Pause menu: a click on CONTINUE no longer acts in the world
+- PAL: Brightness no longer blanks the inventory's item models
+- Update README with latest release links
+- Pickup prompt: Harry resumes the exact animation he had when it opened
+- Revert "Pickup prompt: Harry resumes the exact animation he had when it opened"
+- Pickup confirm: the live world no longer takes the item screen's framing
+- Pickup end: live projection starts from the world's values, not the item screen's
+- Realtime release notes: carry the maintainer's wording
+- Brightness screen: RESET row puts the four values back to their defaults
+- Reset all settings from the quick menu too; R, both triggers or a touch button
+- Flashlight follows the aim in Thirdperson and Over-the-Shoulder
+- Flashlight shadows from fences and other cut-out or semi-transparent world art
+- Brightness screen: mouse and touch pick rows and step values
+- Quick menu: World Visibility (fog below 1.0); face animation marked WIP
+- Quick menu: take World Visibility out for now; face animation keeps (WIP)
+- Reset settings: the New Game map goes back to map0_s00 too
+- Reset settings: camera mode back to Classic, and the gyro rows on phones
+- Map overlay: stop with a message when a present map module fails to load
+- Flashlight: Beam Intensity up to 6.0 and Beam Size up to 5.0
+- Alternate cameras: look further down, and Harry leans toward the aim
+- Arabic discs: detect both fan patches, right-to-left drawing, disc UI text
+- Arabic discs: port UI text shaped into each disc's cells, launcher lock
+- Arabic discs: the patches' mirrored UI layout
+- Arabic USA cells: waw-hamza takes the hamza-above mark 0x3E
+- Arabic discs: quick menu, bind panel and confirm boxes in Arabic
+- Ship gamedata/font/arabic.ttf (DejaVu Sans) for the Arabic overlays
+- Arabic PAL: centre the title and difficulty menus by measured width
+- Nightly: ship imported runtime DLLs + pc_port/angle, never a build/*.dll glob
+- Arabic discs: achievement titles and descriptions in a TrueType face
+- Russian discs and the Cyrillic pack: achievement text in TrueType too
+- TrueType menu text: draw into the screen target, not framebuffer 0
+- TrueType menu text: force additive blending
+- Arabic USA: native menus line up, numbers read left to right
+- Arabic/Cyrillic fonts: key, file and character names in TrueType; no glyph cap
+- GLES builds: clear depth without the glad pointer; Arabic platform headings
+- Flashlight follow-aim: off by default, aim-only in third person, no self-light
+- Skinned replacements on Harry's skeleton count as the player for the flashlight
+- Flashlight follows the camera: separate first-person and third-person settings
+- Auto Reload defaults to Original
+- PsyCross: the backs of Harry's legs take the flashlight again, as on the PSX
+- Quick menu: World Visibility returns as Full / Off, shown only below fog 1.0
+- Windows: run on SDL3 through sdl2-compat, with libusb for Switch 2 controllers
+- Character Select back in PC Options and the quick menu (in place of Play as)
+- Additional Characters: download, install and pick characters in game
+- Launcher 2026.11.7.1: Additional Characters from the per-character catalog
+- Character Select: the results theme plays from every screen it opens on
+- Character Select: original models preview from the disc and show by name
+- Character Select music: also heard when opened from the options screen
+- Console: charmenu / cmenu opens or closes Character Select (bindable)
+- Character Select: no placeholder behind a drawn preview; Bloody Incubator row out
+- Character Select: the mouse wheel only scrolls the list
+- Reset all settings: Character Select choices too, and Harry back to Harry
+- Character Select: TrueType detail lines, every language, local previews
+- Additional Characters: a real load order, custom copies win
+- Characters: limits high enough to feel unlimited
+- Character Select in game: frame it as a menu, not gameplay
+- Additional Characters: re-check the list on each menu visit
+- Additional Characters: QoL character packs move over; jojo prompt opt-out
+- Additional Characters: ask before replacing the QoL character packs
+- PC Options: Character_Customization below Map
+- Character Select: Harry's row showed "F"
+- Additional Characters: "Load Preview" button, sized to its label
+- Additional Characters: the two offers use the shared message box
+- Additional Characters: moves never happened in game; preview reloads
+- Additional Characters always win; pack details; launcher hang
+- Characters: base= plays a swap in a built-in character's slot
+- Character menus: framed right over gameplay; grey dividers; exact TTF widths
+- Character Select: over a game in progress, leave the music alone
+- Additional Characters: Download All, heavy-model warning, saved list, wrapped message box
+- Console: typing works again on the SDL3 runtime
+- Character Select: only the title's options screen takes the music
+- Character menus: a model not in memory loads after a second on its row
+- Character menus: preview dwell halved to half a second
+- Images folder, glass decals, character menu plates, preview reloads updated models
+- Characters: an updated model is read again without a restart
+- Additional Characters: ticked boxes are filled with the button plate
+- Character preview: drag to turn it, click to play one of the character's animations
+- Additional Characters: no SDL_strcasestr (SDL 2.26+), the Linux build's SDL lacks it
+- Launcher: on realtime builds, update the launcher itself from the newest official release
+- Skin loader: a narrower model's shoulders move onto the slot's; [PERF] says what was drawn
+- nextgun / nextmelee, and console commands on the controls screen
+- Mouse buttons work on the port's own actions and on command binds
+- Realtime zip no longer carries the old gamedata/decal.png
+- Texture budget follows free video memory; [PERF] logs video memory
+- [PERF] and gpubench report pixels shaded per frame
+- Custom characters no longer crash the browser build: file release callback has cgltf's signature
+- [PERF] names the pass the GPU time goes to, and reports a slow stretch as it starts
+- [PERF] reports this process's video memory against its Windows budget
+- [PERF] splits the CPU side of rendering and counts what breaks draw batches
+- Night: world faces the dark hides are not drawn
+- Lip sync: boat scene lines 'How did you get back here?' (Harry) and 'I followed the sewer' (Cybil) had their speakers swapped
+- [PERF] night cull line reports what it tested and the map's fog and light mode
+- Night cull: applied in the no-fog lit loop, where night maps actually draw
+- Crash starting a game in map1_s04: an empty disc file no longer turns into an endless read
+- map1_s04: the 98-12-16 sound test readout is back on PC
+- Save load: equipped-weapon and reserve-ammo searches stay inside the inventory (PR #206 by BaktashGorgani)
+- Hanged Scratcher no longer sinks through the floor while dying (PR #208 by DurkaEbanaya)
+- Larval Stalker no longer lingers as a dark figure after it fades out (PR #209 by DurkaEbanaya)
+- macOS: optional Metal renderer through ANGLE (PR #183 by datamothra)
+- PsyCross: Metal bootstrap includes SDL.h like the rest of the library
+- macOS build: run on macos-15
+- PsyCross: macOS build of the ANGLE bootstrap
+- Lean shaders: PsyCross bump, leanshader console command, -fullshaders switch
+- Render_Scale option: PC Options graphics page and quick menu graphics page
+- Persist the original game's options in config.cfg
+- Frame interpolation, stage 1: game hooks, config keys, console toggle
+- PsyCross: frame interpolation vsync pacing
+- frameinterp check: log predicted vs measured motion for 12 ticks
+- PsyCross: frame interpolation camera inverse fix
+- Frame interpolation: hand the renderer the characters' positions
+- PsyCross: frame interpolation presents from the pacing wait
+- Lip sync: 19 lines were on the wrong speaker; log each line's speaker and pitch
+- Launcher: realtime updates get a short note, not a warning
+- Lip sync: 'So long. Good luck out there.' is Harry's
+- Held firearms draw both sides of their faces
+- Revert "Held firearms draw both sides of their faces"
+- Held weapon no longer shows through Harry's fingers
+- 2D control: directions read off the screen where Harry stands, and held as world lines
+- Boiler room walkway survives a quick load made inside the room; Split Head logs each hit
+- Inventory: adds and ammo write-backs cannot land on another item; every add is logged; GIVE covers keys
+- No Subtitles mod: every voiced line is blanked, not only the ones timed ~J0
+- Essential QoL mods: the game offers an update at the title; the Mod Manager offers one when opened
+- Essential QoL mods: a character pack already replaced by Additional Characters is not offered as an update
+- Face animation and character swaps no longer stall the frame once per material
+- Texture loaders tell the renderer whether a texture has mipmaps
+- Character models: the downloads folder is looked up once, not on every frame
+- Mipmap note compiles out on the phones and the browser
+- PC Options: Disable Culling moves to the Controls page, above Bullet Decals
+- Face animation: no gap at the shoulder with PGXP off
+- PsyCross: timed screenshots for unattended runs
+- Attract demos wait while the mouse is in use; a console Enter stays out of the quick menu
+- Dithering gets its own PC Options row, and a choice of resolution
+- Launcher: the Dithering dropdown offers the same resolutions as the game
+- macOS launcher: PSX dithering is a choice of resolution, not an on/off toggle
+- Realtime builds carry the launcher built from the same commit
+
 ## beta-2026.10.26.1 -- 2026-10-26
 - This is the first release with the new launcher that supports realtime updates. The PC port is now a rolling release: every change pushed to the project is built automatically and can be installed right away instead of waiting for the next official release. To turn it on, open Build Settings in the launcher and tick "Realtime updates". The Build list then shows the recent automatic builds, "latest" always installs the newest one, and you can pick an older build to roll back if something breaks. Realtime builds are untested, so back up your saves. Leave it unticked to keep getting official releases only
 - New native Achievements screen, reachable from the ACHIEVEMENTS row on the title menu (credit to T-ReXx)

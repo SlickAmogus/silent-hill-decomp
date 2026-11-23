@@ -50,6 +50,19 @@ cp -R "$PC_PORT/assets/." "$GAME_RES/"
 cp "$PC_PORT/config.cfg" "$GAME_RES/config.cfg"
 cp "$WIN_RES/launcher.png" "$CONTENTS/Resources/launcher.png"
 
+# --- ANGLE (renderer = metal) -------------------------------------------------
+# Optional, like pc_port/angle/ on Windows: libEGL.dylib + libGLESv2.dylib land
+# in Frameworks/, which is the second place PsyCross looks (after the executable's
+# own directory). libEGL dlopens libGLESv2 from its own directory, so the pair
+# stays together. Without them the game keeps native OpenGL and logs why.
+for lib in libEGL.dylib libGLESv2.dylib; do
+    if [ -f "$PC_PORT/angle/$lib" ]; then
+        cp -L "$PC_PORT/angle/$lib" "$FW/$lib"
+        chmod u+w "$FW/$lib"
+        echo "  bundled $lib (ANGLE, for renderer = metal)"
+    fi
+done
+
 # --- Bundle Homebrew libraries ----------------------------------------------
 # Copy every /opt/homebrew or /usr/local dependency into Frameworks/ and point
 # the load commands at it, recursively.

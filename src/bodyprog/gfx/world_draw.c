@@ -1160,8 +1160,11 @@ void WorldGfx_HeldItemDraw(void) // 0x8003D058
          * took the world's far-push and lost to a leg passing in front. */
         {
             extern int g_PsxActorDepth;
+            extern int g_PsxActorDepthHeld;
             g_PsxActorDepth = 1;
+            g_PsxActorDepthHeld = 1;
             func_80057090(&heldItem->bone.modelInfo, &g_OrderingTable0[g_ActiveBufferIdx], 1, &viewMat, &worldMat, 0);
+            g_PsxActorDepthHeld = 0;
             g_PsxActorDepth = 0;
         }
 #else

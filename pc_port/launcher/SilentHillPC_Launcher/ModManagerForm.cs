@@ -41,13 +41,27 @@ namespace SilentHillPC_Launcher
 
         // Essential QoL Mods: the downloadable catalog listed at the top of the list.
         private EssentialCatalog _catalog;
+        private bool _updatesOffered;
         private bool _catalogLoading = true;
         private bool _essentialExpanded;
         private bool _charsExpanded; // the Additional Characters fold inside the section
+        // Set while Populate rebuilds the list. Adding an item that is already
+        // ticked raises ItemCheck; a ticked series row answered that by queueing
+        // another Populate, which re-added it ticked, and so on for ever: the
+        // launcher hung as soon as the fold opened with a whole series installed.
+        private bool _populating;
         private readonly HashSet<string> _toInstall = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private sealed class EssentialHeader { }
         private sealed class EssentialCharsHeader { }
         private sealed class EssentialRow { public EssentialMod Mod; }
+        // Additional Characters: the per-character catalog the game's menu also uses.
+        private CharacterCatalogFile _chars;
+        private List<CharacterCatalog.Record> _charRecs = new List<CharacterCatalog.Record>();
+        private readonly HashSet<string> _charInstall = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _charRemove  = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _charCatsOpen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private sealed class CharacterRow { public CatalogCharacter Char; }
+        private sealed class CharacterCategoryRow { public string Category; }
         // Installed mods shown as their catalog row, so each is listed once.
         private readonly Dictionary<ModEntry, EssentialMod> _bound = new Dictionary<ModEntry, EssentialMod>();
         private CheckBox  _chkLoose;
@@ -110,27 +124,76 @@ namespace SilentHillPC_Launcher
         private async void LoadCatalogAsync()
         {
             EssentialCatalog cat = null;
+            CharacterCatalogFile chars = null;
             try { cat = await EssentialMods.LoadAsync(_mgr.ModsDir, System.Threading.CancellationToken.None); }
+            catch { }
+            try { chars = await CharacterCatalog.LoadAsync(_mgr.ModsDir, System.Threading.CancellationToken.None); }
             catch { }
             if (IsDisposed) return;
             _catalog = cat;
+            _chars = chars;
             _catalogLoading = false;
             // Open by default until something is installed, so a fresh install sees it.
             _essentialExpanded = _mgr.Mods.Count == 0;
             CommitOrderAndState();
             Populate();
+            OfferEssentialUpdates();
+        }
+
+        /// <summary>Essential QoL mods whose catalog copy has changed since they were
+        /// installed: offer to download them again. The launcher already does this after
+        /// it installs a game build, and the game asks at its title screen; this is for
+        /// whoever opens the Mod Manager in between. Asked once per time the window is
+        /// opened, and only when something is out of date.</summary>
+        private void OfferEssentialUpdates()
+        {
+            if (_catalog == null || _updatesOffered) return;
+            _updatesOffered = true;
+
+            List<EssentialMod> stale;
+            try { stale = EssentialMods.StaleMods(_mgr, _catalog); }
+            catch { return; }
+            if (stale.Count == 0) return;
+
+            if (MessageBox.Show(this,
+                    Loc.T("A newer version of these Essential QoL mods is available:") + "\n\n  " +
+                    string.Join("\n  ", stale.Select(m => m.Name)) + "\n\n" +
+                    Loc.T("Download and install them now?"),
+                    Loc.T("Essential QoL Mods"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                return;
+
+            var updated  = new List<string>();
+            var failures = new List<string>();
+            try
+            {
+                // UpdateMods re-reads the library from the saved state, so whatever was
+                // ticked or reordered in the moment before the catalog arrived goes to disk first.
+                CommitOrderAndState();
+                _mgr.SaveState();
+                ProgressDialog.RunCancellable(this, Loc.T("Updating Essential QoL mods…"),
+                    (r, cancelled) =>
+                    {
+                        updated = EssentialMods.UpdateMods(_mgr, stale, _chkLoose.Checked, failures, r, cancelled);
+                    });
+            }
+            catch (Exception ex) { failures.Add(ex.Message); }
+            Populate();
+
+            if (updated.Count == 0 && failures.Count == 0) return;
+            string msg = updated.Count > 0
+                ? Loc.T("These Essential QoL mods were updated:") + "\n\n  " + string.Join("\n  ", updated)
+                : "";
+            if (failures.Count > 0)
+                msg += (msg.Length > 0 ? "\n\n" : "") + Loc.T("These could not be updated:") +
+                       "\n\n  " + string.Join("\n  ", failures);
+            MessageBox.Show(this, msg, Loc.T("Essential QoL Mods"), MessageBoxButtons.OK,
+                failures.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
         }
 
         /// <summary>Ask about any archive lying in the mod folders, unpack what was agreed to
         /// (cancellable), then re-index and repopulate.</summary>
         private void ExtractThenScan()
         {
-            // Names known before this pass, so the post-extraction DLL screen
-            // below only fires for mods that just appeared (closes the rar/7z
-            // hole: those archives can't be peeked at drop time, but once
-            // extracted their DLLs are ordinary files).
-            var known = new HashSet<string>(_mgr.Mods.Select(m => m.Name ?? ""));
-
             var pending = _mgr.PendingWork();
             if (pending.Count > 0)
             {
@@ -147,36 +210,6 @@ namespace SilentHillPC_Launcher
             }
             _mgr.Scan();
             try { CharacterCatalog.DropMigratedPacks(_mgr); } catch { }
-
-            foreach (var m in _mgr.Mods.ToList())
-            {
-                if (known.Contains(m.Name ?? "")) continue;
-                if (m.Type != ModType.Gameplay && m.Type != ModType.TotalConversion) continue;
-                if (string.IsNullOrEmpty(m.LibraryPath) || !Directory.Exists(m.LibraryPath)) continue;
-
-                var suspicious = PeImports.ScanModForSuspiciousDlls(m.LibraryPath);
-                if (suspicious.Count == 0) continue;
-
-                string extra = Loc.T("This mod contains DLLs that do NOT look like edited game code " +
-                                     "(edited maps only use the game and the C runtime):") + "\n\n - " +
-                               string.Join("\n - ", suspicious.Take(5)) +
-                               (suspicious.Count > 5 ? "\n - ..." : "") +
-                               "\n\n" + Loc.T("Only continue if you trust this mod completely.") + " " +
-                               Loc.T("Cancel removes it from the library.");
-                var choice = DllWarningDialog.Show(this, extra);
-                if (choice == DllWarningDialog.Result.Cancel)
-                {
-                    try { Directory.Delete(m.LibraryPath, true); } catch { }
-                    _mgr.Scan();
-                }
-                else if (choice == DllWarningDialog.Result.DontShowAgain)
-                {
-                    // The generic notice can be silenced; a NAMED suspicious-import
-                    // alarm intentionally cannot -- treat it as Continue.
-                    _mgr.DllWarningAck = true;
-                    _mgr.SaveState();
-                }
-            }
 
             Populate();
         }
@@ -473,6 +506,13 @@ namespace SilentHillPC_Launcher
 
         private void Populate()
         {
+            _populating = true;
+            try { PopulateRows(); }
+            finally { _populating = false; }
+        }
+
+        private void PopulateRows()
+        {
             _list.BeginUpdate();
             _list.Items.Clear();
             BindEssentials();
@@ -508,6 +548,7 @@ namespace SilentHillPC_Launcher
             if (_catalog == null) return;
             foreach (var em in _catalog.Mods)
             {
+                if (em.IsCharacter) continue;
                 var inst = EssentialMods.FindInstalled(em, _mgr.Mods, _bound.Keys);
                 if (inst != null) _bound[inst] = em;
             }
@@ -540,28 +581,121 @@ namespace SilentHillPC_Launcher
             foreach (var em in _catalog.Mods)
                 if (!em.IsCharacter) AddEssentialRow(em, "    ", _essentialExpanded);
 
-            // Character mods sit behind one Additional Characters row of their own.
-            var chars = _catalog.Mods.Where(m => m.IsCharacter).ToList();
-            if (chars.Count == 0) return;
-            if (_essentialExpanded)
+            AddCharacterRows();
+        }
+
+        /// <summary>Additional Characters, the same list the game's Character Select
+        /// downloads from: one fold per series, one tickable row per character.
+        /// Ticked = installed (or will be on Apply); unticking an installed one
+        /// removes it on Apply.</summary>
+        private void AddCharacterRows()
+        {
+            if (!_essentialExpanded || _chars == null || _chars.Characters.Count == 0) return;
+            _charRecs = CharacterCatalog.ReadRecords(_mgr.GameRoot);
+            var all = _chars.Characters;
+            int installed = all.Count(c => CharacterCatalog.IsInstalled(_mgr.GameRoot, c, _charRecs));
+            var sub = new ListViewItem("    " + (_charsExpanded ? "▼ " : "▶ ") + Loc.T("Additional Characters"))
             {
-                int installed = chars.Count(em => _bound.ContainsValue(em));
-                int ticked    = chars.Count(em => _toInstall.Contains(em.Id) && !_bound.ContainsValue(em));
-                var sub = new ListViewItem("    " + (_charsExpanded ? "▼ " : "▶ ") + Loc.T("Additional Characters"))
+                Tag = new EssentialCharsHeader(),
+                ToolTipText = Loc.T("Click to show or hide. Tick the characters you want and press Apply.")
+            };
+            sub.SubItems.Add("");
+            sub.SubItems.Add("");
+            sub.SubItems.Add(_charInstall.Count + _charRemove.Count > 0
+                ? Loc.F("{0} to install, {1} to remove", _charInstall.Count, _charRemove.Count)
+                : Loc.F("{0} of {1} installed", installed, all.Count));
+            sub.SubItems.Add(Loc.T("Playable characters. Pick them in Character Select (PC Options or the quick menu). These take priority over a mod's or a pack's character with the same file name: untick a character here to use the one from a pack instead."));
+            sub.Font = new Font(_list.Font, FontStyle.Bold);
+            _list.Items.Add(sub);
+            if (!_charsExpanded) return;
+
+            var cats = all.Select(c => c.Category).Distinct(StringComparer.OrdinalIgnoreCase)
+                          .OrderBy(c => string.Equals(c, "Other", StringComparison.OrdinalIgnoreCase) ? 1 : 0)
+                          .ThenBy(c => c, StringComparer.OrdinalIgnoreCase).ToList();
+            foreach (var cat in cats)
+            {
+                var members = all.Where(c => string.Equals(c.Category, cat, StringComparison.OrdinalIgnoreCase))
+                                 .OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase).ToList();
+                bool open = _charCatsOpen.Contains(cat);
+                int have = members.Count(c => CharWillBeInstalled(c));
+                var crow = new ListViewItem("        " + (open ? "▼ " : "▶ ") + cat)
                 {
-                    Tag = new EssentialCharsHeader(),
-                    ToolTipText = Loc.T("Click to show or hide. Tick the characters you want and press Apply.")
+                    Tag = new CharacterCategoryRow { Category = cat },
+                    Checked = have == members.Count,
+                    ToolTipText = Loc.T("Tick to install the whole series, untick to remove it. Click the name to show or hide its characters.")
                 };
-                sub.SubItems.Add(string.Join(", ", chars.Select(c => c.Name)));
-                sub.SubItems.Add("");
-                sub.SubItems.Add(ticked > 0 ? Loc.F("{0} to install", ticked)
-                                            : Loc.F("{0} of {1} installed", installed, chars.Count));
-                sub.SubItems.Add(Loc.T("Playable characters for the Play as option and the multiplayer Character row. Online, a partner without the same character sees Harry."));
-                sub.Font = new Font(_list.Font, FontStyle.Bold);
-                _list.Items.Add(sub);
+                crow.SubItems.Add("");
+                crow.SubItems.Add("");
+                crow.SubItems.Add(Loc.F("{0} of {1}", have, members.Count));
+                crow.SubItems.Add("");
+                _list.Items.Add(crow);
+                if (!open) continue;
+                foreach (var c in members)
+                {
+                    bool inst = CharacterCatalog.IsInstalled(_mgr.GameRoot, c, _charRecs);
+                    var row = new ListViewItem("            " + c.Name)
+                    {
+                        Tag = new CharacterRow { Char = c },
+                        Checked = CharWillBeInstalled(c)
+                    };
+                    row.SubItems.Add(c.Author ?? "");
+                    row.SubItems.Add(Loc.F("Download ({0} MB)", Math.Max(1, (c.Size + 524288) / 1048576)));
+                    row.SubItems.Add(inst ? (CharacterCatalog.NeedsUpdate(c, _charRecs) ? Loc.T("Update available") : Loc.T("Installed"))
+                                          : Loc.T("Not installed"));
+                    row.SubItems.Add("v" + (c.Version ?? "1"));
+                    _list.Items.Add(row);
+                }
             }
-            foreach (var em in chars)
-                AddEssentialRow(em, "        ", _essentialExpanded && _charsExpanded);
+        }
+
+        private bool CharWillBeInstalled(CatalogCharacter c)
+        {
+            if (_charInstall.Contains(c.Id)) return true;
+            if (_charRemove.Contains(c.Id)) return false;
+            return CharacterCatalog.IsInstalled(_mgr.GameRoot, c, _charRecs);
+        }
+
+        private void SetCharWanted(CatalogCharacter c, bool want)
+        {
+            bool inst = CharacterCatalog.IsInstalled(_mgr.GameRoot, c, _charRecs);
+            _charInstall.Remove(c.Id);
+            _charRemove.Remove(c.Id);
+            if (want && (!inst || CharacterCatalog.NeedsUpdate(c, _charRecs))) _charInstall.Add(c.Id);
+            else if (!want && inst) _charRemove.Add(c.Id);
+        }
+
+        /// <summary>Download the ticked characters and remove the unticked ones, before
+        /// Apply deploys. False if cancelled or a download failed.</summary>
+        private bool ApplyCharacterChanges()
+        {
+            if (_chars == null || _charInstall.Count + _charRemove.Count == 0) return true;
+            var remove = _chars.Characters.Where(c => _charRemove.Contains(c.Id)).ToList();
+            var install = _chars.Characters.Where(c => _charInstall.Contains(c.Id)).ToList();
+            foreach (var c in remove) CharacterCatalog.Remove(_mgr.GameRoot, c);
+            _charRemove.Clear();
+            bool finished = true;
+            if (install.Count > 0)
+            {
+                try
+                {
+                    finished = ProgressDialog.RunCancellable(this, Loc.T("Downloading characters…"), (r, cancelled) =>
+                    {
+                        foreach (var c in install)
+                        {
+                            if (cancelled()) return;
+                            if (CharacterCatalog.Install(_mgr.GameRoot, c, r, cancelled)) _charInstall.Remove(c.Id);
+                        }
+                    });
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, Loc.F("Failed to download characters:\n\n{0}", ex.Message), Loc.T("Mod Manager"),
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    finished = false;
+                }
+            }
+            Populate();
+            return finished;
         }
 
         /// <summary>One catalog mod: its installed entry when there is one (always shown),
@@ -602,8 +736,13 @@ namespace SilentHillPC_Launcher
             var hit = _list.HitTest(e.Location);
             if (hit.Item == null) return;
             if (_catalog == null || _catalog.Mods.Count == 0) return;
+            var catRow = hit.Item.Tag as CharacterCategoryRow;
             if (hit.Item.Tag is EssentialHeader)           _essentialExpanded = !_essentialExpanded;
             else if (hit.Item.Tag is EssentialCharsHeader) _charsExpanded = !_charsExpanded;
+            else if (catRow != null && hit.Location != ListViewHitTestLocations.StateImage)
+            {
+                if (!_charCatsOpen.Remove(catRow.Category)) _charCatsOpen.Add(catRow.Category);
+            }
             else return;
             CommitOrderAndState();
             Populate();
@@ -629,7 +768,23 @@ namespace SilentHillPC_Launcher
         /// <summary>Block toggling the placeholder hint row (no backing mod).</summary>
         private void OnItemCheck(object sender, ItemCheckEventArgs e)
         {
+            if (_populating) return;
             var tag = _list.Items[e.Index].Tag;
+            var crow = tag as CharacterRow;
+            if (crow != null)
+            {
+                SetCharWanted(crow.Char, e.NewValue == CheckState.Checked);
+                return;
+            }
+            var ccat = tag as CharacterCategoryRow;
+            if (ccat != null && _chars != null)
+            {
+                bool want = e.NewValue == CheckState.Checked;
+                foreach (var c in _chars.Characters.Where(c => string.Equals(c.Category, ccat.Category, StringComparison.OrdinalIgnoreCase)))
+                    SetCharWanted(c, want);
+                BeginInvoke(new Action(Populate));
+                return;
+            }
             var row = tag as EssentialRow;
             if (row != null)
             {
@@ -867,52 +1022,6 @@ namespace SilentHillPC_Launcher
 
             var others = paths.Where(p => !bins.Contains(p)).ToArray();
             if (others.Length == 0) return;
-
-            // DLL mods execute code; get explicit consent before they enter the library.
-            bool anyDllMod = others.Any(p =>
-            {
-                var t = ModManager.DetectDroppedType(p);
-                return t == ModType.Gameplay || t == ModType.TotalConversion;
-            });
-            if (anyDllMod)
-            {
-                // Import screening (PeImports mirrors the game's fingerprint):
-                // a DLL that doesn't look like edited game code gets NAMED in
-                // the dialog, and that stronger warning shows even after
-                // "Don't show me again" -- it is a different, targeted alarm.
-                var suspicious = new List<string>();
-                foreach (var mp in others)
-                {
-                    var t = ModManager.DetectDroppedType(mp);
-                    if (t != ModType.Gameplay && t != ModType.TotalConversion) continue;
-                    string mext = Path.GetExtension(mp).ToLowerInvariant();
-                    if (mext == ".rar" || mext == ".7z")
-                        suspicious.Add(Loc.F("{0} (archive can't be pre-screened; its DLLs are checked by the game at load)", Path.GetFileName(mp)));
-                    else
-                        suspicious.AddRange(PeImports.ScanModForSuspiciousDlls(mp));
-                }
-
-                string extra = null;
-                if (suspicious.Count > 0)
-                {
-                    extra = Loc.T("This mod contains DLLs that do NOT look like edited game code " +
-                                  "(edited maps only use the game and the C runtime):") + "\n\n - " +
-                            string.Join("\n - ", suspicious.Take(5)) +
-                            (suspicious.Count > 5 ? "\n - ..." : "") +
-                            "\n\n" + Loc.T("Only continue if you trust this mod completely.");
-                }
-
-                if (extra != null || !_mgr.DllWarningAck)
-                {
-                    var choice = DllWarningDialog.Show(this, extra);
-                    if (choice == DllWarningDialog.Result.Cancel) return;
-                    if (choice == DllWarningDialog.Result.DontShowAgain)
-                    {
-                        _mgr.DllWarningAck = true;
-                        _mgr.SaveState();
-                    }
-                }
-            }
 
             CommitOrderAndState();
             _mgr.SaveState();
@@ -2014,10 +2123,47 @@ namespace SilentHillPC_Launcher
             if (files.Count > max) sb.Append("  ").Append(Loc.F("... and {0} more", files.Count - max)).Append('\n');
         }
 
+        /// <summary>The first Apply of each mod with game code of its own (DLLs) shows a
+        /// short note naming it; agreed to once, that mod does not ask again. Asked here,
+        /// not at import, because nothing in the library runs until Apply deploys it,
+        /// and an archive's DLLs can be read only once it is unpacked.</summary>
+        private bool ConfirmNewCodeMods()
+        {
+            var names   = new List<string>();
+            var unusual = new List<string>();
+            var asked   = new List<ModEntry>();
+            var keys    = new List<string>();
+            foreach (var m in _mgr.Mods)
+            {
+                if (!m.Enabled || !ModManager.IsCodeMod(m)) continue;
+                var odd = PeImports.ScanModForSuspiciousDlls(m.LibraryPath);
+                string key = ModManager.CodeModAckKey(m, odd);
+                if (_mgr.DllModsAcked.Contains(key)) continue;
+                names.Add(m.Label);
+                unusual.AddRange(odd);
+                asked.Add(m);
+                keys.Add(key);
+            }
+            if (names.Count == 0) return true;
+            if (!DllWarningDialog.Show(this, names, unusual)) return false;
+            // A mod asked again (its DLLs changed) keeps only its newest answer.
+            foreach (var m in asked)
+            {
+                string name = m.Name ?? "";
+                _mgr.DllModsAcked.RemoveWhere(k => k.Equals(name, StringComparison.OrdinalIgnoreCase) ||
+                                                   k.StartsWith(name + "|", StringComparison.OrdinalIgnoreCase));
+            }
+            foreach (var k in keys) _mgr.DllModsAcked.Add(k);
+            _mgr.SaveState();
+            return true;
+        }
+
         private void OnApply(object sender, EventArgs e)
         {
             CommitOrderAndState();
+            if (!ApplyCharacterChanges()) return;
             if (!InstallTickedEssentials()) return;
+            if (!ConfirmNewCodeMods()) return;
             try
             {
                 // Files of the user's own in gamedata/load or gamedata/FMV: ones they
@@ -2059,6 +2205,10 @@ namespace SilentHillPC_Launcher
                     "Applied.\n\nActive texture packs: {0}\nData overlays (load/): {1}\nGameplay (Code / DLL) mods: {2}\nFMV video mods: {3}\n" +
                     "Loose file support: {4}\nFiles copied: {5} ({6} already in place, left as is)",
                     r.Texture, r.Load, r.Gameplay, r.Fmv, Loc.T(r.LooseEnabled ? "On" : "Off"), r.Files, r.Skipped);
+                if (r.PluginMods > 0)
+                    msg += "\n" + Loc.F("Plugins: on ({0} mod(s) use them)", r.PluginMods);
+                else if (r.PluginsTurnedOff)
+                    msg += "\n" + Loc.T("Plugins: off (no applied mod uses them)");
                 if (r.Warnings.Count > 0)
                     msg += "\n\n" + Loc.T("Warnings:") + "\n - " + string.Join("\n - ", r.Warnings);
 
