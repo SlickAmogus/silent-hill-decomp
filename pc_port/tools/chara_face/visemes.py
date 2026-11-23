@@ -92,9 +92,11 @@ def build(prims, fp, imgcache, ray, l2w, l2w_dir, jaw_delta, ensure_targets):
     mx, my, mw = fp['mouth']
     # As large as the face allows round the mouth: a chin close under it
     # (Cybil's) leaves less room below.
-    for f in (1.0, 0.9, 0.8, 0.7, 0.6):
-        xs = np.linspace(mx - mw * 1.5 * f, mx + mw * 1.5 * f, COLS)
-        ys = np.linspace(my - mw * 1.1 * f, my + mw * 0.8 * f, ROWS)
+    # Only the part below the mouth gives way: shrunk sideways too (Cybil's),
+    # the patch was narrower than her painted mouth and its corners showed.
+    for f in (1.0, 0.9, 0.8, 0.7, 0.6, 0.5):
+        xs = np.linspace(mx - mw * 1.6, mx + mw * 1.6, COLS)
+        ys = np.linspace(my - mw * 1.1 * f, my + mw * 0.8, ROWS)
         hits = [[ray(x, y) for x in xs] for y in ys]
         if any(h is None for row in hits for h in row):
             continue
@@ -133,7 +135,7 @@ def build(prims, fp, imgcache, ray, l2w, l2w_dir, jaw_delta, ensure_targets):
     for k, s in enumerate(SHAPES):
         cell = base.copy()
         if s != 'X':
-            erase(cell, ccx, ccy + a * 0.1, a * 1.15, a * 0.6)
+            erase(cell, ccx, ccy + a * 0.1, a * 1.45, a * 0.6)
             draw_shape(cell, s, ccx, ccy, a, cols)
         atlas.paste(cell, (k * cw, 0))
     key = 'mouthshapes'

@@ -130,11 +130,12 @@ def build(prims, fp, imgcache, tex_for, T, RR):
 
     keys = []
     for cx, cy, hw, hh in fp.get('eyes', []):
-        xs = np.linspace(cx - hw * 1.3, cx + hw * 1.3, LID_COLS)
-        t = (xs - (cx - hw * 1.3)) / (2.6 * hw)
+        xs = np.linspace(cx - hw * 1.45, cx + hw * 1.45, LID_COLS)
+        t = (xs - (cx - hw * 1.45)) / (2.9 * hw)
         f = np.sqrt(np.clip(1 - (2 * t - 1) ** 2, 0, 1))
         top = cy + hh * (0.35 + 0.75 * f)
-        bot = cy - hh * (0.35 + 0.85 * f)
+        # reaching well under the painted eye: shorter, a sliver of it showed (Cybil's)
+        bot = cy - hh * (0.5 + 1.0 * f)
         src = uv_at(cx, cy - hh * 2.2)
         if src is None:
             print('  no cheek under the eye at', cx, cy); continue
