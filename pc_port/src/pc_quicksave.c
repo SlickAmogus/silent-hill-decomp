@@ -78,6 +78,13 @@ void Pc_QuickSave_TouchRequest(int load)
         s_touchReqSave = 1;
 }
 
+/* The player can lift the block (console bosssave, off by default): a save
+ * made mid-fight is theirs to regret. */
+int Pc_QuickSave_BossBlocks(void)
+{
+    return !g_PcConfig.quickSaveBoss && Pc_QuickSave_BossActive();
+}
+
 void Pc_QuickSave_OpenSaveScreen(void)
 {
     SysWork_SavegameUpdatePlayer();
@@ -151,7 +158,7 @@ void Pc_QuickSaveLoadUpdate(void)
         const int wantSave = (curSave && !prevSave) || touchSave;
         const int wantLoad = (curLoad && !prevLoad) || touchLoad;
 
-        if (wantSave && Pc_QuickSave_BossActive()) {
+        if (wantSave && Pc_QuickSave_BossBlocks()) {
             SH_DBG_ECHO("Can't quick save during a boss fight");
             /* A phone has no console to show that line on; say no out loud. */
             if (touchSave)

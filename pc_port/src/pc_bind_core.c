@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "pc_bind_core.h"
+#include "pc_binds.h"
 #include "pc_config.h"
 #include "sh_log.h"
 
@@ -14,9 +15,10 @@ extern void Pc_ControlStyle_ReapplyBinds(void);
 extern void Pc_QuickOptions_InvalidateRows(void);
 
 /* Labels and order follow the launcher. The PSX-button rows resolve mouse
- * names in Pc_ApplyKeyOrMouse; the port's own actions resolve keyboard names
- * only (Swap Shoulder also takes a mouse button), so the mouse is offered only
- * where the game can use it. */
+ * names in Pc_ApplyKeyOrMouse, wheel included; the port's own actions take a
+ * key or a mouse button (BindInput_Code) but not the wheel, and the three
+ * system rows at the end are keyboard only. The mouse is offered only where
+ * the game can use it. */
 static const BcRow s_rows[] = {
     { "Move Up",        { "key_up",            "key_up_2",       NULL,                NULL },             BCF_STICK | BCF_MOUSE | BCF_WHEEL },
     { "Move Down",      { "key_down",          "key_down_2",     NULL,                NULL },             BCF_STICK | BCF_MOUSE | BCF_WHEEL },
@@ -32,12 +34,12 @@ static const BcRow s_rows[] = {
     { "Aim",            { "key_r2",            "key_r2_2",       "pad_r2",            "pad_r2_2" },       BCF_MOUSE | BCF_WHEEL },
     { "Pause",          { "key_start",         "key_start_2",    "pad_start",         "pad_start_2" },    BCF_MOUSE | BCF_WHEEL },
     { "Inventory",      { "key_select",        "key_select_2",   "pad_select",        "pad_select_2" },   BCF_MOUSE | BCF_WHEEL },
-    { "Reload",         { "key_reload",        "key_reload_2",   "pad_reload",        NULL },             0 },
-    { "Cycle Weapons",  { "key_cycle_weapons", NULL,             "pad_cycle_weapons", NULL },             0 },
-    { "Quick Heal",     { "key_quick_heal",    NULL,             "pad_quick_heal",    NULL },             0 },
-    { "Quick Turn",     { "key_quick_turn",    NULL,             "pad_quick_turn",    NULL },             0 },
-    { "Rear Look",      { "key_rear_look",     NULL,             "pad_rear_look",     NULL },             BCF_ALTCAM },
-    { "Change Camera",  { "key_change_cam",    NULL,             "pad_change_cam",    NULL },             0 },
+    { "Reload",         { "key_reload",        "key_reload_2",   "pad_reload",        NULL },             BCF_MOUSE },
+    { "Cycle Weapons",  { "key_cycle_weapons", NULL,             "pad_cycle_weapons", NULL },             BCF_MOUSE },
+    { "Quick Heal",     { "key_quick_heal",    NULL,             "pad_quick_heal",    NULL },             BCF_MOUSE },
+    { "Quick Turn",     { "key_quick_turn",    NULL,             "pad_quick_turn",    NULL },             BCF_MOUSE },
+    { "Rear Look",      { "key_rear_look",     NULL,             "pad_rear_look",     NULL },             BCF_ALTCAM | BCF_MOUSE },
+    { "Change Camera",  { "key_change_cam",    NULL,             "pad_change_cam",    NULL },             BCF_MOUSE },
     { "Swap Shoulder",  { "key_swap_shoulder", NULL,             "pad_swap_shoulder", NULL },             BCF_GLOBAL | BCF_MOUSE },
     { "Quick Options",  { "key_quick_options", NULL,             "pad_quick_options", NULL },             BCF_GLOBAL },
     { "Quick Save",     { "key_quicksave",     NULL,             NULL,                NULL },             BCF_GLOBAL },
@@ -61,13 +63,38 @@ static int bc_ieq(const char* a, const char* b)
     return *a == *b;
 }
 
+/* Below the game's own rows come the console command binds (pc_binds.c), one
+ * row per command: a key in the first column, a controller input in the
+ * third. They belong to neither scheme and no reset touches them. */
+static int bc_cmd_row(int row)
+{
+    return (row >= BC_ROWS && row < BC_ROWS + PcBinds_RowCount()) ? row - BC_ROWS : -1;
+}
+
 int BindCore_RowCount(void)
 {
-    return BC_ROWS;
+    return BC_ROWS + PcBinds_RowCount();
 }
 
 const BcRow* BindCore_Row(int row)
 {
+    /* A few at once: callers read a row's fields while asking for another's. */
+    static BcRow s_cmd[4];
+    static int   s_next;
+    const int    cmd = bc_cmd_row(row);
+
+    if (cmd >= 0)
+    {
+        BcRow* r = &s_cmd[s_next++ & 3];
+
+        r->label        = PcBinds_RowLabel(cmd);
+        r->key[BC_KB1]  = "command";
+        r->key[BC_KB2]  = NULL;
+        r->key[BC_PAD1] = "command";
+        r->key[BC_PAD2] = NULL;
+        r->flags        = BCF_GLOBAL | BCF_MOUSE;
+        return r;
+    }
     return (row >= 0 && row < BC_ROWS) ? &s_rows[row] : NULL;
 }
 
@@ -88,6 +115,8 @@ int BindCore_Unbound(const char* v)
 
 const char* BindCore_Value(int row, int col)
 {
+    if (bc_cmd_row(row) >= 0)
+        return (col == BC_KB1 || col == BC_PAD1) ? PcBinds_RowValue(bc_cmd_row(row), col == BC_PAD1) : NULL;
     if (row < 0 || row >= BC_ROWS || col < 0 || col >= BC_COLS || s_rows[row].key[col] == NULL)
         return NULL;
     return PcConfig_BindField(s_rows[row].key[col], s_scheme, NULL);
@@ -102,6 +131,8 @@ int BindCore_RowEnabled(int row)
 
 int BindCore_CellUsable(int row, int col)
 {
+    if (bc_cmd_row(row) >= 0)
+        return col == BC_KB1 || col == BC_PAD1;
     return row >= 0 && row < BC_ROWS && col >= 0 && col < BC_COLS && s_rows[row].key[col] != NULL &&
            BindCore_RowEnabled(row);
 }
@@ -124,11 +155,24 @@ static void bc_cfg_key(const char* key, int perScheme, char* out, size_t outSize
 
 void BindCore_Set(int row, int col, const char* value)
 {
-    const char* key       = s_rows[row].key[col];
+    const char* key;
     int         perScheme = 0;
-    char*       field     = PcConfig_BindField(key, s_scheme, &perScheme);
+    char*       field;
     char        cfgKey[64];
 
+    if (bc_cmd_row(row) >= 0)
+    {
+        if (col == BC_KB1 || col == BC_PAD1)
+        {
+            PcBinds_RowSet(bc_cmd_row(row), col == BC_PAD1, value);
+            SH_DBG("[BINDS] command row %d %s = %s", bc_cmd_row(row), col == BC_PAD1 ? "pad" : "key", value ? value : "NONE");
+        }
+        return;
+    }
+    if (row < 0 || row >= BC_ROWS || col < 0 || col >= BC_COLS || s_rows[row].key[col] == NULL)
+        return;
+    key   = s_rows[row].key[col];
+    field = PcConfig_BindField(key, s_scheme, &perScheme);
     if (field == NULL)
         return;
     snprintf(field, 24, "%s", value);
@@ -186,7 +230,8 @@ int BindCore_IsDuplicate(int row, int col)
 
     if (BindCore_Unbound(v))
         return 0;
-    for (r = 0; r < BC_ROWS; r++)
+    /* Command rows too: a key that also moves Harry is worth showing. */
+    for (r = 0; r < BindCore_RowCount(); r++)
     {
         if (!BindCore_RowEnabled(r))
             continue;
@@ -215,6 +260,7 @@ void BindCore_DisplayKey(const char* v, char* out, size_t n)
 {
     static const struct { const char* id; const char* name; } mouse[] = {
         { "Mouse1", "L-Mouse" },      { "Mouse2", "R-Mouse" }, { "Mouse3", "M-Mouse" },
+        { "Mouse4", "Mouse 4" },      { "Mouse5", "Mouse 5" },
         { "MouseWheelUp", "Wheel Up" }, { "MouseWheelDown", "Wheel Down" },
     };
     static const struct { const char* prefix; const char* repl; } prefixes[] = {

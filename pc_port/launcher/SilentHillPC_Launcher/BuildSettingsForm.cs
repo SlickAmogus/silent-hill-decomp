@@ -230,21 +230,9 @@ namespace SilentHillPC_Launcher
             if (_suppressRealtimeChange) return;
             if (_chkRealtime.Checked && !_settings.Realtime)
             {
-                var ok = MessageBox.Show(this,
-                    Loc.T("Realtime builds are made automatically from every change pushed to the project, " +
-                          "before anyone has tested them. They can have new bugs, and a bad one could even " +
-                          "break your save data.\n\n" +
-                          "Back up your gamedata\\save folder first. You can roll back to an earlier build " +
-                          "from the Build list, or untick this to return to the normal releases.\n\n" +
-                          "Turn on realtime updates?"),
-                    Loc.T("Realtime updates"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
-                if (ok != DialogResult.Yes)
-                {
-                    _suppressRealtimeChange = true;
-                    _chkRealtime.Checked = false;
-                    _suppressRealtimeChange = false;
-                    return;
-                }
+                MessageBox.Show(this,
+                    Loc.T("Realtime updates are new builds made from the latest changes, and they are not always tested. It is recommended to back up your saves."),
+                    Loc.T("Realtime updates"), MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             _cmbBranch.Enabled = !_chkRealtime.Checked;
             await LoadBuildsAsync();

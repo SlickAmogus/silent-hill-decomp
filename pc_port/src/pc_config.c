@@ -97,6 +97,7 @@ s_PcConfig g_PcConfig = {
     .flashlightMode = 0, /* 0=Classic (PSX), 1=Classic+Shadows, 2=Modern, 3=Modern+Shadows */
     .perPixelFlashlight = 0, /* DERIVED from flashlightMode */
     .flashlightShadows  = 1, /* per-pixel flashlight casts real-time shadows (on by default; only visible when perPixelFlashlight is on) */
+    .renderScale          = 1.0f,
     .fogStrength          = 1.10f, /* PSX-matched density; lower reveals more of the widened draw distance */
     .flashlightIntensity  = 1.20f, /* per-pixel flashlight cone brightness scale, 0..6 */
     .flashlightSize       = 3.00f, /* per-pixel flashlight cone coverage multiplier */
@@ -171,6 +172,7 @@ s_PcConfig g_PcConfig = {
     .immersiveFpsHeadTracking = 0, /* FPS view follows head-bone rotation (experiment, off by default) */
     .control2d               = 0, /* 2D screen-relative movement (experiment, off by default) */
     .control2dSnap           = 0, /* 2D control turns into the direction (0), doesn't snap */
+    .control2dHold           = 1, /* fixed cameras: a held direction is a straight world line */
     .minimap                 = 0, /* minimap overlay off by default */
     .anisoLevel              = 8,
     .shadowMapSize           = 1024,
@@ -658,6 +660,16 @@ void PcConfig_Load(const char* path)
             int v = atoi(value);
             if (v >= 0) g_PcConfig.refreshRate = v;
         }
+        else if (strcmp(key, "frame_interp") == 0)
+        {
+            int v = atoi(value);
+            g_PcConfig.frameInterp = (v < 0 || v > 2) ? 0 : v;
+        }
+        else if (strcmp(key, "frame_interp_fps") == 0)
+        {
+            int v = atoi(value);
+            g_PcConfig.frameInterpFps = (v < 0) ? 0 : v;
+        }
         else if (strcmp(key, "fps_cap") == 0)
         {
             g_PcConfig.fpsCap = atoi(value);
@@ -748,6 +760,13 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "image_adjust_scope") == 0)
         {
             g_PcConfig.imageAdjustScope = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "render_scale") == 0)
+        {
+            float f = (float)atof(value);
+            if (f < 0.25f) f = 0.25f;
+            if (f > 1.0f)  f = 1.0f;
+            g_PcConfig.renderScale = f;
         }
         else if (strcmp(key, "native_resolution") == 0)
         {
@@ -969,6 +988,10 @@ void PcConfig_Load(const char* path)
             if (v < 0.0f) v = 0.0f;
             if (v > 1.0f) v = 1.0f;
             g_PcConfig.postProcessIntensity = v;
+        }
+        else if (strcmp(key, "quicksave_boss") == 0)
+        {
+            g_PcConfig.quickSaveBoss = (atoi(value) != 0);
         }
         else if (strcmp(key, "post_process_scale") == 0)
         {
@@ -1380,6 +1403,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "control_2d_snap") == 0)
         {
             g_PcConfig.control2dSnap = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "control_2d_hold") == 0)
+        {
+            g_PcConfig.control2dHold = (atoi(value) != 0);
         }
         else if (strcmp(key, "minimap") == 0)
         {

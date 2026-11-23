@@ -23,6 +23,8 @@ namespace SilentHillPC_Launcher
         [DataMember(Name = "size")]        public long   Size;
         [DataMember(Name = "sha256")]      public string Sha256;
         [DataMember(Name = "kind")]        public string Kind; /* "character" = a HERO_* playable character */
+        /* One "crc32 size path" line per file under load/, or absent. */
+        [DataMember(Name = "verify")]      public string Verify;
 
         public bool IsCharacter
         {
@@ -143,8 +145,10 @@ namespace SilentHillPC_Launcher
 
         /// <summary>The mods the Essential list installed whose catalog zip has changed
         /// since, so an updated mod (a pack that gains characters, a fixed model) reaches
-        /// everyone who has it. One installed before the sha256 was kept is taken as current
-        /// (and recorded, so the next change is seen).</summary>
+        /// everyone who has it. Where the catalog lists a mod's files ("verify"), the
+        /// installed copy itself is compared and the recorded sha256 only follows the
+        /// answer. Otherwise the record decides, and one installed before it was kept is
+        /// taken as current (and recorded, so the next change is seen).</summary>
         public static List<EssentialMod> StaleMods(ModManager mgr, EssentialCatalog cat)
         {
             var stale = new List<EssentialMod>();
@@ -153,11 +157,84 @@ namespace SilentHillPC_Launcher
             {
                 var inst = mgr.Mods.FirstOrDefault(m => string.Equals(m.EssentialId, em.Id, StringComparison.OrdinalIgnoreCase));
                 if (inst == null) continue;
-                if (string.IsNullOrEmpty(inst.EssentialSha)) { inst.EssentialSha = em.Sha256; adopted = true; }
-                else if (!string.Equals(inst.EssentialSha, em.Sha256, StringComparison.OrdinalIgnoreCase)) stale.Add(em);
+                bool same = string.Equals(inst.EssentialSha, em.Sha256, StringComparison.OrdinalIgnoreCase);
+                bool? files = VerifyInstalled(em, inst);
+                if (files == false) stale.Add(em);
+                else if (files == true || string.IsNullOrEmpty(inst.EssentialSha))
+                {
+                    if (!same) { inst.EssentialSha = em.Sha256; adopted = true; }
+                }
+                else if (!same) stale.Add(em);
             }
             if (adopted) mgr.SaveState();
             return stale;
+        }
+
+        /// <summary>The catalog's "verify" lines ("crc32 size path", one per file) against
+        /// a mod in the library: true when every file is the catalog's, false when one
+        /// differs or is missing, null when there is nothing to go by (no lines, or the
+        /// mod is not a folder in mods/). Files are looked for at the mod's root and one
+        /// folder down, as modinfo.txt is.</summary>
+        public static bool? VerifyInstalled(EssentialMod em, ModEntry inst)
+        {
+            if (string.IsNullOrWhiteSpace(em.Verify) || inst.Source != ModSource.Library ||
+                string.IsNullOrEmpty(inst.LibraryPath) || !Directory.Exists(inst.LibraryPath))
+                return null;
+            var roots = new List<string> { inst.LibraryPath };
+            try { roots.AddRange(Directory.GetDirectories(inst.LibraryPath)); } catch { }
+
+            int lines = 0;
+            foreach (var raw in em.Verify.Split('\n'))
+            {
+                string[] parts = raw.Trim().Split(new[] { ' ' }, 3);
+                uint crc; long size;
+                if (parts.Length != 3 ||
+                    !uint.TryParse(parts[0], System.Globalization.NumberStyles.HexNumber,
+                                   System.Globalization.CultureInfo.InvariantCulture, out crc) ||
+                    !long.TryParse(parts[1], out size))
+                    continue;
+                string rel = parts[2].Trim();
+                // The path comes off the network and is joined to a folder.
+                if (rel.Length == 0 || rel.Contains("..") || rel.Contains(":") || rel.StartsWith("/") || rel.Contains("\\"))
+                    return null;
+                lines++;
+                string found = roots.Select(r => Path.Combine(r, rel.Replace('/', Path.DirectorySeparatorChar)))
+                                    .FirstOrDefault(System.IO.File.Exists);
+                if (found == null) return false;
+                try
+                {
+                    if (new FileInfo(found).Length != size || Crc32(found) != crc) return false;
+                }
+                catch { return false; }
+            }
+            return lines > 0 ? (bool?)true : null;
+        }
+
+        private static uint[] _crcTable;
+
+        private static uint Crc32(string path)
+        {
+            if (_crcTable == null)
+            {
+                var t = new uint[256];
+                for (uint n = 0; n < 256; n++)
+                {
+                    uint c = n;
+                    for (int k = 0; k < 8; k++) c = (c & 1) != 0 ? 0xEDB88320u ^ (c >> 1) : c >> 1;
+                    t[n] = c;
+                }
+                _crcTable = t;
+            }
+            uint crc = 0xFFFFFFFFu;
+            var buf = new byte[65536];
+            using (var fs = System.IO.File.OpenRead(path))
+            {
+                int got;
+                while ((got = fs.Read(buf, 0, buf.Length)) > 0)
+                    for (int i = 0; i < got; i++)
+                        crc = _crcTable[(crc ^ buf[i]) & 0xFF] ^ (crc >> 8);
+            }
+            return crc ^ 0xFFFFFFFFu;
         }
 
         /// <summary>Download those again and deploy them. Returns the names updated; one

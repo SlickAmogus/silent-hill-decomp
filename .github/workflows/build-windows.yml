@@ -10,9 +10,9 @@ on:
   push:
     branches:
       - pc-port
+    # Launcher changes build too: every zip carries the launcher built here.
     paths-ignore:
       - '**.md'
-      - 'pc_port/launcher/**'
   workflow_dispatch:
 
 permissions:
@@ -85,6 +85,18 @@ jobs:
           cmake -S pc_port -B pc_port/build -G Ninja -DSH_BUILD_MAP_DLLS=ON "${FFARG[@]}"
           cmake --build pc_port/build -- -k 0
 
+      # Built here rather than carried from the newest official release, which
+      # left every realtime zip with that release's launcher, weeks behind.
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build the launcher
+        shell: pwsh
+        run: |
+          msbuild pc_port/launcher/SilentHillPC_Launcher/SilentHillPC_Launcher.csproj /p:Configuration=Release /v:minimal /nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "Launcher " + (Get-Item pc_port/launcher/SilentHillPC_Launcher/bin/Release/SilentHillPC_Launcher.exe).VersionInfo.FileVersion
+
       - name: Stage release files
         run: |
           set -euo pipefail
@@ -95,6 +107,7 @@ jobs:
           cp pc_port/build/maps/*.dll       "$STAGE/maps/"
           cp pc_port/config.cfg             "$STAGE/config.cfg"
           cp -r pc_port/assets/.            "$STAGE/"
+          cp pc_port/launcher/SilentHillPC_Launcher/bin/Release/SilentHillPC_Launcher.exe "$STAGE/"
           # The exe and map DLLs link against this toolchain's runtime, so ship
           # the MinGW-prefix DLLs they import (recursively), never another build's.
           queue=("$STAGE/SilentHillPC.exe" "$STAGE"/maps/*.dll)
@@ -108,6 +121,9 @@ jobs:
               fi
             done
           done
+          # SDL3 through sdl2-compat (pc_port/sdl/README.md): its SDL2.dll is the
+          # compat shim and replaces the MinGW SDL2.dll copied above.
+          cp pc_port/sdl/*.dll "$STAGE/"
           echo "Bundled runtime DLLs:"; ls "$STAGE"/*.dll
 
       - name: Upload artifact

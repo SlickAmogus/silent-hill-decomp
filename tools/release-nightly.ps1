@@ -153,6 +153,7 @@ function Get-ShippedAssets {
 # it; it ships from its own source folder, pc_port/angle/, json companions
 # included (its Vulkan backend needs vk_swiftshader_icd.json), when present.
 $angleDir = Join-Path $PSScriptRoot "..\pc_port\angle"
+$sdlDir   = Join-Path $PSScriptRoot "..\pc_port\sdl"
 function Get-ShippedRuntimeFiles {
     $objdump = Join-Path $MingwBin "objdump.exe"
     if (-not (Test-Path $objdump)) { throw "objdump not found at $objdump (pass -MingwBin)." }
@@ -175,6 +176,13 @@ function Get-ShippedRuntimeFiles {
 
     if (Test-Path $angleDir) {
         Get-ChildItem $angleDir -File | Where-Object { $_.Extension -in '.dll', '.json' } | ForEach-Object {
+            $out[$_.Name.ToLower()] = [pscustomobject]@{ RelPath = $_.Name; Source = $_.FullName }
+        }
+    }
+    # SDL3 through sdl2-compat (pc_port/sdl/README.md). Laid over the import
+    # walk on purpose: its SDL2.dll is the compat shim and must replace MinGW's.
+    if (Test-Path (Join-Path $sdlDir "SDL3.dll")) {
+        Get-ChildItem $sdlDir -File -Filter "*.dll" | ForEach-Object {
             $out[$_.Name.ToLower()] = [pscustomobject]@{ RelPath = $_.Name; Source = $_.FullName }
         }
     }
@@ -695,15 +703,38 @@ if ($baseManifest -and $baseManifest.PSObject.Properties.Name -contains "git_com
         $baselineIsAncestor = ($LASTEXITCODE -eq 0)
     } catch { $baselineIsAncestor = $false }
 
-    if (-not $baselineIsAncestor) {
-        Write-Host "Warning: previous release commit $($baseManifest.git_commit) is not an ancestor of HEAD" -ForegroundColor Yellow
-        Write-Host "         (branch history was likely rewritten). Skipping the auto commit list to avoid" -ForegroundColor Yellow
-        Write-Host "         dumping the whole history -- add this release's notes to CHANGELOG.md by hand." -ForegroundColor Yellow
+    $rangeArgs = $null
+    if ($baselineIsAncestor) {
+        $rangeArgs = @("$($baseManifest.git_commit)..HEAD")
     } else {
+        # A release cut from a local commit that was then rebased or amended before
+        # it was pushed sits a commit or two off the branch (beta-2026.10.26.1
+        # recorded cdc8187e5, which landed as de4e45cb6, and listed nothing for the
+        # next release). List what HEAD has that the release did not; --cherry-pick
+        # drops the rewritten copies of the release's own commits. A deep split is
+        # a rewritten history, where that would still dump everything: skip it.
+        $offBranch = -1
+        try {
+            $mb = (git merge-base $baseManifest.git_commit HEAD 2>$null)
+            if ($LASTEXITCODE -eq 0 -and $mb) {
+                $offBranch = [int](git rev-list --count "$($mb.Trim())..$($baseManifest.git_commit)" 2>$null)
+            }
+        } catch { $offBranch = -1 }
+        if ($offBranch -ge 1 -and $offBranch -le 20) {
+            Write-Host "Previous release commit $($baseManifest.git_commit) was rewritten after the release ($offBranch commit(s) off the branch)." -ForegroundColor Yellow
+            Write-Host "         Listing the commits the release did not have, matched by patch." -ForegroundColor Yellow
+            $rangeArgs = @("--cherry-pick", "--right-only", "$($baseManifest.git_commit)...HEAD")
+        } else {
+            Write-Host "Warning: previous release commit $($baseManifest.git_commit) is not an ancestor of HEAD" -ForegroundColor Yellow
+            Write-Host "         (branch history was likely rewritten). Skipping the auto commit list to avoid" -ForegroundColor Yellow
+            Write-Host "         dumping the whole history -- add this release's notes to CHANGELOG.md by hand." -ForegroundColor Yellow
+        }
+    }
+    if ($rangeArgs) {
         $prevOutEnc = $null
         try { $prevOutEnc = [Console]::OutputEncoding; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
         try {
-            $commitLog = (git log "$($baseManifest.git_commit)..HEAD" --pretty=format:"- %s" --reverse)
+            $commitLog = (git log $rangeArgs --pretty=format:"- %s" --reverse)
         } finally {
             if ($null -ne $prevOutEnc) { try { [Console]::OutputEncoding = $prevOutEnc } catch {} }
         }

@@ -408,15 +408,34 @@ add_custom_command(TARGET SilentHillPC POST_BUILD
 # and ANGLE's Vulkan backend needs companions that are not DLLs at all
 # (vk_swiftshader_icd.json). Copying the directory keeps the deployed set equal
 # to the source set without a reconfigure.
-if(WIN32 AND EXISTS "${CMAKE_SOURCE_DIR}/angle")
+# macOS: the same directory holds libEGL.dylib + libGLESv2.dylib for the
+# renderer=metal backend (ANGLE's Metal device). make_app.sh moves them into
+# Contents/Frameworks when packaging the app.
+if((WIN32 OR APPLE) AND EXISTS "${CMAKE_SOURCE_DIR}/angle")
     add_custom_command(TARGET SilentHillPC POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 "${CMAKE_SOURCE_DIR}/angle" "$<TARGET_FILE_DIR:SilentHillPC>"
-        COMMENT "Copying ANGLE runtime (D3D11/Vulkan backends)"
+        COMMENT "Copying ANGLE runtime (translated render backends)"
     )
-    message(STATUS "ANGLE runtime found - D3D11/Vulkan render backends will be available")
+    message(STATUS "ANGLE runtime found - translated render backends (D3D11/Vulkan/Metal) will be available")
 else()
     message(STATUS "No pc_port/angle/ - only the native OpenGL backend will be selectable at runtime")
+endif()
+
+# SDL3 under the SDL2 API (pc_port/sdl/README.md): the exe still links SDL2, and
+# sdl2-compat's SDL2.dll beside it forwards every call to SDL3, whose libusb
+# build carries the Switch 2 controller driver. Copied file by file so the
+# README and licences stay out of the build folder.
+option(SH_SDL3_RUNTIME "Run on SDL3 through sdl2-compat (pc_port/sdl/)" ON)
+if(WIN32 AND SH_SDL3_RUNTIME AND EXISTS "${CMAKE_SOURCE_DIR}/sdl/SDL3.dll")
+    add_custom_command(TARGET SilentHillPC POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_SOURCE_DIR}/sdl/SDL2.dll"
+                "${CMAKE_SOURCE_DIR}/sdl/SDL3.dll"
+                "${CMAKE_SOURCE_DIR}/sdl/libusb-1.0.dll"
+                "$<TARGET_FILE_DIR:SilentHillPC>"
+        COMMENT "Copying SDL3 runtime (sdl2-compat + SDL3 + libusb)"
+    )
 endif()
 
 # Game-specific defines (only on our target, NOT PsyCross)
@@ -501,7 +520,15 @@ endif()
 # libjpeg (for FMV playback - MJPG decoding)
 # =============================================================================
 find_package(PkgConfig QUIET)
-find_library(JPEG_LIBRARY NAMES jpeg turbojpeg)
+# Linux takes the static archive when there is one: the shared library's name
+# and symbol versions differ between distributions (Debian and Ubuntu ship
+# libjpeg.so.8 with LIBJPEG_8.0, Fedora libjpeg.so.62 with LIBJPEG_6.2), so a
+# binary linked against one would not start on the other.
+if(UNIX AND NOT APPLE)
+    find_library(JPEG_LIBRARY NAMES libjpeg.a jpeg turbojpeg)
+else()
+    find_library(JPEG_LIBRARY NAMES jpeg turbojpeg)
+endif()
 find_path(JPEG_INCLUDE_DIR jpeglib.h)
 
 # =============================================================================

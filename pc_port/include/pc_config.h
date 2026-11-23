@@ -92,6 +92,12 @@ typedef struct {
     int preloadChunks;   /* 1 = load all IPD chunks at map init instead of streaming */
     int vsync;           /* 0 = off (uncapped), 1 = on, -1 = adaptive */
     int refreshRate;     /* target refresh rate in hz (0 = display default); fullscreen only */
+    /* Frame interpolation: the game keeps its fps cap and the frames in
+     * between are synthesised up to frameInterpFps (0 = display refresh).
+     * 2 = reprojection-error view. Needs PGXP (config keys: frame_interp,
+     * frame_interp_fps). */
+    int frameInterp;
+    int frameInterpFps;
     int fpsCap;          /* gameplay fps cap: 0 = uncapped, 30 = PSX-accurate, 60 = smooth */
     int weatherSimHz;      /* rain/snow simulation rate: 60 (default) steps it once per rendered
                             * frame, 30 locks it to the console's cadence. Only the frame-stepped
@@ -161,6 +167,9 @@ typedef struct {
      * picture in the window. width/height are then only the window size. Off
      * by default (config key: native_resolution). */
     int nativeResolution;
+    /* Internal render size as a fraction of the window (or of the borderless
+     * render size), 0.25..1.0; ignored by Native (PSX) (config key: render_scale). */
+    float renderScale;
     int widescreenMode;  /* 0 = pillarbox (PSX-faithful, default), 1 = Hor+ (extra side content), 2 = stretch */
     int menuPillarbox;   /* 1 = pillarbox 2D screens (menus/load) with 4:3 black bars instead of stretching to fill (config key: menu_pillarbox) */
     int allowLooseFiles; /* 1 = scan gamedata/load/{folder}/{name}.{ext} before CD read (texture mod support) */
@@ -284,6 +293,7 @@ typedef struct {
     int   flashlightFollowAim;    /* TPS/OTS: the beam follows the camera fully while aiming and by pitch only otherwise (config key: flashlight_follow_aim, console FLASHLIGHTAIM, F10 row) */
     float postProcessIntensity; /* post-process effect mix, 0..1 (config key: post_process_intensity) */
     float postProcessScale;     /* resolution the looks draw their pixel-sized detail at, 0.1..1 of the window (config key: post_process_scale; console only) */
+    int   quickSaveBoss;        /* 1 = quick save and the pause menu's Save work during a boss fight (config key: quicksave_boss; console only, default 0) */
     float tonemapIntensity;     /* tone-map mix, 0..1 (config key: tonemap_intensity) */
     /* Image adjustments applied to the final frame every time (independent of the
      * post_process filter). 1.0 = neutral for all three. Driven by the in-game
@@ -349,6 +359,7 @@ typedef struct {
     int immersiveFpsHeadTracking; /* 1 = FPS view direction follows Harry's animated head-bone rotation (idle sway/lean), mouse layered on top (config key: immersive_fps_head_tracking) */
     int control2d;          /* 1 = 2D screen-relative movement (input aligns with the camera; Harry turns to face the move direction) under ALL non-FPS camera styles (config key: control_2d) — an Experiment, off by default */
     int control2dSnap;      /* 1 = 2D control snaps Harry instantly to the input direction instead of turning into it (config key: control_2d_snap); default 0 */
+    int control2dHold;      /* 1 = under the fixed cameras a held 2D direction keeps its world line while the camera turns (config key: control_2d_hold); 0 = re-read from the picture every frame */
     int disableDpadMovement; /* 1 = the controller D-pad no longer drives movement, freeing those D-pad inputs to be bound to other actions (config key: disable_dpad_movement); default 0 */
     int menuFilter;          /* 1 = bilinear-filter menus / 2D screens, independent of the in-game texture Filtering mode; default 0 (config key: menu_filter) */
     int minimap;             /* minimap overlay: 0 = off, 1 = square, 2 = circle (config key: minimap); default 0 */

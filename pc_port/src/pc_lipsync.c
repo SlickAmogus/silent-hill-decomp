@@ -6,6 +6,7 @@
 #include <SDL_timer.h>
 #include "pc_config.h"
 #include "sh_log.h"
+#include "xa_wav.h"
 
 #define LIP_WIN_MS  20
 #define LIP_RING    4096
@@ -33,6 +34,7 @@ static float  s_pitch[LIP_PITCH_N];
 static int    s_pitchN;
 static int    s_hist[LIP_HZ_BINS];
 static int    s_voiced;
+static int    s_replaced; /* a voice mod plays this line: no shape track */
 
 /* Pitch of one window by normalised autocorrelation. The shortest lag close
  * to the best wins: a subharmonic correlates almost as well and would read a
@@ -135,6 +137,19 @@ void Pc_Lip_Feed(uint16_t xaIdx, const int16_t* pcm, int frames, int rate, int c
         s_pitchN = 0;
         memset(s_hist, 0, sizeof(s_hist));
         s_voiced = 0;
+        s_replaced = 0;
+        if (g_PcConfig.allowLooseFiles && xaIdx < PC_LIP_LINES && g_PcLipShapeFirst[xaIdx + 1] > g_PcLipShapeFirst[xaIdx])
+        {
+            char path[1024];
+            FILE* f;
+            XaWav_OverridePath(xaIdx, path, sizeof(path));
+            f = fopen(path, "rb");
+            if (f != NULL)
+            {
+                s_replaced = 1;
+                fclose(f);
+            }
+        }
     }
     for (f = 0; f < frames; f++)
     {
@@ -197,6 +212,24 @@ void Pc_Lip_Hold(int hold)
         s_holdMs = SDL_GetTicks();
     else
         s_startMs += SDL_GetTicks() - s_holdMs;
+}
+
+int Pc_Lip_Shape(void)
+{
+    Uint32 now = s_held ? s_holdMs : SDL_GetTicks();
+    uint32_t cs;
+    int i, first, last, shape = -1;
+
+    if (!s_active || s_replaced || s_line >= PC_LIP_LINES)
+        return -1;
+    first = g_PcLipShapeFirst[s_line];
+    last = g_PcLipShapeFirst[s_line + 1];
+    if (first == last)
+        return -1;
+    cs = (now - s_startMs) / 10;
+    for (i = first; i < last && g_PcLipShapeAt[i] <= cs; i++)
+        shape = g_PcLipShapeId[i];
+    return shape < 0 ? PC_LIP_SHAPES - 1 : shape;
 }
 
 float Pc_Lip_Level(const char** speaker, int* female)

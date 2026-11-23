@@ -27,9 +27,10 @@ Two pre-releases, because a GitHub asset list cannot hold folders:
     <stem>_<date>-<commit>.* the newest 15 builds of each other platform, added and
                              pruned by those workflows and left alone here
 
-Files the Windows CI cannot produce (ANGLE, the ffmpeg runtime, UnRAR.dll, and
-the launcher for anyone downloading directly) are carried from the newest
-official release in the nightly repo, so every zip is a full install.
+Files the Windows CI cannot produce (ANGLE, the ffmpeg runtime, UnRAR.dll) are
+carried from the newest official release in the nightly repo, so every zip is a
+full install. The launcher is not one of them: CI builds it from the same
+commit as the game.
 
 Order matters for anyone mid-update: the new zip is uploaded first, then the
 index that references it, and only then are zips no retained build references
@@ -62,10 +63,14 @@ HISTORY_TAG = "realtime-history"
 WIN_ZIP_PREFIX = "SHPC_rt-"
 
 # Never carried: the official changelog belongs to the scripted stream and
-# config.cfg comes from source. The launcher is carried into the zip for direct
-# downloads but kept out of the manifest, so the launcher never updates itself
-# from a realtime build.
-CARRY_EXCLUDE = {"CHANGELOG.md", "config.cfg"}
+# config.cfg comes from source. Nor the launcher: carrying it shipped the
+# official release's launcher, weeks old, in every zip, so CI stages its own
+# and a stage without one is refused (main). It goes into the zip for direct
+# downloads but stays out of the manifest: the launcher is the updater and only
+# replaces itself from a scripted release (UpdateChecker.CheckAsync drops it).
+# gamedata/decal.png moved to gamedata/image/; the last official release still
+# lists the old path, and carrying it shipped the texture twice.
+CARRY_EXCLUDE = {"CHANGELOG.md", "config.cfg", "gamedata/decal.png", LAUNCHER_NAME}
 ZIP_ONLY = {LAUNCHER_NAME}
 
 RELEASE_NOTES = """Automatic builds of every push, for players who want changes as soon as they land instead of waiting for a release. This page always has just the newest build of each platform; older ones are under [Realtime history]({history_url}).
@@ -117,6 +122,13 @@ def sha256_of(path):
 
 def http_get(url):
     req = urllib.request.Request(url, headers={"User-Agent": "realtime-publish"})
+    # The API gives an unsigned caller 60 requests an hour per address, and a
+    # shared runner's address is often spent already (HTTP 403 "rate limit
+    # exceeded"): sign API calls with the job's token. Unredirected, so it never
+    # follows a release download to the CDN, which refuses it.
+    token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    if token and url.startswith("https://api.github.com/"):
+        req.add_unredirected_header("Authorization", "Bearer " + token)
     with urllib.request.urlopen(req, timeout=300) as r:
         return r.read()
 
@@ -308,8 +320,9 @@ def main():
         for name in names:
             full = os.path.join(root, name)
             files[os.path.relpath(full, a.stage).replace(os.sep, "/")] = full
-    if "SilentHillPC.exe" not in files:
-        raise RuntimeError(f"SilentHillPC.exe missing from {a.stage}")
+    for required in ("SilentHillPC.exe", LAUNCHER_NAME):
+        if required not in files:
+            raise RuntimeError(f"{required} missing from {a.stage}")
     files.pop(CHANGELOG_NAME, None)
 
     carry_source, official_commit, carried = carry_files(a.nightly, set(files), os.path.join(work, "carry"))
