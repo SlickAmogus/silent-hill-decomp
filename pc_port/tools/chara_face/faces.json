@@ -20,7 +20,8 @@
     6.0,
     5.5
    ],
-   "open": 3.84
+   "open": 3.84,
+   "visemes": true
   }
  },
  "SIBYL": {
@@ -44,7 +45,8 @@
     5.0,
     5.5
    ],
-   "open": 3.6
+   "open": 3.6,
+   "visemes": true
   }
  },
  "LISA": {

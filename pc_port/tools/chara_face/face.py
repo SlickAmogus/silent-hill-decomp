@@ -165,9 +165,11 @@ def build(prims, fp, imgcache, tex_for, T, RR):
         f = np.sin(np.pi * t)
         top = np.full_like(xs, my + 0.25)
         src = uv_at(mx, my, darkest=True)
-        if src is not None:
+        # With painted mouth shapes (visemes.py) the shapes are the mouth; the
+        # jaw key only drops the chin.
+        if src is not None and not fp.get('visemes'):
             add_strip(xs, top, my + 0.25 - A * f, src, 'jawOpen', None, MOUTH_ROWS, MOUTH_OUT)
-            keys.append('jawOpen')
+        keys.append('jawOpen')
         # The chin drops with it: head verts below the mouth line, in front.
         zc = np.median(np.concatenate([pr['L'][[j for j in range(len(pr['L'])) if pr['J'][j] == 2], 2]
                                        for pr in prims if 2 in pr['J']]))
@@ -190,7 +192,23 @@ def build(prims, fp, imgcache, tex_for, T, RR):
                     d = moved.get(tuple(np.round(pr['P'][j], 3)))
                     if d is not None:
                         pr['D']['jawOpen'][j] = d
+    if fp.get('visemes') and fp.get('mouth'):
+        import importlib.util, os
+        sp = importlib.util.spec_from_file_location('visemes', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'visemes.py'))
+        vis = importlib.util.module_from_spec(sp); sp.loader.exec_module(vis)
+
+        def jaw_delta(x, y):
+            wy = np.clip((my - y) / 1.5, 0, 1); wy = wy * wy * (3 - 2 * wy)
+            wx = np.clip(1 - (abs(x - mx) / (mw * 1.9)) ** 2, 0, 1)
+            wf = np.clip(1 - (my - y - 6) / 10, 0, 1)
+            return l2w_dir(np.array([[0, -A * 0.8 * wy * wx * wf, 0]]))[0]
+        keys += vis.build(prims, fp, imgcache, ray, l2w, l2w_dir, jaw_delta, ensure_targets)
+    order = ['blink', 'jawOpen'] + sorted(k for k in set(keys) if k.startswith('mouth_'))
+    keys = [k for k in order if k in set(keys)]
     for pr in prims:
         ensure_targets(pr)
-        del pr['L']
-    return sorted(set(keys), key=['blink', 'jawOpen'].index)
+        for k in keys:
+            if k not in pr['D']:
+                pr['D'][k] = np.zeros((len(pr['P']), 3))
+        pr.pop('L', None)
+    return keys

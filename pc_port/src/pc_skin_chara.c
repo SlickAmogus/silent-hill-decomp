@@ -464,7 +464,8 @@ typedef struct
 /* GRIP_L/GRIP_R curl the fingers of game hand 6/10 round a held item. BREATH
  * is built from the chest at load, so every model gets it. */
 enum { PC_SKIN_MORPH_BLINK, PC_SKIN_MORPH_MOUTH, PC_SKIN_MORPH_GRIP_L, PC_SKIN_MORPH_GRIP_R, PC_SKIN_MORPH_BREATH,
-       PC_SKIN_MORPH_COUNT };
+       PC_SKIN_MORPH_SHAPE, /* mouth_A .. mouth_H, mouth_X: painted mouth shapes, PC_LIP_SHAPES of them */
+       PC_SKIN_MORPH_COUNT = PC_SKIN_MORPH_SHAPE + PC_LIP_SHAPES };
 
 /* One frame's lights for the per-pixel path, in view space: the GTE light
  * rows and back colour of the bone that lights the most vertices, and the
@@ -523,6 +524,7 @@ typedef struct
     float       blinkClock, blinkNext;
     float       breathPhase, breathPeriod;
     float       mouth;
+    float       shapeW[PC_LIP_SHAPES];
     float       grip[2];
     float       palm[2][3]; /* model space: the side each hand's fingers curl to */
     int         palmOk[2];
@@ -1281,6 +1283,8 @@ static int Skin_MorphKind(const char* name, int haveBothBlink)
     }
     if (strstr(l, "jawopen") || strstr(l, "mouthopen") || strstr(l, "mouth_open") || strstr(l, "viseme_aa"))
         return PC_SKIN_MORPH_MOUTH;
+    if (strncmp(l, "mouth_", 6) == 0 && l[7] == '\0' && ((l[6] >= 'a' && l[6] <= 'h') || l[6] == 'x'))
+        return PC_SKIN_MORPH_SHAPE + (l[6] == 'x' ? PC_LIP_SHAPES - 1 : l[6] - 'a');
     return -1;
 }
 
@@ -3784,11 +3788,16 @@ static float Skin_BreathWeight(PcSkinChara* ch)
  * by the speaker table, or for an untabled line, when its pitch matches this
  * character's voice. Opening is quick and closing slower, so syllables read
  * as movement rather than a flicker. */
+/* How far each painted shape opens the jaw: the shape is the mouth, the chin
+ * only follows it (A = M/B/P shut, D = wide open, X = rest). */
+static const float s_shapeJaw[PC_LIP_SHAPES] = { 0.0f, 0.15f, 0.4f, 0.8f, 0.45f, 0.2f, 0.1f, 0.4f, 0.0f };
+
 static float Skin_MouthWeight(PcSkinChara* ch)
 {
     float dt = g_DeltaTime / 4096.0f, target = 0.0f, rate;
     const char* speaker;
-    int female, mine;
+    int female, mine, k, shape = -1;
+    const int shapes = ch->morph[PC_SKIN_MORPH_SHAPE + PC_LIP_SHAPES - 1].count > 0;
     float level = Pc_Lip_Level(&speaker, &female);
 
     /* A line with no speaker on record falls back to the voice's pitch. Every
@@ -3798,8 +3807,27 @@ static float Skin_MouthWeight(PcSkinChara* ch)
      * wears Cheryl's model but still says what Harry says. */
     mine = speaker != NULL ? strcmp(speaker, ch->isPlayer ? "HERO" : ch->def->voice != NULL ? ch->def->voice : ch->name) == 0
                            : (ch->isPlayer ? female == ch->female : female == ch->def->femaleVoice) && (!ch->native || ch->isPlayer);
-    if (level > 0.0f && mine && !(s_rd.active && ch->isPlayer))
-        target = level;
+    if (level >= 0.0f && mine && !(s_rd.active && ch->isPlayer))
+    {
+        target = level > 0.0f ? level : 0.0f;
+        /* A face with painted shapes takes the line's track; a line without
+         * one (a voice mod, an untabled speaker) picks from the loudness. */
+        if (shapes)
+        {
+            shape = Pc_Lip_Shape();
+            if (shape < 0)
+                shape = level <= 0.05f ? PC_LIP_SHAPES - 1 : level < 0.35f ? 1 : level < 0.7f ? 2 : 3;
+            target = s_shapeJaw[shape];
+        }
+    }
+    /* Crossfaded over about 50 ms: each shape's patch sits a hair in front of
+     * the last, so two never fight while one hands over to the next. */
+    for (k = 0; k < PC_LIP_SHAPES && shapes; k++)
+    {
+        float t = (k == shape) ? 1.0f : 0.0f, step = dt / 0.05f;
+        ch->shapeW[k] = ch->shapeW[k] < t ? (ch->shapeW[k] + step > t ? t : ch->shapeW[k] + step)
+                                          : (ch->shapeW[k] - step < t ? t : ch->shapeW[k] - step);
+    }
     rate = target > ch->mouth ? 30.0f : 14.0f;
     ch->mouth += (target - ch->mouth) * (dt * rate > 1.0f ? 1.0f : dt * rate);
     return ch->mouth;
@@ -3840,6 +3868,8 @@ static void Skin_ApplyMorphs(PcSkinChara* ch, float h, float ofx, float ofy, flo
     w[PC_SKIN_MORPH_MOUTH] = ch->morph[PC_SKIN_MORPH_MOUTH].count ? Skin_MouthWeight(ch) : 0.0f;
     Skin_GripWeights(ch, &w[PC_SKIN_MORPH_GRIP_L]);
     w[PC_SKIN_MORPH_BREATH] = ch->morph[PC_SKIN_MORPH_BREATH].count ? Skin_BreathWeight(ch) : 0.0f;
+    for (k = 0; k < PC_LIP_SHAPES; k++)
+        w[PC_SKIN_MORPH_SHAPE + k] = ch->morph[PC_SKIN_MORPH_SHAPE + k].count ? ch->shapeW[k] : 0.0f;
     for (k = 0; k < PC_SKIN_MORPH_COUNT; k++)
     {
         const PcSkinMorph* m = &ch->morph[k];
