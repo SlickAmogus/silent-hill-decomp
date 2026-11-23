@@ -15,7 +15,7 @@ const char* const g_PcLipSpeaker[PC_LIP_LINES] = {
     "HERO", /* 9 */
     "SIBYL", /* 10 */
     "SIBYL", /* 11 */
-    NULL, /* 12 */
+    "SIBYL", /* 12 */
     "HERO", /* 13 */
     "SIBYL", /* 14 */
     "SIBYL", /* 15 */

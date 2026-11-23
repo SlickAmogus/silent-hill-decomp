@@ -59,33 +59,94 @@ def erase(cell, cx, cy, a, b):
             px[x, y] = tuple(int(v) for v in top * (1 - f) + bot * f)
 
 
-def draw_shape(cell, s, cx, cy, a, cols):
-    """One shape on an erased cell, centred (cx, cy), half width a (pixels)."""
-    lips, dark, teeth, tongue = cols
-    d = ImageDraw.Draw(cell)
+# Per shape (Rhubarb's A-H): opening half width and half height (of the mouth's
+# half width), roundness (0 = a lens with pointed corners, 1 = an oval), upper
+# and lower lip thickness, upper teeth, lower teeth, tongue (0 none, 1 low, 2 raised
+# to the teeth), and how far the lower lip drops below the opening.
+POSE = {
+    'A': (0.92, 0.0, 0.0, 0.10, 0.13, 0, 0, 0, 0.0),    # M B P: lips pressed together
+    'B': (0.82, 0.10, 0.1, 0.10, 0.14, 1, 1, 0, 0.0),   # most consonants: teeth together, lips apart
+    'C': (0.84, 0.26, 0.2, 0.10, 0.15, 1, 0, 1, 0.0),   # EH, AE
+    'D': (0.86, 0.50, 0.35, 0.09, 0.15, 1, 0, 1, 0.08), # AA: wide open
+    'E': (0.58, 0.38, 0.8, 0.13, 0.17, 0, 0, 1, 0.0),   # AO, ER: rounded
+    'F': (0.34, 0.25, 1.0, 0.16, 0.19, 0, 0, 0, 0.0),   # UW, OW, W: pursed
+    'G': (0.80, 0.11, 0.1, 0.10, 0.10, 1, 0, 0, -0.06), # F V: upper teeth on the tucked lower lip
+    'H': (0.80, 0.30, 0.3, 0.10, 0.15, 1, 0, 2, 0.0),   # L: tongue up behind the teeth
+}
+SS = 4   # drawn this much finer, then filtered down: soft edges that sit into the face
 
-    def ell(w, h, col, dy=0.0):
-        d.ellipse([cx - w, cy - h + dy, cx + w, cy + h + dy], fill=col)
-    lw = max(1.0, a * 0.09)    # lip thickness
-    if s == 'A':               # M, B, P: lips pressed together
-        ell(a * 0.95, lw * 1.6, lips)
-        d.line([cx - a * 0.9, cy, cx + a * 0.9, cy], fill=dark, width=max(1, int(lw * 0.6)))
-        return
-    # opening: half width, half height, upper teeth, lower teeth, tongue
-    spec = {'B': (0.85, 0.16, 1, 1, 0), 'C': (0.85, 0.32, 1, 0, 0), 'D': (0.9, 0.55, 1, 0, 1),
-            'E': (0.55, 0.42, 0, 0, 0), 'F': (0.32, 0.26, 0, 0, 0), 'G': (0.8, 0.14, 1, 0, 0),
-            'H': (0.8, 0.4, 1, 0, 1)}[s]
-    ow, oh, ut, lt, tg = spec
-    ell(a * ow + lw, a * oh + lw * (1.4 if s in 'EF' else 1.0), lips)
-    ell(a * ow, a * oh, dark)
-    if tg:
-        ell(a * ow * 0.7, a * oh * 0.45, tongue, dy=a * oh * 0.45 if s == 'D' else -a * oh * 0.1)
-    if ut:
-        d.rectangle([cx - a * ow * 0.8, cy - a * oh, cx + a * ow * 0.8, cy - a * oh + max(1.0, a * oh * (0.9 if s == 'G' else 0.35))], fill=teeth)
-    if lt:
-        d.rectangle([cx - a * ow * 0.75, cy + a * oh - max(1.0, a * oh * 0.45), cx + a * ow * 0.75, cy + a * oh], fill=teeth)
-    if s == 'G':               # F, V: the upper teeth rest on the lower lip
-        d.rectangle([cx - a * ow * 0.8, cy + a * oh * 0.2, cx + a * ow * 0.8, cy + a * oh + lw], fill=lips)
+
+def _mix(c, d, t):
+    return tuple(int(c[k] * (1 - t) + d[k] * t) for k in range(3)) + (255,)
+
+
+def _profile(x, w, h, rnd):
+    """Half height of the opening at x: a lens (pointed corners) for rnd 0, an
+    oval for 1."""
+    u = min(1.0, abs(x) / w)
+    lens = 1 - u * u
+    oval = (1 - u * u) ** 0.5
+    return h * (lens * (1 - rnd) + oval * rnd)
+
+
+def _outline(cx, cy, w, h, rnd, top, n=48):
+    xs = np.linspace(-w, w, n)
+    return [(cx + x, cy + (-1 if top else 1) * _profile(x, w, h, rnd)) for x in xs]
+
+
+def draw_shape(cell, s, cx, cy, a, cols):
+    """One shape over the erased mouth, centred (cx, cy), the mouth's half width a
+    (pixels): upper and lower lip in shades of the face's own lip colour, the
+    opening dark and deeper inside, teeth and tongue where the sound shows them."""
+    lips, dark, teeth, tongue = cols
+    W, H = cell.size
+    lay = Image.new('RGBA', (W * SS, H * SS), (0, 0, 0, 0))
+    d = ImageDraw.Draw(lay)
+    X, Y, A = cx * SS, cy * SS, a * SS
+    ow, oh, rnd, ut_l, lt_l, ut, lt, tg, drop = POSE[s]
+    w, h = A * ow, max(A * oh, SS * 0.6)
+    # The painted lips are near the skin's colour on these faces: a little more
+    # of a lip's own red, or the closed shapes all but vanish.
+    lips = _mix(lips, (150, 72, 66), 0.3)
+    upper = _mix(lips, (0, 0, 0), 0.22)
+    lower = _mix(lips, (255, 235, 225), 0.06)
+    shine = _mix(lips, (255, 240, 230), 0.35)
+    # Lips: the upper one dips in a cupid's bow, the lower one fuller and lit.
+    ul, ll = A * ut_l, A * lt_l
+    up_in = _outline(X, Y, w, h, rnd, True)
+    up_out = [(x, y - ul * (1 - 0.35 * np.exp(-((x - X) / (0.18 * A)) ** 2)) * (0.55 + 0.45 * (1 - (abs(x - X) / w) ** 2)))
+              for x, y in up_in]
+    lo_in = _outline(X, Y + A * drop, w, h, rnd, False)
+    lo_out = [(x, y + ll * (0.5 + 0.5 * (1 - (abs(x - X) / w) ** 2))) for x, y in lo_in]
+    d.polygon(up_out + up_in[::-1], fill=upper)
+    d.polygon(lo_in + lo_out[::-1], fill=lower)
+    # a soft highlight along the lower lip
+    hi = [(x, y + ll * 0.35) for x, y in lo_in if abs(x - X) < w * 0.45]
+    if len(hi) > 1:
+        d.line(hi, fill=shine, width=max(1, int(ll * 0.3)))
+    if s == 'A':
+        d.line([(x, Y) for x, _ in up_in], fill=_mix(dark, (0, 0, 0), 0.2), width=max(1, int(SS * 1.1)))
+    else:
+        # The opening, darker toward the middle (deeper in the mouth).
+        d.polygon(up_in + lo_in[::-1], fill=_mix(dark, lips, 0.25))
+        d.polygon(_outline(X, Y, w * 0.8, h * 0.75, rnd, True) + _outline(X, Y + A * drop, w * 0.8, h * 0.75, rnd, False)[::-1],
+                  fill=dark)
+        if tg:
+            ty = Y + h * 0.35 if tg == 1 else Y - h * 0.45
+            tw, th = w * 0.42, h * (0.32 if tg == 1 else 0.28)
+            d.ellipse([X - tw, ty - th, X + tw, ty + th], fill=_mix(tongue, dark, 0.45))
+        tooth_h = max(SS * 1.2, min(h * 0.6, A * 0.16))
+        if ut:
+            band = [(x, y) for x, y in up_in if abs(x - X) < w * 0.72]
+            d.polygon(band + [(x, y + tooth_h) for x, y in band[::-1]], fill=teeth)
+            d.line([(x, y + tooth_h) for x, y in band], fill=_mix(teeth, dark, 0.35), width=max(1, SS // 2))
+        if lt:
+            band = [(x, y) for x, y in lo_in if abs(x - X) < w * 0.65]
+            d.polygon(band + [(x, y - tooth_h * 0.8) for x, y in band[::-1]], fill=_mix(teeth, dark, 0.12))
+        # the lips' own shadow on the opening's top edge
+        d.line(up_in, fill=_mix(dark, (0, 0, 0), 0.3), width=max(1, SS // 2))
+    small = lay.resize((W, H), Image.LANCZOS)
+    cell.alpha_composite(small)
 
 
 def build(prims, fp, imgcache, ray, l2w, l2w_dir, jaw_delta, ensure_targets):
