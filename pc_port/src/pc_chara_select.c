@@ -123,6 +123,8 @@ static char s_choice[CS_CHARA_COUNT][CS_TOKEN_MAX];
 static int      s_open;
 static int      s_onBack;
 static int      s_escPrev;
+static int      s_updAsked; /* the update offer: once per visit */
+static int      s_updGen;   /* the catalog generation it was last checked against */
 static NmScroll s_scroll;
 static int      s_hoverCol2;
 static char     s_status[64];
@@ -549,6 +551,10 @@ void Pc_CharaSelect_Open(void)
     s_escPrev   = 1;
     s_status[0] = '\0';
     s_open      = 1;
+    s_updAsked  = 0;
+    s_updGen    = -1;
+    /* The list (the saved copy at once, then a fresh one) for the update offer. */
+    Cd_CatalogFetch();
     g_PsxWideMenu = !g_PcConfig.nativeResolution;
     cs_field_update();
     cs_music_start();
@@ -687,6 +693,18 @@ int Pc_CharaSelect_Update(const NmInput* inRaw)
             s_seenLocal = Cd_LocalGen();
             Pc_SkinChara_FilesChanged();
             cs_rescan();
+        }
+    }
+
+    /* Entering the screen offers the updates the catalog has for downloaded
+     * characters; checked once per new list (it reads a file), not per frame. */
+    if (!s_updAsked && !Cdm_IsOpen() && Cd_CatalogState() == CD_CAT_READY && Cd_CatalogGen() != s_updGen && !Cd_Busy())
+    {
+        s_updGen = Cd_CatalogGen();
+        if (!Cd_UpdateNoAsk() && Cd_UpdatesOffered() > 0)
+        {
+            s_updAsked = 1;
+            Cdm_Open(CDM_UPDATES, NULL, NULL, Chara_Harry);
         }
     }
 
