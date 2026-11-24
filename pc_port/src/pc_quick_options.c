@@ -94,7 +94,7 @@ extern const char* const PC_PGXP_FOG_MSG;
 
 #define QO_X_QUICK_WEAPONS 1000
 #define QO_GARBAGE  48
-#define QO_MAX_ROWS 24
+#define QO_MAX_ROWS 26
 /* CONTROLS is appended last, so every existing section index -- and the "Next
  * page (X)" label baked into each table -- stays where it was. Its rows differ
  * by platform (s_page5 / s_pageControls). */
