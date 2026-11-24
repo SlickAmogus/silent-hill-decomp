@@ -177,7 +177,11 @@ def conform(prims, tris, ray, rect):
     out = []
     for pi, a, b, c in tris:
         L = prims[pi]['L']
-        poly = [np.array(L[a], float), np.array(L[b], float), np.array(L[c], float)]
+        # each point carries the face's own normal there (world frame, as the model stores it):
+        # lit by one forward normal, a patch came out a different shade from the skin round it
+        # wherever the light has a direction (the flashlight)
+        NW = prims[pi]['N']
+        poly = [np.concatenate([np.array(L[k], float), np.array(NW[k], float)]) for k in (a, b, c)]
         cen = (poly[0] + poly[1] + poly[2]) / 3
         if max(q[0] for q in poly) < X0 or min(q[0] for q in poly) > X1 or max(q[1] for q in poly) < Y0 or min(q[1] for q in poly) > Y1:
             continue
@@ -235,7 +239,9 @@ def add_patches(prims, imgcache, tris, ray, l2w, l2w_dir, ensure_targets, name, 
                     index[kq] = len(P)
                     op = np.array([q[0], q[1], q[2] + OUT + 0.01 * n])
                     P.append(centre)
-                    N.append([0.0, 0.0, 1.0])
+                    # at its own length: these are the console's scaled normals, and the
+                    # light a vertex takes goes by that length
+                    N.append(np.array(q[3:6], float))
                     tx = x_at + (q[0] - X0) / (X1 - X0) * c['img'].width
                     ty = (Y1 - q[1]) / (Y1 - Y0) * c['img'].height
                     UV.append((tx / W, ty / H))
@@ -249,7 +255,7 @@ def add_patches(prims, imgcache, tris, ray, l2w, l2w_dir, ensure_targets, name, 
     if not P:
         return False
     imgcache[name] = atlas
-    pr = dict(mat=name, row=name, W=W, H=H, P=l2w(np.array(P)), N=l2w_dir(np.array(N)), UV=np.array(UV),
+    pr = dict(mat=name, row=name, W=W, H=H, P=l2w(np.array(P)), N=np.array(N), UV=np.array(UV),
               J=[2] * len(P), I=I, SRC=[], PART=[])
     # No head-frame copy: the chin drop that follows reads only the head's own vertices.
     pr['L'] = np.zeros((0, 3))
