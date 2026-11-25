@@ -18,6 +18,8 @@ namespace SilentHillPC_Launcher
                 new[]{ "Opciones", "Opções", "Options", "Optionen", "Opzioni", "オプション", "选项", "Параметры", "Opcje" } },
             { "Logging",
                 new[]{ "Registro", "Registro", "Journalisation", "Protokollierung", "Registro", "ログ記録", "日志记录", "Журнал", "Rejestrowanie" } },
+            { "CRT Filter",
+                new[]{ "Filtro CRT", "Filtro CRT", "Filtre CRT", "CRT-Filter", "Filtro CRT", "CRTフィルター", "CRT 滤镜", "CRT-фильтр", "Filtr CRT" } },
             { "Mode:",
                 new[]{ "Modo:", "Modo:", "Mode :", "Modus:", "Modalità:", "モード:", "模式:", "Режим:", "Tryb:" } },
             { "Simple",

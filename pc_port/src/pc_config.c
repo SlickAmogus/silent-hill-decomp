@@ -1776,9 +1776,9 @@ int PcConfig_SimplePresetDetect(void)
     int               p;
 
     /* What every preset shares: the whole map loaded, nothing culled by view
-     * angle, and no post effects or render scaling. */
-    if (!g_PcConfig.disableCulling || !g_PcConfig.preloadChunks || rs > 0.001f || rs < -0.001f ||
-        g_PcConfig.postProcess != d->postProcess || g_PcConfig.tonemap != d->tonemap)
+     * angle, and no render scaling. The post effect and the tone map are the
+     * player's to set under any preset. */
+    if (!g_PcConfig.disableCulling || !g_PcConfig.preloadChunks || rs > 0.001f || rs < -0.001f)
     {
         return PC_SIMPLE_CUSTOM;
     }
@@ -1829,8 +1829,6 @@ void PcConfig_SimplePresetApply(int p)
     g_PcConfig.disableCulling     = 1;
     g_PcConfig.preloadChunks      = 1;
     g_PcConfig.renderScale        = d->renderScale;
-    g_PcConfig.postProcess        = d->postProcess;
-    g_PcConfig.tonemap            = d->tonemap;
     if (p != PC_SIMPLE_ORIGINAL)
     {
         g_PcConfig.widescreenMode = 1;
@@ -1852,8 +1850,6 @@ void PcConfig_SimplePresetApply(int p)
     PRESET_KEY("bullet_decals",        g_PcConfig.bulletDecals);
     PRESET_KEY("disable_culling",      1);
     PRESET_KEY("preload_chunks",       1);
-    PRESET_KEY("post_process",         g_PcConfig.postProcess);
-    PRESET_KEY("tonemap",              g_PcConfig.tonemap);
     if (p != PC_SIMPLE_ORIGINAL)
     {
         PRESET_KEY("widescreen_mode", 1);

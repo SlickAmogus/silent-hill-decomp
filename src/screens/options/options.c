@@ -136,7 +136,7 @@ static s32 g_PcOptionsMenu_Page       = 0; /* index into PCOPT_PAGES */
  * which is the right behaviour for a pointer that is already there. */
 s32 g_PcOptions_HighlightSnap = 0;
 
-enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_DITHER, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_CHARA, PCK_PRESET, PCK_SDITHER };
+enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_DITHER, PCK_PRESET, PCK_SDITHER, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_CHARA };
 
 /* PC-options row origin. The heading sits at y=20 and the rows used to start at 56,
  * leaving a full empty row beneath it while the pages ran off the BOTTOM of the
@@ -166,6 +166,7 @@ typedef struct {
 /* Defined with the other quick-row helpers below, used by the adjust above. */
 static void PcOpt_FilterApply(int filter);
 static void PcOpt_PresetStep(int dir);
+static int  PcOpt_ResList(int* w, int* h, int max);
 static void PcOpt_SimpleDitherToggle(void);
 
 static const int VAL_WIN[]   = { 0, 1, 2 };
@@ -345,6 +346,8 @@ static const s_PcOpt PCOPT_SG[] = {
     { "Quality",        NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          1, PCK_PRESET  },
     { "Resolution",     NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_RES    },
     { "Dithering",      NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          1, PCK_SDITHER },
+    { "Post_Process",   &g_PcConfig.postProcess,        "post_process",         VAL_POST,  9, LBL_POST,  &g_cfg_postProcess,            1, PCK_INT    },
+    { "Tone_Mapping",   &g_PcConfig.tonemap,            "tonemap",              VAL_TONE,  4, LBL_TONE,  &g_cfg_tonemap,                1, PCK_INT    },
     { "FMV_Movie_Vol",  NULL, "fmv_volume",             NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fmvVolume,           &g_PcFmvVolume,             0.0f, 1.0f, 0.05f },
     { "Next_Page",      NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_NEXT   },
     { "Back",           NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_BACK   },
@@ -604,12 +607,19 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
     char vbuf[24];
 
     if (e->kind == PCK_RES) {
+        int rw[64], rh[64];
+        int n = PcOpt_ResList(rw, rh, 64);
         int i, idx = 0;
-        for (i = 0; i < PC_RES_COUNT; i++)
-            if (RES_W[i] == g_PcConfig.windowWidth && RES_H[i] == g_PcConfig.windowHeight) { idx = i; break; }
-        idx = (idx + dir + PC_RES_COUNT) % PC_RES_COUNT;
-        g_PcConfig.windowWidth  = RES_W[idx];
-        g_PcConfig.windowHeight = RES_H[idx];
+        /* A size that is not on the list steps from the one below it. */
+        for (i = 0; i < n; i++)
+            if (rw[i] < g_PcConfig.windowWidth ||
+                (rw[i] == g_PcConfig.windowWidth && rh[i] <= g_PcConfig.windowHeight))
+                idx = i;
+        if (!(rw[idx] == g_PcConfig.windowWidth && rh[idx] == g_PcConfig.windowHeight) && dir < 0)
+            idx++;
+        idx = (idx + dir + n) % n;
+        g_PcConfig.windowWidth  = rw[idx];
+        g_PcConfig.windowHeight = rh[idx];
         snprintf(buf, sizeof(buf), "%d", g_PcConfig.windowWidth);  PcConfig_SaveKeyValue("width", buf);
         snprintf(buf, sizeof(buf), "%d", g_PcConfig.windowHeight); PcConfig_SaveKeyValue("height", buf);
         PsyX_ApplyWindowState(g_PcConfig.windowWidth, g_PcConfig.windowHeight, g_PcConfig.fullscreen);
@@ -769,8 +779,6 @@ static void PcOpt_PresetStep(int dir)
     PcOpt_FilterApply(g_PcConfig.textureFilter);
     g_PsxUsePgxp         = g_PcConfig.usePgxp;
     g_PsyX_ShadowMapSize = g_PcConfig.shadowMapSize;
-    g_cfg_postProcess    = g_PcConfig.postProcess;
-    g_cfg_tonemap        = g_PcConfig.tonemap;
     g_cfg_renderScale    = g_PcConfig.renderScale;
     Pc_FlashlightModeApply(g_PcConfig.flashlightMode, 0);
     PsyX_ApplyVsync(g_PcConfig.vsync);
@@ -1542,6 +1550,71 @@ void Pc_Options_ResetToDefaults(void)
 
 #ifdef SH_PC_PORT
 #include <SDL.h>
+
+/* The sizes the Resolution row steps through, smallest first. In a window:
+ * the usual 4:3 and 16:9 sizes that fit the desktop. Fullscreen or borderless:
+ * the modes the display itself reports, whatever its shape (an ultrawide
+ * monitor has no 16:9 mode of its own size). */
+static int PcOpt_ResList(int* w, int* h, int max)
+{
+    static const int win[][2] = {
+        { 640, 480 },   { 800, 600 },   { 1024, 768 },  { 1280, 720 },  { 1280, 960 },  { 1366, 768 },
+        { 1440, 1080 }, { 1600, 900 },  { 1600, 1200 }, { 1920, 1080 }, { 1920, 1440 }, { 2560, 1440 },
+        { 2880, 2160 }, { 3840, 2160 },
+    };
+    SDL_DisplayMode dm;
+    int             n = 0, i, j, k;
+    int             deskW = 0, deskH = 0;
+
+    if (SDL_GetDesktopDisplayMode(0, &dm) == 0)
+    {
+        deskW = dm.w;
+        deskH = dm.h;
+    }
+
+    if (g_PcConfig.fullscreen == 0)
+    {
+        for (i = 0; i < (int)(sizeof(win) / sizeof(win[0])) && n < max; i++)
+        {
+            if (deskW > 0 && (win[i][0] > deskW || win[i][1] > deskH))
+                continue;
+            w[n] = win[i][0];
+            h[n] = win[i][1];
+            n++;
+        }
+    }
+    else
+    {
+        int modes = SDL_GetNumDisplayModes(0);
+        for (i = -1; i < modes && n < max; i++)
+        {
+            int mw, mh;
+            /* -1: the desktop's own mode, in case the list lacks it. */
+            if (i < 0) { mw = deskW; mh = deskH; }
+            else if (SDL_GetDisplayMode(0, i, &dm) == 0) { mw = dm.w; mh = dm.h; }
+            else continue;
+            if (mw < 640 || mh < 480)
+                continue;
+            for (j = 0; j < n; j++)
+                if (w[j] == mw && h[j] == mh)
+                    break;
+            if (j < n)
+                continue;
+            for (j = 0; j < n; j++)
+                if (mw < w[j] || (mw == w[j] && mh < h[j]))
+                    break;
+            for (k = n; k > j; k--) { w[k] = w[k - 1]; h[k] = h[k - 1]; }
+            w[j] = mw;
+            h[j] = mh;
+            n++;
+        }
+    }
+    if (n == 0)
+    {
+        for (i = 0; i < PC_RES_COUNT && n < max; i++, n++) { w[n] = RES_W[i]; h[n] = RES_H[i]; }
+    }
+    return n;
+}
 #include "pc_confirm_dialog.h"
 #include "pc_controls_screen.h"
 #include "pc_reset_settings.h"
