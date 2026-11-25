@@ -379,6 +379,8 @@ public partial class Form1
                 // The render size is set when a preset is picked, and may be
                 // changed afterwards without leaving the preset.
                 if (kv.Key == "native_resolution") continue;
+                // Culling is set by a preset but is the player's to change.
+                if (kv.Key == "disable_culling") continue;
                 // On or automatic both draw the town; only Ultra needs it, and
                 // needs it not switched off.
                 if (kv.Key == "whole_map_exteriors")
