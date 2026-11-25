@@ -1822,6 +1822,10 @@ void PcConfig_SimplePresetApply(void)
         p = PC_SIMPLE_ORIGINAL;
 
     g_PcConfig.fullscreen       = 2;
+    /* The two enhancements every preset keeps, Original included: the whole
+     * map loaded up front and nothing culled by view angle. */
+    g_PcConfig.disableCulling   = 1;
+    g_PcConfig.preloadChunks    = 1;
     g_PcConfig.renderScale      = d->renderScale;
     g_PcConfig.postProcess      = d->postProcess;
     g_PcConfig.tonemap          = d->tonemap;
@@ -1873,6 +1877,8 @@ static void PcConfig_SimpleEnter(void)
     FILE* f;
 
     g_PcConfig = s_PcConfigDefaults;
+    /* On unless config_simple.cfg says otherwise, as the launcher's box is. */
+    g_PcConfig.enableDebugLog = 1;
     s_loadPass = CFG_PASS_SHARED;
     PcConfig_Load(s_configPath);
     s_loadPass = CFG_PASS_SIMPLE;

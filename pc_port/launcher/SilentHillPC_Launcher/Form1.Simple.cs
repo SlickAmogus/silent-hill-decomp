@@ -18,33 +18,50 @@ public partial class Form1
     private bool          _simpleMode;
     private ConfigManager _simpleCfg;
     private SimpleScene   _simple;
-    private ComboBox      _sPreset, _sMinimap;
-    private CheckBox      _sDither;
-    private Button        _sPlay, _sControls;
-    private RadioButton   _sRadioSimple, _sRadioAdvanced;
-    private Label         _sLblQuality, _sLblMinimap, _sLblDisc, _sLblLang, _sLblMode;
+    private ComboBox      _sMinimap;
+    private Button        _sPlay, _sControls, _sRA;
+    private Label         _aLblMode;
+    private RadioButton   _aRadioSimple, _aRadioAdvanced;
     private bool          _simpleLoading;
+    private int           _sPresetIdx;
+    private bool          _sDither = true, _sLogging = true;
+    private Size          _advSize;
+    private Point         _advLangAt;
     private ToolStripMenuItem _bannerMenuAdvanced;
 
     private struct SimpleHome
     {
-        public Control Parent; public Point Location; public Size Size; public Color Back, Fore; public bool Visible;
-        public FlatStyle Flat;
+        public Control Parent; public Point Location; public Size Size; public Color Back, Fore; public FlatStyle Flat;
     }
     private readonly Dictionary<Control, SimpleHome> _simpleHomes = new Dictionary<Control, SimpleHome>();
 
-    // Combo order, as asked for: Original, then the enhanced presets with
-    // Normal first. The values are the game's PC_SIMPLE_* ids.
+    // List order, as asked for: Original, then the enhanced presets with Normal
+    // first. The values are the game's PC_SIMPLE_* ids.
     private static readonly int[]    SimplePresetIds   = { 0, 2, 1, 3, 4 };
     private static readonly string[] SimplePresetNames =
     {
         "Original", "Enhanced: Normal", "Enhanced: Low Spec", "Enhanced: High Quality", "Enhanced: Ultra Quality",
     };
+    private static readonly string[] SimplePresetAbout =
+    {
+        "The game as it was on the PlayStation: its own resolution, 30 fps and the original lighting.",
+        "Desktop resolution, no FPS limit, 2x antialiasing, sharper textures and flashlight shadows.",
+        "Desktop resolution and smooth textures with no extra effects. For older or integrated graphics.",
+        "4x antialiasing and the modern flashlight with detailed shadows.",
+        "8x antialiasing and the highest shadow detail. For powerful graphics cards.",
+    };
 
-    private static readonly Color SimpleCard = Color.FromArgb(14, 15, 14);
-    private static readonly Color SimpleEdit = Color.FromArgb(38, 40, 38);
-    private static readonly Color SimpleText = Color.FromArgb(224, 222, 214);
-    private const int SimpleCardTop = 300;
+    private static readonly Size  SimpleSize = new Size(760, 664);
+    private static readonly Color SimpleEdit = Color.FromArgb(34, 36, 34);
+    private static readonly Color SimpleText = Color.FromArgb(232, 230, 222);
+    private static readonly Color SimpleDim  = Color.FromArgb(176, 176, 168);
+    private const int SimpleRowTop = 104, SimpleRowH = 68, SimpleLeft = 40, SimpleRight = 480;
+
+    private Rectangle SimplePresetRect(int i) { return new Rectangle(SimpleLeft - 8, SimpleRowTop + i * SimpleRowH, 420, SimpleRowH - 4); }
+    private static readonly Rectangle SimpleDitherRect  = new Rectangle(SimpleRight, 106, 240, 26);
+    private static readonly Rectangle SimpleLoggingRect = new Rectangle(SimpleRight, 138, 240, 26);
+    private static readonly Rectangle SimpleModeSimple   = new Rectangle(118, 622, 110, 26);
+    private static readonly Rectangle SimpleModeAdvanced = new Rectangle(236, 622, 150, 26);
 
     private static string SimpleConfigPath =>
         Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config_simple.cfg");
@@ -63,99 +80,71 @@ public partial class Form1
         return s;
     }
 
-    private void SimpleInit()
+    private Button SimpleButton(string text, Rectangle at, EventHandler click)
     {
-        _simple = new SimpleScene(SimpleCardTop)
+        var b = new Button
         {
-            Location = new Point(0, 0),
-            Size     = ClientSize,
-            Visible  = false,
-        };
-        _simple.BannerImage = () => banner.Image;
-        _simple.MouseUp += (s, e) =>
-        {
-            if (e.Button == MouseButtons.Right && e.Y < banner.Height) banner_MouseUp(_simple, e);
-        };
-
-        _sLblQuality = SimpleLabel("Quality:", 318);
-        _sPreset     = SimpleCombo(314);
-        _sDither     = new CheckBox
-        {
-            Text = "Dithering", Location = new Point(150, 344), AutoSize = true,
-            BackColor = SimpleCard, ForeColor = SimpleText, FlatStyle = FlatStyle.Standard,
-        };
-        _sLblMinimap = SimpleLabel("Minimap:", 376);
-        _sMinimap    = SimpleCombo(372);
-        _sLblDisc    = SimpleLabel("Disc:", 406);
-        _sLblLang    = SimpleLabel("Game Language:", 436);
-
-        _sPlay = new Button
-        {
-            Text = "Play!", Location = new Point(24, 472), Size = new Size(406, 44),
-            Font = new Font(Font.FontFamily, 13f, FontStyle.Bold),
-            BackColor = Color.FromArgb(92, 24, 20), ForeColor = Color.White, FlatStyle = FlatStyle.Flat,
-        };
-        _sPlay.FlatAppearance.BorderColor = Color.FromArgb(150, 60, 50);
-        _sPlay.Click += (s, e) => { if (btnPlay.Enabled) btnPlay_Click(btnPlay, e); };
-
-        _sControls = new Button
-        {
-            Text = "Controls", Location = new Point(24, 560), Size = new Size(110, 24),
+            Text = text, Location = at.Location, Size = at.Size, Font = new Font("Segoe UI", 10f),
             BackColor = SimpleEdit, ForeColor = SimpleText, FlatStyle = FlatStyle.Flat,
         };
-        _sControls.FlatAppearance.BorderColor = Color.FromArgb(70, 72, 70);
-        _sControls.Click += btnControls_Click;
+        b.FlatAppearance.BorderColor = Color.FromArgb(84, 86, 82);
+        b.Click += click;
+        return b;
+    }
 
-        _sLblMode = new Label
+    private void SimpleInit()
+    {
+        // The advanced view grows a row for its own Mode switch.
+        _advSize   = new Size(ClientSize.Width, ClientSize.Height + 28);
+        _advLangAt = btnLang != null ? btnLang.Location : Point.Empty;
+        _aLblMode       = new Label { Text = "Mode:", Location = new Point(12, 6), AutoSize = true };
+        _aRadioSimple   = new RadioButton { Text = "Simple",   Location = new Point(64, 4),  AutoSize = true };
+        _aRadioAdvanced = new RadioButton { Text = "Advanced", Location = new Point(140, 4), AutoSize = true, Checked = true };
+        _aRadioSimple.CheckedChanged += (s, e) =>
         {
-            Text = "Mode:", Location = new Point(24, 618), AutoSize = true, BackColor = SimpleCard, ForeColor = SimpleText,
+            if (_aRadioSimple.Checked && !_simpleMode && !_simpleLoading) SimpleSet(true, true);
         };
-        _sRadioSimple = new RadioButton
-        {
-            Text = "Simple", Location = new Point(84, 616), AutoSize = true, Checked = true,
-            BackColor = SimpleCard, ForeColor = SimpleText,
-        };
-        _sRadioAdvanced = new RadioButton
-        {
-            Text = "Advanced", Location = new Point(164, 616), AutoSize = true,
-            BackColor = SimpleCard, ForeColor = SimpleText,
-        };
-        _sRadioAdvanced.CheckedChanged += (s, e) =>
-        {
-            if (_sRadioAdvanced.Checked && _simpleMode) SimpleSet(false, true);
-        };
+        // A panel of their own keeps this pair apart from the form's other radios.
+        var modeHost = new Panel { Location = new Point(0, ClientSize.Height), Size = new Size(300, 28) };
+        modeHost.Controls.AddRange(new Control[] { _aLblMode, _aRadioSimple, _aRadioAdvanced });
+        Controls.Add(modeHost);
 
-        _simple.Controls.AddRange(new Control[]
+        _simple = new SimpleScene { Location = new Point(0, 0), Size = SimpleSize, Visible = false };
+        _simple.PaintContent = SimplePaint;
+        _simple.MouseUp   += SimpleMouseUp;
+        _simple.MouseMove += (s, e) => _simple.Cursor = SimpleHit(e.Location) != 0 ? Cursors.Hand : Cursors.Default;
+
+        _sMinimap = new ComboBox
         {
-            _sLblQuality, _sPreset, _sDither, _sLblMinimap, _sMinimap, _sLblDisc, _sLblLang,
-            _sPlay, _sControls, _sLblMode, _sRadioSimple, _sRadioAdvanced,
-        });
+            Location = new Point(SimpleRight, 206), Size = new Size(240, 25), DropDownStyle = ComboBoxStyle.DropDownList,
+            BackColor = SimpleEdit, ForeColor = SimpleText, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 10f),
+        };
+        _sPlay = new Button
+        {
+            Text = "Play!", Location = new Point(SimpleLeft, 462), Size = new Size(680, 56),
+            Font = new Font("Segoe UI", 17f, FontStyle.Bold),
+            BackColor = Color.FromArgb(104, 26, 22), ForeColor = Color.White, FlatStyle = FlatStyle.Flat,
+        };
+        _sPlay.FlatAppearance.BorderColor = Color.FromArgb(170, 70, 58);
+        _sPlay.Click += (s, e) => { if (btnPlay.Enabled) btnPlay_Click(btnPlay, e); };
+        _sControls = SimpleButton("Controls", new Rectangle(SimpleLeft, 534, 150, 32), btnControls_Click);
+        _sRA       = SimpleButton("RetroAchievements", new Rectangle(200, 534, 190, 32), (s, e) => btnRA_Click(btnRA, e));
+
+        _simple.Controls.AddRange(new Control[] { _sMinimap, _sPlay, _sControls, _sRA });
         Controls.Add(_simple);
 
-        _sPreset.SelectedIndexChanged  += (s, e) => SimpleSave();
         _sMinimap.SelectedIndexChanged += (s, e) => SimpleSave();
-        _sDither.CheckedChanged        += (s, e) => SimpleSave();
-        Loc.Changed += () => { if (_simple != null) { SimpleFillLists(); _simple.Invalidate(); } };
+        lblUpdateStatus.TextChanged      += (s, e) => { if (_simpleMode) _simple.ContentChanged(); };
+        lblUpdateStatus.ForeColorChanged += (s, e) => { if (_simpleMode) _simple.ContentChanged(); };
+        Loc.Changed += () =>
+        {
+            if (_simple == null) return;
+            SimpleFillLists();
+            _simple.ContentChanged();
+        };
 
         SimpleFillLists();
         SimpleSet(config.Get("simple_mode", "1").Trim() != "0", false);
-    }
-
-    private Label SimpleLabel(string text, int y)
-    {
-        return new Label
-        {
-            Text = text, Location = new Point(24, y), AutoSize = true, BackColor = SimpleCard, ForeColor = SimpleText,
-        };
-    }
-
-    private ComboBox SimpleCombo(int y)
-    {
-        return new ComboBox
-        {
-            Location = new Point(150, y), Size = new Size(280, 21), DropDownStyle = ComboBoxStyle.DropDownList,
-            BackColor = SimpleEdit, ForeColor = SimpleText, FlatStyle = FlatStyle.Flat,
-        };
     }
 
     private void SimpleFillLists()
@@ -164,15 +153,133 @@ public partial class Form1
         _simpleLoading = true;
         try
         {
-            int p = _sPreset.SelectedIndex, m = _sMinimap.SelectedIndex;
-            _sPreset.Items.Clear();
-            foreach (string n in SimplePresetNames) _sPreset.Items.Add(Loc.T(n));
+            int m = _sMinimap.SelectedIndex;
             _sMinimap.Items.Clear();
-            foreach (object o in comboMinimap.Items) _sMinimap.Items.Add(o);
-            if (_sPreset.Items.Count > 0)  _sPreset.SelectedIndex  = p >= 0 && p < _sPreset.Items.Count ? p : 0;
+            foreach (object o in comboMinimap.Items) _sMinimap.Items.Add(Loc.T(o.ToString()));
             if (_sMinimap.Items.Count > 0) _sMinimap.SelectedIndex = m >= 0 && m < _sMinimap.Items.Count ? m : 0;
+            _sPlay.Text     = Loc.T("Play!");
+            _sControls.Text = Loc.T("Controls");
         }
         finally { _simpleLoading = was; }
+    }
+
+    // 1..5 a preset row, 10 dithering, 11 logging, 20 / 21 the mode pair.
+    private int SimpleHit(Point p)
+    {
+        for (int i = 0; i < SimplePresetIds.Length; i++)
+            if (SimplePresetRect(i).Contains(p)) return 1 + i;
+        if (SimpleDitherRect.Contains(p))   return 10;
+        if (SimpleLoggingRect.Contains(p))  return 11;
+        if (SimpleModeSimple.Contains(p))   return 20;
+        if (SimpleModeAdvanced.Contains(p)) return 21;
+        return 0;
+    }
+
+    private void SimpleMouseUp(object sender, MouseEventArgs e)
+    {
+        if (e.Button == MouseButtons.Right)
+        {
+            banner_MouseUp(_simple, e);
+            return;
+        }
+        if (e.Button != MouseButtons.Left) return;
+        int hit = SimpleHit(e.Location);
+        if (hit >= 1 && hit <= 5) _sPresetIdx = hit - 1;
+        else if (hit == 10) _sDither = !_sDither;
+        else if (hit == 11) _sLogging = !_sLogging;
+        else if (hit == 21) { SimpleSet(false, true); return; }
+        else return;
+        _simple.ContentChanged();
+        SimpleSave();
+    }
+
+    private static void SimpleOutlined(Graphics g, string s, Font f, Color fill, RectangleF box)
+    {
+        using (var path = new GraphicsPath())
+        using (var fmt = new StringFormat(StringFormat.GenericTypographic))
+        {
+            fmt.FormatFlags &= ~StringFormatFlags.NoWrap;
+            fmt.Trimming = StringTrimming.EllipsisWord;
+            path.AddString(s, f.FontFamily, (int)f.Style, g.DpiY * f.SizeInPoints / 72f, box, fmt);
+            using (var pen = new Pen(Color.FromArgb(235, 0, 0, 0), f.SizeInPoints >= 14f ? 4f : 3f) { LineJoin = LineJoin.Round })
+                g.DrawPath(pen, path);
+            using (var b = new SolidBrush(fill))
+                g.FillPath(b, path);
+        }
+    }
+
+    private static void SimpleMark(Graphics g, Rectangle at, bool round, bool on)
+    {
+        var box = new Rectangle(at.X, at.Y + 3, 18, 18);
+        using (var edge = new Pen(Color.FromArgb(235, 0, 0, 0), 5f))
+        using (var line = new Pen(Color.FromArgb(214, 212, 204), 2f))
+        using (var dot = new SolidBrush(Color.FromArgb(214, 70, 56)))
+        using (var back = new SolidBrush(Color.FromArgb(190, 12, 13, 12)))
+        {
+            if (round)
+            {
+                g.DrawEllipse(edge, box); g.FillEllipse(back, box); g.DrawEllipse(line, box);
+                if (on) g.FillEllipse(dot, box.X + 4, box.Y + 4, 10, 10);
+            }
+            else
+            {
+                g.DrawRectangle(edge, box); g.FillRectangle(back, box); g.DrawRectangle(line, box);
+                if (on) g.FillRectangle(dot, box.X + 4, box.Y + 4, 11, 11);
+            }
+        }
+    }
+
+    /// <summary>Everything the simple view shows as text, drawn over the fog.</summary>
+    private void SimplePaint(Graphics g)
+    {
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        using (var title = new Font("Georgia", 25f, FontStyle.Bold))
+        using (var head  = new Font("Segoe UI", 12.5f, FontStyle.Bold))
+        using (var body  = new Font("Segoe UI", 9.75f))
+        using (var item  = new Font("Segoe UI", 11f))
+        {
+            SimpleOutlined(g, "SILENT HILL", title, Color.FromArgb(214, 70, 56), new RectangleF(SimpleLeft - 2, 22, 500, 50));
+            SimpleOutlined(g, Loc.T("Quality"), item, SimpleDim, new RectangleF(SimpleLeft, 76, 400, 24));
+            SimpleOutlined(g, Loc.T("Options"), item, SimpleDim, new RectangleF(SimpleRight, 76, 240, 24));
+
+            for (int i = 0; i < SimplePresetIds.Length; i++)
+            {
+                var r = SimplePresetRect(i);
+                bool on = i == _sPresetIdx;
+                if (on)
+                    using (var hl = new SolidBrush(Color.FromArgb(70, 120, 40, 32)))
+                        g.FillRectangle(hl, r);
+                SimpleMark(g, new Rectangle(r.X + 8, r.Y + 4, 18, 18), true, on);
+                SimpleOutlined(g, Loc.T(SimplePresetNames[i]), head, on ? Color.White : SimpleText,
+                               new RectangleF(r.X + 36, r.Y + 2, r.Width - 40, 24));
+                SimpleOutlined(g, Loc.T(SimplePresetAbout[i]), body, SimpleDim,
+                               new RectangleF(r.X + 36, r.Y + 25, r.Width - 44, 40));
+            }
+
+            SimpleMark(g, SimpleDitherRect, false, _sDither);
+            SimpleOutlined(g, Loc.T("Dithering"), item, SimpleText,
+                           new RectangleF(SimpleDitherRect.X + 28, SimpleDitherRect.Y + 1, 210, 24));
+            SimpleMark(g, SimpleLoggingRect, false, _sLogging);
+            SimpleOutlined(g, Loc.T("Logging"), item, SimpleText,
+                           new RectangleF(SimpleLoggingRect.X + 28, SimpleLoggingRect.Y + 1, 210, 24));
+
+            SimpleOutlined(g, Loc.T("Minimap:"), item, SimpleText, new RectangleF(SimpleRight, 182, 240, 22));
+            SimpleOutlined(g, Loc.T("Disc:"), item, SimpleText, new RectangleF(SimpleRight, 244, 240, 22));
+            SimpleOutlined(g, Loc.T("Game Language:"), item, SimpleText, new RectangleF(SimpleRight, 306, 240, 22));
+
+            if (!string.IsNullOrEmpty(lblUpdateStatus.Text))
+                SimpleOutlined(g, lblUpdateStatus.Text, body,
+                               lblUpdateStatus.ForeColor.GetBrightness() < 0.45f ? SimpleDim : lblUpdateStatus.ForeColor,
+                               new RectangleF(SimpleLeft, 578, 350, 20));
+
+            SimpleOutlined(g, Loc.T("Mode:"), item, SimpleText, new RectangleF(SimpleLeft, 624, 80, 22));
+            SimpleMark(g, SimpleModeSimple, true, true);
+            SimpleOutlined(g, Loc.T("Simple"), item, SimpleText,
+                           new RectangleF(SimpleModeSimple.X + 28, SimpleModeSimple.Y + 1, 90, 22));
+            SimpleMark(g, SimpleModeAdvanced, true, false);
+            SimpleOutlined(g, Loc.T("Advanced"), item, SimpleText,
+                           new RectangleF(SimpleModeAdvanced.X + 28, SimpleModeAdvanced.Y + 1, 130, 22));
+        }
     }
 
     /// <summary>Read config_simple.cfg into the simple view.</summary>
@@ -183,10 +290,10 @@ public partial class Form1
         _simpleLoading = true;
         try
         {
-            int id  = ParseIntOr(_simpleCfg.Get("simple_preset", "0"), 0);
-            int idx = Array.IndexOf(SimplePresetIds, id);
-            _sPreset.SelectedIndex = idx >= 0 ? idx : 0;
-            _sDither.Checked = _simpleCfg.Get("simple_dithering", "1").Trim() != "0";
+            int idx = Array.IndexOf(SimplePresetIds, ParseIntOr(_simpleCfg.Get("simple_preset", "0"), 0));
+            _sPresetIdx = idx >= 0 ? idx : 0;
+            _sDither    = _simpleCfg.Get("simple_dithering", "1").Trim() != "0";
+            _sLogging   = _simpleCfg.Get("enable_debug_log", "1").Trim() != "0";
 
             int mm = ParseIntOr(_simpleCfg.Get("minimap", "0"), 0);
             int mc = ParseIntOr(_simpleCfg.Get("minimap_corner", "0"), 0);
@@ -195,6 +302,7 @@ public partial class Form1
             _sMinimap.SelectedIndex = mi < _sMinimap.Items.Count ? mi : 0;
         }
         finally { _simpleLoading = false; }
+        _simple.ContentChanged();
     }
 
     /// <summary>Write the simple view: its own settings to config_simple.cfg,
@@ -204,7 +312,6 @@ public partial class Form1
         if (_simpleLoading || !_simpleMode || _simpleCfg == null) return;
         try
         {
-            int pi = _sPreset.SelectedIndex >= 0 ? _sPreset.SelectedIndex : 0;
             int mi = _sMinimap.SelectedIndex >= 0 ? _sMinimap.SelectedIndex : 0;
             var scr = Screen.PrimaryScreen.Bounds;
 
@@ -213,8 +320,9 @@ public partial class Form1
                     "# Settings of the launcher's Simple mode. The graphics settings come from\r\n" +
                     "# simple_preset; config.cfg holds the Advanced mode's settings and the controls.\r\n");
             _simpleCfg.RefreshFromDisk();
-            _simpleCfg.Set("simple_preset", SimplePresetIds[pi].ToString());
-            _simpleCfg.Set("simple_dithering", _sDither.Checked ? "1" : "0");
+            _simpleCfg.Set("simple_preset", SimplePresetIds[_sPresetIdx].ToString());
+            _simpleCfg.Set("simple_dithering", _sDither ? "1" : "0");
+            _simpleCfg.Set("enable_debug_log", _sLogging ? "1" : "0");
             _simpleCfg.Set("minimap", mi == 0 ? "0" : (mi <= 4 ? "2" : "1"));
             _simpleCfg.Set("minimap_corner", mi == 0 ? "0" : (mi <= 4 ? mi - 1 : mi - 5).ToString());
             // The enhanced presets render at the desktop's size.
@@ -239,15 +347,15 @@ public partial class Form1
             _simpleHomes[c] = new SimpleHome
             {
                 Parent = c.Parent, Location = c.Location, Size = c.Size, Back = c.BackColor, Fore = c.ForeColor,
-                Visible = c.Visible,
-                Flat = c is ComboBox ? ((ComboBox)c).FlatStyle : FlatStyle.Standard,
+                Flat = c is ComboBox ? ((ComboBox)c).FlatStyle : (c is Button ? ((Button)c).FlatStyle : FlatStyle.Standard),
             };
         if (c is ComboBox) ((ComboBox)c).FlatStyle = FlatStyle.Flat;
-        c.Parent   = _simple;
-        c.Location = at;
-        c.Size     = size;
-        if (c is ComboBox || c is Button) c.BackColor = SimpleEdit; else c.BackColor = SimpleCard;
-        if (c != lblUpdateStatus) c.ForeColor = SimpleText;
+        if (c is Button)   ((Button)c).FlatStyle   = FlatStyle.Flat;
+        c.Parent    = _simple;
+        c.Location  = at;
+        c.Size      = size;
+        c.BackColor = SimpleEdit;
+        c.ForeColor = SimpleText;
         c.BringToFront();
     }
 
@@ -259,8 +367,9 @@ public partial class Form1
             kv.Key.Location  = kv.Value.Location;
             kv.Key.Size      = kv.Value.Size;
             kv.Key.BackColor = kv.Value.Back;
+            kv.Key.ForeColor = kv.Value.Fore;
             if (kv.Key is ComboBox) ((ComboBox)kv.Key).FlatStyle = kv.Value.Flat;
-            if (kv.Key != lblUpdateStatus) kv.Key.ForeColor = kv.Value.Fore;
+            if (kv.Key is Button)   ((Button)kv.Key).FlatStyle   = kv.Value.Flat;
         }
         // Dark mode may have been captured while these were away.
         if (_lightColors != null)
@@ -279,20 +388,21 @@ public partial class Form1
 
         if (on)
         {
+            ClientSize = SimpleSize;
             // The pieces both views share are moved rather than copied, so the
             // disc and language logic and the update flow keep working as is.
-            SimpleBorrow(comboDisc,       new Point(150, 402), new Size(280, 21));
-            SimpleBorrow(comboGameLang,   new Point(150, 432), new Size(280, 21));
-            SimpleBorrow(lblUpdateStatus, new Point(24, 530),  new Size(280, 15));
-            SimpleBorrow(btnUpdate,       new Point(310, 525), new Size(120, 24));
-            SimpleBorrow(progUpdate,      new Point(150, 560), new Size(280, 23));
-            _simpleLoading = true;
-            _sRadioSimple.Checked = true;
-            _simpleLoading = false;
+            SimpleBorrow(comboDisc,     new Point(SimpleRight, 268), new Size(240, 25));
+            SimpleBorrow(comboGameLang, new Point(SimpleRight, 330), new Size(240, 25));
+            SimpleBorrow(btnUpdate,     new Point(560, 534), new Size(160, 32));
+            SimpleBorrow(progUpdate,    new Point(400, 580), new Size(320, 16));
             SimpleLoad();
             _simple.Visible = true;
             _simple.BringToFront();
-            if (btnLang != null) btnLang.BringToFront();
+            if (btnLang != null)
+            {
+                btnLang.Location = new Point(SimpleSize.Width - 40, SimpleSize.Height - 34);
+                btnLang.BringToFront();
+            }
             _simple.Start();
         }
         else
@@ -300,6 +410,11 @@ public partial class Form1
             _simple.Stop();
             _simple.Visible = false;
             SimpleReturnAll();
+            ClientSize = _advSize;
+            if (btnLang != null) btnLang.Location = _advLangAt;
+            _simpleLoading = true;
+            _aRadioAdvanced.Checked = true;
+            _simpleLoading = false;
             if (changed) LoadConfig();
         }
 
@@ -319,21 +434,20 @@ public partial class Form1
 }
 
 /// <summary>
-/// The simple view's surface: the banner, the site's background art under a dark
-/// veil, drifting fog and slow PS1-style snow, and a plain card below it for the
-/// controls. The moving part is painted with GDI+; when a frame costs too much
-/// (old machines, remote sessions) it stops moving and stays as a still picture.
+/// The simple view's surface: a dark ground with drifting fog and slow PS1-style
+/// snow, and the view's text drawn over it. Painted with GDI+; when a frame costs
+/// too much (old machines, remote sessions) the fog and snow stop and the view
+/// stays as a still picture.
 /// </summary>
 internal sealed class SimpleScene : Panel
 {
-    private readonly int _cardTop;
+    private static readonly Color Ground = Color.FromArgb(10, 11, 10);
     private readonly Timer _timer = new Timer { Interval = 40 };
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private readonly Random _rng = new Random(1999);
-    private Bitmap _still;          // banner + art + veil, drawn once
     private Bitmap _fogA, _fogB;    // two tileable fog banks, twice the width
-    private Image  _art;
-    private Image  _stillBanner;
+    private Bitmap _layer;          // the text, redrawn only when it changes
+    private bool   _layerDirty = true;
     private bool   _animated = true;
     private double _costMs;
     private int    _frames;
@@ -341,23 +455,21 @@ internal sealed class SimpleScene : Panel
     private struct Flake { public float X, Y, Speed, Sway, Phase; public int Size, Alpha; }
     private Flake[] _flakes;
 
-    public Func<Image> BannerImage;
+    public Action<Graphics> PaintContent;
 
-    public SimpleScene(int cardTop)
+    public SimpleScene()
     {
-        _cardTop = cardTop;
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint |
                  ControlStyles.OptimizedDoubleBuffer, true);
-        BackColor = Color.FromArgb(14, 15, 14);
+        BackColor = Ground;
         if (SystemInformation.TerminalServerSession) _animated = false;
-        try
-        {
-            var asm = System.Reflection.Assembly.GetExecutingAssembly();
-            using (var s = asm.GetManifestResourceStream("SilentHillPC_Launcher.SimpleBg.jpg"))
-                if (s != null) _art = Image.FromStream(s);
-        }
-        catch { _art = null; }
-        _timer.Tick += (s, e) => Invalidate(new Rectangle(0, 0, Width, _cardTop));
+        _timer.Tick += (s, e) => Invalidate();
+    }
+
+    public void ContentChanged()
+    {
+        _layerDirty = true;
+        Invalidate();
     }
 
     public void Start()
@@ -373,10 +485,9 @@ internal sealed class SimpleScene : Panel
         if (disposing)
         {
             _timer.Dispose();
-            if (_still != null) _still.Dispose();
             if (_fogA != null) _fogA.Dispose();
             if (_fogB != null) _fogB.Dispose();
-            if (_art != null) _art.Dispose();
+            if (_layer != null) _layer.Dispose();
         }
         base.Dispose(disposing);
     }
@@ -407,7 +518,7 @@ internal sealed class SimpleScene : Panel
 
     private Bitmap MakeFog(int seed, float strength)
     {
-        int sw = Math.Max(8, Width / 4), sh = Math.Max(8, _cardTop / 4);
+        int sw = Math.Max(8, Width / 4), sh = Math.Max(8, Height / 4);
         using (var small = new Bitmap(sw, sh, PixelFormat.Format32bppPArgb))
         {
             var data = small.LockBits(new Rectangle(0, 0, sw, sh), ImageLockMode.WriteOnly, PixelFormat.Format32bppPArgb);
@@ -428,11 +539,8 @@ internal sealed class SimpleScene : Panel
                     float a = (v - 0.36f) / 0.36f;
                     a = a < 0 ? 0 : (a > 1 ? 1 : a);
                     a = a * a * (3 - 2 * a) * strength;
-                    // Thinner at the top and where the card begins.
-                    float edge = Math.Min(1f, Math.Min(y / (sh * 0.25f), (sh - 1 - y) / (sh * 0.2f)));
-                    a *= Math.Max(0f, edge);
                     int i = y * data.Stride + x * 4;
-                    px[i]     = (byte)(148 * a);
+                    px[i]     = (byte)(150 * a);
                     px[i + 1] = (byte)(156 * a);
                     px[i + 2] = (byte)(158 * a);
                     px[i + 3] = (byte)(255 * a);
@@ -441,69 +549,35 @@ internal sealed class SimpleScene : Panel
             System.Runtime.InteropServices.Marshal.Copy(px, 0, data.Scan0, px.Length);
             small.UnlockBits(data);
 
-            var big = new Bitmap(Width * 2, _cardTop, PixelFormat.Format32bppPArgb);
+            var big = new Bitmap(Width * 2, Height, PixelFormat.Format32bppPArgb);
             using (var g = Graphics.FromImage(big))
             {
                 g.InterpolationMode = InterpolationMode.HighQualityBilinear;
                 g.PixelOffsetMode   = PixelOffsetMode.Half;
-                g.DrawImage(small, new Rectangle(0, 0, Width, _cardTop));
-                g.DrawImage(small, new Rectangle(Width, 0, Width, _cardTop));
+                g.DrawImage(small, new Rectangle(0, 0, Width, Height));
+                g.DrawImage(small, new Rectangle(Width, 0, Width, Height));
             }
             return big;
         }
     }
 
-    private void BuildStill()
-    {
-        Image bannerImg = BannerImage != null ? BannerImage() : null;
-        if (_still != null) _still.Dispose();
-        _still = new Bitmap(Math.Max(1, Width), Math.Max(1, _cardTop), PixelFormat.Format32bppPArgb);
-        _stillBanner = bannerImg;
-        using (var g = Graphics.FromImage(_still))
-        {
-            int bh = 0;
-            g.Clear(Color.FromArgb(8, 9, 8));
-            if (bannerImg != null)
-            {
-                bh = Width * bannerImg.Height / Math.Max(1, bannerImg.Width);
-                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                g.DrawImage(bannerImg, new Rectangle(0, 0, Width, bh));
-            }
-            if (_art != null)
-            {
-                // Cover the strip under the banner, keeping the art's shape.
-                var dst = new Rectangle(0, bh, Width, _cardTop - bh);
-                float sa = (float)_art.Width / _art.Height, da = (float)dst.Width / Math.Max(1, dst.Height);
-                RectangleF src = sa > da
-                    ? new RectangleF((_art.Width - _art.Height * da) / 2f, 0, _art.Height * da, _art.Height)
-                    : new RectangleF(0, (_art.Height - _art.Width / da) * 0.62f, _art.Width, _art.Width / da);
-                g.DrawImage(_art, dst, src, GraphicsUnit.Pixel);
-                using (var veil = new SolidBrush(Color.FromArgb(120, 5, 6, 5)))
-                    g.FillRectangle(veil, dst);
-            }
-            using (var fade = new LinearGradientBrush(new Rectangle(0, _cardTop - 70, Width, 71),
-                                                      Color.FromArgb(0, 14, 15, 14), Color.FromArgb(255, 14, 15, 14), 90f))
-                g.FillRectangle(fade, 0, _cardTop - 70, Width, 70);
-        }
-    }
-
     private void BuildMoving()
     {
-        _fogA = MakeFog(11, 0.55f);
-        _fogB = MakeFog(47, 0.38f);
-        _flakes = new Flake[70];
+        _fogA = MakeFog(11, 0.34f);
+        _fogB = MakeFog(47, 0.24f);
+        _flakes = new Flake[110];
         for (int i = 0; i < _flakes.Length; i++)
         {
             int layer = i % 3;
             _flakes[i] = new Flake
             {
                 X = (float)_rng.NextDouble() * Width,
-                Y = (float)_rng.NextDouble() * _cardTop,
+                Y = (float)_rng.NextDouble() * Height,
                 Speed = 9f + layer * 7f + (float)_rng.NextDouble() * 4f,
                 Sway  = 4f + (float)_rng.NextDouble() * 6f,
                 Phase = (float)_rng.NextDouble() * 6.28f,
                 Size  = 2 + (layer == 2 ? 1 : 0),
-                Alpha = 120 + layer * 45,
+                Alpha = 90 + layer * 40,
             };
         }
     }
@@ -513,37 +587,44 @@ internal sealed class SimpleScene : Panel
         var g = e.Graphics;
         long t0 = Stopwatch.GetTimestamp();
 
-        if (_still == null || _still.Width != Width ||
-            (BannerImage != null && !ReferenceEquals(BannerImage(), _stillBanner)))
+        g.Clear(Ground);
+        if (_fogA == null) BuildMoving();
         {
-            BuildStill();
-        }
-        g.DrawImageUnscaled(_still, 0, 0);
-        using (var card = new SolidBrush(BackColor))
-            g.FillRectangle(card, 0, _cardTop, Width, Height - _cardTop);
-
-        if (_animated)
-        {
-            if (_fogA == null) BuildMoving();
-            double t = _clock.Elapsed.TotalSeconds;
+            // A still picture keeps the fog and snow where they stood.
+            double t = _animated ? _clock.Elapsed.TotalSeconds : 12.0;
             int xa = (int)(t * 9.0) % Width, xb = Width - 1 - (int)(t * 5.0) % Width;
-            g.SetClip(new Rectangle(0, 0, Width, _cardTop));
             g.CompositingQuality = CompositingQuality.HighSpeed;
             g.DrawImageUnscaled(_fogA, -xa, 0);
             g.DrawImageUnscaled(_fogB, -xb, 0);
             for (int i = 0; i < _flakes.Length; i++)
             {
                 var f = _flakes[i];
-                float y = (f.Y + (float)t * f.Speed) % _cardTop;
+                float y = (f.Y + (float)t * f.Speed) % Height;
                 float x = (f.X + (float)Math.Sin(t * 0.6 + f.Phase) * f.Sway + (float)t * f.Speed * 0.2f) % Width;
-                // Fade out into the card instead of popping at its edge.
-                int a = f.Alpha;
-                if (y > _cardTop - 40) a = (int)(a * (_cardTop - y) / 40f);
-                using (var b = new SolidBrush(Color.FromArgb(a < 0 ? 0 : a, 235, 230, 244)))
+                using (var b = new SolidBrush(Color.FromArgb(f.Alpha, 235, 230, 244)))
                     g.FillRectangle(b, (int)x, (int)y, f.Size, f.Size);
             }
-            g.ResetClip();
+        }
 
+        if (_layer == null || _layer.Width != Width || _layer.Height != Height)
+        {
+            if (_layer != null) _layer.Dispose();
+            _layer = new Bitmap(Math.Max(1, Width), Math.Max(1, Height), PixelFormat.Format32bppPArgb);
+            _layerDirty = true;
+        }
+        if (_layerDirty && PaintContent != null)
+        {
+            using (var lg = Graphics.FromImage(_layer))
+            {
+                lg.Clear(Color.Transparent);
+                PaintContent(lg);
+            }
+            _layerDirty = false;
+        }
+        g.DrawImageUnscaled(_layer, 0, 0);
+
+        if (_animated)
+        {
             // A machine that cannot keep this up gets the still picture.
             _costMs += (Stopwatch.GetTimestamp() - t0) * 1000.0 / Stopwatch.Frequency;
             if (++_frames == 40)

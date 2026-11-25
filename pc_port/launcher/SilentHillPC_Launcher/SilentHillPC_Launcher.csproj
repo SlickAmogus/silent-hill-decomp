@@ -141,6 +141,7 @@
     <Compile Include="Loc.Strings.ModManager.cs" />
     <Compile Include="Loc.Strings.Dialogs.cs" />
     <Compile Include="Loc.Strings.Tools.cs" />
+    <Compile Include="Loc.Strings.Simple.cs" />
     <Compile Include="LauncherSettings.cs" />
     <Compile Include="ChangelogViewer.cs" />
     <Compile Include="BuildSettingsForm.cs">
@@ -168,9 +169,6 @@
     <EmbeddedResource Include="..\..\config.cfg">
       <Link>DefaultConfig.cfg</Link>
       <LogicalName>SilentHillPC_Launcher.DefaultConfig.cfg</LogicalName>
-    </EmbeddedResource>
-    <EmbeddedResource Include="Resources\simple_bg.jpg">
-      <LogicalName>SilentHillPC_Launcher.SimpleBg.jpg</LogicalName>
     </EmbeddedResource>
     <EmbeddedResource Include="Form1.resx">
       <DependentUpon>Form1.cs</DependentUpon>

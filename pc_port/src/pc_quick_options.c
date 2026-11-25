@@ -76,7 +76,7 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_DREAMSTR, QO_X_DREAMBLUR, QO_X_DPADMOVE, QO_X_CROSSHAIRSTYLE,
        QO_X_LINEGAP, QO_X_CHARALIGHT, QO_X_PPLIGHT, QO_X_HEROLIGHT, QO_X_HEROLIGHTFL, QO_X_FACEANIM,
        QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD, QO_X_WORLDVIS, QO_X_FLASHAIM,
-       QO_X_PRESET, QO_X_SDITHER };
+       QO_X_PRESET, QO_X_SDITHER, QO_X_CFGMODE };
 extern const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz);
 extern void        PcOpt_QuickExtraAdjust(int which, int dir);
 extern void        PcOpt_QuickViewReset(int mode);
@@ -121,6 +121,7 @@ typedef struct
 #define QO_CLOSE_ROW { ROW_CLOSE, NULL, 0, "Close" }
 
 static const QoRowDef s_pageGfx1[] = {
+    { ROW_EXTRA, NULL, QO_X_CFGMODE,        "Config Mode" },
     { ROW_OPT,   "texture_filter",       0, NULL },  /* Texture_Filter */
     /* Was the "Dither" step of Texture_Filter before the two rows split. */
     { ROW_OPT,   "dithering",            0, NULL },  /* Dithering */
@@ -142,6 +143,7 @@ static const QoRowDef s_pageGfx1[] = {
 /* Simple mode: the launcher's quality presets own the graphics settings, so
  * the two graphics pages are this one and the Lighting page is skipped. */
 static const QoRowDef s_pageGfxSimple[] = {
+    { ROW_EXTRA, NULL, QO_X_CFGMODE,        "Config Mode" },
     { ROW_EXTRA, NULL, QO_X_PRESET,         "Quality" },
     { ROW_EXTRA, NULL, QO_X_SDITHER,        "Dithering" },
     { ROW_EXTRA, NULL, QO_X_FACEANIM,       "Character Face Animation (WIP)" },

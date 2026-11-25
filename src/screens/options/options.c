@@ -727,7 +727,7 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_DREAMSTR, QO_X_DREAMBLUR, QO_X_DPADMOVE, QO_X_CROSSHAIRSTYLE,
        QO_X_LINEGAP, QO_X_CHARALIGHT, QO_X_PPLIGHT, QO_X_HEROLIGHT, QO_X_HEROLIGHTFL, QO_X_FACEANIM,
        QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD, QO_X_WORLDVIS, QO_X_FLASHAIM,
-       QO_X_PRESET, QO_X_SDITHER };
+       QO_X_PRESET, QO_X_SDITHER, QO_X_CFGMODE };
 
 /* display_aspect = crt puts the picture on (4:3 x trim), so one framebuffer
  * pixel lands on screen this many times wider than tall at trim 1.0. It is the
@@ -765,6 +765,10 @@ static void PcOpt_FilterApply(int filter)
         g_cfg_anisoLevel = 2 << (filter - 3);
     g_cfg_bilinearFiltering = (g_cfg_textureFilter > 0);
 }
+
+/* The config mode chosen in the quick menu; the settings of the other mode are
+ * loaded at boot, so it takes effect then. -1 = unchanged. */
+static int s_cfgModeNext = -1;
 
 static const int         QO_SHADOW_SIZES[] = { 256, 512, 1024, 2048, 4096, 8192 };
 static const char* const QO_SPEAKER_LBL[]  = { "Auto", "Stereo", "Quad", "5.1", "7.1" };
@@ -829,6 +833,12 @@ const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz)
     }
     case QO_X_SDITHER:
         return Pc_LangQuickMenu(g_PcConfig.simpleDither ? "On" : "Off");
+    case QO_X_CFGMODE: {
+        int next = (s_cfgModeNext >= 0) ? s_cfgModeNext : g_PcConfig.simpleMode;
+        snprintf(buf, bufsz, "%s%s", Pc_LangQuick(next ? "Simple" : "Advanced"),
+                 next != g_PcConfig.simpleMode ? " *" : "");
+        return buf;
+    }
     case QO_X_FLASHAIM: {
         extern int g_PcFpsCam;
         int        on = g_PcFpsCam ? g_PcConfig.flashlightFollowAimFps : g_PcConfig.flashlightFollowAim;
@@ -1350,6 +1360,15 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
         Sd_PlaySfx(Sfx_MenuMove, 0, 64);
         break;
     /* func_800554C4 reads it each time the light is set up, so it applies live. */
+    case QO_X_CFGMODE: {
+        int next = !((s_cfgModeNext >= 0) ? s_cfgModeNext : g_PcConfig.simpleMode);
+        s_cfgModeNext = next;
+        PcConfig_SaveKeyValue("simple_mode", next ? "1" : "0");
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        if (next != g_PcConfig.simpleMode)
+            SH_DBG_ECHO("The config mode changes the next time the game is started.");
+        break;
+    }
     case QO_X_PRESET:
     case QO_X_SDITHER: {
         const void* h = PcOpt_QuickFind(which == QO_X_PRESET ? "simple_preset" : "simple_dithering");
