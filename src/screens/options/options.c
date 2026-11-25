@@ -167,6 +167,7 @@ typedef struct {
 static void PcOpt_FilterApply(int filter);
 static void PcOpt_PresetStep(int dir);
 static int  PcOpt_ResList(int* w, int* h, int max);
+static void PcOpt_NativeApply(void);
 static void PcOpt_SimpleDitherToggle(void);
 
 static const int VAL_WIN[]   = { 0, 1, 2 };
@@ -541,6 +542,8 @@ static int PcOpt_ValIndex(const s_PcOpt* e)
 static const char* PcOpt_ValueLabel(const s_PcOpt* e, char* buf, int bufsz)
 {
     if (e->kind == PCK_RES) {
+        if (g_PcConfig.nativeResolution)
+            return "Native_PSX";
         snprintf(buf, bufsz, "%dx%d", g_PcConfig.windowWidth, g_PcConfig.windowHeight);
         return buf;
     }
@@ -617,13 +620,24 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
                 idx = i;
         if (!(rw[idx] == g_PcConfig.windowWidth && rh[idx] == g_PcConfig.windowHeight) && dir < 0)
             idx++;
-        idx = (idx + dir + n) % n;
-        g_PcConfig.windowWidth  = rw[idx];
-        g_PcConfig.windowHeight = rh[idx];
-        snprintf(buf, sizeof(buf), "%d", g_PcConfig.windowWidth);  PcConfig_SaveKeyValue("width", buf);
-        snprintf(buf, sizeof(buf), "%d", g_PcConfig.windowHeight); PcConfig_SaveKeyValue("height", buf);
-        PsyX_ApplyWindowState(g_PcConfig.windowWidth, g_PcConfig.windowHeight, g_PcConfig.fullscreen);
-        SH_DBG_ECHO("Resolution: %dx%d", g_PcConfig.windowWidth, g_PcConfig.windowHeight);
+        /* The PSX's own resolution is the list's first entry, as in the
+         * launcher: n + 1 positions, 0 = native. */
+        idx = g_PcConfig.nativeResolution ? 0 : idx + 1;
+        idx = (idx + dir + n + 1) % (n + 1);
+        g_PcConfig.nativeResolution = (idx == 0);
+        PcConfig_SaveKeyValue("native_resolution", idx == 0 ? "1" : "0");
+        if (idx > 0)
+        {
+            g_PcConfig.windowWidth  = rw[idx - 1];
+            g_PcConfig.windowHeight = rh[idx - 1];
+            snprintf(buf, sizeof(buf), "%d", g_PcConfig.windowWidth);  PcConfig_SaveKeyValue("width", buf);
+            snprintf(buf, sizeof(buf), "%d", g_PcConfig.windowHeight); PcConfig_SaveKeyValue("height", buf);
+        }
+        PcOpt_NativeApply();
+        if (idx == 0)
+            SH_DBG_ECHO("Resolution: native PSX");
+        else
+            SH_DBG_ECHO("Resolution: %dx%d", g_PcConfig.windowWidth, g_PcConfig.windowHeight);
         return;
     }
     if (e->kind == PCK_SLIDER) {
@@ -663,7 +677,7 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
     if (e->kind == PCK_PRESET) {
         PcOpt_PresetStep(dir);
         SH_DBG_ECHO("%s: %s", e->name, PcOpt_ValueLabel(e, vbuf, sizeof(vbuf)));
-        SH_DBG_ECHO("Resolution and antialiasing change the next time the game is started.");
+        SH_DBG_ECHO("Antialiasing changes the next time the game is started.");
         return;
     }
     if (e->kind == PCK_SDITHER) {
@@ -780,8 +794,28 @@ static void PcOpt_PresetStep(int dir)
     g_PsxUsePgxp         = g_PcConfig.usePgxp;
     g_PsyX_ShadowMapSize = g_PcConfig.shadowMapSize;
     g_cfg_renderScale    = g_PcConfig.renderScale;
+    g_PsyX_FogStrength   = g_PcConfig.fogStrength;
     Pc_FlashlightModeApply(g_PcConfig.flashlightMode, 0);
     PsyX_ApplyVsync(g_PcConfig.vsync);
+    PcOpt_NativeApply();
+}
+
+/* Switch between the PSX's own render size and the chosen one while the game
+ * runs, then lay the window out again. The window's multisampling is decided
+ * at boot (a native target is blitted onto a plain window), so going native
+ * under a multisampled window waits for the next start. */
+static void PcOpt_NativeApply(void)
+{
+    extern int g_PcNativeRender;
+    extern int g_cfg_msaaSamples;
+
+    if (g_PcConfig.nativeResolution && !g_PcNativeRender && g_cfg_msaaSamples > 0)
+    {
+        SH_DBG_ECHO("Native PSX resolution takes effect the next time the game is started.");
+        return;
+    }
+    g_PcNativeRender = g_PcConfig.nativeResolution;
+    PsyX_ApplyWindowState(g_PcConfig.windowWidth, g_PcConfig.windowHeight, g_PcConfig.fullscreen);
 }
 
 /* Simple mode's Dithering is on or off, on the PSX pixel grid. */
@@ -865,6 +899,8 @@ const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz)
     case QO_X_SDITHER:
         return Pc_LangQuickMenu(g_PcConfig.dithering ? "On" : "Off");
     case QO_X_RES:
+        if (g_PcConfig.nativeResolution)
+            return Pc_LangQuick("Native PSX");
         snprintf(buf, bufsz, "%dx%d", g_PcConfig.windowWidth, g_PcConfig.windowHeight);
         return buf;
     case QO_X_CFGMODE:

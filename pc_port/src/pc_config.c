@@ -1742,11 +1742,15 @@ else if (strcmp(key, "enable_plugins") == 0)
 
 /* ---- quality presets (simple mode) ----
  * The launcher has the same table (Form1.Simple.cs): keep the two alike. */
-typedef struct { int native, vsync, fps, filter, msaa, pgxp, flash, shadow, decals; } SimplePreset;
+typedef struct { int native, vsync, fps, filter, msaa, pgxp, flash, shadow, decals, town; float fog; } SimplePreset;
 
 static void PcConfig_SimplePresetValues(int p, SimplePreset* v)
 {
     const s_PcConfig* d = &s_PcConfigDefaults;
+
+    /* Ultra alone thins the fog and draws the whole town through it. */
+    v->town = (p == PC_SIMPLE_ULTRA);
+    v->fog  = v->town ? 0.95f : d->fogStrength;
 
     if (p == PC_SIMPLE_ORIGINAL)
     {
@@ -1786,11 +1790,15 @@ int PcConfig_SimplePresetDetect(void)
     {
         SimplePreset v;
         PcConfig_SimplePresetValues(p, &v);
-        if (g_PcConfig.nativeResolution != v.native || g_PcConfig.vsync != v.vsync ||
+        /* The render size is the Resolution row's: a preset sets it when it
+         * is picked, and the player may change it without leaving the preset. */
+        if (g_PcConfig.vsync != v.vsync ||
             g_PcConfig.fpsCap != v.fps || g_PcConfig.textureFilter != v.filter ||
             g_PcConfig.msaaSamples != v.msaa || g_PcConfig.usePgxp != v.pgxp ||
             g_PcConfig.flashlightMode != v.flash || g_PcConfig.shadowMapSize != v.shadow ||
-            g_PcConfig.bulletDecals != v.decals)
+            g_PcConfig.bulletDecals != v.decals ||
+            g_PcConfig.fogStrength > v.fog + 0.005f || g_PcConfig.fogStrength < v.fog - 0.005f ||
+            (v.town && (!g_PcConfig.worldVisibility || !g_PcConfig.wholeMapExteriors)))
         {
             continue;
         }
@@ -1806,9 +1814,9 @@ void PcConfig_SimplePresetApply(int p)
 {
     const s_PcConfig* d = &s_PcConfigDefaults;
     SimplePreset      v;
-    const char*       keys[20];
-    const char*       vals[20];
-    char              buf[20][16];
+    const char*       keys[24];
+    const char*       vals[24];
+    char              buf[24][16];
     int               n = 0;
 
     if (p < 0 || p >= PC_SIMPLE_COUNT)
@@ -1829,6 +1837,10 @@ void PcConfig_SimplePresetApply(int p)
     g_PcConfig.disableCulling     = 1;
     g_PcConfig.preloadChunks      = 1;
     g_PcConfig.renderScale        = d->renderScale;
+    g_PcConfig.fogStrength        = v.fog;
+    g_PcConfig.wholeMapExteriors  = v.town ? 1 : d->wholeMapExteriors;
+    if (v.town)
+        g_PcConfig.worldVisibility = 1;
     if (p != PC_SIMPLE_ORIGINAL)
     {
         g_PcConfig.widescreenMode = 1;
@@ -1850,6 +1862,9 @@ void PcConfig_SimplePresetApply(int p)
     PRESET_KEY("bullet_decals",        g_PcConfig.bulletDecals);
     PRESET_KEY("disable_culling",      1);
     PRESET_KEY("preload_chunks",       1);
+    PRESET_KEY("whole_map_exteriors",  g_PcConfig.wholeMapExteriors);
+    if (v.town)
+        PRESET_KEY("world_visibility", 1);
     if (p != PC_SIMPLE_ORIGINAL)
     {
         PRESET_KEY("widescreen_mode", 1);
@@ -1858,6 +1873,10 @@ void PcConfig_SimplePresetApply(int p)
 #undef PRESET_KEY
     snprintf(buf[n], sizeof(buf[n]), "%.2f", g_PcConfig.renderScale);
     keys[n] = "render_scale";
+    vals[n] = buf[n];
+    n++;
+    snprintf(buf[n], sizeof(buf[n]), "%.2f", g_PcConfig.fogStrength);
+    keys[n] = "fog_strength";
     vals[n] = buf[n];
     n++;
     PcConfig_SaveKeyValues(keys, vals, n);

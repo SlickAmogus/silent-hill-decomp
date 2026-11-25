@@ -23,7 +23,7 @@ public partial class Form1
     private RadioButton   _aRadioSimple, _aRadioAdvanced;
     private bool          _simpleLoading;
     private int           _sPresetIdx;
-    private bool          _sDither = true, _sLogging = true, _sWindowed, _sCrt;
+    private bool          _sDither = true, _sLogging = true, _sWindowed, _sCrt, _sCustomRes;
     private Size          _advSize;
     private Point         _advLangAt;
     private ToolStripMenuItem _bannerMenuAdvanced;
@@ -46,7 +46,7 @@ public partial class Form1
         "Desktop resolution and smooth textures with no extra effects. For older or integrated graphics.",
         "Desktop resolution, no FPS limit, 2x antialiasing, sharper textures and flashlight shadows.",
         "4x antialiasing and the modern flashlight with detailed shadows.",
-        "8x antialiasing and the highest shadow detail. For powerful graphics cards.",
+        "8x antialiasing, the highest shadow detail and the whole town in view through thinner fog. For powerful graphics cards.",
         "Settings changed in Advanced mode or in the game.",
     };
 
@@ -191,7 +191,7 @@ public partial class Form1
         }
         if (e.Button != MouseButtons.Left) return;
         int hit = SimpleHit(e.Location);
-        if (hit >= 1 && hit <= 5) { _sPresetIdx = hit - 1; SimpleApplyPreset(_sPresetIdx); SimpleApplyWindow(); }
+        if (hit >= 1 && hit <= 5) { _sPresetIdx = hit - 1; SimpleApplyPreset(_sPresetIdx); SimpleApplyWindow(); _sCustomRes = false; }
         else if (hit == 10)
         {
             _sDither = !_sDither;
@@ -199,7 +199,14 @@ public partial class Form1
             if (_sDither) config.Set("dither_resolution", "0"); // the PSX pixel grid
         }
         else if (hit == 11) { _sLogging = !_sLogging; config.Set("enable_debug_log", _sLogging ? "1" : "0"); }
-        else if (hit == 12) { _sWindowed = !_sWindowed; SimpleApplyWindow(); }
+        else if (hit == 12)
+        {
+            _sWindowed = !_sWindowed;
+            SimpleApplyWindow();
+            // The window choice sets the size again; only Original's own
+            // (native) resolution is not a size and stays as it is.
+            _sCustomRes = _sPresetIdx == 0 && config.Get("native_resolution", "0").Trim() != "1";
+        }
         else if (hit == 13) { _sCrt = !_sCrt; config.Set("post_process", _sCrt ? "1" : "0"); } // 1 = CRT
         else if (hit == 21) { SimpleSet(false, true); return; }
         else return;
@@ -269,6 +276,12 @@ public partial class Form1
                 SimpleOutlined(g, Loc.T(SimplePresetNames[i]), head,
                                on ? Color.White : (grey ? Color.FromArgb(112, 112, 106) : SimpleText),
                                new RectangleF(r.X + 36, r.Y + 2, r.Width - 40, 24));
+                if (on && _sCustomRes && i != SimpleCustom)
+                {
+                    float nameW = g.MeasureString(Loc.T(SimplePresetNames[i]), head).Width;
+                    SimpleOutlined(g, Loc.T("(Custom Resolution)"), body, SimpleDim,
+                                   new RectangleF(r.X + 36 + nameW, r.Y + 6, r.Right - (r.X + 36 + nameW), 20));
+                }
                 SimpleOutlined(g, Loc.T(SimplePresetAbout[i]), body, grey ? Color.FromArgb(96, 96, 92) : SimpleDim,
                                new RectangleF(r.X + 36, r.Y + 25, r.Width - 44, 40));
             }
@@ -312,6 +325,7 @@ public partial class Form1
         var v = new Dictionary<string, string>
         {
             { "disable_culling", "1" }, { "preload_chunks", "1" }, { "render_scale", "1.00" },
+            { "fog_strength", "1.10" }, { "whole_map_exteriors", "2" },
         };
         if (id == 0)
         {
@@ -326,6 +340,11 @@ public partial class Form1
             v["native_resolution"] = "0"; v["vsync"] = "1"; v["fps_cap"] = "0"; v["use_pgxp"] = "1";
             v["bullet_decals"] = "1"; v["widescreen_mode"] = "1"; v["menu_pillarbox"] = "1";
             v["texture_filter"] = filter[id]; v["msaa"] = msaa[id];
+            if (id == 4)
+            {
+                // Ultra alone thins the fog and draws the whole town through it.
+                v["fog_strength"] = "0.95"; v["whole_map_exteriors"] = "1"; v["world_visibility"] = "1";
+            }
             v["flashlight_mode"] = flash[id]; v["shadow_resolution"] = shadow[id];
         }
         return v;
@@ -338,6 +357,7 @@ public partial class Form1
         { "render_scale", "1" }, { "native_resolution", "0" }, { "vsync", "0" }, { "fps_cap", "30" },
         { "texture_filter", "0" }, { "msaa", "0" }, { "use_pgxp", "0" }, { "flashlight_mode", "0" },
         { "shadow_resolution", "1024" }, { "bullet_decals", "0" }, { "widescreen_mode", "1" }, { "menu_pillarbox", "1" },
+        { "fog_strength", "1.10" }, { "whole_map_exteriors", "2" }, { "world_visibility", "1" },
     };
 
     private static double SimpleNumber(string s)
@@ -355,6 +375,16 @@ public partial class Form1
             bool same = true;
             foreach (var kv in SimplePresetValues(id))
             {
+                // The render size is set when a preset is picked, and may be
+                // changed afterwards without leaving the preset.
+                if (kv.Key == "native_resolution") continue;
+                // On or automatic both draw the town; only Ultra needs it, and
+                // needs it not switched off.
+                if (kv.Key == "whole_map_exteriors")
+                {
+                    if (id == 4 && config.Get(kv.Key, "2").Trim() == "0") { same = false; break; }
+                    continue;
+                }
                 double have = SimpleNumber(config.Get(kv.Key, SimpleDefaults[kv.Key]));
                 if (double.IsNaN(have) || Math.Abs(have - SimpleNumber(kv.Value)) > 0.001) { same = false; break; }
             }
@@ -383,6 +413,20 @@ public partial class Form1
         config.Set("height", (_sWindowed ? (original ? 480 : 720)  : scr.Height).ToString());
     }
 
+    /// <summary>True when the render size is not the one the preset sets: the
+    /// PSX's own for Original; otherwise the desktop's, or 1280x720 in a window.</summary>
+    private bool SimpleResolutionIsCustom(int preset)
+    {
+        if (preset < 0 || preset >= SimpleCustom) return false;
+        bool native = config.Get("native_resolution", "0").Trim() == "1";
+        if (preset == 0) return !native;
+        if (native) return true;
+        var scr = Screen.PrimaryScreen.Bounds;
+        bool windowed = config.Get("fullscreen", "0").Trim() == "0";
+        int w = ParseIntOr(config.Get("width", "640"), 640), h = ParseIntOr(config.Get("height", "480"), 480);
+        return windowed ? (w != 1280 || h != 720) : (w != scr.Width || h != scr.Height);
+    }
+
     /// <summary>Show config.cfg in the simple view.</summary>
     private void SimpleLoad()
     {
@@ -392,6 +436,7 @@ public partial class Form1
         {
             config.RefreshFromDisk();
             _sPresetIdx = SimpleDetectPreset();
+            _sCustomRes = SimpleResolutionIsCustom(_sPresetIdx);
             _sDither    = config.Get("dithering", "1").Trim() != "0";
             _sLogging   = config.Get("enable_debug_log", "0").Trim() != "0";
             _sWindowed  = config.Get("fullscreen", "0").Trim() == "0";
