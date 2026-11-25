@@ -343,6 +343,7 @@ static const s_PcOpt PCOPT_H[] = {
  * launcher's quality presets, which own every graphics setting. */
 static const s_PcOpt PCOPT_SG[] = {
     { "Quality",        &g_PcConfig.simplePreset,       "simple_preset",        VAL_PRESET, 5, LBL_PRESET, NULL,                        1, PCK_PRESET  },
+    { "Resolution",     NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_RES    },
     { "Dithering",      &g_PcConfig.simpleDither,       "simple_dithering",     VAL_ONOFF,  2, LBL_ONOFF,  NULL,                        1, PCK_SDITHER },
     { "FMV_Movie_Vol",  NULL, "fmv_volume",             NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fmvVolume,           &g_PcFmvVolume,             0.0f, 1.0f, 0.05f },
     { "Next_Page",      NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_NEXT   },
@@ -605,6 +606,11 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
         g_PcConfig.windowHeight = RES_H[idx];
         snprintf(buf, sizeof(buf), "%d", g_PcConfig.windowWidth);  PcConfig_SaveKeyValue("width", buf);
         snprintf(buf, sizeof(buf), "%d", g_PcConfig.windowHeight); PcConfig_SaveKeyValue("height", buf);
+        if (g_PcConfig.simpleMode && !g_PcConfig.simpleCustomRes)
+        {
+            g_PcConfig.simpleCustomRes = 1;
+            PcConfig_SaveKeyValue("simple_custom_res", "1");
+        }
         PsyX_ApplyWindowState(g_PcConfig.windowWidth, g_PcConfig.windowHeight, g_PcConfig.fullscreen);
         SH_DBG_ECHO("Resolution: %dx%d", g_PcConfig.windowWidth, g_PcConfig.windowHeight);
         return;
@@ -726,7 +732,7 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_DREAMSTR, QO_X_DREAMBLUR, QO_X_DPADMOVE, QO_X_CROSSHAIRSTYLE,
        QO_X_LINEGAP, QO_X_CHARALIGHT, QO_X_PPLIGHT, QO_X_HEROLIGHT, QO_X_HEROLIGHTFL, QO_X_FACEANIM,
        QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD, QO_X_WORLDVIS, QO_X_FLASHAIM,
-       QO_X_PRESET, QO_X_SDITHER, QO_X_CFGMODE };
+       QO_X_PRESET, QO_X_SDITHER, QO_X_CFGMODE, QO_X_RES };
 
 /* display_aspect = crt puts the picture on (4:3 x trim), so one framebuffer
  * pixel lands on screen this many times wider than tall at trim 1.0. It is the
@@ -832,6 +838,9 @@ const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz)
     }
     case QO_X_SDITHER:
         return Pc_LangQuickMenu(g_PcConfig.simpleDither ? "On" : "Off");
+    case QO_X_RES:
+        snprintf(buf, bufsz, "%dx%d", g_PcConfig.windowWidth, g_PcConfig.windowHeight);
+        return buf;
     case QO_X_CFGMODE: {
         int next = (s_cfgModeNext >= 0) ? s_cfgModeNext : g_PcConfig.simpleMode;
         snprintf(buf, bufsz, "%s%s", Pc_LangQuick(next ? "Simple" : "Advanced"),
@@ -1359,6 +1368,10 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
         Sd_PlaySfx(Sfx_MenuMove, 0, 64);
         break;
     /* func_800554C4 reads it each time the light is set up, so it applies live. */
+    case QO_X_RES:
+        PcOpt_Adjust(&PCOPT_G[0], dir); /* the Resolution row */
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        break;
     case QO_X_CFGMODE: {
         int next = !((s_cfgModeNext >= 0) ? s_cfgModeNext : g_PcConfig.simpleMode);
         s_cfgModeNext = next;

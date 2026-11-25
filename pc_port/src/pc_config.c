@@ -1509,6 +1509,14 @@ else if (strcmp(key, "enable_plugins") == 0)
         {
             g_PcConfig.simpleDither = (atoi(value) != 0);
         }
+        else if (strcmp(key, "simple_custom_res") == 0)
+        {
+            g_PcConfig.simpleCustomRes = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "simple_windowed") == 0)
+        {
+            g_PcConfig.simpleWindowed = (atoi(value) != 0);
+        }
         else if (strcmp(key, "unlimited_enemies") == 0)
         {
             g_PcConfig.unlimitedEnemies = (atoi(value) != 0);
@@ -1821,7 +1829,14 @@ void PcConfig_SimplePresetApply(void)
     if (p < 0 || p >= PC_SIMPLE_COUNT)
         p = PC_SIMPLE_ORIGINAL;
 
-    g_PcConfig.fullscreen       = 2;
+    g_PcConfig.fullscreen       = g_PcConfig.simpleWindowed ? 0 : 2;
+    /* A size picked on the in-game Resolution row stands until the launcher's
+     * preset or Windowed box is changed. */
+    if (g_PcConfig.simpleWindowed && !g_PcConfig.simpleCustomRes)
+    {
+        g_PcConfig.windowWidth  = (p == PC_SIMPLE_ORIGINAL) ? 640 : 1280;
+        g_PcConfig.windowHeight = (p == PC_SIMPLE_ORIGINAL) ? 480 : 720;
+    }
     /* The two enhancements every preset keeps, Original included: the whole
      * map loaded up front and nothing culled by view angle. */
     g_PcConfig.disableCulling   = 1;
@@ -1855,6 +1870,9 @@ void PcConfig_SimplePresetApply(void)
         };
 
         g_PcConfig.nativeResolution = 0;
+        /* Menus Only: the world fills a wide screen, the 2D screens keep 4:3. */
+        g_PcConfig.widescreenMode   = 1;
+        g_PcConfig.menuPillarbox    = 1;
         g_PcConfig.vsync            = 1;
         g_PcConfig.fpsCap           = 0;
         g_PcConfig.usePgxp          = 1;

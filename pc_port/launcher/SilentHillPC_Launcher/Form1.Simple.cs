@@ -24,7 +24,7 @@ public partial class Form1
     private RadioButton   _aRadioSimple, _aRadioAdvanced;
     private bool          _simpleLoading;
     private int           _sPresetIdx;
-    private bool          _sDither = true, _sLogging = true;
+    private bool          _sDither = true, _sLogging = true, _sWindowed, _sResetSize;
     private Size          _advSize;
     private Point         _advLangAt;
     private ToolStripMenuItem _bannerMenuAdvanced;
@@ -59,6 +59,7 @@ public partial class Form1
     private Rectangle SimplePresetRect(int i) { return new Rectangle(SimpleLeft - 8, SimpleRowTop + i * SimpleRowH, 420, SimpleRowH - 4); }
     private static readonly Rectangle SimpleDitherRect  = new Rectangle(SimpleRight, 106, 240, 26);
     private static readonly Rectangle SimpleLoggingRect = new Rectangle(SimpleRight, 138, 240, 26);
+    private static readonly Rectangle SimpleWindowedRect = new Rectangle(SimpleRight, 170, 240, 26);
     private static readonly Rectangle SimpleModeSimple   = new Rectangle(118, 622, 110, 26);
     private static readonly Rectangle SimpleModeAdvanced = new Rectangle(236, 622, 150, 26);
 
@@ -115,7 +116,7 @@ public partial class Form1
 
         _sMinimap = new ComboBox
         {
-            Location = new Point(SimpleRight, 206), Size = new Size(240, 25), DropDownStyle = ComboBoxStyle.DropDownList,
+            Location = new Point(SimpleRight, 238), Size = new Size(240, 25), DropDownStyle = ComboBoxStyle.DropDownList,
             BackColor = SimpleEdit, ForeColor = SimpleText, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 10f),
         };
         _sPlay = new Button
@@ -162,13 +163,14 @@ public partial class Form1
         finally { _simpleLoading = was; }
     }
 
-    // 1..5 a preset row, 10 dithering, 11 logging, 20 / 21 the mode pair.
+    // 1..5 a preset row, 10 dithering, 11 logging, 12 windowed, 20 / 21 the mode pair.
     private int SimpleHit(Point p)
     {
         for (int i = 0; i < SimplePresetIds.Length; i++)
             if (SimplePresetRect(i).Contains(p)) return 1 + i;
         if (SimpleDitherRect.Contains(p))   return 10;
         if (SimpleLoggingRect.Contains(p))  return 11;
+        if (SimpleWindowedRect.Contains(p)) return 12;
         if (SimpleModeSimple.Contains(p))   return 20;
         if (SimpleModeAdvanced.Contains(p)) return 21;
         return 0;
@@ -183,9 +185,12 @@ public partial class Form1
         }
         if (e.Button != MouseButtons.Left) return;
         int hit = SimpleHit(e.Location);
-        if (hit >= 1 && hit <= 5) _sPresetIdx = hit - 1;
+        // A new preset or window choice goes back to its own size; a size
+        // picked in game stands through every other change.
+        if (hit >= 1 && hit <= 5) { _sPresetIdx = hit - 1; _sResetSize = true; }
         else if (hit == 10) _sDither = !_sDither;
         else if (hit == 11) _sLogging = !_sLogging;
+        else if (hit == 12) { _sWindowed = !_sWindowed; _sResetSize = true; }
         else if (hit == 21) { SimpleSet(false, true); return; }
         else return;
         _simple.ContentChanged();
@@ -261,10 +266,13 @@ public partial class Form1
             SimpleMark(g, SimpleLoggingRect, false, _sLogging);
             SimpleOutlined(g, Loc.T("Logging"), item, SimpleText,
                            new RectangleF(SimpleLoggingRect.X + 28, SimpleLoggingRect.Y + 1, 210, 24));
+            SimpleMark(g, SimpleWindowedRect, false, _sWindowed);
+            SimpleOutlined(g, Loc.T("Windowed"), item, SimpleText,
+                           new RectangleF(SimpleWindowedRect.X + 28, SimpleWindowedRect.Y + 1, 210, 24));
 
-            SimpleOutlined(g, Loc.T("Minimap:"), item, SimpleText, new RectangleF(SimpleRight, 182, 240, 22));
-            SimpleOutlined(g, Loc.T("Disc:"), item, SimpleText, new RectangleF(SimpleRight, 244, 240, 22));
-            SimpleOutlined(g, Loc.T("Game Language:"), item, SimpleText, new RectangleF(SimpleRight, 306, 240, 22));
+            SimpleOutlined(g, Loc.T("Minimap:"), item, SimpleText, new RectangleF(SimpleRight, 214, 240, 22));
+            SimpleOutlined(g, Loc.T("Disc:"), item, SimpleText, new RectangleF(SimpleRight, 276, 240, 22));
+            SimpleOutlined(g, Loc.T("Game Language:"), item, SimpleText, new RectangleF(SimpleRight, 338, 240, 22));
 
             if (!string.IsNullOrEmpty(lblUpdateStatus.Text))
                 SimpleOutlined(g, lblUpdateStatus.Text, body,
@@ -293,6 +301,7 @@ public partial class Form1
             _sPresetIdx = idx >= 0 ? idx : 0;
             _sDither    = _simpleCfg.Get("simple_dithering", "1").Trim() != "0";
             _sLogging   = _simpleCfg.Get("enable_debug_log", "1").Trim() != "0";
+            _sWindowed  = _simpleCfg.Get("simple_windowed", "0").Trim() == "1";
 
             int mm = ParseIntOr(_simpleCfg.Get("minimap", "0"), 0);
             int mc = ParseIntOr(_simpleCfg.Get("minimap_corner", "0"), 0);
@@ -322,11 +331,18 @@ public partial class Form1
             _simpleCfg.Set("simple_preset", SimplePresetIds[_sPresetIdx].ToString());
             _simpleCfg.Set("simple_dithering", _sDither ? "1" : "0");
             _simpleCfg.Set("enable_debug_log", _sLogging ? "1" : "0");
+            _simpleCfg.Set("simple_windowed", _sWindowed ? "1" : "0");
             _simpleCfg.Set("minimap", mi == 0 ? "0" : (mi <= 4 ? "2" : "1"));
             _simpleCfg.Set("minimap_corner", mi == 0 ? "0" : (mi <= 4 ? mi - 1 : mi - 5).ToString());
-            // The enhanced presets render at the desktop's size.
-            _simpleCfg.Set("width", scr.Width.ToString());
-            _simpleCfg.Set("height", scr.Height.ToString());
+            if (_sResetSize) _simpleCfg.Set("simple_custom_res", "0");
+            _sResetSize = false;
+            // The enhanced presets render at the desktop's size, unless the
+            // player picked one on the in-game Resolution row.
+            if (_simpleCfg.Get("simple_custom_res", "0").Trim() != "1")
+            {
+                _simpleCfg.Set("width", scr.Width.ToString());
+                _simpleCfg.Set("height", scr.Height.ToString());
+            }
             _simpleCfg.Save();
 
             config.Set("simple_mode", "1");
@@ -390,8 +406,8 @@ public partial class Form1
             ClientSize = SimpleSize;
             // The pieces both views share are moved rather than copied, so the
             // disc and language logic and the update flow keep working as is.
-            SimpleBorrow(comboDisc,     new Point(SimpleRight, 268), new Size(240, 25));
-            SimpleBorrow(comboGameLang, new Point(SimpleRight, 330), new Size(240, 25));
+            SimpleBorrow(comboDisc,     new Point(SimpleRight, 300), new Size(240, 25));
+            SimpleBorrow(comboGameLang, new Point(SimpleRight, 362), new Size(240, 25));
             SimpleBorrow(btnUpdate,     new Point(560, 534), new Size(160, 32));
             SimpleBorrow(progUpdate,    new Point(400, 580), new Size(320, 16));
             SimpleLoad();

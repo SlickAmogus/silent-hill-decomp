@@ -330,6 +330,8 @@ typedef struct {
     int simpleMode;          /* config.cfg key: simple_mode */
     int simplePreset;        /* PC_SIMPLE_* (config_simple.cfg key: simple_preset) */
     int simpleDither;        /* 1 = PSX dithering on the PSX pixel grid (simple_dithering) */
+    int simpleCustomRes;     /* 1 = width/height in config_simple.cfg were chosen in game and are kept as they are (simple_custom_res) */
+    int simpleWindowed;      /* 1 = a window (640x480 for Original, 1280x720 otherwise) instead of borderless (simple_windowed) */
     int configVersion;       /* PC_CONFIG_VERSION the file was last written at; 0 = pre-versioning. Drives the default-migration in PcConfig_Load (config key: config_version) */
     float minimapScale;      /* minimap size percentage, MINIMAP_SCALE_MIN..MAX (config key: minimap_scale); default 100 */
     int enablePlugins;       /* 1 = load plugins/*.dll gameplay plugins at boot; 0 = never touch them (config-only key: enable_plugins); default 0 -- a DLL runs arbitrary code, so the surface is strictly opt-in */

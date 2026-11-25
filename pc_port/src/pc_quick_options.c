@@ -76,7 +76,7 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_DREAMSTR, QO_X_DREAMBLUR, QO_X_DPADMOVE, QO_X_CROSSHAIRSTYLE,
        QO_X_LINEGAP, QO_X_CHARALIGHT, QO_X_PPLIGHT, QO_X_HEROLIGHT, QO_X_HEROLIGHTFL, QO_X_FACEANIM,
        QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD, QO_X_WORLDVIS, QO_X_FLASHAIM,
-       QO_X_PRESET, QO_X_SDITHER, QO_X_CFGMODE };
+       QO_X_PRESET, QO_X_SDITHER, QO_X_CFGMODE, QO_X_RES };
 extern const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz);
 extern void        PcOpt_QuickExtraAdjust(int which, int dir);
 extern void        PcOpt_QuickViewReset(int mode);
@@ -145,6 +145,7 @@ static const QoRowDef s_pageGfx1[] = {
 static const QoRowDef s_pageGfxSimple[] = {
     { ROW_EXTRA, NULL, QO_X_CFGMODE,        "Config Mode" },
     { ROW_EXTRA, NULL, QO_X_PRESET,         "Quality" },
+    { ROW_EXTRA, NULL, QO_X_RES,            "Resolution" },
     { ROW_EXTRA, NULL, QO_X_SDITHER,        "Dithering" },
     { ROW_EXTRA, NULL, QO_X_FACEANIM,       "Character Face Animation (WIP)" },
     QO_NAV_ROW,
