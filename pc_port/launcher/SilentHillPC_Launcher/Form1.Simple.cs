@@ -336,7 +336,7 @@ public partial class Form1
         }
         else
         {
-            string[] filter = { "0", "1", "4", "4", "4" }, msaa = { "0", "0", "2", "4", "8" };
+            string[] filter = { "0", "1", "4", "5", "6" }, msaa = { "0", "0", "2", "4", "8" };
             string[] flash = { "0", "0", "1", "3", "3" }, shadow = { "1024", "512", "2048", "4096", "8192" };
             v["native_resolution"] = "0"; v["vsync"] = "1"; v["fps_cap"] = "0"; v["use_pgxp"] = "1";
             v["bullet_decals"] = "1"; v["widescreen_mode"] = "1"; v["menu_pillarbox"] = "1";
