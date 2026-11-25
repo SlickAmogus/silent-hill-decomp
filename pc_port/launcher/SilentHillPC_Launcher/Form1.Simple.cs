@@ -607,7 +607,8 @@ internal sealed class SimpleScene : Panel
     private readonly Timer _timer = new Timer { Interval = 40 };
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private readonly Random _rng = new Random(1999);
-    private Bitmap _fogA, _fogB;    // two tileable fog banks, twice the width
+    private const int FogMargin = 4; // cells either side that are never on screen
+    private Bitmap _fogA, _fogB;    // two fog banks, each two periods wide
     private Bitmap _layer;          // the text, redrawn only when it changes
     private bool   _layerDirty = true;
     private bool   _animated = true;
@@ -680,15 +681,20 @@ internal sealed class SimpleScene : Panel
 
     private Bitmap MakeFog(int seed, float strength)
     {
+        // Two periods and a margin, scaled up in ONE piece: scaling one period
+        // and pasting it twice left a faint vertical line where the copies met,
+        // because the smoothing stops at a bitmap's edge.
         int sw = Math.Max(8, Width / 4), sh = Math.Max(8, Height / 4);
-        using (var small = new Bitmap(sw, sh, PixelFormat.Format32bppPArgb))
+        int cols = sw * 2 + FogMargin * 2;
+        using (var small = new Bitmap(cols, sh, PixelFormat.Format32bppPArgb))
         {
-            var data = small.LockBits(new Rectangle(0, 0, sw, sh), ImageLockMode.WriteOnly, PixelFormat.Format32bppPArgb);
+            var data = small.LockBits(new Rectangle(0, 0, cols, sh), ImageLockMode.WriteOnly, PixelFormat.Format32bppPArgb);
             var px = new byte[data.Stride * sh];
             for (int y = 0; y < sh; y++)
             {
-                for (int x = 0; x < sw; x++)
+                for (int cx = 0; cx < cols; cx++)
                 {
+                    int   x = cx - FogMargin;
                     float v = 0, amp = 0.5f;
                     int   per = 4;
                     // Stretched sideways: long soft layers, not smoke.
@@ -701,7 +707,7 @@ internal sealed class SimpleScene : Panel
                     float a = (v - 0.36f) / 0.36f;
                     a = a < 0 ? 0 : (a > 1 ? 1 : a);
                     a = a * a * (3 - 2 * a) * strength;
-                    int i = y * data.Stride + x * 4;
+                    int i = y * data.Stride + cx * 4;
                     px[i]     = (byte)(150 * a);
                     px[i + 1] = (byte)(156 * a);
                     px[i + 2] = (byte)(158 * a);
@@ -711,13 +717,12 @@ internal sealed class SimpleScene : Panel
             System.Runtime.InteropServices.Marshal.Copy(px, 0, data.Scan0, px.Length);
             small.UnlockBits(data);
 
-            var big = new Bitmap(Width * 2, Height, PixelFormat.Format32bppPArgb);
+            var big = new Bitmap(cols * 4, Height, PixelFormat.Format32bppPArgb);
             using (var g = Graphics.FromImage(big))
             {
                 g.InterpolationMode = InterpolationMode.HighQualityBilinear;
                 g.PixelOffsetMode   = PixelOffsetMode.Half;
-                g.DrawImage(small, new Rectangle(0, 0, Width, Height));
-                g.DrawImage(small, new Rectangle(Width, 0, Width, Height));
+                g.DrawImage(small, new Rectangle(0, 0, cols * 4, Height));
             }
             return big;
         }
@@ -754,10 +759,11 @@ internal sealed class SimpleScene : Panel
         {
             // A still picture keeps the fog and snow where they stood.
             double t = _animated ? _clock.Elapsed.TotalSeconds : 12.0;
-            int xa = (int)(t * 9.0) % Width, xb = Width - 1 - (int)(t * 5.0) % Width;
+            int period = Math.Max(8, Width / 4) * 4;
+            int xa = (int)(t * 9.0) % period, xb = period - 1 - (int)(t * 5.0) % period;
             g.CompositingQuality = CompositingQuality.HighSpeed;
-            g.DrawImageUnscaled(_fogA, -xa, 0);
-            g.DrawImageUnscaled(_fogB, -xb, 0);
+            g.DrawImageUnscaled(_fogA, -xa - FogMargin * 4, 0);
+            g.DrawImageUnscaled(_fogB, -xb - FogMargin * 4, 0);
             for (int i = 0; i < _flakes.Length; i++)
             {
                 var f = _flakes[i];
