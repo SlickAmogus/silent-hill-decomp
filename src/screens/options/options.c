@@ -396,6 +396,24 @@ static const s_PcOptPage PCOPT_PAGES_SIMPLE[] = {
 #define PCOPT_PAGE_COUNT (g_PcConfig.simpleMode ? (int)(sizeof(PCOPT_PAGES_SIMPLE) / sizeof(PCOPT_PAGES_SIMPLE[0])) \
                                                 : (int)(sizeof(PCOPT_PAGES_ADV) / sizeof(PCOPT_PAGES_ADV[0])))
 
+/* The row of this kind on the page now showing (or of the other kind, on the
+ * first and last pages, which have only one of the two). */
+static int PcOpt_RowOfKind(int kind, int otherwise)
+{
+    extern const s_PcOpt* PcOpt_PageByIndex(int page, int* count);
+    int            count, i, alt = 0;
+    const s_PcOpt* tbl = PcOpt_PageByIndex(g_PcOptionsMenu_Page, &count);
+
+    for (i = 0; i < count; i++)
+    {
+        if (tbl[i].kind == kind)
+            return i;
+        if (tbl[i].kind == otherwise)
+            alt = i;
+    }
+    return alt;
+}
+
 static void Options_PcOptionsMenu_EntryStringsDraw(void);
 static void Options_PcOptionsMenu_ConfigDraw(void);
 static void Options_PcOptionsMenu_SelectionHighlightDraw(void);
@@ -1903,12 +1921,19 @@ void Options_PcOptionsMenu_Control(void)
             if (sel->kind == PCK_NEXT) {
                 Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
                 g_PcOptionsMenu_Page++; /* in PCOPT_PAGES order */
-                g_PcOptionsMenu_SelectedEntry = 0;
+                /* Stay on the row that was pressed, so paging on is pressing
+                 * again: the cursor used to jump to the top of each page and
+                 * slide back down. */
+                g_PcOptionsMenu_SelectedEntry     = PcOpt_RowOfKind(PCK_NEXT, PCK_PREV);
+                g_PcOptionsMenu_PrevSelectedEntry = g_PcOptionsMenu_SelectedEntry;
+                g_PcOptions_HighlightSnap         = 1;
                 g_Options_SelectionHighlightTimer = 0;
             } else if (sel->kind == PCK_PREV) {
                 Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
                 g_PcOptionsMenu_Page--;
-                g_PcOptionsMenu_SelectedEntry = 0;
+                g_PcOptionsMenu_SelectedEntry     = PcOpt_RowOfKind(PCK_PREV, PCK_NEXT);
+                g_PcOptionsMenu_PrevSelectedEntry = g_PcOptionsMenu_SelectedEntry;
+                g_PcOptions_HighlightSnap         = 1;
                 g_Options_SelectionHighlightTimer = 0;
             } else if (sel->kind == PCK_BACK) {
                 Sd_PlaySfx(Sfx_MenuCancel, 0, 64);
