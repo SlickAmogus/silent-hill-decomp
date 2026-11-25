@@ -16,7 +16,7 @@
  *   6: pad_reload / pad_quick_turn default NONE -> rightshoulder / leftshoulder,
  *      filled only where the slot was unbound. (4 and 5 live on the mobile
  *      branches; numbering is shared so a merge never reuses a step.) */
-#define PC_CONFIG_VERSION 6
+#define PC_CONFIG_VERSION 7
 
 /* Minimap size range, as a percentage of the built-in MM_SIZE. The top end is a
  * little larger than the stock panel; the bottom end is a bit over half of it. */
@@ -458,8 +458,9 @@ typedef struct {
     char keyGfxPrev[24];
     char keyGfxNext[24];
     /* PC-only: exit-game bind (title/menu = quit, in-game = warm-reboot to
-     * title). Default Escape; rebindable/unbindable like any other global bind
-     * (config key: key_exit_game). */
+     * title). Unbound by default (Escape is the second Pause key instead: one
+     * stray press of it threw the game in progress away); bindable like any
+     * other global bind (config key: key_exit_game). */
     char keyExitGame[24];
 
     /* Text language for PAL/European discs: 0=en 1=de 2=fr 3=es 4=it (config

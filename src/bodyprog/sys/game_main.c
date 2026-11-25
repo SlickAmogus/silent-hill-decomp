@@ -2466,6 +2466,16 @@ void MainLoop(void) // 0x80032EE0
             }
         }
 
+        {
+            extern int Pc_EscapeOwnedByOverlay(void);
+            if (Pc_EscapeOwnedByOverlay()) {
+                g_Controller0->heldBtnFlags      &= ~ControllerFlag_Start;
+                g_Controller0->clickedBtnFlags   &= ~ControllerFlag_Start;
+                g_Controller0->releasedBtnFlags  &= ~ControllerFlag_Start;
+                g_Controller0->pulsedBtnFlags    &= ~ControllerFlag_Start;
+                g_Controller0->pulsedGuiBtnFlags &= ~ControllerFlag_Start;
+            }
+        }
         /* Ahead of the quick menu, which reads this frame's pad edges: the Enter
          * that submitted a console command reached it there as a Start click,
          * and after `charmenu` that click opened the models of the row under the
