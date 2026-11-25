@@ -165,7 +165,8 @@ typedef struct {
 
 /* Defined with the other quick-row helpers below, used by the adjust above. */
 static void PcOpt_FilterApply(int filter);
-static void PcOpt_SimpleApplyLive(void);
+static void PcOpt_PresetStep(int dir);
+static void PcOpt_SimpleDitherToggle(void);
 
 static const int VAL_WIN[]   = { 0, 1, 2 };
 static const int VAL_VSYNC[] = { 0, 1 };
@@ -182,7 +183,6 @@ static const int VAL_MMMODE[] = { 0, 1, 2 };
 /* Weather simulation rate. 60 = one step per rendered frame (default), 30 = the
  * console cadence the particle code was authored at. */
 static const int VAL_WHZ[]    = { 30, 60 };
-static const int VAL_PRESET[] = { PC_SIMPLE_ORIGINAL, PC_SIMPLE_LOW, PC_SIMPLE_NORMAL, PC_SIMPLE_HIGH, PC_SIMPLE_ULTRA };
 
 static const char* const LBL_WIN[]   = { "Windowed", "Fullscreen", "Borderless" };
 static const char* const LBL_VSYNC[] = { "Off", "On" };
@@ -201,7 +201,7 @@ static const char* const LBL_FLMODE[] = { "Classic", "C_+_Shadows", "Modern", "M
 static const char* const LBL_MMCNR[]  = { "Top_L", "Top_R", "Bottom_L", "Bottom_R" };
 static const char* const LBL_MMMODE[] = { "Off", "Square", "Circle" };
 static const char* const LBL_WHZ[]    = { "30_Hz", "60_Hz" };
-static const char* const LBL_PRESET[] = { "Original", "Low_Spec", "Normal", "High", "Ultra" };
+static const char* const LBL_PRESET[] = { "Custom", "Original", "Low_Spec", "Normal", "High", "Ultra" };
 
 static const int RES_W[] = { 640, 1280, 1366, 1600, 1920, 2560, 3840 };
 static const int RES_H[] = { 480,  720,  768,  900, 1080, 1440, 2160 };
@@ -342,9 +342,9 @@ static const s_PcOpt PCOPT_H[] = {
 /* Simple mode (the launcher's default view): the graphics rows give way to the
  * launcher's quality presets, which own every graphics setting. */
 static const s_PcOpt PCOPT_SG[] = {
-    { "Quality",        &g_PcConfig.simplePreset,       "simple_preset",        VAL_PRESET, 5, LBL_PRESET, NULL,                        1, PCK_PRESET  },
+    { "Quality",        NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          1, PCK_PRESET  },
     { "Resolution",     NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_RES    },
-    { "Dithering",      &g_PcConfig.simpleDither,       "simple_dithering",     VAL_ONOFF,  2, LBL_ONOFF,  NULL,                        1, PCK_SDITHER },
+    { "Dithering",      NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          1, PCK_SDITHER },
     { "FMV_Movie_Vol",  NULL, "fmv_volume",             NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fmvVolume,           &g_PcFmvVolume,             0.0f, 1.0f, 0.05f },
     { "Next_Page",      NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_NEXT   },
     { "Back",           NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_BACK   },
@@ -551,6 +551,12 @@ static const char* PcOpt_ValueLabel(const s_PcOpt* e, char* buf, int bufsz)
     if (e->kind == PCK_DITHER) {
         return PcOpt_DitherLabel(PcOpt_DitherCurrent(), buf, bufsz);
     }
+    if (e->kind == PCK_PRESET) {
+        return LBL_PRESET[PcConfig_SimplePresetDetect() + 1];
+    }
+    if (e->kind == PCK_SDITHER) {
+        return g_PcConfig.dithering ? "On" : "Off";
+    }
     if (e->field == NULL)
         return "";
     {
@@ -606,11 +612,6 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
         g_PcConfig.windowHeight = RES_H[idx];
         snprintf(buf, sizeof(buf), "%d", g_PcConfig.windowWidth);  PcConfig_SaveKeyValue("width", buf);
         snprintf(buf, sizeof(buf), "%d", g_PcConfig.windowHeight); PcConfig_SaveKeyValue("height", buf);
-        if (g_PcConfig.simpleMode && !g_PcConfig.simpleCustomRes)
-        {
-            g_PcConfig.simpleCustomRes = 1;
-            PcConfig_SaveKeyValue("simple_custom_res", "1");
-        }
         PsyX_ApplyWindowState(g_PcConfig.windowWidth, g_PcConfig.windowHeight, g_PcConfig.fullscreen);
         SH_DBG_ECHO("Resolution: %dx%d", g_PcConfig.windowWidth, g_PcConfig.windowHeight);
         return;
@@ -649,6 +650,16 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
         SH_DBG_ECHO("%s: %s", e->name, PcOpt_ValueLabel(e, vbuf, sizeof(vbuf)));
         return;
     }
+    if (e->kind == PCK_PRESET) {
+        PcOpt_PresetStep(dir);
+        SH_DBG_ECHO("%s: %s", e->name, PcOpt_ValueLabel(e, vbuf, sizeof(vbuf)));
+        SH_DBG_ECHO("Resolution and antialiasing change the next time the game is started.");
+        return;
+    }
+    if (e->kind == PCK_SDITHER) {
+        PcOpt_SimpleDitherToggle();
+        return;
+    }
     if (e->field == NULL)
         return;
 
@@ -666,10 +677,6 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
             PsyX_ApplyVsync(g_PcConfig.vsync);
         } else if (e->kind == PCK_FLMODE) {
             Pc_FlashlightModeApply(*e->field, 1);
-        } else if (e->kind == PCK_PRESET || e->kind == PCK_SDITHER) {
-            PcOpt_SimpleApplyLive();
-            if (e->kind == PCK_PRESET)
-                SH_DBG_ECHO("Resolution and antialiasing change the next time the game is started.");
         } else if (e->live) {
             *e->live = *e->field;
         }
@@ -744,20 +751,35 @@ extern void Pc_QuickOptions_InvalidateRows(void);
 /* Texture_Filter's live side, for the adjust and the reset-to-default (both
  * save texture_filter themselves). Dithering has its own row now, as it has in
  * the launcher. */
-/* A preset change, applied to everything that can change while the game runs.
- * The render size (Original is the PSX's own) and MSAA are set up at boot. */
-static void PcOpt_SimpleApplyLive(void)
+/* The next preset from the one the settings match now (from Custom: the first
+ * or the last), saved and applied to everything that can change while the game
+ * runs. The render size (Original is the PSX's own) and MSAA are set up at boot. */
+static void PcOpt_PresetStep(int dir)
 {
     extern int g_PsyX_ShadowMapSize;
+    int        cur = PcConfig_SimplePresetDetect();
+    int        next;
 
-    PcConfig_SimplePresetApply();
+    if (cur == PC_SIMPLE_CUSTOM)
+        next = (dir > 0) ? 0 : PC_SIMPLE_COUNT - 1;
+    else
+        next = (cur + (dir > 0 ? 1 : -1) + PC_SIMPLE_COUNT) % PC_SIMPLE_COUNT;
+
+    PcConfig_SimplePresetApply(next);
     PcOpt_FilterApply(g_PcConfig.textureFilter);
-    g_cfg_psxDither        = g_PcConfig.dithering;
-    g_cfg_ditherResolution = g_PcConfig.ditherResolution;
-    g_PsxUsePgxp           = g_PcConfig.usePgxp;
-    g_PsyX_ShadowMapSize   = g_PcConfig.shadowMapSize;
+    g_PsxUsePgxp         = g_PcConfig.usePgxp;
+    g_PsyX_ShadowMapSize = g_PcConfig.shadowMapSize;
+    g_cfg_postProcess    = g_PcConfig.postProcess;
+    g_cfg_tonemap        = g_PcConfig.tonemap;
+    g_cfg_renderScale    = g_PcConfig.renderScale;
     Pc_FlashlightModeApply(g_PcConfig.flashlightMode, 0);
     PsyX_ApplyVsync(g_PcConfig.vsync);
+}
+
+/* Simple mode's Dithering is on or off, on the PSX pixel grid. */
+static void PcOpt_SimpleDitherToggle(void)
+{
+    PcOpt_DitherSet(g_PcConfig.dithering ? PCOPT_DITHER_OFF : 0);
 }
 
 static void PcOpt_FilterApply(int filter)
@@ -770,10 +792,6 @@ static void PcOpt_FilterApply(int filter)
         g_cfg_anisoLevel = 2 << (filter - 3);
     g_cfg_bilinearFiltering = (g_cfg_textureFilter > 0);
 }
-
-/* The config mode chosen in the quick menu; the settings of the other mode are
- * loaded at boot, so it takes effect then. -1 = unchanged. */
-static int s_cfgModeNext = -1;
 
 static const int         QO_SHADOW_SIZES[] = { 256, 512, 1024, 2048, 4096, 8192 };
 static const char* const QO_SPEAKER_LBL[]  = { "Auto", "Stereo", "Quad", "5.1", "7.1" };
@@ -831,22 +849,18 @@ const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz)
     /* One row, two settings: first person and the third-person cameras each
      * keep their own, and the row edits the one for the camera in use. */
     case QO_X_PRESET: {
-        static const char* const names[PC_SIMPLE_COUNT] = {
-            "Original", "Enhanced: Low Spec", "Enhanced: Normal", "Enhanced: High Quality", "Enhanced: Ultra Quality" };
-        int p = g_PcConfig.simplePreset;
-        return Pc_LangQuick(names[(p >= 0 && p < PC_SIMPLE_COUNT) ? p : 0]);
+        static const char* const names[PC_SIMPLE_COUNT + 1] = {
+            "Custom", "Original", "Enhanced: Low Spec", "Enhanced: Normal", "Enhanced: High Quality",
+            "Enhanced: Ultra Quality" };
+        return Pc_LangQuick(names[PcConfig_SimplePresetDetect() + 1]);
     }
     case QO_X_SDITHER:
-        return Pc_LangQuickMenu(g_PcConfig.simpleDither ? "On" : "Off");
+        return Pc_LangQuickMenu(g_PcConfig.dithering ? "On" : "Off");
     case QO_X_RES:
         snprintf(buf, bufsz, "%dx%d", g_PcConfig.windowWidth, g_PcConfig.windowHeight);
         return buf;
-    case QO_X_CFGMODE: {
-        int next = (s_cfgModeNext >= 0) ? s_cfgModeNext : g_PcConfig.simpleMode;
-        snprintf(buf, bufsz, "%s%s", Pc_LangQuick(next ? "Simple" : "Advanced"),
-                 next != g_PcConfig.simpleMode ? " *" : "");
-        return buf;
-    }
+    case QO_X_CFGMODE:
+        return Pc_LangQuick(g_PcConfig.simpleMode ? "Simple" : "Advanced");
     case QO_X_FLASHAIM: {
         extern int g_PcFpsCam;
         int        on = g_PcFpsCam ? g_PcConfig.flashlightFollowAimFps : g_PcConfig.flashlightFollowAim;
@@ -1372,22 +1386,20 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
         PcOpt_Adjust(&PCOPT_G[0], dir); /* the Resolution row */
         Sd_PlaySfx(Sfx_MenuMove, 0, 64);
         break;
-    case QO_X_CFGMODE: {
-        int next = !((s_cfgModeNext >= 0) ? s_cfgModeNext : g_PcConfig.simpleMode);
-        s_cfgModeNext = next;
-        PcConfig_SaveKeyValue("simple_mode", next ? "1" : "0");
+    case QO_X_CFGMODE:
+        /* Only which rows the menus show: the settings are the same ones. */
+        g_PcConfig.simpleMode = !g_PcConfig.simpleMode;
+        PcConfig_SaveKeyValue("simple_mode", g_PcConfig.simpleMode ? "1" : "0");
         Sd_PlaySfx(Sfx_MenuMove, 0, 64);
-        if (next != g_PcConfig.simpleMode)
-            SH_DBG_ECHO("The config mode changes the next time the game is started.");
         break;
-    }
     case QO_X_PRESET:
-    case QO_X_SDITHER: {
-        const void* h = PcOpt_QuickFind(which == QO_X_PRESET ? "simple_preset" : "simple_dithering");
-        if (h)
-            PcOpt_QuickAdjust(h, dir);
+        PcOpt_PresetStep(dir);
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
         break;
-    }
+    case QO_X_SDITHER:
+        PcOpt_SimpleDitherToggle();
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        break;
     case QO_X_FLASHAIM: {
         extern int g_PcFpsCam;
 

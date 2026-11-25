@@ -1637,7 +1637,14 @@ static void qo_activate(const QoRowDef* r, int dir)
                 g_PcQuickWeaponsEnabled = !g_PcQuickWeaponsEnabled;
                 value = g_PcQuickWeaponsEnabled ? "1" : "0";
                 PcConfig_SaveKeyValues(&key, &value, 1);
-            } else PcOpt_QuickExtraAdjust(r->extra, dir);
+            } else {
+                PcOpt_QuickExtraAdjust(r->extra, dir);
+                /* The other mode's Graphics page has other rows. */
+                if (r->extra == QO_X_CFGMODE) {
+                    s_viewRowsDirty = 1;
+                    qo_set_page(s_page);
+                }
+            }
             break;
         case ROW_CHEAT: Pc_Cheats_Adjust(r->cpage, r->extra, dir); break;
         case ROW_PAGE:  qo_beep(Sfx_MenuMove); qo_set_page(qo_page_step(s_page, dir < 0 ? -1 : +1)); qo_select_nav_row(); break;

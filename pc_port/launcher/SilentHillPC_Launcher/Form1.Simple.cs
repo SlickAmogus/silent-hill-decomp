@@ -8,23 +8,22 @@ using System.IO;
 using System.Windows.Forms;
 using SilentHillPC_Launcher;
 
-// Simple mode: the view the launcher opens in. A quality preset, the disc, the
-// game language, and Play. Its settings live in config_simple.cfg, which the
-// game lays over its compiled defaults when config.cfg says simple_mode = 1, so
-// nothing the player set up in the advanced view is read or changed. Controls,
-// the disc and the language are one set for both views and stay in config.cfg.
+// Simple mode: the launcher's plain view. A quality preset, a few boxes, the
+// disc, the game language, and Play. A preset is only a set of values for the
+// graphics settings in config.cfg, the same ones the advanced view shows; when
+// they no longer match a preset (changed in the advanced view or in game) the
+// list shows Custom. The game has the same table (pc_config.c): keep them alike.
 public partial class Form1
 {
     private bool          _simpleMode;
-    private ConfigManager _simpleCfg;
     private SimpleScene   _simple;
     private ComboBox      _sMinimap;
-    private Button        _sPlay, _sControls, _sRA;
+    private Button        _sPlay, _sControls, _sRA, _sMods;
     private Label         _aLblMode;
     private RadioButton   _aRadioSimple, _aRadioAdvanced;
     private bool          _simpleLoading;
     private int           _sPresetIdx;
-    private bool          _sDither = true, _sLogging = true, _sWindowed, _sResetSize;
+    private bool          _sDither = true, _sLogging = true, _sWindowed;
     private Size          _advSize;
     private Point         _advLangAt;
     private ToolStripMenuItem _bannerMenuAdvanced;
@@ -35,11 +34,11 @@ public partial class Form1
     }
     private readonly Dictionary<Control, SimpleHome> _simpleHomes = new Dictionary<Control, SimpleHome>();
 
-    // The values are the game's PC_SIMPLE_* ids.
-    private static readonly int[]    SimplePresetIds   = { 0, 1, 2, 3, 4 };
+    private const int SimpleCustom = 5; // the list's last row; never clicked, only shown
     private static readonly string[] SimplePresetNames =
     {
         "Original", "Enhanced: Low Spec", "Enhanced: Normal", "Enhanced: High Quality", "Enhanced: Ultra Quality",
+        "Custom",
     };
     private static readonly string[] SimplePresetAbout =
     {
@@ -48,9 +47,10 @@ public partial class Form1
         "Desktop resolution, no FPS limit, 2x antialiasing, sharper textures and flashlight shadows.",
         "4x antialiasing and the modern flashlight with detailed shadows.",
         "8x antialiasing and the highest shadow detail. For powerful graphics cards.",
+        "Settings changed in Advanced mode or in the game.",
     };
 
-    private static readonly Size  SimpleSize = new Size(760, 664);
+    private static readonly Size  SimpleSize = new Size(760, 732);
     private static readonly Color SimpleEdit = Color.FromArgb(34, 36, 34);
     private static readonly Color SimpleText = Color.FromArgb(232, 230, 222);
     private static readonly Color SimpleDim  = Color.FromArgb(176, 176, 168);
@@ -60,8 +60,8 @@ public partial class Form1
     private static readonly Rectangle SimpleDitherRect  = new Rectangle(SimpleRight, 106, 240, 26);
     private static readonly Rectangle SimpleLoggingRect = new Rectangle(SimpleRight, 138, 240, 26);
     private static readonly Rectangle SimpleWindowedRect = new Rectangle(SimpleRight, 170, 240, 26);
-    private static readonly Rectangle SimpleModeSimple   = new Rectangle(118, 622, 110, 26);
-    private static readonly Rectangle SimpleModeAdvanced = new Rectangle(236, 622, 150, 26);
+    private static readonly Rectangle SimpleModeSimple   = new Rectangle(118, 690, 110, 26);
+    private static readonly Rectangle SimpleModeAdvanced = new Rectangle(236, 690, 150, 26);
 
     private static string SimpleConfigPath =>
         Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config_simple.cfg");
@@ -121,16 +121,17 @@ public partial class Form1
         };
         _sPlay = new Button
         {
-            Text = "Play!", Location = new Point(SimpleLeft, 462), Size = new Size(680, 56),
+            Text = "Play!", Location = new Point(SimpleLeft, 530), Size = new Size(680, 56),
             Font = new Font("Segoe UI", 17f, FontStyle.Bold),
             BackColor = Color.FromArgb(104, 26, 22), ForeColor = Color.White, FlatStyle = FlatStyle.Flat,
         };
         _sPlay.FlatAppearance.BorderColor = Color.FromArgb(170, 70, 58);
         _sPlay.Click += (s, e) => { if (btnPlay.Enabled) btnPlay_Click(btnPlay, e); };
-        _sControls = SimpleButton("Controls", new Rectangle(SimpleLeft, 534, 150, 32), btnControls_Click);
-        _sRA       = SimpleButton("RetroAchievements", new Rectangle(200, 534, 190, 32), (s, e) => btnRA_Click(btnRA, e));
+        _sControls = SimpleButton("Controls", new Rectangle(SimpleLeft, 602, 130, 32), btnControls_Click);
+        _sRA       = SimpleButton("RetroAchievements", new Rectangle(178, 602, 176, 32), (s, e) => btnRA_Click(btnRA, e));
+        _sMods     = SimpleButton("Mod Manager", new Rectangle(362, 602, 170, 32), (s, e) => btnManager_Click(btnManager, e));
 
-        _simple.Controls.AddRange(new Control[] { _sMinimap, _sPlay, _sControls, _sRA });
+        _simple.Controls.AddRange(new Control[] { _sMinimap, _sPlay, _sControls, _sRA, _sMods });
         Controls.Add(_simple);
 
         _sMinimap.SelectedIndexChanged += (s, e) => SimpleSave();
@@ -144,7 +145,9 @@ public partial class Form1
         };
 
         SimpleFillLists();
-        SimpleSet(config.Get("simple_mode", "1").Trim() != "0", false);
+        // A config without the key is from before simple mode existed: its
+        // owner stays in the view they know and is asked once (SimpleOfferOnce).
+        SimpleSet(config.Get("simple_mode", "0").Trim() == "1", false);
     }
 
     private void SimpleFillLists()
@@ -159,6 +162,7 @@ public partial class Form1
             if (_sMinimap.Items.Count > 0) _sMinimap.SelectedIndex = m >= 0 && m < _sMinimap.Items.Count ? m : 0;
             _sPlay.Text     = Loc.T("Play!");
             _sControls.Text = Loc.T("Controls");
+            _sMods.Text     = Loc.T("Mod Manager");
         }
         finally { _simpleLoading = was; }
     }
@@ -166,7 +170,7 @@ public partial class Form1
     // 1..5 a preset row, 10 dithering, 11 logging, 12 windowed, 20 / 21 the mode pair.
     private int SimpleHit(Point p)
     {
-        for (int i = 0; i < SimplePresetIds.Length; i++)
+        for (int i = 0; i < SimpleCustom; i++)
             if (SimplePresetRect(i).Contains(p)) return 1 + i;
         if (SimpleDitherRect.Contains(p))   return 10;
         if (SimpleLoggingRect.Contains(p))  return 11;
@@ -185,12 +189,15 @@ public partial class Form1
         }
         if (e.Button != MouseButtons.Left) return;
         int hit = SimpleHit(e.Location);
-        // A new preset or window choice goes back to its own size; a size
-        // picked in game stands through every other change.
-        if (hit >= 1 && hit <= 5) { _sPresetIdx = hit - 1; _sResetSize = true; }
-        else if (hit == 10) _sDither = !_sDither;
-        else if (hit == 11) _sLogging = !_sLogging;
-        else if (hit == 12) { _sWindowed = !_sWindowed; _sResetSize = true; }
+        if (hit >= 1 && hit <= 5) { _sPresetIdx = hit - 1; SimpleApplyPreset(_sPresetIdx); SimpleApplyWindow(); }
+        else if (hit == 10)
+        {
+            _sDither = !_sDither;
+            config.Set("dithering", _sDither ? "1" : "0");
+            if (_sDither) config.Set("dither_resolution", "0"); // the PSX pixel grid
+        }
+        else if (hit == 11) { _sLogging = !_sLogging; config.Set("enable_debug_log", _sLogging ? "1" : "0"); }
+        else if (hit == 12) { _sWindowed = !_sWindowed; SimpleApplyWindow(); }
         else if (hit == 21) { SimpleSet(false, true); return; }
         else return;
         _simple.ContentChanged();
@@ -246,17 +253,20 @@ public partial class Form1
             SimpleOutlined(g, Loc.T("Quality"), item, SimpleDim, new RectangleF(SimpleLeft, 76, 400, 24));
             SimpleOutlined(g, Loc.T("Options"), item, SimpleDim, new RectangleF(SimpleRight, 76, 240, 24));
 
-            for (int i = 0; i < SimplePresetIds.Length; i++)
+            for (int i = 0; i <= SimpleCustom; i++)
             {
                 var r = SimplePresetRect(i);
                 bool on = i == _sPresetIdx;
+                // Custom cannot be picked: it only says the settings are the player's own.
+                bool grey = i == SimpleCustom && !on;
                 if (on)
                     using (var hl = new SolidBrush(Color.FromArgb(70, 120, 40, 32)))
                         g.FillRectangle(hl, r);
                 SimpleMark(g, new Rectangle(r.X + 8, r.Y + 4, 18, 18), true, on);
-                SimpleOutlined(g, Loc.T(SimplePresetNames[i]), head, on ? Color.White : SimpleText,
+                SimpleOutlined(g, Loc.T(SimplePresetNames[i]), head,
+                               on ? Color.White : (grey ? Color.FromArgb(112, 112, 106) : SimpleText),
                                new RectangleF(r.X + 36, r.Y + 2, r.Width - 40, 24));
-                SimpleOutlined(g, Loc.T(SimplePresetAbout[i]), body, SimpleDim,
+                SimpleOutlined(g, Loc.T(SimplePresetAbout[i]), body, grey ? Color.FromArgb(96, 96, 92) : SimpleDim,
                                new RectangleF(r.X + 36, r.Y + 25, r.Width - 44, 40));
             }
 
@@ -277,9 +287,9 @@ public partial class Form1
             if (!string.IsNullOrEmpty(lblUpdateStatus.Text))
                 SimpleOutlined(g, lblUpdateStatus.Text, body,
                                lblUpdateStatus.ForeColor.GetBrightness() < 0.45f ? SimpleDim : lblUpdateStatus.ForeColor,
-                               new RectangleF(SimpleLeft, 578, 350, 20));
+                               new RectangleF(SimpleLeft, 646, 350, 20));
 
-            SimpleOutlined(g, Loc.T("Mode:"), item, SimpleText, new RectangleF(SimpleLeft, 624, 80, 22));
+            SimpleOutlined(g, Loc.T("Mode:"), item, SimpleText, new RectangleF(SimpleLeft, 692, 80, 22));
             SimpleMark(g, SimpleModeSimple, true, true);
             SimpleOutlined(g, Loc.T("Simple"), item, SimpleText,
                            new RectangleF(SimpleModeSimple.X + 28, SimpleModeSimple.Y + 1, 90, 22));
@@ -289,22 +299,100 @@ public partial class Form1
         }
     }
 
-    /// <summary>Read config_simple.cfg into the simple view.</summary>
+    // ---- presets: the same table as the game's PcConfig_SimplePresetValues ----
+
+    private static Dictionary<string, string> SimplePresetValues(int id)
+    {
+        var v = new Dictionary<string, string>
+        {
+            { "disable_culling", "1" }, { "preload_chunks", "1" },
+            { "post_process", "0" }, { "tonemap", "0" }, { "render_scale", "1.00" },
+        };
+        if (id == 0)
+        {
+            v["native_resolution"] = "1"; v["vsync"] = "0"; v["fps_cap"] = "30"; v["texture_filter"] = "0";
+            v["msaa"] = "0"; v["use_pgxp"] = "0"; v["flashlight_mode"] = "0"; v["shadow_resolution"] = "1024";
+            v["bullet_decals"] = "0";
+        }
+        else
+        {
+            string[] filter = { "0", "1", "4", "4", "4" }, msaa = { "0", "0", "2", "4", "8" };
+            string[] flash = { "0", "0", "1", "3", "3" }, shadow = { "1024", "512", "2048", "4096", "8192" };
+            v["native_resolution"] = "0"; v["vsync"] = "1"; v["fps_cap"] = "0"; v["use_pgxp"] = "1";
+            v["bullet_decals"] = "1"; v["widescreen_mode"] = "1"; v["menu_pillarbox"] = "1";
+            v["texture_filter"] = filter[id]; v["msaa"] = msaa[id];
+            v["flashlight_mode"] = flash[id]; v["shadow_resolution"] = shadow[id];
+        }
+        return v;
+    }
+
+    // What the game uses for a key the config does not have.
+    private static readonly Dictionary<string, string> SimpleDefaults = new Dictionary<string, string>
+    {
+        { "disable_culling", "1" }, { "preload_chunks", "1" }, { "post_process", "0" }, { "tonemap", "0" },
+        { "render_scale", "1" }, { "native_resolution", "0" }, { "vsync", "0" }, { "fps_cap", "30" },
+        { "texture_filter", "0" }, { "msaa", "0" }, { "use_pgxp", "0" }, { "flashlight_mode", "0" },
+        { "shadow_resolution", "1024" }, { "bullet_decals", "0" }, { "widescreen_mode", "1" }, { "menu_pillarbox", "1" },
+    };
+
+    private static double SimpleNumber(string s)
+    {
+        double d;
+        return double.TryParse((s ?? "").Trim(), System.Globalization.NumberStyles.Float,
+                               System.Globalization.CultureInfo.InvariantCulture, out d) ? d : double.NaN;
+    }
+
+    /// <summary>The list row the config's settings match: a preset, or Custom.</summary>
+    private int SimpleDetectPreset()
+    {
+        for (int id = 0; id < SimpleCustom; id++)
+        {
+            bool same = true;
+            foreach (var kv in SimplePresetValues(id))
+            {
+                double have = SimpleNumber(config.Get(kv.Key, SimpleDefaults[kv.Key]));
+                if (double.IsNaN(have) || Math.Abs(have - SimpleNumber(kv.Value)) > 0.001) { same = false; break; }
+            }
+            if (same) return id;
+        }
+        return SimpleCustom;
+    }
+
+    private void SimpleApplyPreset(int id)
+    {
+        foreach (var kv in SimplePresetValues(id)) config.Set(kv.Key, kv.Value);
+        string fm = config.Get("flashlight_mode", "0").Trim();
+        config.Set("per_pixel_flashlight", fm != "0" ? "1" : "0");
+        config.Set("flashlight_shadows", (fm == "1" || fm == "3") ? "1" : "0");
+    }
+
+    /// <summary>Borderless at the desktop's size, or a window: 640x480 for
+    /// Original, 1280x720 otherwise. Only on a click, so a size picked in the
+    /// game or the advanced view stands until the player asks for another.</summary>
+    private void SimpleApplyWindow()
+    {
+        var scr = Screen.PrimaryScreen.Bounds;
+        bool original = _sPresetIdx == 0;
+        config.Set("fullscreen", _sWindowed ? "0" : "2");
+        config.Set("width",  (_sWindowed ? (original ? 640 : 1280) : scr.Width).ToString());
+        config.Set("height", (_sWindowed ? (original ? 480 : 720)  : scr.Height).ToString());
+    }
+
+    /// <summary>Show config.cfg in the simple view.</summary>
     private void SimpleLoad()
     {
         if (_simple == null) return;
-        _simpleCfg = new ConfigManager(SimpleConfigPath);
         _simpleLoading = true;
         try
         {
-            int idx = Array.IndexOf(SimplePresetIds, ParseIntOr(_simpleCfg.Get("simple_preset", "0"), 0));
-            _sPresetIdx = idx >= 0 ? idx : 0;
-            _sDither    = _simpleCfg.Get("simple_dithering", "1").Trim() != "0";
-            _sLogging   = _simpleCfg.Get("enable_debug_log", "1").Trim() != "0";
-            _sWindowed  = _simpleCfg.Get("simple_windowed", "0").Trim() == "1";
+            config.RefreshFromDisk();
+            _sPresetIdx = SimpleDetectPreset();
+            _sDither    = config.Get("dithering", "1").Trim() != "0";
+            _sLogging   = config.Get("enable_debug_log", "0").Trim() != "0";
+            _sWindowed  = config.Get("fullscreen", "0").Trim() == "0";
 
-            int mm = ParseIntOr(_simpleCfg.Get("minimap", "0"), 0);
-            int mc = ParseIntOr(_simpleCfg.Get("minimap_corner", "0"), 0);
+            int mm = ParseIntOr(config.Get("minimap", "0"), 0);
+            int mc = ParseIntOr(config.Get("minimap_corner", "0"), 0);
             if (mc < 0 || mc > 3) mc = 0;
             int mi = mm == 0 ? 0 : (mm == 2 ? 1 + mc : 5 + mc);
             _sMinimap.SelectedIndex = mi < _sMinimap.Items.Count ? mi : 0;
@@ -313,38 +401,17 @@ public partial class Form1
         _simple.ContentChanged();
     }
 
-    /// <summary>Write the simple view: its own settings to config_simple.cfg,
-    /// and only the mode, the disc and the language to config.cfg.</summary>
+    /// <summary>Write what the simple view holds besides the clicks already
+    /// set: the minimap, the disc and the language. The advanced view's
+    /// controls are not consulted, so nothing they show is written back.</summary>
     private void SimpleSave()
     {
-        if (_simpleLoading || !_simpleMode || _simpleCfg == null) return;
+        if (_simpleLoading || !_simpleMode) return;
         try
         {
             int mi = _sMinimap.SelectedIndex >= 0 ? _sMinimap.SelectedIndex : 0;
-            var scr = Screen.PrimaryScreen.Bounds;
-
-            if (!File.Exists(SimpleConfigPath))
-                File.WriteAllText(SimpleConfigPath,
-                    "# Settings of the launcher's Simple mode. The graphics settings come from\r\n" +
-                    "# simple_preset; config.cfg holds the Advanced mode's settings and the controls.\r\n");
-            _simpleCfg.RefreshFromDisk();
-            _simpleCfg.Set("simple_preset", SimplePresetIds[_sPresetIdx].ToString());
-            _simpleCfg.Set("simple_dithering", _sDither ? "1" : "0");
-            _simpleCfg.Set("enable_debug_log", _sLogging ? "1" : "0");
-            _simpleCfg.Set("simple_windowed", _sWindowed ? "1" : "0");
-            _simpleCfg.Set("minimap", mi == 0 ? "0" : (mi <= 4 ? "2" : "1"));
-            _simpleCfg.Set("minimap_corner", mi == 0 ? "0" : (mi <= 4 ? mi - 1 : mi - 5).ToString());
-            if (_sResetSize) _simpleCfg.Set("simple_custom_res", "0");
-            _sResetSize = false;
-            // The enhanced presets render at the desktop's size, unless the
-            // player picked one on the in-game Resolution row.
-            if (_simpleCfg.Get("simple_custom_res", "0").Trim() != "1")
-            {
-                _simpleCfg.Set("width", scr.Width.ToString());
-                _simpleCfg.Set("height", scr.Height.ToString());
-            }
-            _simpleCfg.Save();
-
+            config.Set("minimap", mi == 0 ? "0" : (mi <= 4 ? "2" : "1"));
+            config.Set("minimap_corner", mi == 0 ? "0" : (mi <= 4 ? mi - 1 : mi - 5).ToString());
             config.Set("simple_mode", "1");
             if (comboDisc.SelectedIndex >= 0 && comboDisc.SelectedIndex < _discIds.Count)
                 config.Set("disc_image", _discIds[comboDisc.SelectedIndex]);
@@ -354,6 +421,28 @@ public partial class Form1
             config.Save();
         }
         catch { /* a read-only install must not stop the game from starting */ }
+    }
+
+    /// <summary>Asked once of anyone whose config is from before simple mode
+    /// existed. The flag is saved before asking, so no answer, and no later
+    /// launcher update, brings the question back.</summary>
+    private void SimpleOfferOnce()
+    {
+        try
+        {
+            if (_simpleMode) return;
+            if (config.Get("launcher_simple_offered", "0").Trim() == "1") return;
+            config.EnsureLauncherSection();
+            config.Set("launcher_simple_offered", "1");
+            config.Save();
+            // Chosen already (in game, or by hand): nothing to ask.
+            if (config.Get("simple_mode", "").Trim() != "") return;
+            if (MessageBox.Show(this,
+                    Loc.T("Simple Mode has been added to the launcher, would you like to switch to it now?"),
+                    Loc.T("Simple Mode"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                SimpleSet(true, true);
+        }
+        catch { /* best effort: never block startup over this */ }
     }
 
     private void SimpleBorrow(Control c, Point at, Size size)
@@ -399,6 +488,13 @@ public partial class Form1
     private void SimpleSet(bool on, bool persist)
     {
         bool changed = on != _simpleMode;
+
+        // What the advanced view shows becomes the config before the simple
+        // view reads it, so its list starts from the player's real settings.
+        if (on && changed && persist)
+        {
+            try { SaveConfig(); } catch { }
+        }
         _simpleMode = on;
 
         if (on)
@@ -408,8 +504,8 @@ public partial class Form1
             // disc and language logic and the update flow keep working as is.
             SimpleBorrow(comboDisc,     new Point(SimpleRight, 300), new Size(240, 25));
             SimpleBorrow(comboGameLang, new Point(SimpleRight, 362), new Size(240, 25));
-            SimpleBorrow(btnUpdate,     new Point(560, 534), new Size(160, 32));
-            SimpleBorrow(progUpdate,    new Point(400, 580), new Size(320, 16));
+            SimpleBorrow(btnUpdate,     new Point(540, 602), new Size(180, 32));
+            SimpleBorrow(progUpdate,    new Point(400, 648), new Size(320, 16));
             SimpleLoad();
             _simple.Visible = true;
             _simple.BringToFront();

@@ -322,16 +322,11 @@ typedef struct {
     int minimapCorner;       /* minimap screen corner: 0 = top-left, 1 = top-right, 2 = bottom-left, 3 = bottom-right (config key: minimap_corner); default 0 */
     int fpsDisplay;          /* FPS counter: 0 = off, 1 = top-left, 2 = top-right, 3 = bottom-left, 4 = bottom-right (config key: fps_display); default 0 */
     int minimapShape;        /* DEPRECATED, folded into `minimap`; still read to migrate old configs (config key: minimap_shape) */
-    /* Simple mode (the launcher's default view). The graphics settings come
-     * from a quality preset, everything else from config_simple.cfg over the
-     * compiled defaults, so the player's own config.cfg is neither read for
-     * them nor changed. Controls, the disc, the language and the accounts are
-     * one set for both modes and stay in config.cfg. */
-    int simpleMode;          /* config.cfg key: simple_mode */
-    int simplePreset;        /* PC_SIMPLE_* (config_simple.cfg key: simple_preset) */
-    int simpleDither;        /* 1 = PSX dithering on the PSX pixel grid (simple_dithering) */
-    int simpleCustomRes;     /* 1 = width/height in config_simple.cfg were chosen in game and are kept as they are (simple_custom_res) */
-    int simpleWindowed;      /* 1 = a window (640x480 for Original, 1280x720 otherwise) instead of borderless (simple_windowed) */
+    /* Simple mode: the launcher and the in-game menus show quality presets in
+     * place of the individual graphics settings. A preset is only a set of
+     * values for those settings, in this same config; when they no longer
+     * match one, the preset shown is Custom. */
+    int simpleMode;          /* config key: simple_mode */
     int configVersion;       /* PC_CONFIG_VERSION the file was last written at; 0 = pre-versioning. Drives the default-migration in PcConfig_Load (config key: config_version) */
     float minimapScale;      /* minimap size percentage, MINIMAP_SCALE_MIN..MAX (config key: minimap_scale); default 100 */
     int enablePlugins;       /* 1 = load plugins/*.dll gameplay plugins at boot; 0 = never touch them (config-only key: enable_plugins); default 0 -- a DLL runs arbitrary code, so the surface is strictly opt-in */
@@ -675,9 +670,12 @@ void PcConfig_SaveMapName(const char* mapName);
  * launcher reflects whatever the installed build supports. */
 void PcConfig_SaveKeyValue(const char* key, const char* value);
 
-enum { PC_SIMPLE_ORIGINAL = 0, PC_SIMPLE_LOW, PC_SIMPLE_NORMAL, PC_SIMPLE_HIGH, PC_SIMPLE_ULTRA, PC_SIMPLE_COUNT };
-/* Write the graphics fields of g_PcConfig from simplePreset and simpleDither. */
-void PcConfig_SimplePresetApply(void);
+enum { PC_SIMPLE_CUSTOM = -1, PC_SIMPLE_ORIGINAL = 0, PC_SIMPLE_LOW, PC_SIMPLE_NORMAL, PC_SIMPLE_HIGH, PC_SIMPLE_ULTRA, PC_SIMPLE_COUNT };
+/* The preset the graphics settings match now, or PC_SIMPLE_CUSTOM. */
+int  PcConfig_SimplePresetDetect(void);
+/* Set the graphics settings to a preset and save them. Window mode and size
+ * are not part of a preset. */
+void PcConfig_SimplePresetApply(int preset);
 
 /* Set the FMV/voice (XA) master volume [0,1]: clamps, updates g_PcConfig +
  * the live XA source gain, and persists `xa_volume`. Used by the options menu
