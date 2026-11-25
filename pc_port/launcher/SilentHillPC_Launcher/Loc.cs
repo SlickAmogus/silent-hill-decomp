@@ -135,7 +135,7 @@ namespace SilentHillPC_Launcher
         // across files can never throw during type initialization.
         static Loc()
         {
-            foreach (var extra in new[] { ModManagerTable, DialogsTable, ToolsTable })
+            foreach (var extra in new[] { ModManagerTable, DialogsTable, ToolsTable, SimpleTable })
                 foreach (var kv in extra)
                     if (!Table.ContainsKey(kv.Key)) Table.Add(kv.Key, kv.Value);
         }

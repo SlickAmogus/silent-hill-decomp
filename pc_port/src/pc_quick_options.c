@@ -81,7 +81,8 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_CAMSTYLE, QO_X_OTSSIDE, QO_X_CROSSHAIRSTYLE,
        QO_X_LINEGAP, QO_X_CHARALIGHT, QO_X_PPLIGHT, QO_X_HEROLIGHT, QO_X_HEROLIGHTFL, QO_X_FACEANIM,
        QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD,
-       QO_X_GYROAIM, QO_X_GYROSENS, QO_X_GYROMOVE, QO_X_FLASHAIM, QO_X_WORLDVIS };
+       QO_X_GYROAIM, QO_X_GYROSENS, QO_X_GYROMOVE, QO_X_FLASHAIM, QO_X_WORLDVIS,
+       QO_X_PRESET, QO_X_SDITHER, QO_X_CFGMODE };
 extern const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz);
 extern void        PcOpt_QuickExtraAdjust(int which, int dir);
 extern void        PcOpt_QuickViewReset(int mode);
@@ -94,7 +95,7 @@ extern const char* const PC_PGXP_FOG_MSG;
 
 #define QO_X_QUICK_WEAPONS 1000
 #define QO_GARBAGE  48
-#define QO_MAX_ROWS 26
+#define QO_MAX_ROWS 27
 /* CONTROLS is appended last, so every existing section index -- and the "Next
  * page (X)" label baked into each table -- stays where it was. Its rows differ
  * by platform (s_page5 / s_pageControls). */
@@ -175,6 +176,7 @@ typedef struct
  * further on those three needs the ceiling raised, or the rows split onto
  * another page. */
 static const QoRowDef s_page0[] = {
+    { ROW_EXTRA, NULL, QO_X_CFGMODE,        "Config Mode" },
     { ROW_OPT,   "texture_filter",       0, NULL },  /* Texture_Filter */
     /* Was the "Dither" step of Texture_Filter before the two rows split. */
     { ROW_OPT,   "dithering",            0, NULL },  /* Dithering */
@@ -205,6 +207,19 @@ static const QoRowDef s_page0[] = {
     { ROW_OPT,   "fps_cap",              0, NULL },  /* FPS_Limit */
 #endif
     { ROW_OPT,   "weather_sim_hz",       0, NULL },  /* Weather_Rate: 30 or 60 Hz */
+    { ROW_PAGE,  NULL, 0,                   "Next page  (HUD & Audio)" },
+    { ROW_CLOSE, NULL, 0,                   "Close" },
+};
+
+/* Simple mode: the Graphics section is the quality presets and the few
+ * settings a preset leaves to the player. */
+static const QoRowDef s_page0Simple[] = {
+    { ROW_EXTRA, NULL, QO_X_CFGMODE,        "Config Mode" },
+    { ROW_EXTRA, NULL, QO_X_PRESET,         "Quality" },
+    { ROW_OPT,   "render_scale",         0, NULL },
+    { ROW_EXTRA, NULL, QO_X_SDITHER,        "Dithering" },
+    { ROW_OPT,   "post_process",         0, NULL },
+    { ROW_OPT,   "tonemap",              0, NULL },
     { ROW_PAGE,  NULL, 0,                   "Next page  (HUD & Audio)" },
     { ROW_CLOSE, NULL, 0,                   "Close" },
 };
@@ -559,6 +574,19 @@ static const QoRowDef* qo_page0_rows(int* count)
     int             show = g_PcConfig.fogStrength < 1.0f;
     int             i;
 
+    {
+        static int s_lastSimple = -1;
+        if (g_PcConfig.simpleMode != s_lastSimple)
+        {
+            s_lastSimple    = g_PcConfig.simpleMode;
+            s_viewRowsDirty = 1;
+        }
+        if (g_PcConfig.simpleMode)
+        {
+            *count = (int)(sizeof(s_page0Simple) / sizeof(s_page0Simple[0]));
+            return s_page0Simple;
+        }
+    }
     if (show != s_lastShow)
     {
         s_lastShow      = show;
@@ -750,6 +778,7 @@ static const char* qo_page_title(int page)
 /* ------------------------------------------------------------------ */
 
 enum { QO_CLOSED = 0, QO_OPENING, QO_SHOWN, QO_CLOSING };
+static int    s_simpleOffer; /* the dialog that is up is the presets offer */
 static int    s_phase;
 static Uint32 s_phaseStart;
 #define QO_OPEN_MS  160u
@@ -1772,6 +1801,25 @@ void Pc_QuickOptions_Close(void)
     s_phaseStart = SDL_GetTicks();
 }
 
+static void qo_set_page(int page);
+
+/* The one-time offer of the quality presets (there is no launcher to make
+ * it): the panel opens on its Graphics page with the question over it. */
+void Pc_QuickOptions_OfferSimple(void)
+{
+    if (Pc_BindPanel_IsOpen() || Pc_CharaSelect_IsOpen() || Pc_ConfirmDialog_IsOpen())
+        return;
+    if (s_phase == QO_CLOSED || s_phase == QO_CLOSING)
+        qo_open();
+    if (s_phase == QO_CLOSED || s_phase == QO_CLOSING)
+        return;
+    PcConfig_SimpleOfferShown();
+    qo_set_page(0);
+    s_simpleOffer = 1;
+    Pc_ConfirmDialog_Open("SIMPLE PRESETS",
+                          "Simple presets have been added to options, would you like to set these now?");
+}
+
 void Pc_QuickOptions_Toggle(void)
 {
     /* The panel owns input while it is up -- the bind being captured may be
@@ -1868,7 +1916,14 @@ static void qo_activate(const QoRowDef* r, int dir)
                 g_PcQuickWeaponsEnabled = !g_PcQuickWeaponsEnabled;
                 value = g_PcQuickWeaponsEnabled ? "1" : "0";
                 PcConfig_SaveKeyValues(&key, &value, 1);
-            } else PcOpt_QuickExtraAdjust(r->extra, dir);
+            } else {
+                PcOpt_QuickExtraAdjust(r->extra, dir);
+                /* The other mode's Graphics page has other rows. */
+                if (r->extra == QO_X_CFGMODE) {
+                    s_viewRowsDirty = 1;
+                    qo_set_page(s_page);
+                }
+            }
             break;
         case ROW_CHEAT: Pc_Cheats_Adjust(r->cpage, r->extra, dir); break;
         case ROW_PAGE:
@@ -1962,6 +2017,29 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
     /* Reset all settings: R, both triggers, or the touch button, then the same
      * Yes/No as PC Options. The dialog reads the pointer itself. */
     Pc_ResetSettings_Track();
+    if (s_simpleOffer && Pc_ConfirmDialog_IsOpen())
+    {
+        /* Yes leaves the player on this page with the presets showing; No
+         * puts them back in the game. */
+        int res = Pc_ConfirmDialog_Update(left, right, confirm, close);
+        if (res == PC_CONFIRM_YES)
+        {
+            qo_beep(Sfx_MenuConfirm);
+            g_PcConfig.simpleMode = 1;
+            PcConfig_SaveKeyValue("simple_mode", "1");
+            s_viewRowsDirty = 1;
+            qo_set_page(0);
+            s_sel = 1; /* the Quality row */
+        }
+        else if (res == PC_CONFIRM_NO)
+        {
+            qo_beep(Sfx_MenuCancel);
+            Pc_QuickOptions_Close();
+        }
+        if (res != PC_CONFIRM_NONE)
+            s_simpleOffer = 0;
+        return;
+    }
     if (s_qoConfirmReset && Pc_ConfirmDialog_IsOpen())
     {
         extern void Pc_Options_ResetToDefaults(void);

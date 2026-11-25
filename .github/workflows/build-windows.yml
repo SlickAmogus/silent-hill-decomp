@@ -126,6 +126,15 @@ jobs:
           cp pc_port/sdl/*.dll "$STAGE/"
           echo "Bundled runtime DLLs:"; ls "$STAGE"/*.dll
 
+      # The launcher only replaces itself with a strictly newer version, so the
+      # publisher records the version this build carries.
+      - name: Record the launcher version
+        shell: pwsh
+        run: |
+          $v = (Get-Item pc_port/launcher/SilentHillPC_Launcher/bin/Release/SilentHillPC_Launcher.exe).VersionInfo.FileVersion
+          Set-Content -NoNewline -Encoding ascii -Path "$env:RUNNER_TEMP/SHPC-windows-x64/launcher_version.txt" -Value $v
+          "Launcher $v"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:

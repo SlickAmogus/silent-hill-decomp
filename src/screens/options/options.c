@@ -191,7 +191,7 @@ int Pc_ExitToMenuRowActive(void)
 }
 
 
-enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_PAD, PCK_DITHER, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_RESET, PCK_STORAGE, PCK_RALOGIN, PCK_TOTITLE, PCK_QOLMODS, PCK_CHARA };
+enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_PAD, PCK_DITHER, PCK_PRESET, PCK_SDITHER, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_RESET, PCK_STORAGE, PCK_RALOGIN, PCK_TOTITLE, PCK_QOLMODS, PCK_CHARA };
 
 #if defined(SH_IOS) || defined(__ANDROID__)
 /* Return to the title, armed by one confirm and done by a second.
@@ -246,6 +246,8 @@ typedef struct {
 
 /* Defined with the other quick-row helpers below, used by the adjust above. */
 static void PcOpt_FilterApply(int filter);
+static void PcOpt_PresetStep(int dir);
+static void PcOpt_SimpleDitherToggle(void);
 
 static const int VAL_WIN[]   = { 0, 1, 2 };
 static const int VAL_VSYNC[] = { 0, 1 };
@@ -595,8 +597,21 @@ static void PcMouse_InjectDir(int dir)
     g_Controller0->pulsedBtnFlags  |= flag;
 }
 
+/* Simple mode: the Graphics page gives way to the quality presets. A preset
+ * is a set of values for the graphics settings (PcConfig_SimplePresetApply);
+ * the label reads Custom when they match none. */
+static const s_PcOpt PCOPT_SG[] = {
+    { "Quality",        NULL, NULL, NULL, 0, NULL, NULL, 1, PCK_PRESET  },
+    { "Dithering",      NULL, NULL, NULL, 0, NULL, NULL, 1, PCK_SDITHER },
+    { "Post_Process",   &g_PcConfig.postProcess,        "post_process",         VAL_POST,  9, LBL_POST,  &g_cfg_postProcess,            1, PCK_INT    },
+    { "Tone_Mapping",   &g_PcConfig.tonemap,            "tonemap",              VAL_TONE,  4, LBL_TONE,  &g_cfg_tonemap,                1, PCK_INT    },
+    { "Next_Page",      NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_NEXT   },
+    { "Back",           NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_BACK   },
+};
+
 const s_PcOpt* PcOpt_PageByIndex(int page, int* count)
 {
+    if (page == 0 && g_PcConfig.simpleMode) { *count = (int)(sizeof(PCOPT_SG) / sizeof(PCOPT_SG[0])); return PCOPT_SG; }
     if (page == 0) { *count = (int)(sizeof(PCOPT_G) / sizeof(PCOPT_G[0])); return PCOPT_G; }
     if (page == 1) { *count = (int)(sizeof(PCOPT_S) / sizeof(PCOPT_S[0])); return PCOPT_S; }
     if (page == 2) { *count = (int)(sizeof(PCOPT_C) / sizeof(PCOPT_C[0])); return PCOPT_C; }
@@ -829,6 +844,13 @@ static const char* PcOpt_ValueLabel(const s_PcOpt* e, char* buf, int bufsz)
     if (e->kind == PCK_MAP) {
         return g_PcConfig.mapName[0] ? g_PcConfig.mapName : "map0_s00";
     }
+    if (e->kind == PCK_PRESET) {
+        static const char* const names[PC_SIMPLE_COUNT + 1] = { "Custom", "Original", "Low_Spec", "Normal", "High", "Ultra" };
+        return names[PcConfig_SimplePresetDetect() + 1];
+    }
+    if (e->kind == PCK_SDITHER) {
+        return g_PcConfig.dithering ? "On" : "Off";
+    }
     if (e->kind == PCK_DITHER) {
         return PcOpt_DitherLabel(PcOpt_DitherCurrent(), buf, bufsz);
     }
@@ -1030,6 +1052,14 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
         return;
     }
 #endif
+    if (e->kind == PCK_PRESET) {
+        PcOpt_PresetStep(dir);
+        return;
+    }
+    if (e->kind == PCK_SDITHER) {
+        PcOpt_SimpleDitherToggle();
+        return;
+    }
     if (e->kind == PCK_DITHER) {
         PcOpt_DitherStep(dir);
         SH_DBG_ECHO("%s: %s", e->name, PcOpt_ValueLabel(e, vbuf, sizeof(vbuf)));
@@ -1128,7 +1158,8 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_CAMSTYLE, QO_X_OTSSIDE, QO_X_CROSSHAIRSTYLE,
        QO_X_LINEGAP, QO_X_CHARALIGHT, QO_X_PPLIGHT, QO_X_HEROLIGHT, QO_X_HEROLIGHTFL, QO_X_FACEANIM,
        QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD,
-       QO_X_GYROAIM, QO_X_GYROSENS, QO_X_GYROMOVE, QO_X_FLASHAIM, QO_X_WORLDVIS };
+       QO_X_GYROAIM, QO_X_GYROSENS, QO_X_GYROMOVE, QO_X_FLASHAIM, QO_X_WORLDVIS,
+       QO_X_PRESET, QO_X_SDITHER, QO_X_CFGMODE };
 
 /* display_aspect = crt puts the picture on (4:3 x trim), so one framebuffer
  * pixel lands on screen this many times wider than tall at trim 1.0. It is the
@@ -1140,6 +1171,38 @@ extern void Pc_QuickOptions_InvalidateRows(void);
 /* Texture_Filter's live side, for the adjust and the reset-to-default (both
  * save texture_filter themselves). Dithering has its own row now, as it has in
  * the launcher. */
+/* The next preset from the one the settings match now (from Custom: the first
+ * or the last), saved and applied to what can change while the game runs. */
+static void PcOpt_PresetStep(int dir)
+{
+    extern int   g_PsxUsePgxp;
+    extern int   g_PsyX_ShadowMapSize;
+    extern float g_PsyX_FogStrength;
+    extern void  Pc_FlashlightModeApply(int mode, int persist);
+    extern void  PsyX_ApplyVsync(int vsync);
+    int cur = PcConfig_SimplePresetDetect();
+    int next;
+
+    if (cur == PC_SIMPLE_CUSTOM)
+        next = (dir > 0) ? 0 : PC_SIMPLE_COUNT - 1;
+    else
+        next = (cur + (dir > 0 ? 1 : -1) + PC_SIMPLE_COUNT) % PC_SIMPLE_COUNT;
+
+    PcConfig_SimplePresetApply(next);
+    PcOpt_FilterApply(g_PcConfig.textureFilter);
+    g_PsxUsePgxp         = g_PcConfig.usePgxp;
+    g_PsyX_ShadowMapSize = g_PcConfig.shadowMapSize;
+    g_PsyX_FogStrength   = g_PcConfig.fogStrength;
+    Pc_FlashlightModeApply(g_PcConfig.flashlightMode, 0);
+    PsyX_ApplyVsync(g_PcConfig.vsync);
+}
+
+/* Simple mode's Dithering is on or off, on the PSX pixel grid. */
+static void PcOpt_SimpleDitherToggle(void)
+{
+    PcOpt_DitherSet(g_PcConfig.dithering ? PCOPT_DITHER_OFF : 0);
+}
+
 static void PcOpt_FilterApply(int filter)
 {
     /* The renderer takes the mode and the tap count separately: modes 3..6 are
@@ -1237,6 +1300,16 @@ const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz)
         return Pc_LangQuickMenu(g_PcConfig.gyroMove ? "On" : "Off");
     /* One row, two settings: first person and the third-person cameras each
      * keep their own, and the row edits the one for the camera in use. */
+    case QO_X_PRESET: {
+        static const char* const names[PC_SIMPLE_COUNT + 1] = {
+            "Custom", "Original", "Enhanced: Low Spec", "Enhanced: Normal", "Enhanced: High Quality",
+            "Enhanced: Ultra Quality" };
+        return Pc_LangQuick(names[PcConfig_SimplePresetDetect() + 1]);
+    }
+    case QO_X_SDITHER:
+        return Pc_LangQuickMenu(g_PcConfig.dithering ? "On" : "Off");
+    case QO_X_CFGMODE:
+        return Pc_LangQuick(g_PcConfig.simpleMode ? "Simple" : "Advanced");
     case QO_X_FLASHAIM: {
         extern int g_PcFpsCam;
         int        on = g_PcFpsCam ? g_PcConfig.flashlightFollowAimFps : g_PcConfig.flashlightFollowAim;
@@ -1792,6 +1865,20 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
         Sd_PlaySfx(Sfx_MenuMove, 0, 64);
         break;
     /* func_800554C4 reads it each time the light is set up, so it applies live. */
+    case QO_X_CFGMODE:
+        /* Only which rows the menus show: the settings are the same ones. */
+        g_PcConfig.simpleMode = !g_PcConfig.simpleMode;
+        PcConfig_SaveKeyValue("simple_mode", g_PcConfig.simpleMode ? "1" : "0");
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        break;
+    case QO_X_PRESET:
+        PcOpt_PresetStep(dir);
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        break;
+    case QO_X_SDITHER:
+        PcOpt_SimpleDitherToggle();
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        break;
     case QO_X_FLASHAIM: {
         extern int g_PcFpsCam;
 
