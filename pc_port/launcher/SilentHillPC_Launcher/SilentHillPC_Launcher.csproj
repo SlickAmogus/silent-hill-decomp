@@ -70,6 +70,9 @@
     <Compile Include="Form1.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="Form1.Simple.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="Form1.Designer.cs">
       <DependentUpon>Form1.cs</DependentUpon>
     </Compile>
@@ -165,6 +168,9 @@
     <EmbeddedResource Include="..\..\config.cfg">
       <Link>DefaultConfig.cfg</Link>
       <LogicalName>SilentHillPC_Launcher.DefaultConfig.cfg</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Resources\simple_bg.jpg">
+      <LogicalName>SilentHillPC_Launcher.SimpleBg.jpg</LogicalName>
     </EmbeddedResource>
     <EmbeddedResource Include="Form1.resx">
       <DependentUpon>Form1.cs</DependentUpon>

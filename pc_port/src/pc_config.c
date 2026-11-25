@@ -34,6 +34,7 @@ s_PcConfig g_PcConfig = {
     .weatherSimHz      = 60,   /* per-frame weather sim; 30 = the console's cadence */
     .cutsceneLineGapMs = 300,
     .darkHarry         = 0,
+    .simpleDither      = 1,
     .darkHarryAfkSec   = 300, /* five minutes */
     .darkHarryDistance = 14,
     .darkHarryX        = 0,   /* unset: see dark_harry_x */
@@ -389,6 +390,45 @@ static const struct { const char* key; size_t off; } s_GlobalBinds[] = {
 /* Remembered at load time so PcConfig_SaveMapName writes the same file. */
 static char s_configPath[512] = "config.cfg";
 
+/* Simple mode's own settings file, beside config.cfg. */
+static char        s_simplePath[512] = "config_simple.cfg";
+static const char* s_ioPath          = s_configPath;
+enum { CFG_PASS_FULL = 0, CFG_PASS_SHARED, CFG_PASS_SIMPLE };
+static int s_loadPass     = CFG_PASS_FULL;
+static int s_simpleActive = 0;
+static int s_simpleSawSize = 0;
+static void PcConfig_SimpleEnter(void);
+
+/* Keys that are one set for both modes and always live in config.cfg: the
+ * controls, what the install is (disc, language, mods, accounts), and the
+ * mode switch itself. */
+static int PcConfig_KeyShared(const char* key)
+{
+    static const char* const k[] = {
+        "simple_mode", "config_version", "map",
+        "disc_image", "region", "language", "jp_language", "cross_region_languages", "menu_style", "uncensored",
+        "retroachievements", "ra_username", "ra_token", "ra_spectator", "ra_hash_override", "ra_sfx",
+        "discord_rich_presence", "discord_app_id",
+        "allow_loose_files", "texture_packs", "player_character", "female_voice_pitch", "global_chara_pool",
+        "enable_plugins", "allow_unrecognized_dlls",
+        "control_style", "control_styles", "controller_movement", "movement_original", "allow_mouse_secondary",
+        "invert_mouse_y", "invert_controller_y", "mouse_sensitivity", "controller_sensitivity",
+        "disable_dpad_movement", "altcam_button_sprint", "control_2d", "control_2d_snap", "control_2d_hold",
+        "quick_weapon_switch",
+    };
+    size_t i;
+
+    if (strncmp(key, "key_", 4) == 0 || strncmp(key, "pad_", 4) == 0 || strncmp(key, "launcher_", 9) == 0 ||
+        strncmp(key, "chara_", 6) == 0)
+    {
+        return 1;
+    }
+    for (i = 0; i < sizeof(k) / sizeof(k[0]); i++)
+        if (strcmp(key, k[i]) == 0)
+            return 1;
+    return 0;
+}
+
 static void TrimWhitespace(char* s)
 {
     /* trim trailing */
@@ -500,9 +540,18 @@ void PcConfig_Load(const char* path)
     /* g_PcConfig still holds the static initializer here — capture it. */
     if (!s_defaultsCaptured) { s_PcConfigDefaults = g_PcConfig; s_defaultsCaptured = 1; }
 
-    if (path) {
+    if (path && s_loadPass == CFG_PASS_FULL) {
+        const char* a;
+        const char* b;
+        size_t      dir;
+
         strncpy(s_configPath, path, sizeof(s_configPath) - 1);
         s_configPath[sizeof(s_configPath) - 1] = '\0';
+        a   = strrchr(s_configPath, '/');
+        b   = strrchr(s_configPath, '\\');
+        if (b > a) a = b;
+        dir = a ? (size_t)(a - s_configPath) + 1 : 0;
+        snprintf(s_simplePath, sizeof(s_simplePath), "%.*s%s", (int)dir, s_configPath, "config_simple.cfg");
     }
 
     FILE* f = fopen(path, "r");
@@ -532,7 +581,8 @@ void PcConfig_Load(const char* path)
          * not as key = value, so they are taken before the = test. */
         if (strncmp(p, "bind ", 5) == 0 || strncmp(p, "BIND ", 5) == 0)
         {
-            PcBinds_ParseConfigLine(p + 5);
+            if (s_loadPass == CFG_PASS_FULL)
+                PcBinds_ParseConfigLine(p + 5);
             continue;
         }
 
@@ -548,6 +598,14 @@ void PcConfig_Load(const char* path)
         strncpy(value, eq + 1, sizeof(value) - 1);
         value[sizeof(value) - 1] = '\0';
         TrimWhitespace(value);
+
+        if (s_loadPass != CFG_PASS_FULL &&
+            PcConfig_KeyShared(key) != (s_loadPass == CFG_PASS_SHARED))
+        {
+            continue;
+        }
+        if (s_loadPass == CFG_PASS_SIMPLE && strcmp(key, "width") == 0)
+            s_simpleSawSize = 1;
 
         if (strcmp(key, "width") == 0)
         {
@@ -1438,6 +1496,19 @@ else if (strcmp(key, "enable_plugins") == 0)
             if (v > 4.0f) v = 4.0f;
             g_PcConfig.controllerSensitivity = v;
         }
+        else if (strcmp(key, "simple_mode") == 0)
+        {
+            g_PcConfig.simpleMode = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "simple_preset") == 0)
+        {
+            int v = atoi(value);
+            g_PcConfig.simplePreset = (v < 0 || v >= PC_SIMPLE_COUNT) ? PC_SIMPLE_ORIGINAL : v;
+        }
+        else if (strcmp(key, "simple_dithering") == 0)
+        {
+            g_PcConfig.simpleDither = (atoi(value) != 0);
+        }
         else if (strcmp(key, "unlimited_enemies") == 0)
         {
             g_PcConfig.unlimitedEnemies = (atoi(value) != 0);
@@ -1581,6 +1652,8 @@ else if (strcmp(key, "enable_plugins") == 0)
     }
 
     fclose(f);
+    if (s_loadPass != CFG_PASS_FULL)
+        return;
 
     /* Configs from before flashlight_mode existed carry only the legacy
      * pp/shadows keys. pp+shadows was the pre-calibration per-pixel look, so
@@ -1731,9 +1804,105 @@ else if (strcmp(key, "enable_plugins") == 0)
         PcConfig_SaveKeyValue("config_version", vbuf);
     }
 
+    if (g_PcConfig.simpleMode)
+        PcConfig_SimpleEnter();
+
     fprintf(stderr, "[CONFIG] Resolution: %dx%d, Fullscreen: %d, DisableCulling: %d, Map: %s\n",
             g_PcConfig.windowWidth, g_PcConfig.windowHeight,
             g_PcConfig.fullscreen, g_PcConfig.disableCulling, g_PcConfig.mapName);
+}
+
+void PcConfig_SimplePresetApply(void)
+{
+    const s_PcConfig* d = &s_PcConfigDefaults;
+    int               p = g_PcConfig.simplePreset;
+    int               mode;
+
+    if (p < 0 || p >= PC_SIMPLE_COUNT)
+        p = PC_SIMPLE_ORIGINAL;
+
+    g_PcConfig.fullscreen       = 2;
+    g_PcConfig.renderScale      = d->renderScale;
+    g_PcConfig.postProcess      = d->postProcess;
+    g_PcConfig.tonemap          = d->tonemap;
+    g_PcConfig.dithering        = g_PcConfig.simpleDither;
+    g_PcConfig.ditherResolution = 0; /* the PSX pixel grid */
+
+    if (p == PC_SIMPLE_ORIGINAL)
+    {
+        g_PcConfig.nativeResolution = 1;
+        g_PcConfig.vsync            = d->vsync;
+        g_PcConfig.fpsCap           = d->fpsCap;
+        g_PcConfig.textureFilter    = d->textureFilter;
+        g_PcConfig.msaaSamples      = 0;
+        g_PcConfig.usePgxp          = d->usePgxp;
+        g_PcConfig.shadowMapSize    = d->shadowMapSize;
+        g_PcConfig.bulletDecals     = d->bulletDecals;
+        mode                        = 0;
+    }
+    else
+    {
+        static const struct { int filter, msaa, flash, shadow; } q[PC_SIMPLE_COUNT] = {
+            { 0, 0, 0, 1024 },
+            { 1, 0, 0, 512  },   /* Low Spec: bilinear, classic flashlight */
+            { 4, 2, 1, 2048 },   /* Normal: 4x anisotropic, classic + shadows */
+            { 4, 4, 3, 4096 },   /* High: modern + shadows */
+            { 4, 8, 3, 8192 },   /* Ultra */
+        };
+
+        g_PcConfig.nativeResolution = 0;
+        g_PcConfig.vsync            = 1;
+        g_PcConfig.fpsCap           = 0;
+        g_PcConfig.usePgxp          = 1;
+        g_PcConfig.bulletDecals     = 1;
+        g_PcConfig.textureFilter    = q[p].filter;
+        g_PcConfig.msaaSamples      = q[p].msaa;
+        g_PcConfig.shadowMapSize    = q[p].shadow;
+        mode                        = q[p].flash;
+    }
+    g_PcConfig.flashlightMode     = mode;
+    g_PcConfig.perPixelFlashlight = (mode != 0);
+    g_PcConfig.flashlightShadows  = (mode == 1 || mode == 3);
+}
+
+/* Simple mode: drop what config.cfg set, keep its shared keys, then lay
+ * config_simple.cfg and the preset over the compiled defaults. Runs after the
+ * full load on purpose, so config.cfg still gets its default migrations. */
+static void PcConfig_SimpleEnter(void)
+{
+    FILE* f;
+
+    g_PcConfig = s_PcConfigDefaults;
+    s_loadPass = CFG_PASS_SHARED;
+    PcConfig_Load(s_configPath);
+    s_loadPass = CFG_PASS_SIMPLE;
+    PcConfig_Load(s_simplePath);
+    s_loadPass = CFG_PASS_FULL;
+    g_PcConfig.simpleMode = 1;
+
+    /* The savers rewrite an existing file; they do not create one. */
+    f = fopen(s_simplePath, "a");
+    if (f)
+        fclose(f);
+
+#ifdef _WIN32
+    /* The launcher writes the desktop size here. Started without it, an
+     * enhanced preset would render at the 640x480 default. */
+    if (!s_simpleSawSize)
+    {
+        extern int __stdcall GetSystemMetrics(int);
+        int w = GetSystemMetrics(0), h = GetSystemMetrics(1);
+        if (w >= 320 && h >= 240)
+        {
+            g_PcConfig.windowWidth  = w;
+            g_PcConfig.windowHeight = h;
+        }
+    }
+#endif
+    PcConfig_SimplePresetApply();
+    s_simpleActive = 1;
+    SH_LOG("[CFG] simple mode: preset %d, dithering %d, settings from %s",
+           g_PcConfig.simplePreset, g_PcConfig.simpleDither, s_simplePath);
 }
 
 /* Rewrite (or append) a single `key = value` line in the loaded config file,
@@ -1786,7 +1955,7 @@ void PcConfig_LogEffective(const char* path)
  * launcher appends its new keys at the end, so those were the first lost. */
 static char** PcConfig_ReadLines(int* outCount)
 {
-    FILE*  f = fopen(s_configPath, "r");
+    FILE*  f = fopen(s_ioPath, "r");
     char** lines = NULL;
     int    n = 0, cap = 0;
     char   chunk[512];
@@ -1839,7 +2008,44 @@ static void PcConfig_FreeLines(char** lines, int n)
     free(lines);
 }
 
+static void PcConfig_SaveKeyValuesCore(const char* const* keys, const char* const* values, int count);
+
+/* In simple mode a setting is saved to the file it was read from. */
 void PcConfig_SaveKeyValues(const char* const* keys, const char* const* values, int count)
+{
+    const char* k[2][256];
+    const char* v[2][256];
+    int         n[2] = { 0, 0 };
+    int         i;
+
+    if (!s_simpleActive)
+    {
+        PcConfig_SaveKeyValuesCore(keys, values, count);
+        return;
+    }
+    if (keys == NULL || values == NULL)
+        return;
+    for (i = 0; i < count && i < 256; i++)
+    {
+        int own;
+        if (keys[i] == NULL || values[i] == NULL)
+            continue;
+        own = !PcConfig_KeyShared(keys[i]);
+        k[own][n[own]] = keys[i];
+        v[own][n[own]] = values[i];
+        n[own]++;
+    }
+    if (n[0] > 0)
+        PcConfig_SaveKeyValuesCore(k[0], v[0], n[0]);
+    if (n[1] > 0)
+    {
+        s_ioPath = s_simplePath;
+        PcConfig_SaveKeyValuesCore(k[1], v[1], n[1]);
+        s_ioPath = s_configPath;
+    }
+}
+
+static void PcConfig_SaveKeyValuesCore(const char* const* keys, const char* const* values, int count)
 {
     static char found[256];
     char**      lines;
@@ -1892,7 +2098,7 @@ void PcConfig_SaveKeyValues(const char* const* keys, const char* const* values, 
         }
     }
 
-    f = fopen(s_configPath, "w");
+    f = fopen(s_ioPath, "w");
     if (f)
     {
         for (i = 0; i < n; i++)
@@ -1946,7 +2152,7 @@ void PcConfig_SaveBindLines(const char* const* lines, int count)
         free(buf[--n]);
     }
 
-    f = fopen(s_configPath, "w");
+    f = fopen(s_ioPath, "w");
     if (!f)
     {
         PcConfig_FreeLines(buf, n);

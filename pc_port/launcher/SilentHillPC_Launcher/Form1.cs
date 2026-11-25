@@ -101,6 +101,7 @@ public partial class Form1 : Form
         LoadConfig();
         SetupTooltips();
         SetupLanguageButton();
+        SimpleInit();
         trackFog.ValueChanged += (s, e) => UpdateFogValueLabel();
         // On release, not while dragging, and never from LoadConfig setting
         // the slider.
@@ -123,6 +124,8 @@ public partial class Form1 : Form
     {
         try
         {
+            // The simple view follows the realtime builds by itself.
+            if (_simpleMode) return;
             if (config.Get("launcher_realtime_offered", "0").Trim() == "1") return;
             var settings = LauncherSettings.Load(config);
             if (!settings.IsDefaultRepo) return;
@@ -773,7 +776,7 @@ public partial class Form1 : Form
 
     private async void SilentAutoCheckForUpdates()
     {
-        var settings = LauncherSettings.Load(config);
+        var settings = UpdateSettings();
         string installDir = AppDomain.CurrentDomain.BaseDirectory;
         SetText(btnUpdate, "Check for Updates");
         SetText(downloadBuild, "Download Build");
@@ -1942,8 +1945,17 @@ public partial class Form1 : Form
 
     private void btnPlay_Click(object sender, EventArgs e)
     {
-        SaveConfig();
-        WarnIfResidentTexturesOff();
+        // The simple view writes its own file and leaves the advanced
+        // settings in config.cfg exactly as they are.
+        if (_simpleMode)
+        {
+            SimpleSave();
+        }
+        else
+        {
+            SaveConfig();
+            WarnIfResidentTexturesOff();
+        }
 
         string exePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SilentHillPC.exe");
 
@@ -1978,7 +1990,7 @@ public partial class Form1 : Form
                     p.EnableRaisingEvents = true;
                     p.Exited += (s2, e2) =>
                     {
-                        try { BeginInvoke((Action)(() => LoadConfig())); }
+                        try { BeginInvoke((Action)(() => { LoadConfig(); if (_simpleMode) SimpleLoad(); })); }
                         catch { /* launcher closing; nothing to refresh */ }
                     };
                 }
@@ -2017,7 +2029,7 @@ public partial class Form1 : Form
     private async void btnUpdate_Click(object sender, EventArgs e)
     {
         string installDir = AppDomain.CurrentDomain.BaseDirectory;
-        var settings = LauncherSettings.Load(config);
+        var settings = UpdateSettings();
 
         SetUpdateBusy(true);
         SetText(lblUpdateStatus, "Checking for updates...");
@@ -2209,6 +2221,7 @@ public partial class Form1 : Form
         btnUpdate.Enabled     = !busy;
         downloadBuild.Enabled = !busy;
         btnPlay.Enabled       = !busy;
+        if (_sPlay != null) _sPlay.Enabled = !busy;
     }
 
     // Shared apply: a SEPARATE launcher self-update confirm (only when the
@@ -2414,6 +2427,8 @@ public partial class Form1 : Form
 
     private void ApplyDarkToControl(Control c, Color back, Color panelBack, Color text)
     {
+        // The simple view has its own, always dark, colours.
+        if (c is SimpleScene) return;
         if (c is Panel)
             c.BackColor = panelBack;
         else if (c is ComboBox)
@@ -2566,6 +2581,7 @@ public partial class Form1 : Form
 
     private void DarkModeCapture(Control c)
     {
+        if (c is SimpleScene) return;
         if (!_lightColors.ContainsKey(c))
             _lightColors[c] = new Color[] { c.BackColor, c.ForeColor };
 
@@ -2647,14 +2663,16 @@ public partial class Form1 : Form
             _bannerMenuReset = (ToolStripMenuItem)_bannerMenu.Items.Add("Reset", null, (s2, e2) => BannerReset());
             _bannerMenu.Items.Add(new ToolStripSeparator());
             _bannerMenuDark = (ToolStripMenuItem)_bannerMenu.Items.Add("Dark mode", null, (s2, e2) => DarkModeSet(!_darkMode));
+            _bannerMenuAdvanced = (ToolStripMenuItem)_bannerMenu.Items.Add("Advanced mode", null, (s2, e2) => SimpleSet(!_simpleMode, true));
             _bannerMenu.Items.Add("Cancel", null, (s2, e2) => { });
         }
 
         Loc.ApplyMenu(_bannerMenu.Items);
         _bannerMenuReset.Visible = File.Exists(BannerCustomPath);
         _bannerMenuDark.Checked  = _darkMode;
+        _bannerMenuAdvanced.Checked = !_simpleMode;
         DarkModeStyleMenu(_bannerMenu);
-        _bannerMenu.Show(banner, e.Location);
+        _bannerMenu.Show((Control)sender ?? banner, e.Location);
     }
 
     private void BannerChange()

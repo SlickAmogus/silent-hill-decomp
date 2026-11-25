@@ -136,7 +136,7 @@ static s32 g_PcOptionsMenu_Page       = 0; /* index into PCOPT_PAGES */
  * which is the right behaviour for a pointer that is already there. */
 s32 g_PcOptions_HighlightSnap = 0;
 
-enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_DITHER, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_CHARA };
+enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_DITHER, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_CHARA, PCK_PRESET, PCK_SDITHER };
 
 /* PC-options row origin. The heading sits at y=20 and the rows used to start at 56,
  * leaving a full empty row beneath it while the pages ran off the BOTTOM of the
@@ -165,6 +165,7 @@ typedef struct {
 
 /* Defined with the other quick-row helpers below, used by the adjust above. */
 static void PcOpt_FilterApply(int filter);
+static void PcOpt_SimpleApplyLive(void);
 
 static const int VAL_WIN[]   = { 0, 1, 2 };
 static const int VAL_VSYNC[] = { 0, 1 };
@@ -181,6 +182,8 @@ static const int VAL_MMMODE[] = { 0, 1, 2 };
 /* Weather simulation rate. 60 = one step per rendered frame (default), 30 = the
  * console cadence the particle code was authored at. */
 static const int VAL_WHZ[]    = { 30, 60 };
+/* The launcher's order: Original, then the enhanced presets with Normal first. */
+static const int VAL_PRESET[] = { PC_SIMPLE_ORIGINAL, PC_SIMPLE_NORMAL, PC_SIMPLE_LOW, PC_SIMPLE_HIGH, PC_SIMPLE_ULTRA };
 
 static const char* const LBL_WIN[]   = { "Windowed", "Fullscreen", "Borderless" };
 static const char* const LBL_VSYNC[] = { "Off", "On" };
@@ -199,6 +202,7 @@ static const char* const LBL_FLMODE[] = { "Classic", "C_+_Shadows", "Modern", "M
 static const char* const LBL_MMCNR[]  = { "Top_L", "Top_R", "Bottom_L", "Bottom_R" };
 static const char* const LBL_MMMODE[] = { "Off", "Square", "Circle" };
 static const char* const LBL_WHZ[]    = { "30_Hz", "60_Hz" };
+static const char* const LBL_PRESET[] = { "Original", "Normal", "Low_Spec", "High", "Ultra" };
 
 static const int RES_W[] = { 640, 1280, 1366, 1600, 1920, 2560, 3840 };
 static const int RES_H[] = { 480,  720,  768,  900, 1080, 1440, 2160 };
@@ -336,16 +340,39 @@ static const s_PcOpt PCOPT_H[] = {
     { "Back",              NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_BACK },
 };
 
+/* Simple mode (the launcher's default view): the graphics rows give way to the
+ * launcher's quality presets, which own every graphics setting. */
+static const s_PcOpt PCOPT_SG[] = {
+    { "Quality",        &g_PcConfig.simplePreset,       "simple_preset",        VAL_PRESET, 5, LBL_PRESET, NULL,                        1, PCK_PRESET  },
+    { "Dithering",      &g_PcConfig.simpleDither,       "simple_dithering",     VAL_ONOFF,  2, LBL_ONOFF,  NULL,                        1, PCK_SDITHER },
+    { "FMV_Movie_Vol",  NULL, "fmv_volume",             NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fmvVolume,           &g_PcFmvVolume,             0.0f, 1.0f, 0.05f },
+    { "Next_Page",      NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_NEXT   },
+    { "Back",           NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_BACK   },
+};
+
+static const s_PcOpt PCOPT_SC[] = {
+    { "2D_Controls",       &g_PcConfig.control2d,        "control_2d",             VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    { "Mouse_Sensitivity", NULL, "mouse_sensitivity",      NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.mouseSensitivity,      NULL, 0.1f, 4.0f, 0.1f },
+    { "Pad_Sensitivity",   NULL, "controller_sensitivity", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.controllerSensitivity, NULL, 0.1f, 4.0f, 0.1f },
+    { "Invert_Mouse_Y",    &g_PcConfig.invertMouseY,      "invert_mouse_y",         VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    { "Invert_Pad_Y",      &g_PcConfig.invertControllerY, "invert_controller_y",    VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    { "Prev_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_PREV },
+    { "Next_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_NEXT },
+    { "Back",              NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_BACK },
+};
+
 /* Page order, and where each page's value column starts. Graphics' labels end
  * early; System's widest value ("C_+_Shadows", 109px) must end before the
  * 320px clip, so its column sits at 204; the rest hold short values and can
  * afford 240, clear of their long labels ("Mouse Sensitivity"). */
-static const struct
+typedef struct
 {
     const s_PcOpt* rows;
     int            count;
     int            valX;
-} PCOPT_PAGES[] = {
+} s_PcOptPage;
+
+static const s_PcOptPage PCOPT_PAGES_ADV[] = {
     { PCOPT_G, (int)(sizeof(PCOPT_G) / sizeof(PCOPT_G[0])), 196 },
     { PCOPT_N, (int)(sizeof(PCOPT_N) / sizeof(PCOPT_N[0])), 240 },
     { PCOPT_S, (int)(sizeof(PCOPT_S) / sizeof(PCOPT_S[0])), 204 },
@@ -353,7 +380,16 @@ static const struct
     { PCOPT_T, (int)(sizeof(PCOPT_T) / sizeof(PCOPT_T[0])), 240 },
     { PCOPT_H, (int)(sizeof(PCOPT_H) / sizeof(PCOPT_H[0])), 240 },
 };
-#define PCOPT_PAGE_COUNT ((int)(sizeof(PCOPT_PAGES) / sizeof(PCOPT_PAGES[0])))
+static const s_PcOptPage PCOPT_PAGES_SIMPLE[] = {
+    { PCOPT_SG, (int)(sizeof(PCOPT_SG) / sizeof(PCOPT_SG[0])), 196 },
+    { PCOPT_N,  (int)(sizeof(PCOPT_N)  / sizeof(PCOPT_N[0])),  240 },
+    { PCOPT_SC, (int)(sizeof(PCOPT_SC) / sizeof(PCOPT_SC[0])), 240 },
+    { PCOPT_T,  (int)(sizeof(PCOPT_T)  / sizeof(PCOPT_T[0])),  240 },
+    { PCOPT_H,  (int)(sizeof(PCOPT_H)  / sizeof(PCOPT_H[0])),  240 },
+};
+#define PCOPT_PAGES      (g_PcConfig.simpleMode ? PCOPT_PAGES_SIMPLE : PCOPT_PAGES_ADV)
+#define PCOPT_PAGE_COUNT (g_PcConfig.simpleMode ? (int)(sizeof(PCOPT_PAGES_SIMPLE) / sizeof(PCOPT_PAGES_SIMPLE[0])) \
+                                                : (int)(sizeof(PCOPT_PAGES_ADV) / sizeof(PCOPT_PAGES_ADV[0])))
 
 static void Options_PcOptionsMenu_EntryStringsDraw(void);
 static void Options_PcOptionsMenu_ConfigDraw(void);
@@ -625,6 +661,10 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
             PsyX_ApplyVsync(g_PcConfig.vsync);
         } else if (e->kind == PCK_FLMODE) {
             Pc_FlashlightModeApply(*e->field, 1);
+        } else if (e->kind == PCK_PRESET || e->kind == PCK_SDITHER) {
+            PcOpt_SimpleApplyLive();
+            if (e->kind == PCK_PRESET)
+                SH_DBG_ECHO("Resolution and antialiasing change the next time the game is started.");
         } else if (e->live) {
             *e->live = *e->field;
         }
@@ -686,7 +726,8 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_OTSRESTX, QO_X_OTSRESTY, QO_X_OTSAIMX, QO_X_OTSAIMY,
        QO_X_DREAMSTR, QO_X_DREAMBLUR, QO_X_DPADMOVE, QO_X_CROSSHAIRSTYLE,
        QO_X_LINEGAP, QO_X_CHARALIGHT, QO_X_PPLIGHT, QO_X_HEROLIGHT, QO_X_HEROLIGHTFL, QO_X_FACEANIM,
-       QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD, QO_X_WORLDVIS, QO_X_FLASHAIM };
+       QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD, QO_X_WORLDVIS, QO_X_FLASHAIM,
+       QO_X_PRESET, QO_X_SDITHER };
 
 /* display_aspect = crt puts the picture on (4:3 x trim), so one framebuffer
  * pixel lands on screen this many times wider than tall at trim 1.0. It is the
@@ -698,6 +739,22 @@ extern void Pc_QuickOptions_InvalidateRows(void);
 /* Texture_Filter's live side, for the adjust and the reset-to-default (both
  * save texture_filter themselves). Dithering has its own row now, as it has in
  * the launcher. */
+/* A preset change, applied to everything that can change while the game runs.
+ * The render size (Original is the PSX's own) and MSAA are set up at boot. */
+static void PcOpt_SimpleApplyLive(void)
+{
+    extern int g_PsyX_ShadowMapSize;
+
+    PcConfig_SimplePresetApply();
+    PcOpt_FilterApply(g_PcConfig.textureFilter);
+    g_cfg_psxDither        = g_PcConfig.dithering;
+    g_cfg_ditherResolution = g_PcConfig.ditherResolution;
+    g_PsxUsePgxp           = g_PcConfig.usePgxp;
+    g_PsyX_ShadowMapSize   = g_PcConfig.shadowMapSize;
+    Pc_FlashlightModeApply(g_PcConfig.flashlightMode, 0);
+    PsyX_ApplyVsync(g_PcConfig.vsync);
+}
+
 static void PcOpt_FilterApply(int filter)
 {
     /* The renderer takes the mode and the tap count separately: modes 3..6 are
@@ -764,6 +821,14 @@ const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz)
         return Pc_LangQuickMenu(g_PcConfig.crosshairHideMelee ? "On" : "Off");
     /* One row, two settings: first person and the third-person cameras each
      * keep their own, and the row edits the one for the camera in use. */
+    case QO_X_PRESET: {
+        static const char* const names[PC_SIMPLE_COUNT] = {
+            "Original", "Enhanced: Low Spec", "Enhanced: Normal", "Enhanced: High Quality", "Enhanced: Ultra Quality" };
+        int p = g_PcConfig.simplePreset;
+        return Pc_LangQuick(names[(p >= 0 && p < PC_SIMPLE_COUNT) ? p : 0]);
+    }
+    case QO_X_SDITHER:
+        return Pc_LangQuickMenu(g_PcConfig.simpleDither ? "On" : "Off");
     case QO_X_FLASHAIM: {
         extern int g_PcFpsCam;
         int        on = g_PcFpsCam ? g_PcConfig.flashlightFollowAimFps : g_PcConfig.flashlightFollowAim;
@@ -1285,6 +1350,13 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
         Sd_PlaySfx(Sfx_MenuMove, 0, 64);
         break;
     /* func_800554C4 reads it each time the light is set up, so it applies live. */
+    case QO_X_PRESET:
+    case QO_X_SDITHER: {
+        const void* h = PcOpt_QuickFind(which == QO_X_PRESET ? "simple_preset" : "simple_dithering");
+        if (h)
+            PcOpt_QuickAdjust(h, dir);
+        break;
+    }
     case QO_X_FLASHAIM: {
         extern int g_PcFpsCam;
 

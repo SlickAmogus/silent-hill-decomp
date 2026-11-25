@@ -75,7 +75,8 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_OTSRESTX, QO_X_OTSRESTY, QO_X_OTSAIMX, QO_X_OTSAIMY,
        QO_X_DREAMSTR, QO_X_DREAMBLUR, QO_X_DPADMOVE, QO_X_CROSSHAIRSTYLE,
        QO_X_LINEGAP, QO_X_CHARALIGHT, QO_X_PPLIGHT, QO_X_HEROLIGHT, QO_X_HEROLIGHTFL, QO_X_FACEANIM,
-       QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD, QO_X_WORLDVIS, QO_X_FLASHAIM };
+       QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD, QO_X_WORLDVIS, QO_X_FLASHAIM,
+       QO_X_PRESET, QO_X_SDITHER };
 extern const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz);
 extern void        PcOpt_QuickExtraAdjust(int which, int dir);
 extern void        PcOpt_QuickViewReset(int mode);
@@ -134,6 +135,16 @@ static const QoRowDef s_pageGfx1[] = {
     /* Frame cap, beside Weather_Rate: both decide how fast the world ticks. */
     { ROW_OPT,   "fps_cap",              0, NULL },  /* FPS_Limit */
     { ROW_OPT,   "weather_sim_hz",       0, NULL },  /* Weather_Rate: 30 or 60 Hz */
+    QO_NAV_ROW,
+    QO_CLOSE_ROW,
+};
+
+/* Simple mode: the launcher's quality presets own the graphics settings, so
+ * the two graphics pages are this one and the Lighting page is skipped. */
+static const QoRowDef s_pageGfxSimple[] = {
+    { ROW_EXTRA, NULL, QO_X_PRESET,         "Quality" },
+    { ROW_EXTRA, NULL, QO_X_SDITHER,        "Dithering" },
+    { ROW_EXTRA, NULL, QO_X_FACEANIM,       "Character Face Animation (WIP)" },
     QO_NAV_ROW,
     QO_CLOSE_ROW,
 };
@@ -411,8 +422,19 @@ enum { QO_PG_GFX1 = 0, QO_PG_GFX2, QO_PG_HUD, QO_PG_AUDIO, QO_PG_VIEW,
 
 #define QO_TABLE(t) (*count = (int)(sizeof(t) / sizeof((t)[0])), (t))
 
+/* The page `dir` steps from `page`, past the pages simple mode has no use for. */
+static int qo_page_step(int page, int dir)
+{
+    do
+        page = (page + dir + QO_PAGES) % QO_PAGES;
+    while (g_PcConfig.simpleMode && page == QO_PG_GFX2);
+    return page;
+}
+
 static const QoRowDef* qo_page_rows(int page, int* count)
 {
+    if (g_PcConfig.simpleMode && page == QO_PG_GFX1)
+        return QO_TABLE(s_pageGfxSimple);
     switch (page)
     {
         case QO_PG_GFX2:     return QO_TABLE(s_pageGfx2);
@@ -1212,8 +1234,8 @@ static void qo_bake_nav(int page, int px, float avail)
     int  pass, i;
 
     snprintf(dest, sizeof(dest), "(%s  /  %s)",
-             Pc_LangQuick(s_pageNames[(page + QO_PAGES - 1) % QO_PAGES]),
-             Pc_LangQuick(s_pageNames[(page + 1) % QO_PAGES]));
+             Pc_LangQuick(s_pageNames[qo_page_step(page, -1)]),
+             Pc_LangQuick(s_pageNames[qo_page_step(page, +1)]));
 
     for (pass = 0; pass < 2; pass++)
     {
@@ -1615,7 +1637,7 @@ static void qo_activate(const QoRowDef* r, int dir)
             } else PcOpt_QuickExtraAdjust(r->extra, dir);
             break;
         case ROW_CHEAT: Pc_Cheats_Adjust(r->cpage, r->extra, dir); break;
-        case ROW_PAGE:  qo_beep(Sfx_MenuMove); qo_set_page(s_page + (dir < 0 ? -1 : +1)); qo_select_nav_row(); break;
+        case ROW_PAGE:  qo_beep(Sfx_MenuMove); qo_set_page(qo_page_step(s_page, dir < 0 ? -1 : +1)); qo_select_nav_row(); break;
         case ROW_CLOSE: qo_beep(Sfx_MenuCancel); Pc_QuickOptions_Close(); break;
         case ROW_ACTION: break; /* confirm-only; see the ROW_ACTION comment */
         default: break;
@@ -1878,8 +1900,8 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
     }
 
     if (pageNext || pagePrev) qo_beep(Sfx_MenuMove);
-    if (pageNext) qo_set_page(s_page + 1);
-    if (pagePrev) qo_set_page(s_page - 1);
+    if (pageNext) qo_set_page(qo_page_step(s_page, +1));
+    if (pagePrev) qo_set_page(qo_page_step(s_page, -1));
     rows = qo_page_rows(s_page, &nRows);
 
     if (up)   { s_sel = (s_sel + nRows - 1) % nRows; }
@@ -1928,7 +1950,7 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
         {
             /* A click beside the panel turns the page, the way the page row
              * does: left forward, right back. */
-            qo_set_page(s_page + (mClick ? 1 : -1));
+            qo_set_page(qo_page_step(s_page, mClick ? 1 : -1));
             qo_beep(Sfx_MenuMove);
         }
     }
