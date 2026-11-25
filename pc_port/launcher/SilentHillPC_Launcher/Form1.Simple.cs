@@ -600,9 +600,9 @@ public partial class Form1
 
 /// <summary>
 /// The simple view's surface: a dark ground with drifting fog and slow PS1-style
-/// snow, and the view's text drawn over it. Painted with GDI+; when a frame costs
-/// too much (old machines, remote sessions) the fog and snow stop and the view
-/// stays as a still picture.
+/// snow, and the view's text drawn over it. Painted with GDI+; on a machine where
+/// a frame costs too much it moves in rarer steps, and in a remote session it is
+/// a still picture.
 /// </summary>
 internal sealed class SimpleScene : Panel
 {
@@ -796,16 +796,16 @@ internal sealed class SimpleScene : Panel
 
         if (_animated)
         {
-            // A machine that cannot keep this up gets the still picture.
+            // When frames cost too much the fog moves in bigger, rarer steps,
+            // and goes back to the full rate once they are cheap again. It never
+            // stops: one busy spell (the game starting, a build running) used to
+            // freeze it for as long as the launcher stayed open.
             _costMs += (Stopwatch.GetTimestamp() - t0) * 1000.0 / Stopwatch.Frequency;
-            if (++_frames == 40)
+            if (++_frames == 20)
             {
-                if (_costMs / _frames > 16.0)
-                {
-                    _animated = false;
-                    _timer.Stop();
-                    Invalidate();
-                }
+                double avg = _costMs / _frames;
+                if (avg > 16.0 && _timer.Interval < 320) _timer.Interval *= 2;
+                else if (avg < 6.0 && _timer.Interval > 40) _timer.Interval /= 2;
                 _costMs = 0;
                 _frames = 0;
             }
