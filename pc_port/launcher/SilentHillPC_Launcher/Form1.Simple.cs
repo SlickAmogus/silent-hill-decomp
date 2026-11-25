@@ -34,6 +34,7 @@ public partial class Form1
     }
     private readonly Dictionary<Control, SimpleHome> _simpleHomes = new Dictionary<Control, SimpleHome>();
 
+    private const string SimpleTitle = "SILENT HILL PC";
     private const int SimpleCustom = 5; // the list's last row; never clicked, only shown
     private static readonly string[] SimplePresetNames =
     {
@@ -259,7 +260,7 @@ public partial class Form1
         using (var body  = new Font("Segoe UI", 9.75f))
         using (var item  = new Font("Segoe UI", 11f))
         {
-            SimpleOutlined(g, "SILENT HILL", title, Color.FromArgb(214, 70, 56), new RectangleF(SimpleLeft - 2, 22, 500, 50));
+            SimpleOutlined(g, SimpleTitle, title, Color.FromArgb(214, 70, 56), new RectangleF(SimpleLeft - 2, 22, 680, 50));
             SimpleOutlined(g, Loc.T("Quality"), item, SimpleDim, new RectangleF(SimpleLeft, 76, 400, 24));
             SimpleOutlined(g, Loc.T("Options"), item, SimpleDim, new RectangleF(SimpleRight, 76, 240, 24));
 
@@ -378,6 +379,8 @@ public partial class Form1
                 // The render size is set when a preset is picked, and may be
                 // changed afterwards without leaving the preset.
                 if (kv.Key == "native_resolution") continue;
+                // Culling is set by a preset but is the player's to change.
+                if (kv.Key == "disable_culling") continue;
                 // On or automatic both draw the town; only Ultra needs it, and
                 // needs it not switched off.
                 if (kv.Key == "whole_map_exteriors")
