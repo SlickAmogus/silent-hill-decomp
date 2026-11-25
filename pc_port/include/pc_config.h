@@ -16,7 +16,7 @@
  *   6: pad_reload / pad_quick_turn default NONE -> rightshoulder / leftshoulder,
  *      filled only where the slot was unbound. (4 and 5 live on the mobile
  *      branches; numbering is shared so a merge never reuses a step.) */
-#define PC_CONFIG_VERSION 7
+#define PC_CONFIG_VERSION 8
 
 /* Minimap size range, as a percentage of the built-in MM_SIZE. The top end is a
  * little larger than the stock panel; the bottom end is a bit over half of it. */
@@ -365,6 +365,11 @@ typedef struct {
     int minimapCorner;       /* minimap screen corner: 0 = top-left, 1 = top-right, 2 = bottom-left, 3 = bottom-right (config key: minimap_corner); default 0 */
     int fpsDisplay;          /* FPS counter: 0 = off, 1 = top-left, 2 = top-right, 3 = bottom-left, 4 = bottom-right (config key: fps_display); default 0 */
     int minimapShape;        /* DEPRECATED, folded into `minimap`; still read to migrate old configs (config key: minimap_shape) */
+    /* Simple mode: the launcher and the in-game menus show quality presets in
+     * place of the individual graphics settings. A preset is only a set of
+     * values for those settings, in this same config; when they no longer
+     * match one, the preset shown is Custom. */
+    int simpleMode;          /* config key: simple_mode */
     int configVersion;       /* PC_CONFIG_VERSION the file was last written at; 0 = pre-versioning. Drives the default-migration in PcConfig_Load (config key: config_version) */
     float minimapScale;      /* minimap size percentage, MINIMAP_SCALE_MIN..MAX (config key: minimap_scale); default 100 */
     int enablePlugins;       /* 1 = load plugins/*.dll gameplay plugins at boot; 0 = never touch them (config-only key: enable_plugins); default 0 -- a DLL runs arbitrary code, so the surface is strictly opt-in */
@@ -707,6 +712,18 @@ void PcConfig_SaveMapName(const char* mapName);
  * (control_style) and to publish game-owned lists (control_styles) so the
  * launcher reflects whatever the installed build supports. */
 void PcConfig_SaveKeyValue(const char* key, const char* value);
+
+enum { PC_SIMPLE_CUSTOM = -1, PC_SIMPLE_ORIGINAL = 0, PC_SIMPLE_LOW, PC_SIMPLE_NORMAL, PC_SIMPLE_HIGH, PC_SIMPLE_ULTRA, PC_SIMPLE_COUNT };
+/* The preset the graphics settings match now, or PC_SIMPLE_CUSTOM. */
+int  PcConfig_SimplePresetDetect(void);
+/* Set the graphics settings to a preset and save them. Window mode and size
+ * are not part of a preset. */
+void PcConfig_SimplePresetApply(int preset);
+/* Builds with no launcher (phones, the browser): 1 while a player whose config
+ * is from before the presets has yet to be told about them, once ever. */
+extern int g_PcSimpleOfferPending;
+/* The offer is on screen: never ask again. */
+void PcConfig_SimpleOfferShown(void);
 
 /* Set the FMV/voice (XA) master volume [0,1]: clamps, updates g_PcConfig +
  * the live XA source gain, and persists `xa_volume`. Used by the options menu

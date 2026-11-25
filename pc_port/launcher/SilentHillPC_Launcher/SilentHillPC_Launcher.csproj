@@ -70,6 +70,9 @@
     <Compile Include="Form1.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="Form1.Simple.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="Form1.Designer.cs">
       <DependentUpon>Form1.cs</DependentUpon>
     </Compile>
@@ -138,6 +141,7 @@
     <Compile Include="Loc.Strings.ModManager.cs" />
     <Compile Include="Loc.Strings.Dialogs.cs" />
     <Compile Include="Loc.Strings.Tools.cs" />
+    <Compile Include="Loc.Strings.Simple.cs" />
     <Compile Include="LauncherSettings.cs" />
     <Compile Include="ChangelogViewer.cs" />
     <Compile Include="BuildSettingsForm.cs">
