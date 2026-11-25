@@ -182,8 +182,7 @@ static const int VAL_MMMODE[] = { 0, 1, 2 };
 /* Weather simulation rate. 60 = one step per rendered frame (default), 30 = the
  * console cadence the particle code was authored at. */
 static const int VAL_WHZ[]    = { 30, 60 };
-/* The launcher's order: Original, then the enhanced presets with Normal first. */
-static const int VAL_PRESET[] = { PC_SIMPLE_ORIGINAL, PC_SIMPLE_NORMAL, PC_SIMPLE_LOW, PC_SIMPLE_HIGH, PC_SIMPLE_ULTRA };
+static const int VAL_PRESET[] = { PC_SIMPLE_ORIGINAL, PC_SIMPLE_LOW, PC_SIMPLE_NORMAL, PC_SIMPLE_HIGH, PC_SIMPLE_ULTRA };
 
 static const char* const LBL_WIN[]   = { "Windowed", "Fullscreen", "Borderless" };
 static const char* const LBL_VSYNC[] = { "Off", "On" };
@@ -202,7 +201,7 @@ static const char* const LBL_FLMODE[] = { "Classic", "C_+_Shadows", "Modern", "M
 static const char* const LBL_MMCNR[]  = { "Top_L", "Top_R", "Bottom_L", "Bottom_R" };
 static const char* const LBL_MMMODE[] = { "Off", "Square", "Circle" };
 static const char* const LBL_WHZ[]    = { "30_Hz", "60_Hz" };
-static const char* const LBL_PRESET[] = { "Original", "Normal", "Low_Spec", "High", "Ultra" };
+static const char* const LBL_PRESET[] = { "Original", "Low_Spec", "Normal", "High", "Ultra" };
 
 static const int RES_W[] = { 640, 1280, 1366, 1600, 1920, 2560, 3840 };
 static const int RES_H[] = { 480,  720,  768,  900, 1080, 1440, 2160 };

@@ -35,18 +35,17 @@ public partial class Form1
     }
     private readonly Dictionary<Control, SimpleHome> _simpleHomes = new Dictionary<Control, SimpleHome>();
 
-    // List order, as asked for: Original, then the enhanced presets with Normal
-    // first. The values are the game's PC_SIMPLE_* ids.
-    private static readonly int[]    SimplePresetIds   = { 0, 2, 1, 3, 4 };
+    // The values are the game's PC_SIMPLE_* ids.
+    private static readonly int[]    SimplePresetIds   = { 0, 1, 2, 3, 4 };
     private static readonly string[] SimplePresetNames =
     {
-        "Original", "Enhanced: Normal", "Enhanced: Low Spec", "Enhanced: High Quality", "Enhanced: Ultra Quality",
+        "Original", "Enhanced: Low Spec", "Enhanced: Normal", "Enhanced: High Quality", "Enhanced: Ultra Quality",
     };
     private static readonly string[] SimplePresetAbout =
     {
         "The game as it was on the PlayStation: its own resolution, 30 fps and the original lighting.",
-        "Desktop resolution, no FPS limit, 2x antialiasing, sharper textures and flashlight shadows.",
         "Desktop resolution and smooth textures with no extra effects. For older or integrated graphics.",
+        "Desktop resolution, no FPS limit, 2x antialiasing, sharper textures and flashlight shadows.",
         "4x antialiasing and the modern flashlight with detailed shadows.",
         "8x antialiasing and the highest shadow detail. For powerful graphics cards.",
     };
