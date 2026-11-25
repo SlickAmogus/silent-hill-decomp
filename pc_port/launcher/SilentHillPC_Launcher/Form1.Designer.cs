@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Windows.Forms;
 
 partial class Form1
@@ -640,7 +640,7 @@ partial class Form1
             // consoleLabel
             // 
             this.consoleLabel.AutoSize = true;
-            this.consoleLabel.Location = new System.Drawing.Point(210, 643);
+            this.consoleLabel.Location = new System.Drawing.Point(235, 648);
             this.consoleLabel.Name = "consoleLabel";
             this.consoleLabel.Size = new System.Drawing.Size(89, 13);
             this.consoleLabel.TabIndex = 36;
@@ -651,7 +651,7 @@ partial class Form1
             // 
             this.consolePanel.Controls.Add(this.consoleYes);
             this.consolePanel.Controls.Add(this.consoleNo);
-            this.consolePanel.Location = new System.Drawing.Point(296, 640);
+            this.consolePanel.Location = new System.Drawing.Point(328, 640);
             this.consolePanel.Name = "consolePanel";
             this.consolePanel.Size = new System.Drawing.Size(120, 33);
             this.consolePanel.TabIndex = 56;
