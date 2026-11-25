@@ -79,11 +79,11 @@ static s_TouchButton s_Buttons[TB_COUNT] = {
      * this aspect against 240 tall. */
     [TB_START] = { 0.920f, 0.158f, 0.055f, 0 },
     [TB_RUN] = { 0.665f, 0.760f, 0.065f, 0 },
-    /* The escape button of the menu screens. On Android it has a place of
+    /* The escape button of the menu screens. On a phone it has a place of
      * its own, further into the corner than Start: at Start's spot it sat
      * on the Options screen's first row, and a press took both (reported).
      * Elsewhere it is drawn in the corner slot, Start's position. */
-#if defined(__ANDROID__)
+#if defined(__ANDROID__) || defined(SH_IOS)
     [TB_BACK] = { 0.955f, 0.085f, 0.050f, 0 },
 #else
     [TB_BACK] = { 0.920f, 0.158f, 0.055f, 0 },
@@ -1070,7 +1070,7 @@ static int Tc_ExtraButton(int b, int mode)
  * up in different places. */
 static int Tc_SoloOwnPos(int b)
 {
-#if defined(__ANDROID__)
+#if defined(__ANDROID__) || defined(SH_IOS)
     if (b == TB_BACK)
         return 1;
 #endif
