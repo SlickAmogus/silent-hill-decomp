@@ -464,6 +464,7 @@ typedef struct
 /* GRIP_L/GRIP_R curl the fingers of game hand 6/10 round a held item. BREATH
  * is built from the chest at load, so every model gets it. */
 enum { PC_SKIN_MORPH_BLINK, PC_SKIN_MORPH_MOUTH, PC_SKIN_MORPH_GRIP_L, PC_SKIN_MORPH_GRIP_R, PC_SKIN_MORPH_BREATH,
+       PC_SKIN_MORPH_LIDHALF, /* lidhalf: a painted half-shut eye frame, shown on the way into and out of a blink */
        PC_SKIN_MORPH_SHAPE, /* mouth_A .. mouth_H, mouth_X: painted mouth shapes, PC_LIP_SHAPES of them */
        PC_SKIN_MORPH_COUNT = PC_SKIN_MORPH_SHAPE + PC_LIP_SHAPES };
 
@@ -1283,6 +1284,8 @@ static int Skin_MorphKind(const char* name, int haveBothBlink)
     }
     if (strstr(l, "jawopen") || strstr(l, "mouthopen") || strstr(l, "mouth_open") || strstr(l, "viseme_aa"))
         return PC_SKIN_MORPH_MOUTH;
+    if (strcmp(l, "lidhalf") == 0)
+        return PC_SKIN_MORPH_LIDHALF;
     if (strncmp(l, "mouth_", 6) == 0 && l[7] == '\0' && ((l[6] >= 'a' && l[6] <= 'h') || l[6] == 'x'))
         return PC_SKIN_MORPH_SHAPE + (l[6] == 'x' ? PC_LIP_SHAPES - 1 : l[6] - 'a');
     return -1;
@@ -3820,14 +3823,10 @@ static float Skin_MouthWeight(PcSkinChara* ch)
             target = s_shapeJaw[shape];
         }
     }
-    /* Crossfaded over about 50 ms: each shape's patch sits a hair in front of
-     * the last, so two never fight while one hands over to the next. */
+    /* Swapped, not faded: a shape's key unfolds its patch from a point, so a
+     * weight between 0 and 1 drew a shrunken mouth beside the painted one. */
     for (k = 0; k < PC_LIP_SHAPES && shapes; k++)
-    {
-        float t = (k == shape) ? 1.0f : 0.0f, step = dt / 0.05f;
-        ch->shapeW[k] = ch->shapeW[k] < t ? (ch->shapeW[k] + step > t ? t : ch->shapeW[k] + step)
-                                          : (ch->shapeW[k] - step < t ? t : ch->shapeW[k] - step);
-    }
+        ch->shapeW[k] = (k == shape) ? 1.0f : 0.0f;
     rate = target > ch->mouth ? 30.0f : 14.0f;
     ch->mouth += (target - ch->mouth) * (dt * rate > 1.0f ? 1.0f : dt * rate);
     return ch->mouth;
@@ -3865,6 +3864,15 @@ static void Skin_ApplyMorphs(PcSkinChara* ch, float h, float ofx, float ofy, flo
     int k, i;
 
     w[PC_SKIN_MORPH_BLINK] = ch->morph[PC_SKIN_MORPH_BLINK].count ? Skin_BlinkWeight(ch) : 0.0f;
+    /* Painted blink frames (a face with a lidhalf key) are whole pictures of
+     * the eye: open, half shut, shut, one at a time. */
+    w[PC_SKIN_MORPH_LIDHALF] = 0.0f;
+    if (ch->morph[PC_SKIN_MORPH_LIDHALF].count)
+    {
+        float bw = w[PC_SKIN_MORPH_BLINK];
+        w[PC_SKIN_MORPH_LIDHALF] = (bw > 0.2f && bw < 0.7f) ? 1.0f : 0.0f;
+        w[PC_SKIN_MORPH_BLINK]   = bw >= 0.7f ? 1.0f : 0.0f;
+    }
     w[PC_SKIN_MORPH_MOUTH] = ch->morph[PC_SKIN_MORPH_MOUTH].count ? Skin_MouthWeight(ch) : 0.0f;
     Skin_GripWeights(ch, &w[PC_SKIN_MORPH_GRIP_L]);
     w[PC_SKIN_MORPH_BREATH] = ch->morph[PC_SKIN_MORPH_BREATH].count ? Skin_BreathWeight(ch) : 0.0f;

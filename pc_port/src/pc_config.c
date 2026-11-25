@@ -40,11 +40,7 @@ s_PcConfig g_PcConfig = {
 #endif
     .weatherSimHz      = 60,   /* per-frame weather sim; 30 = the console's cadence */
     .cutsceneLineGapMs = 300,
-#if defined(SH_IOS) || defined(__ANDROID__)
-    .darkHarry         = 0,   /* mobile: off unless dark_harry = 1 in config.cfg */
-#else
-    .darkHarry         = 1,   /* on by default for now */
-#endif
+    .darkHarry         = 0,
     .darkHarryAfkSec   = 300, /* five minutes */
     .darkHarryDistance = 14,
     .darkHarryX        = 0,   /* unset: see dark_harry_x */
@@ -261,7 +257,7 @@ s_PcConfig g_PcConfig = {
         .keyUp = "Up", .keyDown = "Down", .keyLeft = "Left", .keyRight = "Right",
         .keyCross = "C", .keyCircle = "V", .keyTriangle = "Z", .keySquare = "X",
         .keyL1 = "A", .keyR1 = "D", .keyL2 = "Right Shift", .keyR2 = "Left Shift",
-        .keyL3 = "NONE", .keyR3 = "NONE", .keyStart = "Return", .keySelect = "Space",
+        .keyL3 = "NONE", .keyR3 = "NONE", .keyStart = "Return", .keySelect = "Space", .keyStart2 = "Escape",
         .padCross = "a", .padCircle = "b", .padTriangle = "y", .padSquare = "x",
         .padL1 = "leftshoulder", .padR1 = "rightshoulder",
         .padL2 = "lefttrigger", .padR2 = "righttrigger",
@@ -282,7 +278,7 @@ s_PcConfig g_PcConfig = {
         .keyUp = "W", .keyDown = "S", .keyLeft = "Left", .keyRight = "Right",
         .keyCross = "Mouse1", .keyCircle = "F", .keyTriangle = "Tab", .keySquare = "Left Shift",
         .keyL1 = "A", .keyR1 = "D", .keyL2 = "NONE", .keyR2 = "Mouse2",
-        .keyL3 = "NONE", .keyR3 = "NONE", .keyStart = "Return", .keySelect = "Space",
+        .keyL3 = "NONE", .keyR3 = "NONE", .keyStart = "Return", .keySelect = "Space", .keyStart2 = "Escape",
         .keyCross2 = "E",
         .padCross = "righttrigger", .padCircle = "b", .padTriangle = "y", .padSquare = "leftshoulder",
         .padL1 = "NONE", .padR1 = "NONE",
@@ -310,7 +306,7 @@ s_PcConfig g_PcConfig = {
     .keyGfxCycle = "\\",
     .keyGfxPrev  = "[",
     .keyGfxNext  = "]",
-    .keyExitGame = "Escape",
+    .keyExitGame = "NONE",
 
     .languageCode   = "auto", /* resolved per disc in Pc_LangInit */
     .language       = 0, /* 0=en 1=de 2=fr 3=es 4=it — PAL-disc text language; USA: menu translations on fan-patched discs */
@@ -1830,6 +1826,35 @@ else if (strcmp(key, "enable_plugins") == 0)
                     snprintf(fullKey, sizeof(fullKey), "%s%s", pad[i].key, s ? "_altcam" : "");
                     PcConfig_SaveKeyValue(fullKey, pad[i].value);
                 }
+            }
+        }
+
+        /* v7: Escape leaves Exit Game (a warm reset in play) and becomes the
+         * second Pause key; Dark Harry is off unless asked for. A config that
+         * moved or unbound Exit Game was set by its player and keeps both its
+         * exit bind and its pause keys. */
+        if (g_PcConfig.configVersion < 7)
+        {
+            if (strcmp(g_PcConfig.keyExitGame, "Escape") == 0 || strcmp(g_PcConfig.keyExitGame, "escape") == 0)
+            {
+                ControlScheme* schemes[2] = { &g_PcConfig.classic, &g_PcConfig.altcam };
+                int            s;
+
+                snprintf(g_PcConfig.keyExitGame, sizeof(g_PcConfig.keyExitGame), "NONE");
+                PcConfig_SaveKeyValue("key_exit_game", "NONE");
+                for (s = 0; s < 2; s++)
+                {
+                    char* slot = schemes[s]->keyStart2;
+                    if (slot[0] != '\0' && strcmp(slot, "NONE") != 0)
+                        continue;
+                    snprintf(slot, 24, "Escape");
+                    PcConfig_SaveKeyValue(s ? "key_start_2_altcam" : "key_start_2", "Escape");
+                }
+            }
+            if (g_PcConfig.darkHarry == 1)
+            {
+                g_PcConfig.darkHarry = 0;
+                PcConfig_SaveKeyValue("dark_harry", "0");
             }
         }
 

@@ -129,7 +129,14 @@ def build(prims, fp, imgcache, tex_for, T, RR):
         return (pi, uv)
 
     keys = []
-    for cx, cy, hw, hh in fp.get('eyes', []):
+    vis = None
+    if fp.get('visemes'):
+        import importlib.util, os
+        sp = importlib.util.spec_from_file_location('visemes', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'visemes.py'))
+        vis = importlib.util.module_from_spec(sp); sp.loader.exec_module(vis)
+        # Painted blink frames on patches that lie on the face, not lid strips.
+        keys += vis.build_eyes(prims, fp, imgcache, tris, ray, l2w, l2w_dir, ensure_targets)
+    for cx, cy, hw, hh in ([] if vis else fp.get('eyes', [])):
         xs = np.linspace(cx - hw * 1.45, cx + hw * 1.45, LID_COLS)
         t = (xs - (cx - hw * 1.45)) / (2.9 * hw)
         f = np.sqrt(np.clip(1 - (2 * t - 1) ** 2, 0, 1))
@@ -193,18 +200,15 @@ def build(prims, fp, imgcache, tex_for, T, RR):
                     d = moved.get(tuple(np.round(pr['P'][j], 3)))
                     if d is not None:
                         pr['D']['jawOpen'][j] = d
-    if fp.get('visemes') and fp.get('mouth'):
-        import importlib.util, os
-        sp = importlib.util.spec_from_file_location('visemes', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'visemes.py'))
-        vis = importlib.util.module_from_spec(sp); sp.loader.exec_module(vis)
+    if vis and fp.get('mouth'):
 
         def jaw_delta(x, y):
             wy = np.clip((my - y) / 1.5, 0, 1); wy = wy * wy * (3 - 2 * wy)
             wx = np.clip(1 - (abs(x - mx) / (mw * 1.9)) ** 2, 0, 1)
             wf = np.clip(1 - (my - y - 6) / 10, 0, 1)
             return l2w_dir(np.array([[0, -A * 0.8 * wy * wx * wf, 0]]))[0]
-        keys += vis.build(prims, fp, imgcache, ray, l2w, l2w_dir, jaw_delta, ensure_targets)
-    order = ['blink', 'jawOpen'] + sorted(k for k in set(keys) if k.startswith('mouth_'))
+        keys += vis.build(prims, fp, imgcache, tris, ray, l2w, l2w_dir, jaw_delta, ensure_targets)
+    order = ['blink', 'lidhalf', 'jawOpen'] + sorted(k for k in set(keys) if k.startswith('mouth_'))
     keys = [k for k in order if k in set(keys)]
     for pr in prims:
         ensure_targets(pr)
