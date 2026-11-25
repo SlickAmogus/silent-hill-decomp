@@ -1958,8 +1958,8 @@ static void PcConfig_SimplePresetValues(int p, SimplePreset* v)
             { 0, 0, 0, 1024 },
             { 1, 0, 0, 512  },   /* Low Spec: bilinear, classic flashlight */
             { 4, 2, 1, 2048 },   /* Normal: 4x anisotropic, classic + shadows */
-            { 4, 4, 3, 4096 },   /* High: modern + shadows */
-            { 4, 8, 3, 8192 },   /* Ultra */
+            { 5, 4, 3, 4096 },   /* High: 8x anisotropic, modern + shadows */
+            { 6, 8, 3, 8192 },   /* Ultra: 16x anisotropic */
         };
         v->native = 0;           v->vsync  = 1;           v->fps    = 0;
         v->filter = q[p].filter; v->msaa   = q[p].msaa;   v->pgxp   = 1;
