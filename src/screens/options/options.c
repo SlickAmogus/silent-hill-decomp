@@ -329,13 +329,6 @@ static const s_PcOpt PCOPT_G[] = {
      * restart either way. */
     { "Character_Customization", NULL,                NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_CHARA  },
 #if defined(__ANDROID__)
-    /* Where the disc image, gamedata/, config.cfg, the memory cards and the log
-     * live. The default is an SD card where one is present, because the players
-     * who asked for this wanted a volume they could take out and read
-     * elsewhere. The row cannot move the data itself -- the disc alone is most
-     * of a gigabyte, and the location is fixed before the engine starts -- so it
-     * asks SetupActivity to put the chooser back up on the next launch. */
-    { "Game_Data",      NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_STORAGE },
 #endif
 #if defined(SH_IOS) || defined(__ANDROID__)
     /* The one switch behind every gamedata/load/ channel: replacement textures,
@@ -530,8 +523,6 @@ static const s_PcOpt PCOPT_M[] = {
     /* Pulsing red edge glow below 20 hp (pc_combat.c Pc_LowHealthGlowUpdate),
      * moved off the HUD page to the last one. */
     { "Low_HP_Glow",       &g_PcConfig.lowHealthGlow,     "low_health_glow",     VAL_ONOFF,  2, LBL_ONOFF,  NULL, 1, PCK_INT },
-    /* Asks before it acts; see PCOPT_TOTITLE_WINDOW_MS. */
-    { "Return_to_Title",   NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_TOTITLE },
     { "Prev_Page",         NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_PREV },
     /* Not the last page: PCOPT_P follows. */
     { "Next_Page",         NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_NEXT },
@@ -553,10 +544,41 @@ static const s_PcOpt PCOPT_P[] = {
      * memory and fill rate wants, and the first thing to try without a texture
      * pack. Needs a restart: the pool is sized at startup. */
     { "Resident_Textures", &g_PcConfig.residentTextures,  "resident_textures",   VAL_ONOFF,  2, LBL_ONOFF,  NULL, 0, PCK_INT },
+    /* Last page: where the data lives and the way out, the two rows a player
+     * goes looking for rather than adjusts. */
+#if defined(__ANDROID__)
+    /* Where the disc image, gamedata/, config.cfg, the memory cards and the log
+     * live. The default is an SD card where one is present, because the players
+     * who asked for this wanted a volume they could take out and read
+     * elsewhere. The row cannot move the data itself -- the disc alone is most
+     * of a gigabyte, and the location is fixed before the engine starts -- so it
+     * asks SetupActivity to put the chooser back up on the next launch. */
+    { "Game_Data",      NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_STORAGE },
+#endif
+    /* Asks before it acts; see PCOPT_TOTITLE_WINDOW_MS. */
+    { "Return_to_Title",   NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_TOTITLE },
     { "Prev_Page",         NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_PREV },
     { "Back",              NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_BACK },
 };
 #endif
+
+/* The row of this kind on the page now showing (or of the other kind, on the
+ * first and last pages, which have only one of the two). */
+static int PcOpt_RowOfKind(int kind, int otherwise)
+{
+    extern const s_PcOpt* PcOpt_PageByIndex(int page, int* count);
+    int            count, i, alt = 0;
+    const s_PcOpt* tbl = PcOpt_PageByIndex(g_PcOptionsMenu_Page, &count);
+
+    for (i = 0; i < count; i++)
+    {
+        if (tbl[i].kind == kind)
+            return i;
+        if (tbl[i].kind == otherwise)
+            alt = i;
+    }
+    return alt;
+}
 
 static void Options_PcOptionsMenu_EntryStringsDraw(void);
 static void Options_PcOptionsMenu_ConfigDraw(void);
@@ -2311,12 +2333,19 @@ void Options_PcOptionsMenu_Control(void)
             if (sel->kind == PCK_NEXT) {
                 Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
                 g_PcOptionsMenu_Page++; /* Graphics -> System -> Controls -> Camera -> HUD */
-                g_PcOptionsMenu_SelectedEntry = 0;
+                /* Stay on the row that was pressed, so paging on is pressing
+                 * again: the cursor used to jump to the top of each page and
+                 * slide back down. */
+                g_PcOptionsMenu_SelectedEntry     = PcOpt_RowOfKind(PCK_NEXT, PCK_PREV);
+                g_PcOptionsMenu_PrevSelectedEntry = g_PcOptionsMenu_SelectedEntry;
+                g_PcOptions_HighlightSnap         = 1;
                 g_Options_SelectionHighlightTimer = 0;
             } else if (sel->kind == PCK_PREV) {
                 Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
                 g_PcOptionsMenu_Page--; /* HUD -> Camera -> Controls -> System -> Graphics */
-                g_PcOptionsMenu_SelectedEntry = 0;
+                g_PcOptionsMenu_SelectedEntry     = PcOpt_RowOfKind(PCK_PREV, PCK_NEXT);
+                g_PcOptionsMenu_PrevSelectedEntry = g_PcOptionsMenu_SelectedEntry;
+                g_PcOptions_HighlightSnap         = 1;
                 g_Options_SelectionHighlightTimer = 0;
 #if defined(SH_IOS)
             } else if (sel->kind == PCK_RESET) {
