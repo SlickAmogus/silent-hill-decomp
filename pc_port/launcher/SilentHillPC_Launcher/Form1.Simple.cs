@@ -65,9 +65,6 @@ public partial class Form1
     private static readonly Rectangle SimpleModeSimple   = new Rectangle(118, 690, 110, 26);
     private static readonly Rectangle SimpleModeAdvanced = new Rectangle(236, 690, 150, 26);
 
-    private static string SimpleConfigPath =>
-        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config_simple.cfg");
-
     /// <summary>Update settings for the view on screen: simple mode follows the
     /// realtime builds of the default repo without changing what Build Settings
     /// has saved for the advanced view.</summary>
