@@ -114,7 +114,12 @@ public partial class Form1
         _simple = new SimpleScene { Location = new Point(0, 0), Size = SimpleSize, Visible = false };
         _simple.PaintContent = SimplePaint;
         _simple.MouseUp   += SimpleMouseUp;
-        _simple.MouseMove += (s, e) => _simple.Cursor = SimpleHit(e.Location) != 0 ? Cursors.Hand : Cursors.Default;
+        _simple.MouseMove += (s, e) =>
+        {
+            _simple.Cursor = SimpleHit(e.Location) != 0 ? Cursors.Hand : Cursors.Default;
+            SimpleTipFor(e.Location);
+        };
+        _simple.MouseLeave += (s, e) => SimpleTipFor(new Point(-1, -1));
 
         _sMinimap = new ComboBox
         {
@@ -167,6 +172,21 @@ public partial class Form1
             _sMods.Text     = Loc.T("Mod Manager");
         }
         finally { _simpleLoading = was; }
+    }
+
+    // A row's description is cut with "..." when it does not fit its two lines
+    // (longer in some languages): hovering the row shows all of it.
+    private readonly ToolTip _sTip = new ToolTip { AutoPopDelay = 20000, InitialDelay = 350, ReshowDelay = 150 };
+    private int _sTipRow = -1;
+
+    private void SimpleTipFor(Point p)
+    {
+        int row = -1;
+        for (int i = 0; i <= SimpleCustom; i++)
+            if (SimplePresetRect(i).Contains(p)) { row = i; break; }
+        if (row == _sTipRow) return;
+        _sTipRow = row;
+        _sTip.SetToolTip(_simple, row < 0 ? "" : Loc.T(SimplePresetNames[row]) + "\n" + Loc.T(SimplePresetAbout[row]));
     }
 
     // 1..5 a preset row, 10 dithering, 11 logging, 12 windowed, 20 / 21 the mode pair.
