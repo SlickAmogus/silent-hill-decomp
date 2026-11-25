@@ -1984,6 +1984,14 @@ void DbgOverlay_Update(void)
             extern void Pc_QuickOptions_Toggle(void);
             Pc_QuickOptions_Toggle();
         }
+        /* Once the player has control for the first time after the presets
+         * arrived (set only where there is no launcher to ask it). */
+        if (g_PcSimpleOfferPending && !g_PcConsoleInputActive &&
+            g_GameWork.gameState == GameState_InGame && g_SysWork.sysState == SysState_Gameplay &&
+            !(g_SysWork.sysFlags & SysFlag_DemoActive)) {
+            extern void Pc_QuickOptions_OfferSimple(void);
+            Pc_QuickOptions_OfferSimple();
+        }
         s_prevQuick = curQuick;
     }
 

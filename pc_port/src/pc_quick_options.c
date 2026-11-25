@@ -467,6 +467,7 @@ static const char* const s_pageNames[QO_PAGES] = {
 /* ------------------------------------------------------------------ */
 
 enum { QO_CLOSED = 0, QO_OPENING, QO_SHOWN, QO_CLOSING };
+static int    s_simpleOffer; /* the dialog that is up is the presets offer */
 static int    s_phase;
 static Uint32 s_phaseStart;
 #define QO_OPEN_MS  160u
@@ -1529,6 +1530,25 @@ void Pc_QuickOptions_Close(void)
     s_phaseStart = SDL_GetTicks();
 }
 
+static void qo_set_page(int page);
+
+/* The one-time offer of the quality presets, for builds with no launcher: the
+ * panel opens on its Graphics page with the question over it. */
+void Pc_QuickOptions_OfferSimple(void)
+{
+    if (Pc_BindPanel_IsOpen() || Pc_CharaSelect_IsOpen() || Pc_ConfirmDialog_IsOpen())
+        return;
+    if (s_phase == QO_CLOSED || s_phase == QO_CLOSING)
+        qo_open();
+    if (s_phase == QO_CLOSED || s_phase == QO_CLOSING)
+        return;
+    PcConfig_SimpleOfferShown();
+    qo_set_page(QO_PG_GFX1);
+    s_simpleOffer = 1;
+    Pc_ConfirmDialog_Open("SIMPLE PRESETS",
+                          "Simple presets have been added to options, would you like to set these now?");
+}
+
 void Pc_QuickOptions_Toggle(void)
 {
     /* The keybind panel owns the keyboard while it is up -- F10 may be the
@@ -1783,6 +1803,28 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
     {
         extern void Pc_Options_ResetToDefaults(void);
         int res = Pc_ConfirmDialog_Update(left, right, confirm, close);
+        if (s_simpleOffer)
+        {
+            /* Yes leaves the player on this page with the presets showing; No
+             * puts them back in the game. */
+            if (res == PC_CONFIRM_YES)
+            {
+                qo_beep(Sfx_MenuConfirm);
+                g_PcConfig.simpleMode = 1;
+                PcConfig_SaveKeyValue("simple_mode", "1");
+                s_viewRowsDirty = 1;
+                qo_set_page(QO_PG_GFX1);
+                s_sel = 1; /* the Quality row */
+            }
+            else if (res == PC_CONFIRM_NO)
+            {
+                qo_beep(Sfx_MenuCancel);
+                Pc_QuickOptions_Close();
+            }
+            if (res != PC_CONFIRM_NONE)
+                s_simpleOffer = 0;
+            return;
+        }
         if (res == PC_CONFIRM_YES)
         {
             qo_beep(Sfx_MenuConfirm);

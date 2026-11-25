@@ -386,6 +386,24 @@ static const struct { const char* key; size_t off; } s_GlobalBinds[] = {
     { "key_exit_game",     offsetof(s_PcConfig, keyExitGame)     },
 };
 
+/* No launcher on these: the game itself starts new players on a preset and
+ * tells existing ones the presets exist. */
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__) || defined(SH_IOS)
+#define PC_SIMPLE_IN_GAME_ONLY 1
+#else
+#define PC_SIMPLE_IN_GAME_ONLY 0
+#endif
+/* A phone's screen is its resolution: a preset leaves the render size alone. */
+#if defined(__ANDROID__) || defined(SH_IOS)
+#define PC_SIMPLE_KEEPS_SIZE 1
+#else
+#define PC_SIMPLE_KEEPS_SIZE 0
+#endif
+
+static int s_sawSimpleMode;  /* the config names simple_mode */
+static int s_simpleOffered;  /* simple_offered: the presets offer has been shown */
+static void PcConfig_SimpleNewPlayer(void);
+
 /* Remembered at load time so PcConfig_SaveMapName writes the same file. */
 static char s_configPath[512] = "config.cfg";
 
@@ -508,6 +526,10 @@ void PcConfig_Load(const char* path)
     FILE* f = fopen(path, "r");
     if (!f)
     {
+        /* The very first start: nothing to save into yet (the saves find no
+         * file and do nothing), so the next start applies it again for good. */
+        if (PC_SIMPLE_IN_GAME_ONLY)
+            PcConfig_SimpleNewPlayer();
         fprintf(stderr, "[CONFIG] %s not found, using defaults (%dx%d, fullscreen=%d, map=%s)\n",
                 path, g_PcConfig.windowWidth, g_PcConfig.windowHeight,
                 g_PcConfig.fullscreen, g_PcConfig.mapName);
@@ -1441,6 +1463,11 @@ else if (strcmp(key, "enable_plugins") == 0)
         else if (strcmp(key, "simple_mode") == 0)
         {
             g_PcConfig.simpleMode = (atoi(value) != 0);
+            s_sawSimpleMode       = 1;
+        }
+        else if (strcmp(key, "simple_offered") == 0)
+        {
+            s_simpleOffered = (atoi(value) != 0);
         }
         else if (strcmp(key, "unlimited_enemies") == 0)
         {
@@ -1730,10 +1757,21 @@ else if (strcmp(key, "enable_plugins") == 0)
             }
         }
 
+        /* v8 (builds with no launcher): a config that has never been through
+         * this block is a new player's; they start on a preset. */
+        if (PC_SIMPLE_IN_GAME_ONLY && g_PcConfig.configVersion == 0)
+            PcConfig_SimpleNewPlayer();
+
         g_PcConfig.configVersion = PC_CONFIG_VERSION;
         snprintf(vbuf, sizeof(vbuf), "%d", g_PcConfig.configVersion);
         PcConfig_SaveKeyValue("config_version", vbuf);
     }
+
+    /* Asked on every start until it has been shown once, so quitting before
+     * reaching the game does not lose it. A config that names the mode has
+     * already been set by its player. */
+    if (PC_SIMPLE_IN_GAME_ONLY && !s_sawSimpleMode && !s_simpleOffered)
+        g_PcSimpleOfferPending = 1;
 
     fprintf(stderr, "[CONFIG] Resolution: %dx%d, Fullscreen: %d, DisableCulling: %d, Map: %s\n",
             g_PcConfig.windowWidth, g_PcConfig.windowHeight,
@@ -1742,6 +1780,27 @@ else if (strcmp(key, "enable_plugins") == 0)
 
 /* ---- quality presets (simple mode) ----
  * The launcher has the same table (Form1.Simple.cs): keep the two alike. */
+
+int g_PcSimpleOfferPending = 0;
+
+void PcConfig_SimpleOfferShown(void)
+{
+    g_PcSimpleOfferPending = 0;
+    s_simpleOffered        = 1;
+    PcConfig_SaveKeyValue("simple_offered", "1");
+}
+
+/* A player with no settings of their own yet starts in simple mode on
+ * Enhanced: Normal. */
+static void PcConfig_SimpleNewPlayer(void)
+{
+    g_PcConfig.simpleMode = 1;
+    s_sawSimpleMode       = 1;
+    s_simpleOffered       = 1;
+    PcConfig_SaveKeyValue("simple_mode", "1");
+    PcConfig_SaveKeyValue("simple_offered", "1");
+    PcConfig_SimplePresetApply(PC_SIMPLE_NORMAL);
+}
 typedef struct { int native, vsync, fps, filter, msaa, pgxp, flash, shadow, decals, town; float fog; } SimplePreset;
 
 static void PcConfig_SimplePresetValues(int p, SimplePreset* v)
@@ -1778,9 +1837,10 @@ int PcConfig_SimplePresetDetect(void)
     int p;
 
     /* What every preset shares: the whole map loaded and nothing culled by
-     * view angle. The post effect, the tone map and the render scale are the
+     * view angle (not asked of a phone or a browser, where both cost too
+     * much). The post effect, the tone map and the render scale are the
      * player's to set under any preset. */
-    if (!g_PcConfig.disableCulling || !g_PcConfig.preloadChunks)
+    if (!PC_SIMPLE_IN_GAME_ONLY && (!g_PcConfig.disableCulling || !g_PcConfig.preloadChunks))
     {
         return PC_SIMPLE_CUSTOM;
     }
@@ -1821,7 +1881,8 @@ void PcConfig_SimplePresetApply(int p)
         return;
     PcConfig_SimplePresetValues(p, &v);
 
-    g_PcConfig.nativeResolution   = v.native;
+    if (!PC_SIMPLE_KEEPS_SIZE)
+        g_PcConfig.nativeResolution = v.native;
     g_PcConfig.vsync              = v.vsync;
     g_PcConfig.fpsCap             = v.fps;
     g_PcConfig.textureFilter      = v.filter;
@@ -1832,8 +1893,11 @@ void PcConfig_SimplePresetApply(int p)
     g_PcConfig.flashlightShadows  = (v.flash == 1 || v.flash == 3);
     g_PcConfig.shadowMapSize      = v.shadow;
     g_PcConfig.bulletDecals       = v.decals;
-    g_PcConfig.disableCulling     = 1;
-    g_PcConfig.preloadChunks      = 1;
+    if (!PC_SIMPLE_IN_GAME_ONLY)
+    {
+        g_PcConfig.disableCulling = 1;
+        g_PcConfig.preloadChunks  = 1;
+    }
     g_PcConfig.fogStrength        = v.fog;
     g_PcConfig.wholeMapExteriors  = v.town ? 1 : d->wholeMapExteriors;
     if (v.town)
@@ -1846,7 +1910,8 @@ void PcConfig_SimplePresetApply(int p)
 
 #define PRESET_KEY(k, value) \
     do { snprintf(buf[n], sizeof(buf[n]), "%d", (int)(value)); keys[n] = (k); vals[n] = buf[n]; n++; } while (0)
-    PRESET_KEY("native_resolution",    g_PcConfig.nativeResolution);
+    if (!PC_SIMPLE_KEEPS_SIZE)
+        PRESET_KEY("native_resolution", g_PcConfig.nativeResolution);
     PRESET_KEY("vsync",                g_PcConfig.vsync);
     PRESET_KEY("fps_cap",              g_PcConfig.fpsCap);
     PRESET_KEY("texture_filter",       g_PcConfig.textureFilter);
@@ -1857,8 +1922,8 @@ void PcConfig_SimplePresetApply(int p)
     PRESET_KEY("flashlight_shadows",   g_PcConfig.flashlightShadows);
     PRESET_KEY("shadow_resolution",    g_PcConfig.shadowMapSize);
     PRESET_KEY("bullet_decals",        g_PcConfig.bulletDecals);
-    PRESET_KEY("disable_culling",      1);
-    PRESET_KEY("preload_chunks",       1);
+    PRESET_KEY("disable_culling",      g_PcConfig.disableCulling);
+    PRESET_KEY("preload_chunks",       g_PcConfig.preloadChunks);
     PRESET_KEY("whole_map_exteriors",  g_PcConfig.wholeMapExteriors);
     if (v.town)
         PRESET_KEY("world_visibility", 1);

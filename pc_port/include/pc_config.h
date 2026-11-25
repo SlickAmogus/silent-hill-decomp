@@ -16,7 +16,7 @@
  *   6: pad_reload / pad_quick_turn default NONE -> rightshoulder / leftshoulder,
  *      filled only where the slot was unbound. (4 and 5 live on the mobile
  *      branches; numbering is shared so a merge never reuses a step.) */
-#define PC_CONFIG_VERSION 7
+#define PC_CONFIG_VERSION 8
 
 /* Minimap size range, as a percentage of the built-in MM_SIZE. The top end is a
  * little larger than the stock panel; the bottom end is a bit over half of it. */
@@ -676,6 +676,11 @@ int  PcConfig_SimplePresetDetect(void);
 /* Set the graphics settings to a preset and save them. Window mode and size
  * are not part of a preset. */
 void PcConfig_SimplePresetApply(int preset);
+/* Builds with no launcher (phones, the browser): 1 while a player whose config
+ * is from before the presets has yet to be told about them, once ever. */
+extern int g_PcSimpleOfferPending;
+/* The offer is on screen: never ask again. */
+void PcConfig_SimpleOfferShown(void);
 
 /* Set the FMV/voice (XA) master volume [0,1]: clamps, updates g_PcConfig +
  * the live XA source gain, and persists `xa_volume`. Used by the options menu
