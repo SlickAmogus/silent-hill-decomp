@@ -1919,12 +1919,15 @@ static void PcConfig_SimpleNewPlayer(void)
     PcConfig_SaveKeyValue("simple_offered", "1");
     PcConfig_SimplePresetApply(PC_SIMPLE_NORMAL);
 }
-typedef struct { int native, vsync, fps, filter, msaa, pgxp, flash, shadow, decals, town; float fog; } SimplePreset;
+typedef struct { int native, vsync, fps, filter, msaa, pgxp, flash, shadow, decals, town, preload; float fog; } SimplePreset;
 
 static void PcConfig_SimplePresetValues(int p, SimplePreset* v)
 {
     const s_PcConfig* d = &s_PcConfigDefaults;
 
+    /* The whole map loaded up front: every preset where there is the memory
+     * for it; on a phone or in a browser only from Normal up. */
+    v->preload = PC_SIMPLE_IN_GAME_ONLY ? (p >= PC_SIMPLE_NORMAL) : 1;
     /* Ultra alone thins the fog and draws the whole town through it. */
     v->town = (p == PC_SIMPLE_ULTRA);
     v->fog  = v->town ? 0.95f : d->fogStrength;
@@ -1954,14 +1957,8 @@ int PcConfig_SimplePresetDetect(void)
 {
     int p;
 
-    /* What every preset shares: the whole map loaded and nothing culled by
-     * view angle (not asked of a phone or a browser, where both cost too
-     * much). The post effect, the tone map and the render scale are the
+    /* The post effect, the tone map, the render scale and culling are the
      * player's to set under any preset. */
-    if (!PC_SIMPLE_IN_GAME_ONLY && (!g_PcConfig.disableCulling || !g_PcConfig.preloadChunks))
-    {
-        return PC_SIMPLE_CUSTOM;
-    }
     for (p = 0; p < PC_SIMPLE_COUNT; p++)
     {
         SimplePreset v;
@@ -1972,7 +1969,7 @@ int PcConfig_SimplePresetDetect(void)
             g_PcConfig.fpsCap != v.fps || g_PcConfig.textureFilter != v.filter ||
             g_PcConfig.msaaSamples != v.msaa || g_PcConfig.usePgxp != v.pgxp ||
             g_PcConfig.flashlightMode != v.flash || g_PcConfig.shadowMapSize != v.shadow ||
-            g_PcConfig.bulletDecals != v.decals ||
+            g_PcConfig.bulletDecals != v.decals || (g_PcConfig.preloadChunks != 0) != v.preload ||
             g_PcConfig.fogStrength > v.fog + 0.005f || g_PcConfig.fogStrength < v.fog - 0.005f ||
             (v.town && (!g_PcConfig.worldVisibility || !g_PcConfig.wholeMapExteriors)))
         {
@@ -2011,11 +2008,9 @@ void PcConfig_SimplePresetApply(int p)
     g_PcConfig.flashlightShadows  = (v.flash == 1 || v.flash == 3);
     g_PcConfig.shadowMapSize      = v.shadow;
     g_PcConfig.bulletDecals       = v.decals;
-    if (!PC_SIMPLE_IN_GAME_ONLY)
-    {
-        g_PcConfig.disableCulling = 1;
-        g_PcConfig.preloadChunks  = 1;
-    }
+    /* A preset never turns culling on; it leaves nothing culled by view angle. */
+    g_PcConfig.disableCulling     = 1;
+    g_PcConfig.preloadChunks      = v.preload;
     g_PcConfig.fogStrength        = v.fog;
     g_PcConfig.wholeMapExteriors  = v.town ? 1 : d->wholeMapExteriors;
     if (v.town)
