@@ -77,9 +77,15 @@ static s_TouchButton s_Buttons[TB_COUNT] = {
      * this aspect against 240 tall. */
     [TB_START] = { 0.920f, 0.158f, 0.055f, 0 },
     [TB_RUN] = { 0.665f, 0.760f, 0.065f, 0 },
-    /* TB_BACK is only ever drawn in the corner escape slot, so its own
-     * position is never used -- it exists to carry a glyph and a binding. */
+    /* The escape button of the menu screens. On Android it has a place of
+     * its own, further into the corner than Start: at Start's spot it sat
+     * on the Options screen's first row, and a press took both (reported).
+     * Elsewhere it is drawn in the corner slot, Start's position. */
+#if defined(__ANDROID__)
+    [TB_BACK] = { 0.955f, 0.085f, 0.050f, 0 },
+#else
     [TB_BACK] = { 0.920f, 0.158f, 0.055f, 0 },
+#endif
     /* Mirror of Aim on the other thumb, and only while Aim is held: firing
      * meant tapping the steering half of the screen, which fights the stick
      * the same thumb is holding. Hidden the rest of the time so it never eats
@@ -1048,6 +1054,10 @@ static int Tc_ExtraButton(int b, int mode)
  * up in different places. */
 static int Tc_SoloOwnPos(int b)
 {
+#if defined(__ANDROID__)
+    if (b == TB_BACK)
+        return 1;
+#endif
     return b == TB_NO;
 }
 
