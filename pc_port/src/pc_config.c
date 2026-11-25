@@ -1775,14 +1775,12 @@ static void PcConfig_SimplePresetValues(int p, SimplePreset* v)
 
 int PcConfig_SimplePresetDetect(void)
 {
-    const s_PcConfig* d = &s_PcConfigDefaults;
-    float             rs = g_PcConfig.renderScale - d->renderScale;
-    int               p;
+    int p;
 
-    /* What every preset shares: the whole map loaded, nothing culled by view
-     * angle, and no render scaling. The post effect and the tone map are the
+    /* What every preset shares: the whole map loaded and nothing culled by
+     * view angle. The post effect, the tone map and the render scale are the
      * player's to set under any preset. */
-    if (!g_PcConfig.disableCulling || !g_PcConfig.preloadChunks || rs > 0.001f || rs < -0.001f)
+    if (!g_PcConfig.disableCulling || !g_PcConfig.preloadChunks)
     {
         return PC_SIMPLE_CUSTOM;
     }
@@ -1836,7 +1834,6 @@ void PcConfig_SimplePresetApply(int p)
     g_PcConfig.bulletDecals       = v.decals;
     g_PcConfig.disableCulling     = 1;
     g_PcConfig.preloadChunks      = 1;
-    g_PcConfig.renderScale        = d->renderScale;
     g_PcConfig.fogStrength        = v.fog;
     g_PcConfig.wholeMapExteriors  = v.town ? 1 : d->wholeMapExteriors;
     if (v.town)
@@ -1871,10 +1868,6 @@ void PcConfig_SimplePresetApply(int p)
         PRESET_KEY("menu_pillarbox",  1);
     }
 #undef PRESET_KEY
-    snprintf(buf[n], sizeof(buf[n]), "%.2f", g_PcConfig.renderScale);
-    keys[n] = "render_scale";
-    vals[n] = buf[n];
-    n++;
     snprintf(buf[n], sizeof(buf[n]), "%.2f", g_PcConfig.fogStrength);
     keys[n] = "fog_strength";
     vals[n] = buf[n];

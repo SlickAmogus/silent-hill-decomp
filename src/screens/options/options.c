@@ -346,6 +346,7 @@ static const s_PcOpt PCOPT_H[] = {
 static const s_PcOpt PCOPT_SG[] = {
     { "Quality",        NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          1, PCK_PRESET  },
     { "Resolution",     NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_RES    },
+    { "Render_Scale",   NULL, "render_scale", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.renderScale, &g_cfg_renderScale, 0.25f, 1.0f, 0.05f },
     { "Dithering",      NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          1, PCK_SDITHER },
     { "Post_Process",   &g_PcConfig.postProcess,        "post_process",         VAL_POST,  9, LBL_POST,  &g_cfg_postProcess,            1, PCK_INT    },
     { "Tone_Mapping",   &g_PcConfig.tonemap,            "tonemap",              VAL_TONE,  4, LBL_TONE,  &g_cfg_tonemap,                1, PCK_INT    },
@@ -793,7 +794,6 @@ static void PcOpt_PresetStep(int dir)
     PcOpt_FilterApply(g_PcConfig.textureFilter);
     g_PsxUsePgxp         = g_PcConfig.usePgxp;
     g_PsyX_ShadowMapSize = g_PcConfig.shadowMapSize;
-    g_cfg_renderScale    = g_PcConfig.renderScale;
     g_PsyX_FogStrength   = g_PcConfig.fogStrength;
     Pc_FlashlightModeApply(g_PcConfig.flashlightMode, 0);
     PsyX_ApplyVsync(g_PcConfig.vsync);

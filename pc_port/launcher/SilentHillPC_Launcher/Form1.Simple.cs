@@ -324,7 +324,7 @@ public partial class Form1
     {
         var v = new Dictionary<string, string>
         {
-            { "disable_culling", "1" }, { "preload_chunks", "1" }, { "render_scale", "1.00" },
+            { "disable_culling", "1" }, { "preload_chunks", "1" },
             { "fog_strength", "1.10" }, { "whole_map_exteriors", "2" },
         };
         if (id == 0)

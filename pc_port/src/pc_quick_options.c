@@ -146,6 +146,7 @@ static const QoRowDef s_pageGfxSimple[] = {
     { ROW_EXTRA, NULL, QO_X_CFGMODE,        "Config Mode" },
     { ROW_EXTRA, NULL, QO_X_PRESET,         "Quality" },
     { ROW_EXTRA, NULL, QO_X_RES,            "Resolution" },
+    { ROW_OPT,   "render_scale",         0, NULL },
     { ROW_EXTRA, NULL, QO_X_SDITHER,        "Dithering" },
     { ROW_OPT,   "post_process",         0, NULL },
     { ROW_OPT,   "tonemap",              0, NULL },
