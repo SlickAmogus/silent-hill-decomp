@@ -196,6 +196,8 @@ static const s_QuickCjk s_MenuCjkTr[] = {
     { "Beam_Size", "光の大きさ", "光束大小" },
     { "Bilinear", "バイリニア", "双线性" },
     { "Borderless", "ボーダーレス", "无边框" },
+    { "Aspect_Ratio", "アスペクト比", "宽高比" },
+    { "Match_Screen", "画面に合わせる", "适应屏幕" },
     { "Both", "両方", "两者" },
     { "Bottom_L", "左下", "左下" },
     { "Bottom_R", "右下", "右下" },
