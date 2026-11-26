@@ -1742,7 +1742,7 @@ void Pc_BindPanel_Draw(void)
 #if defined(BP_MOBILE)
                 hint2 = Pc_LangQuick("Tap the screen, or wait a few seconds, to cancel");
 #else
-                hint2 = Pc_LangQuick("Esc, or wait a few seconds, to cancel");
+                hint2 = Pc_LangQuick("Del, or wait a few seconds, to cancel");
 #endif
             }
             else
@@ -1751,7 +1751,7 @@ void Pc_BindPanel_Draw(void)
                          Pc_LangQuickFill((s_rows[s_row].flags & BPF_MOUSE) ? "Press a key or mouse button for {action}"
                                                                             : "Press a key for {action}",
                                           "{action}", Pc_LangQuick(s_rows[s_row].label)));
-                hint2 = Pc_LangQuick("Esc to cancel");
+                hint2 = Pc_LangQuick("Del to cancel");
             }
             hint = line;
         }
