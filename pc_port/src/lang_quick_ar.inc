@@ -192,6 +192,8 @@ static const s_QuickAr s_MenuArTr[] = {
     { "Beam_Size", "حجم الشعاع" },
     { "Bilinear", "ثنائي الخطية" },
     { "Borderless", "بلا حدود" },
+    { "Aspect_Ratio", "نسبة العرض" },
+    { "Match_Screen", "ملء الشاشة" },
     { "Both", "كلاهما" },
     { "Bottom_L", "أسفل اليسار" },
     { "Bottom_R", "أسفل اليمين" },

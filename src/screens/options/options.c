@@ -113,6 +113,7 @@ extern int g_cfg_postProcess;
 extern int g_cfg_dreamFeedback;
 extern float g_PsxFeedbackDampBlend;
 extern int g_cfg_tonemap;
+extern int g_PcWidescreenMode;
 extern int g_PsyX_UsePerPixelFlashlight;
 extern int g_PsyX_UseFlashlightShadows;
 
@@ -259,6 +260,8 @@ static const int VAL_ONOFF[] = { 0, 1 };
 static const int VAL_AA[]    = { 0, 2, 4, 8 };
 static const int VAL_POST[]  = { 0, 1, 2, 3, 4, 5, 6, 7, 8 };
 static const int VAL_TONE[]  = { 0, 1, 2, 3 };
+/* widescreen_mode: 1 fills the screen, 0 is 4:3 with bars at the sides. */
+static const int VAL_ASPECT[] = { 1, 0 };
 static const int VAL_CON[]   = { 0, 1, 2, 3 };
 static const int VAL_FPS[]   = { 0, 30, 60, 120, 240 };
 static const int VAL_FLMODE[] = { 0, 1, 2, 3 };
@@ -282,6 +285,7 @@ static const char* const LBL_ONOFF[] = { "Off", "On" };
 static const char* const LBL_AA[]    = { "Off", "2x", "4x", "8x" };
 static const char* const LBL_POST[]  = { "Off", "CRT", "Scanlines", "Vignette", "Color_Grade", "Film_Grain", "Sharpen", "PSX_Retro", "Cinematic" };
 static const char* const LBL_TONE[]  = { "Off", "Reinhard", "ACES", "Filmic" };
+static const char* const LBL_ASPECT[] = { "Match_Screen", "4:3" };
 static const char* const LBL_CON[]   = { "Off", "External", "In_Game", "Both" };
 static const char* const LBL_FPS[]   = { "Off", "30", "60", "120", "240" };
 /* Short enough to fit the value column at every language/width ("Modern_Shadows" clipped). */
@@ -400,6 +404,12 @@ static const s_PcOpt PCOPT_S[] = {
 /* Page 3 (Controls): the 2D screen-relative control toggles + look sensitivities
  * and the invert toggles. (The New-Game start Map row now lives on page 4.) */
 static const s_PcOpt PCOPT_C[] = {
+#if defined(__EMSCRIPTEN__)
+    /* Here purely for room: the first page is at its 11 rows. First, so simple
+     * mode can leave it off this page (PCOPT_C_SKIP): there it is on the
+     * first page, with the presets. */
+    { "Aspect_Ratio",      &g_PcConfig.widescreenMode,    "widescreen_mode",     VAL_ASPECT, 2, LBL_ASPECT, &g_PcWidescreenMode, 1, PCK_INT },
+#endif
     { "2D_Controls",       &g_PcConfig.control2d,        "control_2d",             VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     /* control_2d_snap is config-only now — the default turn-into-the-direction 2D
      * control is what players expect, so the in-game toggle was dropped. The key
@@ -615,6 +625,9 @@ static void PcMouse_InjectDir(int dir)
  * the label reads Custom when they match none. */
 static const s_PcOpt PCOPT_SG[] = {
     { "Quality",        NULL, NULL, NULL, 0, NULL, NULL, 1, PCK_PRESET  },
+#if defined(__EMSCRIPTEN__)
+    { "Aspect_Ratio",      &g_PcConfig.widescreenMode,    "widescreen_mode",     VAL_ASPECT, 2, LBL_ASPECT, &g_PcWidescreenMode, 1, PCK_INT },
+#endif
     { "Dithering",      NULL, NULL, NULL, 0, NULL, NULL, 1, PCK_SDITHER },
     { "Post_Process",   &g_PcConfig.postProcess,        "post_process",         VAL_POST,  9, LBL_POST,  &g_cfg_postProcess,            1, PCK_INT    },
     { "Tone_Mapping",   &g_PcConfig.tonemap,            "tonemap",              VAL_TONE,  4, LBL_TONE,  &g_cfg_tonemap,                1, PCK_INT    },
@@ -622,12 +635,19 @@ static const s_PcOpt PCOPT_SG[] = {
     { "Back",           NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_BACK   },
 };
 
+/* Aspect_Ratio leads PCOPT_C and is on simple mode's first page already. */
+#if defined(__EMSCRIPTEN__)
+#define PCOPT_C_SKIP (g_PcConfig.simpleMode ? 1 : 0)
+#else
+#define PCOPT_C_SKIP 0
+#endif
+
 const s_PcOpt* PcOpt_PageByIndex(int page, int* count)
 {
     if (page == 0 && g_PcConfig.simpleMode) { *count = (int)(sizeof(PCOPT_SG) / sizeof(PCOPT_SG[0])); return PCOPT_SG; }
     if (page == 0) { *count = (int)(sizeof(PCOPT_G) / sizeof(PCOPT_G[0])); return PCOPT_G; }
     if (page == 1) { *count = (int)(sizeof(PCOPT_S) / sizeof(PCOPT_S[0])); return PCOPT_S; }
-    if (page == 2) { *count = (int)(sizeof(PCOPT_C) / sizeof(PCOPT_C[0])); return PCOPT_C; }
+    if (page == 2) { *count = (int)(sizeof(PCOPT_C) / sizeof(PCOPT_C[0])) - PCOPT_C_SKIP; return PCOPT_C + PCOPT_C_SKIP; }
     if (page == 3) { *count = (int)(sizeof(PCOPT_T) / sizeof(PCOPT_T[0])); return PCOPT_T; }
 #if defined(SH_IOS) || defined(__ANDROID__)
     if (page == 5) { *count = (int)(sizeof(PCOPT_M) / sizeof(PCOPT_M[0])); return PCOPT_M; }
@@ -641,7 +661,7 @@ static const s_PcOpt* PcOpt_Page(int* count)
 {
     if (g_PcOptionsMenu_Page == 0) { *count = (int)(sizeof(PCOPT_G) / sizeof(PCOPT_G[0])); return PCOPT_G; }
     if (g_PcOptionsMenu_Page == 1) { *count = (int)(sizeof(PCOPT_S) / sizeof(PCOPT_S[0])); return PCOPT_S; }
-    if (g_PcOptionsMenu_Page == 2) { *count = (int)(sizeof(PCOPT_C) / sizeof(PCOPT_C[0])); return PCOPT_C; }
+    if (g_PcOptionsMenu_Page == 2) { *count = (int)(sizeof(PCOPT_C) / sizeof(PCOPT_C[0])) - PCOPT_C_SKIP; return PCOPT_C + PCOPT_C_SKIP; }
     if (g_PcOptionsMenu_Page == 3) { *count = (int)(sizeof(PCOPT_T) / sizeof(PCOPT_T[0])); return PCOPT_T; }
 #if defined(SH_IOS) || defined(__ANDROID__)
     if (g_PcOptionsMenu_Page == 5) { *count = (int)(sizeof(PCOPT_M) / sizeof(PCOPT_M[0])); return PCOPT_M; }
@@ -1209,6 +1229,7 @@ static void PcOpt_PresetStep(int dir)
     g_PsyX_FogStrength   = g_PcConfig.fogStrength;
     Pc_FlashlightModeApply(g_PcConfig.flashlightMode, 0);
     PsyX_ApplyVsync(g_PcConfig.vsync);
+    g_PcWidescreenMode = g_PcConfig.widescreenMode;
 }
 
 /* Simple mode's Dithering is on or off, on the PSX pixel grid. */

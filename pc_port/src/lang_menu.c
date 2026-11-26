@@ -238,6 +238,8 @@ static const s_MenuTranslation s_MenuTr[] = {
     { "Windowed",          { "Fenster",            "Fen\xEAtre",          "Ventana",            "Finestra"       } },
     { "Fullscreen",        { "Vollbild",           "Plein_\xE9" "cran",   "Completa",           "Intero"         } },
     { "Borderless",        { "Randlos",            "Sans_bord",           "Sin_bordes",         "Senza_bordi"    } },
+    { "Aspect_Ratio",      { "Seitenverh\xE4ltnis", "Format_image",        "Relaci\xF3n_aspecto",  "Proporzioni"    } },
+    { "Match_Screen",      { "Bildschirm",         "Plein_\xE9" "cran",   "Pantalla",           "Schermo"        } },
     { "Bilinear",          { NULL,                 "Bilin\xE9" "aire",    "Bilineal",           "Bilineare"      } },
     { "External",          { "Extern",             "Externe",             "Externa",            "Esterna"        } },
     { "In_Game",           { "Im_Spiel",           "En_jeu",              "En_juego",           "In_gioco"       } },
