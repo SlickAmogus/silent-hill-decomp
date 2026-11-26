@@ -90,8 +90,12 @@
 
 #if defined(__EMSCRIPTEN__)
 #define QM_RESTART_TEXT "Reload the page to use them."
+#define QM_RESTART_GONE "Reload the page to remove them."
+#define QM_RESTART_BOTH "Reload the page to apply the changes."
 #else
 #define QM_RESTART_TEXT "Restart the game to use them."
+#define QM_RESTART_GONE "Restart the game to remove them."
+#define QM_RESTART_BOTH "Restart the game to apply the changes."
 #endif
 
 /* ------------------------------------------------------------------ */
@@ -1032,10 +1036,14 @@ static void qm_finish_message(void)
     else
         snprintf(done, sizeof(done), "Installed %d mod%s.", s_installedNow, s_installedNow == 1 ? "" : "s");
 
+    /* What the restart is for: a mod taken out is still loaded until then. */
+    const char* restart = (s_installedNow && s_removedNow) ? QM_RESTART_BOTH
+                        : s_removedNow                     ? QM_RESTART_GONE
+                                                           : QM_RESTART_TEXT;
     if (s_failedNow == 0)
-        snprintf(s_message, sizeof(s_message), "%s %s", done, QM_RESTART_TEXT);
+        snprintf(s_message, sizeof(s_message), "%s %s", done, restart);
     else if (s_installedNow + s_removedNow > 0)
-        snprintf(s_message, sizeof(s_message), "%s %s Could not install: %s", done, QM_RESTART_TEXT, s_failNames);
+        snprintf(s_message, sizeof(s_message), "%s %s Could not install: %s", done, restart, s_failNames);
     else
         snprintf(s_message, sizeof(s_message), "Could not install: %s", s_failNames);
 }
