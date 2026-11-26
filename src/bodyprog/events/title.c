@@ -14,6 +14,7 @@
 #include "pc_native_menu_draw.h"
 #include "pc_pause_menu_core.h"
 #include "pc_qol_update.h"
+#include "pc_qol_mods.h"
 #include "pc_retroachievements.h"
 #endif
 
@@ -892,7 +893,8 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
     /* Hold the idle timer at zero while the achievements screen is up. Scrolling
      * a list is not idling, and at 1740 this loads STREAM.BIN and cuts to the
      * intro movie. */
-    if (g_MainMenuState == MenuState_Achievements || s_ExitConfirm.open || Pc_QolUpdate_IsOpen())
+    if (g_MainMenuState == MenuState_Achievements || s_ExitConfirm.open || Pc_QolUpdate_IsOpen() ||
+        Pc_QolMods_IsOpen())
     {
         g_SysWork.counters_1C[1] = 0;
     }

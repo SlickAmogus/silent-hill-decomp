@@ -2235,6 +2235,7 @@ void DbgOverlay_Render(void)
      * under the Yes/No box, which it opens for its reset. */
     { extern void Pc_BindPanel_Draw(void); Pc_BindPanel_Draw(); }
 
+    { extern void Pc_QolMods_Draw(void); Pc_QolMods_Draw(); }
     { extern void Pc_ConfirmDialog_Draw(void); Pc_ConfirmDialog_Draw(); }
 
     /* Character Select's turning model, composited into the native screen's

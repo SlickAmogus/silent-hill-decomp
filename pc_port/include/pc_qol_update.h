@@ -20,4 +20,13 @@ int Pc_QolUpdate_TitleFrame(int left, int right, int confirm, int cancel);
 /* 1 while one of those is on screen. */
 int Pc_QolUpdate_IsOpen(void);
 
+#include <stddef.h>
+
+/* The in-game Essential QoL Mods list (pc_qol_mods.c) on builds with the
+ * launcher's folders: install and remove exactly as its Mod Manager does. */
+int Pc_QolLib_IsInstalled(const char* id, const char* file);
+int Pc_QolLib_Install(const char* zipPath, const char* id, const char* file, const char* name,
+                      const char* author, const char* desc, const char* sha, char* err, size_t errSz);
+int Pc_QolLib_Remove(const char* id, const char* file);
+
 #endif /* PC_QOL_UPDATE_H */

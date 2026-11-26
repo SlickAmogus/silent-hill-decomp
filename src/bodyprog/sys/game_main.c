@@ -2410,6 +2410,33 @@ void MainLoop(void) // 0x80032EE0
                 g_Controller0->pulsedGuiBtnFlags = 0;
             }
         }
+        {
+            /* Essential QoL Mods (pc_qol_mods.c), opened from PC Options. While
+             * it is up it owns the pad, like the quick options above. */
+            extern int Pc_QolMods_Frame(int, int, int, int, int, int, int);
+            extern unsigned int Pc_MouseCursor_BoundPadBits(void);
+            const s_ControllerConfig* cc = &g_GameWorkPtr->config.controllerConfig;
+            const u32 pcQmClicked = g_Controller0->clickedBtnFlags & ~Pc_MouseCursor_BoundPadBits();
+            if (Pc_QolMods_Frame(
+                    g_GameWork.gameState == GameState_MainMenu && !(g_SysWork.sysFlags & SysFlag_DemoActive),
+                    (pcQmClicked & (ControllerFlag_LStickUp    | ControllerFlag_DpadUp))    != 0,
+                    (pcQmClicked & (ControllerFlag_LStickDown  | ControllerFlag_DpadDown))  != 0,
+                    (pcQmClicked & (ControllerFlag_LStickLeft  | ControllerFlag_DpadLeft))  != 0,
+                    (pcQmClicked & (ControllerFlag_LStickRight | ControllerFlag_DpadRight)) != 0,
+                    (pcQmClicked & (cc->enter | cc->action)) != 0,
+                    (pcQmClicked & cc->cancel) != 0)) {
+                /* The next pad update derives its press edges from heldBtnFlags,
+                 * so zeroing it alone made a held key a fresh press every frame.
+                 * Same stash as the quick menu. */
+                s_pcQoHeldStash      = g_Controller0->heldBtnFlags;
+                s_pcQoHeldStashValid = 1;
+                g_Controller0->heldBtnFlags      = 0;
+                g_Controller0->clickedBtnFlags   = 0;
+                g_Controller0->releasedBtnFlags  = 0;
+                g_Controller0->pulsedBtnFlags    = 0;
+                g_Controller0->pulsedGuiBtnFlags = 0;
+            }
+        }
         /* Free camera: Harry is frozen in place and W/A/S/D fly the camera
          * (the alt-cam scheme walks with the same keys), so none of his pad
          * input may reach the game. */

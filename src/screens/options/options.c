@@ -136,7 +136,7 @@ static s32 g_PcOptionsMenu_Page       = 0; /* index into PCOPT_PAGES */
  * which is the right behaviour for a pointer that is already there. */
 s32 g_PcOptions_HighlightSnap = 0;
 
-enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_DITHER, PCK_PRESET, PCK_SDITHER, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_CHARA };
+enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_DITHER, PCK_PRESET, PCK_SDITHER, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_CHARA, PCK_QOLMODS };
 
 /* PC-options row origin. The heading sits at y=20 and the rows used to start at 56,
  * leaving a full empty row beneath it while the pages ran off the BOTTOM of the
@@ -235,6 +235,10 @@ static const s_PcOpt PCOPT_G[] = {
 static const s_PcOpt PCOPT_N[] = {
     /* Opens the Character Select screen (pc_chara_select.c). */
     { "Character_Customization", NULL,                NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_CHARA  },
+    /* The Essential QoL Mods, to install or remove (pc_qol_mods.c): the
+     * launcher's Mod Manager list, for where the launcher is not (Linux,
+     * macOS) and for anyone already in the game. */
+    { "Set_Up_QoL_Mods", NULL,                        NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_QOLMODS },
     /* New-Game start map, from the Controls page. */
     { "Map",            NULL,                           "map",                  NULL,      0, NULL,      NULL,                          1, PCK_MAP    },
     { "Prev_Page",      NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_PREV   },
@@ -1766,6 +1770,11 @@ void Options_PcOptionsMenu_Control(void)
 #ifdef SH_PC_PORT
     if (PcOpt_ResetConfirm_Run())
         return; /* dialog owns input this frame */
+    {
+        extern int Pc_QolMods_IsOpen(void);
+        if (Pc_QolMods_IsOpen())
+            return; /* the QoL mods window owns input (fed from MainLoop) */
+    }
 #endif
 
     if ((LINE_CURSOR_TIMER_MAX - 1) < g_Options_SelectionHighlightTimer)
@@ -1943,6 +1952,10 @@ void Options_PcOptionsMenu_Control(void)
                 g_GameWork.gameStateSteps[1] = 0;
                 g_GameWork.gameStateSteps[2] = 0;
                 return;
+            } else if (sel->kind == PCK_QOLMODS) {
+                extern void Pc_QolMods_OpenList(void);
+                Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+                Pc_QolMods_OpenList();
             } else if (sel->kind == PCK_CHARA) {
                 Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
                 ScreenFade_Start(true, false, false);
