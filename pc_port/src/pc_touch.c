@@ -21,6 +21,8 @@
 #include <libgs.h>
 #include <SDL.h>
 #include <PsyX/PsyX_public.h>
+#include <PsyX/PsyX_render.h>
+#include <PsyX/PsyX_backend.h> /* the whole-screen controls pass */
 
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/sys/joy.h"
@@ -1320,6 +1322,45 @@ static int Tc_MoveHeld(const s_TouchFinger* self)
     return 0;
 }
 
+/* 4:3 on a wide screen: the picture is pillarboxed, but the gameplay controls
+ * keep the whole screen, bars included, so they sit where they do at full
+ * width instead of crowding the picture. Returns how many pictures wide the
+ * screen is (1 = not that case) and where the screen's left edge falls in
+ * picture fractions. Gameplay only: a menu's lone button stays on the picture
+ * it belongs to. */
+static float Tc_WideSpan(float* leftFrac)
+{
+    extern int g_PcWidescreenMode, g_PcNativeRender;
+    int   sw = 0, sh = 0;
+    float a = 0.0f, y = 0.0f;
+
+    *leftFrac = 0.0f;
+    if (g_PcWidescreenMode != 0 || g_PcNativeRender || Tc_Mode() != TC_MODE_GAMEPLAY)
+        return 1.0f;
+    PsyX_GetScreenSize(&sw, &sh);
+    if (sw <= 0 || sh <= 0)
+        return 1.0f;
+    /* The left edge alone: the bars are equal, and x = 0 means the same thing
+     * whether the caller's sizes are pixels or points. */
+    PsyX_MapWindowToViewport(0, sh / 2, &a, &y);
+    if (a > -0.01f)
+        return 1.0f;
+    *leftFrac = a;
+    return 1.0f - 2.0f * a;
+}
+
+static int Tc_MapFinger(int px, int py, float* fx, float* fy)
+{
+    float left;
+    float span = Tc_WideSpan(&left);
+    int   ok   = PsyX_MapWindowToViewport(px, py, fx, fy);
+
+    if (span <= 1.0f)
+        return ok;
+    *fx = (*fx - left) / span;
+    return (*fx >= 0.0f && *fx <= 1.0f && *fy >= 0.0f && *fy <= 1.0f) ? 1 : 0;
+}
+
 /* Whether this tracked contact is still the same touch on the picture. */
 static int Tc_StillDown(const s_TouchFinger* t, int winW, int winH)
 {
@@ -1335,7 +1376,7 @@ static int Tc_StillDown(const s_TouchFinger* t, int winW, int winH)
 
         if (f == NULL || f->id != t->id)
             continue;
-        if (!PsyX_MapWindowToViewport((int)(f->x * (float)winW), (int)(f->y * (float)winH), &fx, &fy))
+        if (!Tc_MapFinger((int)(f->x * (float)winW), (int)(f->y * (float)winH), &fx, &fy))
             return 0;
         tag = Tc_DownTag(t->id);
         if ((unsigned)SDL_AtomicGet(&s_DownTag[tag % TC_DOWN_IDS]) != tag)
@@ -1568,7 +1609,7 @@ void Pc_Touch_Update(void)
             int   px = (int)(f->x * (float)winW);
             int   py = (int)(f->y * (float)winH);
 
-            if (!PsyX_MapWindowToViewport(px, py, &fx, &fy))
+            if (!Tc_MapFinger(px, py, &fx, &fy))
                 continue; /* inside the black bars -- not on the picture at all */
 
             vx = fx;
@@ -2507,6 +2548,182 @@ static void Tc_QuickButton(s_TcBatch* b, int load, int cx, int cy, int r, int lu
     Tc_Text(b, load ? "L" : "S", cx, cy, px, lum);
 }
 
+/* ---- The whole-screen pass for 4:3 on a wide screen (Tc_WideSpan) ----
+ *
+ * Prims are drawn through the picture's viewport and cannot reach the bars,
+ * so in that one case the same quads are kept here and drawn over the whole
+ * target from the overlay hook, after the frame is composed. */
+static float  s_TcGlVerts[TC_MAX_QUADS * 6 * 3];
+static int    s_TcGlCount; /* vertices */
+static Uint32 s_TcGlMs;
+static GLuint s_TcGlProg, s_TcGlVao, s_TcGlVbo;
+static int    s_TcGlState; /* 0 untried, 1 ready, -1 failed */
+
+static void Tc_GlStash(const s_TcBatch* b, float l, float r, float t, float bm)
+{
+    static const int order[6] = { 0, 1, 2, 1, 3, 2 };
+    int              i, k, n = 0;
+
+    s_TcGlCount = 0;
+    if (r - l <= 0.0f || bm - t <= 0.0f)
+        return;
+    for (i = 0; i < b->used; i++)
+    {
+        const POLY_G4* q     = &b->p[i];
+        const float    xs[4] = { (float)q->x0, (float)q->x1, (float)q->x2, (float)q->x3 };
+        const float    ys[4] = { (float)q->y0, (float)q->y1, (float)q->y2, (float)q->y3 };
+
+        for (k = 0; k < 6; k++)
+        {
+            s_TcGlVerts[n++] = (xs[order[k]] - l) / (r - l) * 2.0f - 1.0f;
+            s_TcGlVerts[n++] = 1.0f - (ys[order[k]] - t) / (bm - t) * 2.0f;
+            s_TcGlVerts[n++] = (float)q->r0 / 255.0f;
+        }
+    }
+    s_TcGlCount = n / 3;
+    s_TcGlMs    = SDL_GetTicks();
+}
+
+static GLuint Tc_GlShader(GLenum type, const char* src)
+{
+    GLuint      sh       = glCreateShader(type);
+    GLint       ok       = 0;
+    const char* parts[2] = { PsyX_Shader_Preamble(type == GL_FRAGMENT_SHADER, PSYX_GLSL_LEGACY), src };
+
+    glShaderSource(sh, 2, parts, NULL);
+    glCompileShader(sh);
+    glGetShaderiv(sh, GL_COMPILE_STATUS, &ok);
+    if (!ok)
+    {
+        char log[512];
+        glGetShaderInfoLog(sh, (GLsizei)sizeof(log), NULL, log);
+        SH_DBG("[TOUCH] controls shader failed: %s", log);
+        glDeleteShader(sh);
+        return 0;
+    }
+    return sh;
+}
+
+/* Leaves its program, VAO and buffer bound; Pc_Touch_GlDraw restores them. */
+static void Tc_GlInit(void)
+{
+    static const char* vs_src =
+        "attribute vec2 a_pos;\n"
+        "attribute float a_lum;\n"
+        "varying float v_lum;\n"
+        "void main() { v_lum = a_lum; gl_Position = vec4(a_pos, 0.0, 1.0); }\n";
+    /* Half over what is there, as the prims are (ABR 0). */
+    static const char* fs_src =
+        "#ifdef GL_ES\n"
+        "precision mediump float;\n"
+        "#endif\n"
+        "varying float v_lum;\n"
+        "void main() { gl_FragColor = vec4(v_lum, v_lum, v_lum, 0.5); }\n";
+    GLuint vs, fs;
+    GLint  ok = 0;
+
+    s_TcGlState = -1;
+    vs = Tc_GlShader(GL_VERTEX_SHADER, vs_src);
+    fs = Tc_GlShader(GL_FRAGMENT_SHADER, fs_src);
+    if (!vs || !fs)
+    {
+        if (vs) glDeleteShader(vs);
+        if (fs) glDeleteShader(fs);
+        return;
+    }
+    s_TcGlProg = glCreateProgram();
+    glAttachShader(s_TcGlProg, vs);
+    glAttachShader(s_TcGlProg, fs);
+    glBindAttribLocation(s_TcGlProg, 0, "a_pos");
+    glBindAttribLocation(s_TcGlProg, 1, "a_lum");
+    glLinkProgram(s_TcGlProg);
+    glGetProgramiv(s_TcGlProg, GL_LINK_STATUS, &ok);
+    glDeleteShader(vs);
+    glDeleteShader(fs);
+    if (!ok)
+    {
+        SH_DBG("[TOUCH] controls shader link failed");
+        glDeleteProgram(s_TcGlProg);
+        s_TcGlProg = 0;
+        return;
+    }
+    glGenVertexArrays(1, &s_TcGlVao);
+    glBindVertexArray(s_TcGlVao);
+    glGenBuffers(1, &s_TcGlVbo);
+    glBindBuffer(GL_ARRAY_BUFFER, s_TcGlVbo);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)(2 * sizeof(float)));
+    s_TcGlState = 1;
+}
+
+void Pc_Touch_GlDraw(void)
+{
+    extern GLuint GR_ScreenFBO(void);
+    extern int    g_windowWidth, g_windowHeight;
+    GLint     prevVp[4];
+    GLint     prevProg = 0, prevVao = 0, prevBuf = 0, prevDrawFb = 0, prevReadFb = 0;
+    GLint     prevSrcRgb = GL_ONE, prevDstRgb = GL_ZERO, prevSrcA = GL_ONE, prevDstA = GL_ZERO;
+    GLint     prevEqRgb = GL_FUNC_ADD, prevEqA = GL_FUNC_ADD;
+    GLboolean prevBlend, prevDepth, prevCull, prevScissor;
+
+    /* Only what the last game frame asked for: a frame that drew no controls
+     * (a load, a menu) must not leave the old ones up. */
+    if (s_TcGlCount <= 0 || s_TcGlState < 0 || (Uint32)(SDL_GetTicks() - s_TcGlMs) > 250u ||
+        g_windowWidth <= 0 || g_windowHeight <= 0)
+        return;
+
+    glGetIntegerv(GL_VIEWPORT, prevVp);
+    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &prevDrawFb);
+    glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &prevReadFb);
+    glGetIntegerv(GL_CURRENT_PROGRAM, &prevProg);
+    glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &prevVao);
+    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &prevBuf);
+    glGetIntegerv(GL_BLEND_SRC_RGB, &prevSrcRgb);
+    glGetIntegerv(GL_BLEND_DST_RGB, &prevDstRgb);
+    glGetIntegerv(GL_BLEND_SRC_ALPHA, &prevSrcA);
+    glGetIntegerv(GL_BLEND_DST_ALPHA, &prevDstA);
+    glGetIntegerv(GL_BLEND_EQUATION_RGB, &prevEqRgb);
+    glGetIntegerv(GL_BLEND_EQUATION_ALPHA, &prevEqA);
+    prevBlend   = glIsEnabled(GL_BLEND);
+    prevDepth   = glIsEnabled(GL_DEPTH_TEST);
+    prevCull    = glIsEnabled(GL_CULL_FACE);
+    prevScissor = glIsEnabled(GL_SCISSOR_TEST);
+
+    if (s_TcGlState == 0)
+        Tc_GlInit();
+    if (s_TcGlState == 1)
+    {
+        glBindFramebuffer(GL_FRAMEBUFFER, GR_ScreenFBO());
+        glViewport(0, 0, g_windowWidth, g_windowHeight);
+        glDisable(GL_SCISSOR_TEST);
+        glDisable(GL_DEPTH_TEST);
+        glDisable(GL_CULL_FACE);
+        glEnable(GL_BLEND);
+        glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
+        glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
+        glUseProgram(s_TcGlProg);
+        glBindVertexArray(s_TcGlVao);
+        glBindBuffer(GL_ARRAY_BUFFER, s_TcGlVbo);
+        glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(s_TcGlCount * 3 * sizeof(float)), s_TcGlVerts, GL_STREAM_DRAW);
+        glDrawArrays(GL_TRIANGLES, 0, s_TcGlCount);
+    }
+
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, (GLuint)prevDrawFb);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, (GLuint)prevReadFb);
+    glViewport(prevVp[0], prevVp[1], prevVp[2], prevVp[3]);
+    glBlendEquationSeparate((GLenum)prevEqRgb, (GLenum)prevEqA);
+    glBlendFuncSeparate((GLenum)prevSrcRgb, (GLenum)prevDstRgb, (GLenum)prevSrcA, (GLenum)prevDstA);
+    if (!prevBlend)  glDisable(GL_BLEND);
+    if (prevDepth)   glEnable(GL_DEPTH_TEST);
+    if (prevCull)    glEnable(GL_CULL_FACE);
+    if (prevScissor) glEnable(GL_SCISSOR_TEST);
+    glUseProgram((GLuint)prevProg);
+    glBindVertexArray((GLuint)prevVao);
+    glBindBuffer(GL_ARRAY_BUFFER, (GLuint)prevBuf);
+}
+
 void Pc_Touch_Draw(void)
 {
     static POLY_G4 s_pool[2][TC_MAX_QUADS];
@@ -2521,6 +2738,7 @@ void Pc_Touch_Draw(void)
     GsOT_TAG* ot;
     int       buf, i, mode;
     float     rectL, rectR, rectT, rectB;
+    float     wideLeft = 0.0f, wideSpan = 1.0f;
 
     mode = Tc_Mode();
     if (mode == TC_MODE_OFF)
@@ -2552,6 +2770,15 @@ void Pc_Touch_Draw(void)
     rectR       = Tc_FrameRect(mode)[1];
     rectT       = Tc_FrameRect(mode)[2];
     rectB       = Tc_FrameRect(mode)[3];
+    wideSpan    = Tc_WideSpan(&wideLeft);
+    if (wideSpan > 1.0f)
+    {
+        /* The frame is the picture's; stretch it to the screen's edges. */
+        const float w = rectR - rectL;
+
+        rectR = rectL + (wideLeft + wideSpan) * w;
+        rectL = rectL + wideLeft * w;
+    }
 
     /* Viewport space -> the centre-origin overlay, sized by the ortho the UI
      * pass published (Tc_FrameRect). */
@@ -2990,9 +3217,17 @@ void Pc_Touch_Draw(void)
     else
         ot = &g_OtTags0[buf][4];
 
-    for (i = 0; i < batch.used; i++)
-        AddPrim(ot, &batch.p[i]);
-    AddPrim(ot, &s_drMode[buf]);
+    if (wideSpan > 1.0f)
+    {
+        Tc_GlStash(&batch, rectL, rectR, rectT, rectB);
+    }
+    else
+    {
+        s_TcGlCount = 0;
+        for (i = 0; i < batch.used; i++)
+            AddPrim(ot, &batch.p[i]);
+        AddPrim(ot, &s_drMode[buf]);
+    }
 
     #undef TC_UX
     #undef TC_UY
