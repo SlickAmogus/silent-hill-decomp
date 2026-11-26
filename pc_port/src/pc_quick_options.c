@@ -216,6 +216,9 @@ static const QoRowDef s_page0[] = {
 static const QoRowDef s_page0Simple[] = {
     { ROW_EXTRA, NULL, QO_X_CFGMODE,        "Config Mode" },
     { ROW_EXTRA, NULL, QO_X_PRESET,         "Quality" },
+#if defined(__ANDROID__) || defined(SH_IOS)
+    { ROW_OPT,   "widescreen_mode",      0, NULL },  /* Aspect_Ratio */
+#endif
     { ROW_OPT,   "render_scale",         0, NULL },
     { ROW_EXTRA, NULL, QO_X_SDITHER,        "Dithering" },
     { ROW_OPT,   "post_process",         0, NULL },

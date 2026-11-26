@@ -110,6 +110,7 @@ extern int g_cfg_postProcess;
 extern int g_cfg_dreamFeedback;
 extern float g_PsxFeedbackDampBlend;
 extern int g_cfg_tonemap;
+extern int g_PcWidescreenMode;
 extern int g_PsyX_UsePerPixelFlashlight;
 extern int g_PsyX_UseFlashlightShadows;
 
@@ -256,6 +257,8 @@ static const int VAL_ONOFF[] = { 0, 1 };
 static const int VAL_AA[]    = { 0, 2, 4, 8 };
 static const int VAL_POST[]  = { 0, 1, 2, 3, 4, 5, 6, 7, 8 };
 static const int VAL_TONE[]  = { 0, 1, 2, 3 };
+/* widescreen_mode: 1 fills the screen, 0 is 4:3 with bars at the sides. */
+static const int VAL_ASPECT[] = { 1, 0 };
 static const int VAL_CON[]   = { 0, 1, 2, 3 };
 static const int VAL_FPS[]   = { 0, 30, 60, 120, 240 };
 static const int VAL_FLMODE[] = { 0, 1, 2, 3 };
@@ -279,6 +282,7 @@ static const char* const LBL_ONOFF[] = { "Off", "On" };
 static const char* const LBL_AA[]    = { "Off", "2x", "4x", "8x" };
 static const char* const LBL_POST[]  = { "Off", "CRT", "Scanlines", "Vignette", "Color_Grade", "Film_Grain", "Sharpen", "PSX_Retro", "Cinematic" };
 static const char* const LBL_TONE[]  = { "Off", "Reinhard", "ACES", "Filmic" };
+static const char* const LBL_ASPECT[] = { "Match_Screen", "4:3" };
 static const char* const LBL_CON[]   = { "Off", "External", "In_Game", "Both" };
 static const char* const LBL_FPS[]   = { "Off", "30", "60", "120", "240" };
 /* Short enough to fit the value column at every language/width ("Modern_Shadows" clipped). */
@@ -537,6 +541,9 @@ static const s_PcOpt PCOPT_M[] = {
 /* Page 7, phones only: what a device short of GPU or memory reaches for. Split
  * off PCOPT_M when Scaling arrived and that page had no row left to give. */
 static const s_PcOpt PCOPT_P[] = {
+    /* First, so simple mode can leave it off this page (PCOPT_P_SKIP): there
+     * it is on the first page, with the presets. */
+    { "Aspect_Ratio",      &g_PcConfig.widescreenMode,    "widescreen_mode",     VAL_ASPECT, 2, LBL_ASPECT, &g_PcWidescreenMode, 1, PCK_INT },
     /* The biggest lever a weak GPU has: draw into a smaller target and stretch
      * it on present, the only setting that cuts PIXEL COUNT rather than
      * per-pixel work. 100% is the original path exactly. Applies live. */
@@ -620,12 +627,18 @@ static void PcMouse_InjectDir(int dir)
  * the label reads Custom when they match none. */
 static const s_PcOpt PCOPT_SG[] = {
     { "Quality",        NULL, NULL, NULL, 0, NULL, NULL, 1, PCK_PRESET  },
+#if defined(__ANDROID__) || defined(SH_IOS)
+    { "Aspect_Ratio",      &g_PcConfig.widescreenMode,    "widescreen_mode",     VAL_ASPECT, 2, LBL_ASPECT, &g_PcWidescreenMode, 1, PCK_INT },
+#endif
     { "Dithering",      NULL, NULL, NULL, 0, NULL, NULL, 1, PCK_SDITHER },
     { "Post_Process",   &g_PcConfig.postProcess,        "post_process",         VAL_POST,  9, LBL_POST,  &g_cfg_postProcess,            1, PCK_INT    },
     { "Tone_Mapping",   &g_PcConfig.tonemap,            "tonemap",              VAL_TONE,  4, LBL_TONE,  &g_cfg_tonemap,                1, PCK_INT    },
     { "Next_Page",      NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_NEXT   },
     { "Back",           NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_BACK   },
 };
+
+/* Aspect_Ratio leads PCOPT_P and is on simple mode's first page already. */
+#define PCOPT_P_SKIP (g_PcConfig.simpleMode ? 1 : 0)
 
 const s_PcOpt* PcOpt_PageByIndex(int page, int* count)
 {
@@ -636,7 +649,7 @@ const s_PcOpt* PcOpt_PageByIndex(int page, int* count)
     if (page == 3) { *count = (int)(sizeof(PCOPT_T) / sizeof(PCOPT_T[0])); return PCOPT_T; }
 #if defined(SH_IOS) || defined(__ANDROID__)
     if (page == 5) { *count = (int)(sizeof(PCOPT_M) / sizeof(PCOPT_M[0])); return PCOPT_M; }
-    if (page == 6) { *count = (int)(sizeof(PCOPT_P) / sizeof(PCOPT_P[0])); return PCOPT_P; }
+    if (page == 6) { *count = (int)(sizeof(PCOPT_P) / sizeof(PCOPT_P[0])) - PCOPT_P_SKIP; return PCOPT_P + PCOPT_P_SKIP; }
 #endif
     *count = (int)(sizeof(PCOPT_H) / sizeof(PCOPT_H[0]));
     return PCOPT_H;
@@ -650,7 +663,7 @@ static const s_PcOpt* PcOpt_Page(int* count)
     if (g_PcOptionsMenu_Page == 3) { *count = (int)(sizeof(PCOPT_T) / sizeof(PCOPT_T[0])); return PCOPT_T; }
 #if defined(SH_IOS) || defined(__ANDROID__)
     if (g_PcOptionsMenu_Page == 5) { *count = (int)(sizeof(PCOPT_M) / sizeof(PCOPT_M[0])); return PCOPT_M; }
-    if (g_PcOptionsMenu_Page == 6) { *count = (int)(sizeof(PCOPT_P) / sizeof(PCOPT_P[0])); return PCOPT_P; }
+    if (g_PcOptionsMenu_Page == 6) { *count = (int)(sizeof(PCOPT_P) / sizeof(PCOPT_P[0])) - PCOPT_P_SKIP; return PCOPT_P + PCOPT_P_SKIP; }
 #endif
     *count = (int)(sizeof(PCOPT_H) / sizeof(PCOPT_H[0]));
     return PCOPT_H;
@@ -1213,6 +1226,7 @@ static void PcOpt_PresetStep(int dir)
     g_PsyX_FogStrength   = g_PcConfig.fogStrength;
     Pc_FlashlightModeApply(g_PcConfig.flashlightMode, 0);
     PsyX_ApplyVsync(g_PcConfig.vsync);
+    g_PcWidescreenMode = g_PcConfig.widescreenMode;
 }
 
 /* Simple mode's Dithering is on or off, on the PSX pixel grid. */
