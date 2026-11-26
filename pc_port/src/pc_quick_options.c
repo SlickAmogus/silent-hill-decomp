@@ -83,7 +83,7 @@ extern void        PcOpt_QuickViewReset(int mode);
 
 #define QO_X_QUICK_WEAPONS 1000
 #define QO_GARBAGE  48
-#define QO_MAX_ROWS 16
+#define QO_MAX_ROWS 17
 #define QO_PAGES    10
 /* Every page lays out on the same row pitch -- the pitch QO_ROW_SLOTS rows
  * would get in the full-height panel -- and the panel shrinks to its rows.
@@ -122,6 +122,7 @@ typedef struct
 
 static const QoRowDef s_pageGfx1[] = {
     { ROW_EXTRA, NULL, QO_X_CFGMODE,        "Config Mode" },
+    { ROW_OPT,   "fullscreen",           0, NULL },  /* Window_Mode */
     { ROW_OPT,   "texture_filter",       0, NULL },  /* Texture_Filter */
     /* Was the "Dither" step of Texture_Filter before the two rows split. */
     { ROW_OPT,   "dithering",            0, NULL },  /* Dithering */
@@ -146,6 +147,7 @@ static const QoRowDef s_pageGfxSimple[] = {
     { ROW_EXTRA, NULL, QO_X_CFGMODE,        "Config Mode" },
     { ROW_EXTRA, NULL, QO_X_PRESET,         "Quality" },
     { ROW_EXTRA, NULL, QO_X_RES,            "Resolution" },
+    { ROW_OPT,   "fullscreen",           0, NULL },  /* Window_Mode */
     { ROW_OPT,   "render_scale",         0, NULL },
     { ROW_EXTRA, NULL, QO_X_SDITHER,        "Dithering" },
     { ROW_OPT,   "post_process",         0, NULL },
