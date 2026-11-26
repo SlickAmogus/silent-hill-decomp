@@ -452,7 +452,7 @@ public class ControlsForm : Form
         tips.SetToolTip(inputs["key_gfx_next"], Loc.T("Raises the selected effect's intensity (hold to repeat)."));
 
         // Exit Game — quits at the title/main menu, warm-reboots to the title
-        // otherwise. Default Esc; unbind with Del/Backspace/Esc like any other bind.
+        // otherwise. Default Esc; unbind with Del/Backspace like any other bind.
         int exitGameY = gfxCycleY + rowH * 3;
         AddKeyRow("Exit Game", "key_exit_game", colKbX, exitGameY, labelW, inputW, false);
         tips.SetToolTip(inputs["key_exit_game"], Loc.T("Quits to desktop at the title/main menu; restarts to the title during play. Unbind to disable."));
@@ -966,8 +966,9 @@ public class ControlsForm : Form
 
         TextBox tb = (TextBox)sender;
 
-        // Esc / Backspace / Del clears the binding rather than binding that key.
-        if (e.KeyCode == Keys.Escape || e.KeyCode == Keys.Back || e.KeyCode == Keys.Delete)
+        // Backspace / Del clears the binding rather than binding that key.
+        // Escape is bound like any other: it is the default second Pause key.
+        if (e.KeyCode == Keys.Back || e.KeyCode == Keys.Delete)
         {
             tb.Text = "NONE";
             tb.Tag = "NONE";
