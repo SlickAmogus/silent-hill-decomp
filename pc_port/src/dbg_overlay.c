@@ -2201,6 +2201,10 @@ void DbgOverlay_Render(void)
      * + live gameplay), independent of the debug panels below. Self-contained GL. */
     { extern void Pc_MinimapDraw(void); Pc_MinimapDraw(); }
 
+    /* Touch controls when the picture is 4:3 on a wider screen: under every
+     * panel below, over the bars the prims cannot reach. */
+    { extern void Pc_Touch_GlDraw(void); Pc_Touch_GlDraw(); }
+
     /* Discord Rich Presence tick: this hook runs once per EndScene, so it's the
      * port's reliable per-frame heartbeat. Self-gated (no-op unless enabled +
      * an app id is set); does no drawing. */
