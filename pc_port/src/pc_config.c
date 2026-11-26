@@ -1990,7 +1990,10 @@ int PcConfig_SimplePresetDetect(void)
             continue;
         }
         /* Menus Only pillarboxing is part of the enhanced presets alone. */
-        if (p != PC_SIMPLE_ORIGINAL && (g_PcConfig.widescreenMode != 1 || g_PcConfig.menuPillarbox != 1))
+        /* On a phone the picture's shape is the Aspect Ratio row's, under any
+         * preset. */
+        if (p != PC_SIMPLE_ORIGINAL &&
+            ((!PC_SIMPLE_KEEPS_SIZE && g_PcConfig.widescreenMode != 1) || g_PcConfig.menuPillarbox != 1))
             continue;
         return p;
     }
@@ -2009,6 +2012,7 @@ void PcConfig_SimplePresetApply(int p)
     if (p < 0 || p >= PC_SIMPLE_COUNT)
         return;
     PcConfig_SimplePresetValues(p, &v);
+    const int wasOriginal = (PcConfig_SimplePresetDetect() == PC_SIMPLE_ORIGINAL);
 
     if (!PC_SIMPLE_KEEPS_SIZE)
         g_PcConfig.nativeResolution = v.native;
@@ -2029,7 +2033,19 @@ void PcConfig_SimplePresetApply(int p)
     g_PcConfig.wholeMapExteriors  = v.town ? 1 : d->wholeMapExteriors;
     if (v.town)
         g_PcConfig.worldVisibility = 1;
-    if (p != PC_SIMPLE_ORIGINAL)
+    if (PC_SIMPLE_KEEPS_SIZE)
+    {
+        /* A phone has no resolution to give Original, so Original gets the
+         * PSX's 4:3 picture instead. Leaving Original gives the screen back;
+         * between the other presets the shape stays as the player set it. */
+        if (p == PC_SIMPLE_ORIGINAL)
+            g_PcConfig.widescreenMode = 0;
+        else if (wasOriginal)
+            g_PcConfig.widescreenMode = 1;
+        if (p != PC_SIMPLE_ORIGINAL)
+            g_PcConfig.menuPillarbox = 1;
+    }
+    else if (p != PC_SIMPLE_ORIGINAL)
     {
         g_PcConfig.widescreenMode = 1;
         g_PcConfig.menuPillarbox  = 1;
@@ -2054,11 +2070,10 @@ void PcConfig_SimplePresetApply(int p)
     PRESET_KEY("whole_map_exteriors",  g_PcConfig.wholeMapExteriors);
     if (v.town)
         PRESET_KEY("world_visibility", 1);
+    if (p != PC_SIMPLE_ORIGINAL || PC_SIMPLE_KEEPS_SIZE)
+        PRESET_KEY("widescreen_mode", g_PcConfig.widescreenMode);
     if (p != PC_SIMPLE_ORIGINAL)
-    {
-        PRESET_KEY("widescreen_mode", 1);
         PRESET_KEY("menu_pillarbox",  1);
-    }
 #undef PRESET_KEY
     snprintf(buf[n], sizeof(buf[n]), "%.2f", g_PcConfig.fogStrength);
     keys[n] = "fog_strength";
