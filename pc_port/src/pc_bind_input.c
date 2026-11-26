@@ -141,7 +141,7 @@ const char* BindCapture_Update(void)
     {
         const char* pb = PsyX_Pad_HeldBindName();
 
-        if (ks && ks[SDL_SCANCODE_ESCAPE])
+        if (ks && (ks[SDL_SCANCODE_DELETE] || ks[SDL_SCANCODE_ESCAPE]))
             return "";
         if (SDL_GetTicks() - s_listenStart > BP_LISTEN_PAD_MS || PsyX_Pad_ConnectedControllerName() == NULL)
             return "";
@@ -176,7 +176,9 @@ const char* BindCapture_Update(void)
         return NULL;
     }
 
-    if (ks && ks[SDL_SCANCODE_ESCAPE])
+    /* Delete gives the capture up. It used to be Escape, which made Escape the
+     * one key no menu could bind, and it is the default second Pause key. */
+    if (ks && ks[SDL_SCANCODE_DELETE])
         return "";
 
     /* A key counts only on its press: a lock key that reads as held from the

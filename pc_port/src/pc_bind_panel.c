@@ -1023,7 +1023,7 @@ void Pc_BindPanel_Draw(void)
             {
                 snprintf(line, sizeof(line), "%s", Pc_LangQuickFill("Press a controller button for {action}", "{action}",
                                                                     Pc_LangQuick(BindCore_Row(s_row)->label)));
-                hint2 = Pc_LangQuick("Esc, or wait a few seconds, to cancel");
+                hint2 = Pc_LangQuick("Del, or wait a few seconds, to cancel");
             }
             else
             {
@@ -1031,7 +1031,7 @@ void Pc_BindPanel_Draw(void)
                          Pc_LangQuickFill((BindCore_Row(s_row)->flags & BCF_MOUSE) ? "Press a key or mouse button for {action}"
                                                                             : "Press a key for {action}",
                                           "{action}", Pc_LangQuick(BindCore_Row(s_row)->label)));
-                hint2 = Pc_LangQuick("Esc to cancel");
+                hint2 = Pc_LangQuick("Del to cancel");
             }
             hint = line;
         }
