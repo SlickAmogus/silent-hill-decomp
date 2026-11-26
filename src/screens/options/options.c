@@ -661,16 +661,10 @@ const s_PcOpt* PcOpt_PageByIndex(int page, int* count)
 
 static const s_PcOpt* PcOpt_Page(int* count)
 {
-    if (g_PcOptionsMenu_Page == 0) { *count = (int)(sizeof(PCOPT_G) / sizeof(PCOPT_G[0])); return PCOPT_G; }
-    if (g_PcOptionsMenu_Page == 1) { *count = (int)(sizeof(PCOPT_S) / sizeof(PCOPT_S[0])); return PCOPT_S; }
-    if (g_PcOptionsMenu_Page == 2) { *count = (int)(sizeof(PCOPT_C) / sizeof(PCOPT_C[0])); return PCOPT_C; }
-    if (g_PcOptionsMenu_Page == 3) { *count = (int)(sizeof(PCOPT_T) / sizeof(PCOPT_T[0])); return PCOPT_T; }
-#if defined(SH_IOS) || defined(__ANDROID__)
-    if (g_PcOptionsMenu_Page == 5) { *count = (int)(sizeof(PCOPT_M) / sizeof(PCOPT_M[0])); return PCOPT_M; }
-    if (g_PcOptionsMenu_Page == 6) { *count = (int)(sizeof(PCOPT_P) / sizeof(PCOPT_P[0])) - PCOPT_P_SKIP; return PCOPT_P + PCOPT_P_SKIP; }
-#endif
-    *count = (int)(sizeof(PCOPT_H) / sizeof(PCOPT_H[0]));
-    return PCOPT_H;
+    /* One picker, not two: this one had its own copy of the page list, which
+     * was never taught simple mode, so the screen drew the advanced first
+     * page while everything else worked from the simple one. */
+    return PcOpt_PageByIndex(g_PcOptionsMenu_Page, count);
 }
 
 /* ---- Dithering row ----
