@@ -347,9 +347,201 @@ typedef struct {
     short  nativeClutX, nativeClutY; /* disc TIM's real CLUT rect origin; -1 = unknown.
                                       * Needed to map ABSOLUTE prim cluts onto slot rows
                                       * (see HiresOverride_RestampValidate). */
+    unsigned short layer[HIRES_POOL_MAX_ROWS]; /* texture pool array layer + 1; 0 = none */
 } PoolSlotEntry;
 
 static PoolSlotEntry g_poolSlots[HIRES_POOL_SLOT_MAX];
+
+/* ---- Texture pool array (g_PsxPoolArray) ----------------------------------
+ * A native-resolution pool row is also kept as the 16-bit words VRAM would
+ * hold, in one 256x256 layer of a GL_TEXTURE_2D_ARRAY. Its prims then draw
+ * through the all-format program with VRAM textures and with each other
+ * (ApplyHiresOverride in PsyX_GPU.cpp), where a texture of its own per row
+ * ended the draw call at every change of row: about 500 of the 760 draw calls
+ * an Xbox One submitted per frame outdoors. A layer lives exactly as long as
+ * its row's texture holds that native art; every other upload or delete of the
+ * row drops it. */
+extern int          g_PsxPoolArray;
+extern unsigned int g_PsxPoolArrayTex;
+extern int          g_PsxPoolLayerOut;
+
+#define POOL_LAYER_DIM 256
+static int            s_poolLayerCount  = 0;
+static unsigned char* s_poolLayerUsed   = NULL;
+static int            s_poolLayersLive  = 0;
+static int            s_poolArrayFailed = 0;
+
+static int pool_array_ready(void)
+{
+#if defined(GL_TEXTURE_2D_ARRAY)
+    GLint  maxLayers = 0;
+    GLuint tex       = 0;
+
+    if (!g_PsxPoolArray || s_poolArrayFailed)
+        return 0;
+    if (g_PsxPoolArrayTex != 0)
+        return 1;
+
+    glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &maxLayers);
+    s_poolLayerCount = (maxLayers > 1024) ? 1024 : (int)maxLayers;
+    s_poolLayerUsed  = (unsigned char*)calloc((size_t)(s_poolLayerCount > 0 ? s_poolLayerCount : 1), 1);
+    if (s_poolLayerCount < 64 || s_poolLayerUsed == NULL)
+    {
+        SH_DBG("[POOLARRAY] off: %d layers available", s_poolLayerCount);
+        s_poolArrayFailed = 1;
+        return 0;
+    }
+
+    while (glGetError() != GL_NO_ERROR) { }
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, tex);
+    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RG8, POOL_LAYER_DIM, POOL_LAYER_DIM, s_poolLayerCount,
+                 0, GL_RG, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+    if (tex == 0 || glGetError() != GL_NO_ERROR)
+    {
+        if (tex != 0)
+            glDeleteTextures(1, &tex);
+        SH_DBG("[POOLARRAY] off: the %d-layer array could not be created", s_poolLayerCount);
+        s_poolArrayFailed = 1;
+        return 0;
+    }
+    g_PsxPoolArrayTex = tex;
+    SH_DBG("[POOLARRAY] on: %d layers of %dx%d (%d MB)", s_poolLayerCount, POOL_LAYER_DIM, POOL_LAYER_DIM,
+           (s_poolLayerCount * POOL_LAYER_DIM * POOL_LAYER_DIM * 2) >> 20);
+    return 1;
+#else
+    return 0;
+#endif
+}
+
+static void pool_layer_drop(PoolSlotEntry* s, int row)
+{
+    if (s->layer[row] == 0)
+        return;
+    s_poolLayerUsed[s->layer[row] - 1] = 0;
+    s_poolLayersLive--;
+    s->layer[row] = 0;
+}
+
+/* words: w*h 16-bit VRAM words of the row's native art; NULL just drops it. */
+static void pool_layer_store(PoolSlotEntry* s, int row, const unsigned short* words, int w, int h)
+{
+#if defined(GL_TEXTURE_2D_ARRAY)
+    static unsigned short s_layerBuf[POOL_LAYER_DIM * POOL_LAYER_DIM];
+    int l, x, y;
+
+    pool_layer_drop(s, row);
+    if (words == NULL || w <= 0 || h <= 0 || w > POOL_LAYER_DIM || h > POOL_LAYER_DIM || !pool_array_ready())
+        return;
+    for (l = 0; l < s_poolLayerCount && s_poolLayerUsed[l]; l++) { }
+    if (l == s_poolLayerCount)
+    {
+        static int s_fullLogs = 0;
+        if (s_fullLogs++ < 4)
+            SH_DBG("[POOLARRAY] all %d layers in use: the row keeps its own texture", s_poolLayerCount);
+        return;
+    }
+
+    /* Past the art the edge texels repeat, which is what the row texture's
+     * CLAMP_TO_EDGE returns for a UV beyond it. */
+    for (y = 0; y < POOL_LAYER_DIM; y++)
+    {
+        const unsigned short* src = words + (size_t)((y < h) ? y : h - 1) * (size_t)w;
+        unsigned short*       dst = s_layerBuf + (size_t)y * POOL_LAYER_DIM;
+        memcpy(dst, src, (size_t)w * 2);
+        for (x = w; x < POOL_LAYER_DIM; x++)
+            dst[x] = src[w - 1];
+    }
+
+    while (glGetError() != GL_NO_ERROR) { }
+    glBindTexture(GL_TEXTURE_2D_ARRAY, g_PsxPoolArrayTex);
+    glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, l, POOL_LAYER_DIM, POOL_LAYER_DIM, 1,
+                    GL_RG, GL_UNSIGNED_BYTE, s_layerBuf);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+    if (glGetError() != GL_NO_ERROR)
+        return;
+    s_poolLayerUsed[l] = 1;
+    s_poolLayersLive++;
+    s->layer[row] = (unsigned short)(l + 1);
+#else
+    (void)words; (void)w; (void)h;
+    pool_layer_drop(s, row);
+#endif
+}
+
+/* The VRAM words a 4/8bpp pixel block shows through one CLUT row. Caller frees. */
+static unsigned short* pool_words_from_indices(const unsigned char* pixels, int rowBytes, int pixW, int h,
+                                               const unsigned char* clutBytes, int clutW, int bpp)
+{
+    unsigned short* words = (unsigned short*)malloc((size_t)pixW * (size_t)h * 2);
+    int             x, y;
+
+    if (words == NULL)
+        return NULL;
+    for (y = 0; y < h; y++)
+    {
+        const unsigned char* src = pixels + (size_t)y * (size_t)rowBytes;
+        for (x = 0; x < pixW; x++)
+        {
+            unsigned int idx;
+            if (bpp == 4)
+                idx = ((x >> 1) < rowBytes) ? ((x & 1) ? ((src[x >> 1] >> 4) & 0xF) : (src[x >> 1] & 0xF)) : 0;
+            else
+                idx = (x < rowBytes) ? src[x] : 0;
+            if ((int)idx >= clutW)
+                idx = 0;
+            words[(size_t)y * (size_t)pixW + (size_t)x] =
+                (unsigned short)(clutBytes[idx * 2] | (clutBytes[idx * 2 + 1] << 8));
+        }
+    }
+    return words;
+}
+
+/* pool_words_from_indices for CLUT row clutRow of a 4/8bpp TIM file, with the
+ * same row clamp parse_tim_to_rgba applies. NULL for anything else. */
+static unsigned short* pool_words_from_tim(const unsigned char* data, unsigned int size, int clutRow, int* outW, int* outH)
+{
+    const unsigned char* p;
+    const unsigned char* end = data + size;
+    unsigned int         flags, blockLen;
+    int                  bpp, clutW, clutH, cellW, pixW, pixH;
+
+    if (size < 20 || data[0] != 0x10 || data[1] != 0 || data[2] != 0 || data[3] != 0)
+        return NULL;
+    flags = (unsigned int)data[4] | ((unsigned int)data[5] << 8);
+    if ((flags & 0x7) > 1 || !((flags >> 3) & 1))
+        return NULL;
+    bpp = ((flags & 0x7) == 0) ? 4 : 8;
+
+    p        = data + 8;
+    blockLen = (unsigned int)p[0] | ((unsigned int)p[1] << 8) | ((unsigned int)p[2] << 16) | ((unsigned int)p[3] << 24);
+    clutW    = (int)(p[8] | (p[9] << 8));
+    clutH    = (int)(p[10] | (p[11] << 8));
+    if (blockLen < 12 || p + blockLen > end || clutW <= 0)
+        return NULL;
+    if (clutRow >= clutH)
+        clutRow = 0;
+    {
+        const unsigned char* clut = p + 12 + (size_t)clutRow * (size_t)clutW * 2;
+
+        p += blockLen;
+        if (p + 12 > end || clut + (size_t)clutW * 2 > p)
+            return NULL;
+        cellW = (int)(p[8] | (p[9] << 8));
+        pixH  = (int)(p[10] | (p[11] << 8));
+        pixW  = (bpp == 4) ? cellW * 4 : cellW * 2;
+        if (pixW <= 0 || pixH <= 0 || p + 12 + (size_t)cellW * 2 * (size_t)pixH > end)
+            return NULL;
+        *outW = pixW;
+        *outH = pixH;
+        return pool_words_from_indices(p + 12, cellW * 2, pixW, pixH, clut, clutW, bpp);
+    }
+}
 
 /* Advanced once per pumped frame. Only the ordering matters, so wrap is
  * harmless: comparisons below are on age (now - tick) in unsigned arithmetic. */
@@ -417,6 +609,7 @@ int HiresOverride_EvictColdestPackRow(unsigned minAgeTicks,
         PoolSlotEntry* s = &g_poolSlots[bestSlot];
         glDeleteTextures(1, &s->glTexture[bestRow]);
         s->glTexture[bestRow] = 0;
+        pool_layer_drop(s, bestRow);
         s->rowHash[bestRow]   = 0;
         pack_credit(&s->rowPackBytes[bestRow]);
 
@@ -645,7 +838,18 @@ int HiresOverride_PoolSlotRestoreNativeRow(int slotId, int row,
     rc = upload_rgba(&s->glTexture[row], rgba, pixW, h,
                      (pixW == nativePixelW && h == nativePixelH));
     free(rgba);
-    if (rc != 0) return -1;
+    if (rc != 0)
+    {
+        pool_layer_drop(s, row);
+        return -1;
+    }
+    {
+        unsigned short* words = NULL;
+        if (pixW == nativePixelW && h == nativePixelH)
+            words = pool_words_from_indices(pixels, rowBytes, pixW, h, (const unsigned char*)clutRow, clutW, bpp);
+        pool_layer_store(s, row, words, pixW, h);
+        free(words);
+    }
 
     s->rowW[row]    = (unsigned short)pixW;
     s->rowH[row]    = (unsigned short)h;
@@ -1007,6 +1211,7 @@ int HiresOverride_PoolSlotRegister(int slotId,
                     glDeleteTextures(1, &ds->glTexture[r2]);
                     ds->glTexture[r2] = 0;
                 }
+                pool_layer_drop(ds, r2);
                 pack_credit(&ds->rowPackBytes[r2]);
             }
             if (Dds_UploadBptc(&ds->glTexture[0], data, (int)size,
@@ -1096,10 +1301,26 @@ int HiresOverride_PoolSlotRegister(int slotId,
                             w, h, (w == nativePixelW && h == nativePixelH)) != 0)
             {
                 free(rgba);
+                pool_layer_drop(rowSlot, rowIdx);
                 status = (r == 0) ? -1 : 0;
                 break;
             }
             free(rgba);
+            {
+                unsigned short* words = NULL;
+                int             ww = 0, wh = 0;
+                if ((srcBpp == 4 || srcBpp == 8) && w == nativePixelW && h == nativePixelH)
+                {
+                    words = pool_words_from_tim(data, size, r, &ww, &wh);
+                    if (words != NULL && (ww != w || wh != h))
+                    {
+                        free(words);
+                        words = NULL;
+                    }
+                }
+                pool_layer_store(rowSlot, rowIdx, words, w, h);
+                free(words);
+            }
             if (r < HIRES_POOL_MAX_ROWS)
             {
                 doneRows = r + 1;
@@ -1126,6 +1347,7 @@ int HiresOverride_PoolSlotRegister(int slotId,
             glDeleteTextures(1, &s->glTexture[r]);
             s->glTexture[r] = 0;
         }
+        pool_layer_drop(s, r);
         pack_credit(&s->rowPackBytes[r]);
     }
 
@@ -1441,6 +1663,7 @@ int HiresOverride_PoolSlotRegisterRGBAKeyed(int slotId, int row,
         return 0;
     }
 
+    pool_layer_drop(s, row);
     if (upload_rgba(&s->glTexture[row], rgba, w, h,
                     (w == nativePixelW && h == nativePixelH)) != 0)
     {
@@ -1535,6 +1758,7 @@ int HiresOverride_PoolSlotRegisterDdsKeyed(int slotId, int row,
      * texture renders differently once converted (a font TIM shipped as .dds
      * came back bilinear+mipmapped, re-opening the gutterless-cell ghost text
      * a3e7973cf fixed for .png). */
+    pool_layer_drop(s, row);
     if (Dds_UploadBptc(&s->glTexture[row], ddsBytes, (int)ddsSize,
                        s_forceNearestUpload ||
                        (w == nativePixelW && h == nativePixelH)) != 0)
@@ -1977,6 +2201,7 @@ void HiresOverride_PoolSlotsReset(void)
                 g_poolSlots[i].glTexture[r] = 0;
                 if (r == 0) live++;
             }
+            pool_layer_drop(&g_poolSlots[i], r);
             pack_credit(&g_poolSlots[i].rowPackBytes[r]);
         }
         g_poolSlots[i].nativeW = 0;
@@ -2010,6 +2235,7 @@ void HiresOverride_CharaPoolSlotReset(int slotId)
                 glDeleteTextures(1, &g_poolSlots[a].glTexture[r]);
                 g_poolSlots[a].glTexture[r] = 0;
             }
+            pool_layer_drop(&g_poolSlots[a], r);
             pack_credit(&g_poolSlots[a].rowPackBytes[r]);
         }
         g_poolSlots[a].nativeW = 0;
@@ -2129,6 +2355,7 @@ unsigned int HiresOverride_LookupByTpageClut(int tpage, int clut,
                      * the row actually served (useRow), which is the one whose
                      * texture eviction would delete. */
                     s->rowTick[useRow] = g_hiresTick;
+                    g_PsxPoolLayerOut = (s->layer[useRow] != 0) ? (int)s->layer[useRow] - 1 : -1;
                     if (outNativePixelW) *outNativePixelW = s->nativeW;
                     if (outNativePixelH) *outNativePixelH = s->nativeH;
                     if (outOffsetX)      *outOffsetX      = 0;
