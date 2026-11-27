@@ -2108,8 +2108,11 @@ void PcConfig_SimplePresetApply(int p)
     g_PcConfig.flashlightShadows  = (v.flash == 1 || v.flash == 3);
     g_PcConfig.shadowMapSize      = v.shadow;
     g_PcConfig.bulletDecals       = v.decals;
-    /* A preset never turns culling on; it leaves nothing culled by view angle. */
-    g_PcConfig.disableCulling     = 1;
+    /* Culling on up to Normal: what it drops lies outside the picture (its
+     * screen-edge bound follows the real aspect ratio, with a margin), and the
+     * draw calls it saves are most of a frame on an Xbox One or a phone. High
+     * and Ultra draw everything. */
+    g_PcConfig.disableCulling     = (p >= PC_SIMPLE_HIGH);
     g_PcConfig.preloadChunks      = v.preload;
     g_PcConfig.fogStrength        = v.fog;
     g_PcConfig.wholeMapExteriors  = v.town ? 1 : d->wholeMapExteriors;
