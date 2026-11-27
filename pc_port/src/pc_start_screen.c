@@ -1185,6 +1185,10 @@ void Pc_StartScreen_Run(char* dataDir, int dataDirSize)
         PsyX_PumpEvents();
         prevHeld = ss_read_held() | IN_OK | IN_START;
 
+        /* PsyX_Initialise hid the cursor for the game, but this page takes clicks. */
+        if (!Uwp_IsXbox())
+            SDL_ShowCursor(SDL_ENABLE);
+
         while (!play)
         {
             const Uint32 frameMs = SDL_GetTicks();
@@ -1301,6 +1305,7 @@ void Pc_StartScreen_Run(char* dataDir, int dataDirSize)
                     SDL_Delay(15 - spent);
             }
         }
+        SDL_ShowCursor(SDL_DISABLE);
     }
 
     for (i = 0; i < SS_TEXT_CACHE; i++)
