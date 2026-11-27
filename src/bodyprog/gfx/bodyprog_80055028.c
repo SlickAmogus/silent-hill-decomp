@@ -86,7 +86,9 @@ void func_80057228(MATRIX* mat, s32 alpha, SVECTOR* arg2, VECTOR3* arg3);
  * the screen-edge and PVS gates below and in vw_calc.c. Below strength 1 the
  * fog never covers, so the far geometry must draw (Pc_LongViewActive). */
 extern float g_PsyX_FogStrength;
-#define FOG_FAR_DIST() (g_PcConfig.disableCulling ? Pc_WorldVisCap(g_WorldEnvWork.fog.farDistance) : g_WorldEnvWork.fog.farDistance)
+/* Not gated on disable_culling: with culling on, full town rendering drew its
+ * far chunks past a gap the stock fog distance cut out of the near ones. */
+#define FOG_FAR_DIST() (Pc_WorldVisCap(g_WorldEnvWork.fog.farDistance))
 
 /* Per-poly far drop. The base 0x79C shifted by (shift+2) is ~61u, and it -- not
  * chunk residency, not the cull predicate -- is what actually ends the view:
