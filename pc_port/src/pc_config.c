@@ -26,7 +26,7 @@ s_PcConfig g_PcConfig = {
     .windowHeight   = 480,
     .fullscreen     = 0,
     .confineCursor  = 1, /* borderless/fullscreen pointer trap; alt-tab still releases it */
-    .disableCulling = 1,
+    .disableCulling = 0,
     .drawDistancePct = 100, /* 100 = vanilla ~61u; 200 doubles it (worth it with fog turned down) */
     .preloadChunks  = 1,
     .vsync          = 0,
@@ -1895,6 +1895,15 @@ else if (strcmp(key, "enable_plugins") == 0)
             }
         }
 
+        /* v9: culling on by default (disable_culling 1 -> 0). It only drops what
+         * lies outside the picture, and the draw calls it saves are the biggest
+         * frame-rate win on an Xbox One, a phone or a weak PC. */
+        if (g_PcConfig.configVersion < 9 && g_PcConfig.disableCulling)
+        {
+            g_PcConfig.disableCulling = 0;
+            PcConfig_SaveKeyValue("disable_culling", "0");
+        }
+
         /* v8 (builds with no launcher): a config that has never been through
          * this block is a new player's; they start on a preset. */
         if (PC_SIMPLE_IN_GAME_ONLY && g_PcConfig.configVersion == 0)
@@ -2113,11 +2122,10 @@ void PcConfig_SimplePresetApply(int p)
     g_PcConfig.flashlightShadows  = (v.flash == 1 || v.flash == 3);
     g_PcConfig.shadowMapSize      = v.shadow;
     g_PcConfig.bulletDecals       = v.decals;
-    /* Culling on up to Normal: what it drops lies outside the picture (its
+    /* Culling on in every preset: what it drops lies outside the picture (its
      * screen-edge bound follows the real aspect ratio, with a margin), and the
-     * draw calls it saves are most of a frame on an Xbox One or a phone. High
-     * and Ultra draw everything. */
-    g_PcConfig.disableCulling     = (p >= PC_SIMPLE_HIGH);
+     * draw calls it saves are most of a frame on an Xbox One or a phone. */
+    g_PcConfig.disableCulling     = 0;
     g_PcConfig.preloadChunks      = v.preload;
     g_PcConfig.fogStrength        = v.fog;
     g_PcConfig.wholeMapExteriors  = v.town ? 1 : d->wholeMapExteriors;

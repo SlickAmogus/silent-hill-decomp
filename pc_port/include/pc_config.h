@@ -16,7 +16,7 @@
  *   6: pad_reload / pad_quick_turn default NONE -> rightshoulder / leftshoulder,
  *      filled only where the slot was unbound. (4 and 5 live on the mobile
  *      branches; numbering is shared so a merge never reuses a step.) */
-#define PC_CONFIG_VERSION 8
+#define PC_CONFIG_VERSION 9
 
 /* Minimap size range, as a percentage of the built-in MM_SIZE. The top end is a
  * little larger than the stock panel; the bottom end is a bit over half of it. */
