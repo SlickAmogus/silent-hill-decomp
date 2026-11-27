@@ -367,6 +367,9 @@ public partial class Form1
         }
         // Low Spec goes without PGXP: it adds about half as many draw calls again.
         if (id == 1) v["use_pgxp"] = "0";
+        // Culling on up to Normal (it keeps everything within the screen width,
+        // at any aspect ratio); High and Ultra draw everything.
+        v["disable_culling"] = id >= 3 ? "1" : "0";
         // Per-pixel lighting from Normal up; add-on characters per vertex below
         // Normal, to match the stock cast; Hero Light (medium) from High up.
         v["per_pixel_lighting"]    = id >= 2 ? "1" : "0";
