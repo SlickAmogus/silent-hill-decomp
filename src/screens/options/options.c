@@ -1224,6 +1224,7 @@ static void PcOpt_PresetStep(int dir)
     Pc_FlashlightModeApply(g_PcConfig.flashlightMode, 0);
     PsyX_ApplyVsync(g_PcConfig.vsync);
     g_PcWidescreenMode = g_PcConfig.widescreenMode;
+    Pc_PpLit_Apply();
 }
 
 /* Simple mode's Dithering is on or off, on the PSX pixel grid. */
