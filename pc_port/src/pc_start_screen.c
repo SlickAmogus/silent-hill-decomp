@@ -78,7 +78,7 @@ static const char* const kPresetNames[PC_SIMPLE_COUNT + 1] = {
 };
 static const char* const kPresetAbout[PC_SIMPLE_COUNT + 1] = {
     "The game as it was on the PlayStation: its own resolution, 30 fps and the original lighting.",
-    "Smooth textures and no extra effects; a 1080p screen renders at 0.7 scale. For older graphics and Xbox One.",
+    "Smooth textures, no PGXP or extra effects; 1080p renders at 0.7 scale. For older graphics and Xbox One.",
     "No FPS limit, sharper textures, per-pixel lighting and flashlight shadows.",
     "Per-pixel lighting with Hero Light, and the modern flashlight with detailed shadows.",
     "The highest shadow detail and the whole town in view through thinner fog. For powerful graphics cards.",

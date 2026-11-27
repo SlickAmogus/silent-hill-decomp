@@ -1863,8 +1863,8 @@ static void PcConfig_SimplePresetValues(int p, SimplePreset* v)
         v->filter = q[p].filter; v->msaa   = q[p].msaa;   v->pgxp   = 1;
         v->flash  = q[p].flash;  v->shadow = q[p].shadow; v->decals = 1;
         /* PGXP splits the world into about half as many draw calls again,
-         * which took an Xbox One from 30 fps to 20. */
-        if (p == PC_SIMPLE_LOW && PcConfig_IsXbox())
+         * which took an Xbox One from 30 fps to 20: Low Spec goes without. */
+        if (p == PC_SIMPLE_LOW)
             v->pgxp = 0;
     }
 }
