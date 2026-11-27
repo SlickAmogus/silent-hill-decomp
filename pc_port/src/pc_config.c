@@ -1929,7 +1929,7 @@ int PcConfig_SimplePresetDetect(void)
     int p;
 
     /* The post effect, the tone map, the render scale and culling are the
-     * player's to set under any preset (culling is still set on picking one). */
+     * player's to set under any preset. */
     for (p = 0; p < PC_SIMPLE_COUNT; p++)
     {
         SimplePreset v;
@@ -2010,11 +2010,8 @@ void PcConfig_SimplePresetApply(int p)
     g_PcConfig.flashlightShadows  = (v.flash == 1 || v.flash == 3);
     g_PcConfig.shadowMapSize      = v.shadow;
     g_PcConfig.bulletDecals       = v.decals;
-    /* A preset leaves nothing culled by view angle, except on an Xbox below
-     * Ultra: there, the geometry beside and behind the view is draw calls its
-     * CPU cannot afford outdoors (760 a frame at 19 fps with PGXP off). The
-     * retail culling keeps its wide screen-edge margin. */
-    g_PcConfig.disableCulling     = !(PcConfig_IsXbox() && p != PC_SIMPLE_ORIGINAL && p != PC_SIMPLE_ULTRA);
+    /* A preset never turns culling on; it leaves nothing culled by view angle. */
+    g_PcConfig.disableCulling     = 1;
     g_PcConfig.preloadChunks      = v.preload;
     g_PcConfig.fogStrength        = v.fog;
     g_PcConfig.wholeMapExteriors  = v.town ? 1 : d->wholeMapExteriors;
