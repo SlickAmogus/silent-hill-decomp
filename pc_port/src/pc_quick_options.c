@@ -206,6 +206,7 @@ static const QoRowDef s_page0[] = {
     { ROW_OPT,   "texture_filter",       0, NULL },  /* Texture_Filter */
     /* Was the "Dither" step of Texture_Filter before the two rows split. */
     { ROW_OPT,   "dithering",            0, NULL },  /* Dithering */
+    { ROW_OPT,   "use_pgxp",             0, NULL },  /* PGXP */
     { ROW_OPT,   "msaa",                 0, NULL },  /* Antialiasing (restart) */
 #if !defined(__EMSCRIPTEN__)
     /* The browser's PC Options pages are full and carry no Render_Scale row
