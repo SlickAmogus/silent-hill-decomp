@@ -286,15 +286,15 @@ s32 g_Player_WallRayHitDist, g_Player_WallRayAngleDelta, g_Player_WallRayGroundH
  * |leftY| for a straight push, so keyboard/d-pad synthesis (full-scale axes)
  * is untouched. Direction thresholds stay on the raw axes -- only magnitudes
  * are substituted. */
-/* 1 while the PC movement shim (2D control, TPS/OTS/FPS) drives Harry. It
- * moves him at one walk speed whatever the stick's tilt, so the analog
- * animation rate below must not follow the tilt either: a light push played
- * the walk cycle at half rate over full-speed travel, a slow walk that no
- * push could avoid. The stick then chooses walk or sprint, nothing between. */
+/* 1 while the PC movement shim (2D control, TPS/OTS/FPS) drives Harry. Its
+ * stick zones differ from the PSX machine's: the PSX walks from half tilt and
+ * runs only on the button, but the shim also sprints from the stick, so its
+ * slow-to-normal walk ramp has to finish well before the sprint radius or a
+ * normal walk is unreachable (light push = slow walk, more = sprint). */
 static int s_pcShimMoving;
 
-/* Stick radius, of 127, at which the shim sprints (altcam_button_sprint off).
- * Near the rim, so the whole rest of the throw is a normal walk. */
+#define PC_STICK_SHIM_DEADZONE 24
+#define PC_STICK_WALK_RADIUS   96
 #define PC_STICK_SPRINT_RADIUS 112
 
 static s32 Pc_StickMoveDeflection(void)
@@ -304,8 +304,20 @@ static s32 Pc_StickMoveDeflection(void)
     s32 mag = SquareRoot0((sx * sx) + (sy * sy));
 
     if (s_pcShimMoving)
-        return 127;
+    {
+        /* Below the deadzone the move came from keys or the d-pad. */
+        if (mag < PC_STICK_SHIM_DEADZONE || mag >= PC_STICK_WALK_RADIUS)
+            return 127;
+        return 64 + ((mag - PC_STICK_SHIM_DEADZONE) * 63) / (PC_STICK_WALK_RADIUS - PC_STICK_SHIM_DEADZONE);
+    }
     return (mag > 127) ? 127 : mag;
+}
+
+/* Same slow-walk floor as the PSX walk (func_80070B84: about half speed at
+ * the lightest walking push). */
+static q19_12 Pc_ShimWalkSpeed(q19_12 fullSpeed)
+{
+    return (fullSpeed / 2) + ((fullSpeed / 2) * (Pc_StickMoveDeflection() - 64)) / 63;
 }
 #endif
 
@@ -387,7 +399,12 @@ q19_12 Player_VariableAnimDurationGet(s_Model* model) // 0x800706E4
             switch (model->anim.status)
             {
                 case ANIM_STATUS(HarryAnim_WalkForward, true):
+#ifdef SH_PC_PORT
+                    /* The shim walks forward for a push in any direction. */
+                    if (s_pcShimMoving || g_Controller0->sticks_20.sticks_0.leftY < -63)
+#else
                     if (g_Controller0->sticks_20.sticks_0.leftY < -63)
+#endif
                     {
 #ifdef SH_PC_PORT
                         duration = (ABS(64 - Pc_StickMoveDeflection()) * Q12(0.65f) / 64) * 16 + Q12(12.0f);
@@ -433,7 +450,11 @@ q19_12 Player_VariableAnimDurationGet(s_Model* model) // 0x800706E4
                     break;
 
                 case ANIM_STATUS(HarryAnim_WalkBackward, true):
+#ifdef SH_PC_PORT
+                    if (s_pcShimMoving || g_Controller0->sticks_20.sticks_0.leftY >= 64)
+#else
                     if (g_Controller0->sticks_20.sticks_0.leftY >= 64)
+#endif
                     {
 #ifdef SH_PC_PORT
                         duration = ((ABS(Pc_StickMoveDeflection() - 64) * Q12(0.4f) / 64) * Q12(1.0f) / 200) + Q12(15.36f);
@@ -2679,12 +2700,16 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                                              : PC_SHIM_RUN_SPEED(Map_SpeedZoneTypeGet(player->position.vx,
                                                                                       player->position.vz));
                         else
-                            D_800C4550 = Q12(1.5f);
+                            D_800C4550 = Pc_ShimWalkSpeed(Q12(1.5f));
 #else
                         D_800C4550 = g_Player_IsRunning ? Q12(3.0f) : Q12(1.5f);
 #endif
                     } else if (g_Player_IsMovingBackward) {
+#ifdef SH_PC_PORT
+                        D_800C4550 = Pc_ShimWalkSpeed(Q12(-1.5f));
+#else
                         D_800C4550 = Q12(-1.5f);
+#endif
                     } else {
                         D_800C4550 = Q12(0.0f);
                     }
