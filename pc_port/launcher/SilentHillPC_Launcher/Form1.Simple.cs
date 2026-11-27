@@ -325,7 +325,7 @@ public partial class Form1
     {
         var v = new Dictionary<string, string>
         {
-            { "disable_culling", "1" }, { "preload_chunks", "1" },
+            { "disable_culling", "0" }, { "preload_chunks", "1" },
             { "fog_strength", "1.10" }, { "whole_map_exteriors", "2" },
         };
         if (id == 0)
@@ -350,9 +350,6 @@ public partial class Form1
         }
         // Low Spec goes without PGXP: it adds about half as many draw calls again.
         if (id == 1) v["use_pgxp"] = "0";
-        // Culling on up to Normal (it keeps everything within the screen width,
-        // at any aspect ratio); High and Ultra draw everything.
-        v["disable_culling"] = id >= 3 ? "1" : "0";
         // Per-pixel lighting from Normal up; add-on characters per vertex below
         // Normal, to match the stock cast; Hero Light (medium) from High up.
         v["per_pixel_lighting"]    = id >= 2 ? "1" : "0";
@@ -364,7 +361,7 @@ public partial class Form1
     // What the game uses for a key the config does not have.
     private static readonly Dictionary<string, string> SimpleDefaults = new Dictionary<string, string>
     {
-        { "disable_culling", "1" }, { "preload_chunks", "1" }, { "post_process", "0" }, { "tonemap", "0" },
+        { "disable_culling", "0" }, { "preload_chunks", "1" }, { "post_process", "0" }, { "tonemap", "0" },
         { "render_scale", "1" }, { "native_resolution", "0" }, { "vsync", "0" }, { "fps_cap", "30" },
         { "texture_filter", "0" }, { "msaa", "0" }, { "use_pgxp", "0" }, { "flashlight_mode", "0" },
         { "shadow_resolution", "1024" }, { "bullet_decals", "0" }, { "widescreen_mode", "1" }, { "menu_pillarbox", "1" },

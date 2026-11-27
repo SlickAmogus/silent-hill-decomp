@@ -21,9 +21,9 @@ refresh_rate = 0
 fps_cap = 30
 
 # Disable aggressive PSX view culling (0 = original culling, 1 = render all objects)
-# The original game aggressively culls objects based on view angle and position.
-# Disabling culling prevents objects like fences and trees from popping in/out.
-disable_culling = 1
+# View culling follows the real aspect ratio, so it only drops what lies
+# outside the picture. 0 = culling on (default), 1 = draw everything.
+disable_culling = 0
 
 # Preload all IPD chunks at map init (0 = PSX streaming, 1 = load all at once)
 # The PSX streams 2-4 chunks from CD as the player moves. On PC, we can load
