@@ -65,6 +65,7 @@ s_PcConfig g_PcConfig = {
     .lowHealthGlow = 0, /* 1=pulsing red edge glow below 20 hp (SH2 remake style); off by default */
     .bulletDecals = 0, /* 1=bullet-hole decals at player gunshot impacts (gamedata/image/decal.png); off by default */
     .gamepadIcons = GLYPH_SET_AUTO,
+    .texturePoolArray = 1,
     .globalCharaPool = 1, /* 1=all chara assets resident PC-side + chara_global.dll AI backfill (SPAWN anything anywhere) */
     .worldVisibility = 1,
     .wholeMapExteriors = 2, /* auto: whole town drawn while fog_strength < 1.0, the only time it can be seen */
@@ -781,6 +782,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "resident_textures") == 0)
         {
             g_PcConfig.residentTextures = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "texture_pool_array") == 0)
+        {
+            g_PcConfig.texturePoolArray = (atoi(value) != 0);
         }
         else if (strcmp(key, "texture_packs") == 0)
         {

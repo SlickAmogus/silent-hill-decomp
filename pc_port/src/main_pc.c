@@ -1186,8 +1186,8 @@ int main(int argc, char* argv[])
      * so before PsyX_Initialise. */
     {
         extern int g_PsxPoolArray;
-        g_PsxPoolArray = g_PcConfig.residentTextures ? 1 : 0;
-        SH_DBG("[POOLARRAY] %s", g_PsxPoolArray ? "wanted" : "off (resident_textures = 0)");
+        g_PsxPoolArray = (g_PcConfig.residentTextures && g_PcConfig.texturePoolArray) ? 1 : 0;
+        SH_DBG("[POOLARRAY] %s", g_PsxPoolArray ? "wanted" : "off (resident_textures or texture_pool_array = 0)");
     }
 
     /* Initialize PsyCross (creates SDL2 window + OpenGL context) */
