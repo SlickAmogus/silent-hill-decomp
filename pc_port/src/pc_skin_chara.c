@@ -26,6 +26,7 @@
 #include "bodyprog/chara/chara.h"
 #include "bodyprog/chara/chara_model.h"
 #include "bodyprog/gfx/world.h"
+#include "bodyprog/map/terrain.h" /* g_Map.isExterior: how hard the wind blows */
 #include "bodyprog/formats/lm.h"
 #include "bodyprog/math/math.h"
 #include "main/fileinfo.h"
@@ -526,7 +527,8 @@ typedef struct
     float       blinkClock, blinkNext;
     float       breathPhase, breathPeriod;
     float     (*windD)[3]; /* this frame's delta for each vertex of the wind key */
-    float       windT, windLen;
+    float       windT, windLen, windK;
+    int         windOut, windIn; /* percent of the full flutter: outdoors, indoors */
     float       mouth;
     float       shapeW[PC_LIP_SHAPES];
     float       grip[2];
@@ -2581,6 +2583,8 @@ static void Skin_LoadSettings(PcSkinChara* ch, const char* base)
     ch->gunTwist = ch->gunPitch = ch->gunYaw = 0;
     ch->handRelax = 0;
     ch->armOut = 0;
+    ch->windOut = 100;
+    ch->windIn = 50;
     ch->gunSet = 0;
     snprintf(path, sizeof(path), "%s.ini", base);
     f = fopen(path, "r");
@@ -2622,6 +2626,10 @@ static void Skin_LoadSettings(PcSkinChara* ch, const char* base)
             ch->handRelax = val < 0 ? 0 : (val > 100 ? 100 : val);
         else if (strcmp(key, "arm_out") == 0)
             ch->armOut = val < -30 ? -30 : (val > 30 ? 30 : val);
+        else if (strcmp(key, "wind_out") == 0)
+            ch->windOut = val < 0 ? 0 : (val > 300 ? 300 : val);
+        else if (strcmp(key, "wind_in") == 0)
+            ch->windIn = val < 0 ? 0 : (val > 300 ? 300 : val);
     }
     fclose(f);
     SH_DBG("[SKIN] %s: female=%d brightness=%d fog=%d flashlight=%d at (%d %d %d)", path, ch->female,
@@ -3872,8 +3880,13 @@ static void Skin_GripWeights(PcSkinChara* ch, float* w)
  * else is needed in the file and nothing runs for a model without it. The key
  * itself is never shown: each frame it is replaced by a travelling wave across
  * and up-and-down the cloth, growing toward the free end, on top of a droop
- * that lets the end hang rather than stand out level. */
-static void Skin_WindDeltas(PcSkinChara* ch, float dt)
+ * that lets the end hang rather than stand out level.
+ *
+ * `want` is how hard it blows, 1 = the full flutter: the model's wind_out
+ * setting on an exterior map, its wind_in inside (a tie barely stirs in a
+ * room; a fox's tails never stop). It is eased toward, so walking through a
+ * door settles the cloth instead of snapping it. */
+static void Skin_WindDeltas(PcSkinChara* ch, float dt, float want)
 {
     const PcSkinMorph* m = &ch->morph[PC_SKIN_MORPH_WIND];
     float t, gust;
@@ -3894,15 +3907,20 @@ static void Skin_WindDeltas(PcSkinChara* ch, float dt)
                 ch->windLen = s;
         }
     }
-    ch->windT += dt;
+    {
+        float ease = dt * 1.5f;
+        ch->windK += (want - ch->windK) * (ease > 1.0f ? 1.0f : ease);
+    }
+    /* Calm air moves the cloth slower as well as less. */
+    ch->windT += dt * (0.55f + 0.45f * (ch->windK > 1.0f ? 1.0f : ch->windK));
     t = ch->windT;
-    gust = 0.75f + 0.25f * sinf(t * 0.9f) * sinf(t * 0.37f + 1.0f);
+    gust = (0.75f + 0.25f * sinf(t * 0.9f) * sinf(t * 0.37f + 1.0f)) * ch->windK;
     for (i = 0; i < m->count; i++)
     {
         /* From the knot out to this vertex; game space, +y down. */
         float r[3] = { -m->d[i][0], -m->d[i][1], -m->d[i][2] };
         float s = sqrtf(r[0] * r[0] + r[1] * r[1] + r[2] * r[2]);
-        float a[3], side[3], vert[3], u, n, ph, amp, sw, sv, droop, pull;
+        float a[3], side[3], vert[3], u, n, ph, amp, sw, sv, droop, pull, level;
 
         if (s < 1e-3f)
         {
@@ -3923,8 +3941,12 @@ static void Skin_WindDeltas(PcSkinChara* ch, float dt)
         amp   = s * 0.20f * (0.35f + 0.65f * u) * gust;
         sw    = sinf(7.3f * t - ph + a[0] * 2.0f);
         sv    = sinf(9.7f * t - ph * 1.4f + 1.7f + a[2] * 2.0f);
-        droop = s * 0.30f * u;
-        pull  = s * 0.06f * u;
+        /* Only cloth modelled standing out level has anywhere to fall: what
+         * already hangs (a cape's hem, a tie) keeps its length. */
+        level = 1.0f - a[1];
+        level = level < 0.0f ? 0.0f : (level > 1.0f ? 1.0f : level);
+        droop = s * 0.30f * u * level;
+        pull  = s * 0.06f * u * level;
         ch->windD[i][0] = side[0] * amp * sw + vert[0] * 0.55f * amp * sv - a[0] * pull;
         ch->windD[i][1] = side[1] * amp * sw + vert[1] * 0.55f * amp * sv - a[1] * pull + droop;
         ch->windD[i][2] = side[2] * amp * sw + vert[2] * 0.55f * amp * sv - a[2] * pull;
@@ -3951,7 +3973,10 @@ static void Skin_ApplyMorphs(PcSkinChara* ch, float h, float ofx, float ofy, flo
     w[PC_SKIN_MORPH_MOUTH] = ch->morph[PC_SKIN_MORPH_MOUTH].count ? Skin_MouthWeight(ch) : 0.0f;
     Skin_GripWeights(ch, &w[PC_SKIN_MORPH_GRIP_L]);
     w[PC_SKIN_MORPH_BREATH] = ch->morph[PC_SKIN_MORPH_BREATH].count ? Skin_BreathWeight(ch) : 0.0f;
-    Skin_WindDeltas(ch, g_DeltaTime / 4096.0f);
+    {
+        extern s_MapTerrain g_Map;
+        Skin_WindDeltas(ch, g_DeltaTime / 4096.0f, (g_Map.isExterior ? ch->windOut : ch->windIn) / 100.0f);
+    }
     w[PC_SKIN_MORPH_WIND] = (ch->morph[PC_SKIN_MORPH_WIND].count && ch->windD != NULL) ? 1.0f : 0.0f;
     for (k = 0; k < PC_LIP_SHAPES; k++)
         w[PC_SKIN_MORPH_SHAPE + k] = ch->morph[PC_SKIN_MORPH_SHAPE + k].count ? ch->shapeW[k] : 0.0f;
