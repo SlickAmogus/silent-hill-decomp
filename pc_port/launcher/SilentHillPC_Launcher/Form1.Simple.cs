@@ -51,19 +51,36 @@ public partial class Form1
         "Settings changed in Advanced mode or in the game.",
     };
 
-    private static readonly Size  SimpleSize = new Size(760, 732);
+    // The list decides the height: what sits under it follows from the number
+    // of presets, so adding one moves the rest instead of covering it.
+    private const int SimpleRowTop = 98, SimpleRowH = 62, SimpleLeft = 40, SimpleRight = 480;
+    private const int SimpleRowsEnd  = SimpleRowTop + (SimpleCustom + 1) * SimpleRowH;
+    private const int SimplePlayY    = SimpleRowsEnd + 4, SimplePlayH = 46;
+    private const int SimpleStatusY  = SimplePlayY + SimplePlayH + 4; // update note and progress bar
+    private const int SimpleButtonsY = SimpleStatusY + 22;
+    private const int SimpleModeY    = SimpleButtonsY + 38;
+    private static readonly Size  SimpleSize = new Size(760, SimpleModeY + 34);
+    // Below 1 on a screen too short for the view: everything is drawn, placed
+    // and hit-tested through it, so the whole view shrinks to fit.
+    private float _sScale = 1f;
+    // Set from outside to see the view at a given scale without a small screen.
+    private float _sScaleForced = 0f;
+    private int       SimpleS(int v)        { return (int)Math.Round(v * _sScale); }
+    private Point     SimpleS(Point p)      { return new Point(SimpleS(p.X), SimpleS(p.Y)); }
+    private Size      SimpleS(Size z)       { return new Size(SimpleS(z.Width), SimpleS(z.Height)); }
+    private Rectangle SimpleS(Rectangle r)  { return new Rectangle(SimpleS(r.X), SimpleS(r.Y), SimpleS(r.Width), SimpleS(r.Height)); }
+    private Point     SimpleUnscale(Point p) { return new Point((int)(p.X / _sScale), (int)(p.Y / _sScale)); }
     private static readonly Color SimpleEdit = Color.FromArgb(34, 36, 34);
     private static readonly Color SimpleText = Color.FromArgb(232, 230, 222);
     private static readonly Color SimpleDim  = Color.FromArgb(176, 176, 168);
-    private const int SimpleRowTop = 104, SimpleRowH = 68, SimpleLeft = 40, SimpleRight = 480;
 
     private Rectangle SimplePresetRect(int i) { return new Rectangle(SimpleLeft - 8, SimpleRowTop + i * SimpleRowH, 420, SimpleRowH - 4); }
     private static readonly Rectangle SimpleDitherRect  = new Rectangle(SimpleRight, 106, 240, 26);
     private static readonly Rectangle SimpleLoggingRect = new Rectangle(SimpleRight, 138, 240, 26);
     private static readonly Rectangle SimpleWindowedRect = new Rectangle(SimpleRight, 170, 240, 26);
     private static readonly Rectangle SimpleCrtRect      = new Rectangle(SimpleRight, 202, 240, 26);
-    private static readonly Rectangle SimpleModeSimple   = new Rectangle(118, 690, 110, 26);
-    private static readonly Rectangle SimpleModeAdvanced = new Rectangle(236, 690, 150, 26);
+    private static readonly Rectangle SimpleModeSimple   = new Rectangle(118, SimpleModeY, 110, 26);
+    private static readonly Rectangle SimpleModeAdvanced = new Rectangle(236, SimpleModeY, 150, 26);
 
     /// <summary>Update settings for the view on screen: simple mode follows the
     /// realtime builds of the default repo without changing what Build Settings
@@ -113,8 +130,8 @@ public partial class Form1
         _simple.MouseUp   += SimpleMouseUp;
         _simple.MouseMove += (s, e) =>
         {
-            _simple.Cursor = SimpleHit(e.Location) != 0 ? Cursors.Hand : Cursors.Default;
-            SimpleTipFor(e.Location);
+            _simple.Cursor = SimpleHit(SimpleUnscale(e.Location)) != 0 ? Cursors.Hand : Cursors.Default;
+            SimpleTipFor(SimpleUnscale(e.Location));
         };
         _simple.MouseLeave += (s, e) => SimpleTipFor(new Point(-1, -1));
 
@@ -125,17 +142,18 @@ public partial class Form1
         };
         _sPlay = new Button
         {
-            Text = "Play!", Location = new Point(SimpleLeft, 530), Size = new Size(680, 56),
+            Text = "Play!", Location = new Point(SimpleLeft, SimplePlayY), Size = new Size(680, SimplePlayH),
             Font = new Font("Segoe UI", 17f, FontStyle.Bold),
             BackColor = Color.FromArgb(104, 26, 22), ForeColor = Color.White, FlatStyle = FlatStyle.Flat,
         };
         _sPlay.FlatAppearance.BorderColor = Color.FromArgb(170, 70, 58);
         _sPlay.Click += (s, e) => { if (btnPlay.Enabled) btnPlay_Click(btnPlay, e); };
-        _sControls = SimpleButton("Controls", new Rectangle(SimpleLeft, 602, 130, 32), btnControls_Click);
-        _sRA       = SimpleButton("RetroAchievements", new Rectangle(178, 602, 176, 32), (s, e) => btnRA_Click(btnRA, e));
-        _sMods     = SimpleButton("Mod Manager", new Rectangle(362, 602, 170, 32), (s, e) => btnManager_Click(btnManager, e));
+        _sControls = SimpleButton("Controls", new Rectangle(SimpleLeft, SimpleButtonsY, 130, 30), btnControls_Click);
+        _sRA       = SimpleButton("RetroAchievements", new Rectangle(178, SimpleButtonsY, 176, 30), (s, e) => btnRA_Click(btnRA, e));
+        _sMods     = SimpleButton("Mod Manager", new Rectangle(362, SimpleButtonsY, 170, 30), (s, e) => btnManager_Click(btnManager, e));
 
         _simple.Controls.AddRange(new Control[] { _sMinimap, _sPlay, _sControls, _sRA, _sMods });
+        foreach (Control c in _simple.Controls) _sOwn[c] = new SimpleOwn { Bounds = c.Bounds, FontSize = c.Font.SizeInPoints };
         Controls.Add(_simple);
 
         _sMinimap.SelectedIndexChanged += (s, e) => SimpleSave();
@@ -152,6 +170,45 @@ public partial class Form1
         // A config without the key is from before simple mode existed: its
         // owner stays in the view they know and is asked once (SimpleOfferOnce).
         SimpleSet(config.Get("simple_mode", "0").Trim() == "1", false);
+    }
+
+    private struct SimpleOwn { public Rectangle Bounds; public float FontSize; }
+    private readonly Dictionary<Control, SimpleOwn> _sOwn = new Dictionary<Control, SimpleOwn>();
+
+    /// <summary>The scale the view needs to fit the screen it is on, and the
+    /// view's own controls placed by it.</summary>
+    private void SimpleFit()
+    {
+        var area = Screen.FromControl(this).WorkingArea;
+        int frameW = Width - ClientSize.Width, frameH = Height - ClientSize.Height;
+        float s = Math.Min(1f, Math.Min((area.Height - frameH) / (float)SimpleSize.Height,
+                                        (area.Width - frameW) / (float)SimpleSize.Width));
+        if (_sScaleForced > 0f) s = _sScaleForced;
+        _sScale = Math.Max(0.5f, s);
+        ClientSize = SimpleS(SimpleSize);
+        _simple.Size = ClientSize;
+        foreach (var kv in _sOwn)
+        {
+            kv.Key.Bounds = SimpleS(kv.Value.Bounds);
+            float size = Math.Max(6.5f, kv.Value.FontSize * _sScale);
+            if (Math.Abs(kv.Key.Font.SizeInPoints - size) > 0.05f)
+                kv.Key.Font = new Font(kv.Key.Font.FontFamily, size, kv.Key.Font.Style);
+        }
+        // A window that grew must not hang off the bottom or the right.
+        if (Bottom > area.Bottom) Top = Math.Max(area.Top, area.Bottom - Height);
+        if (Right > area.Right)   Left = Math.Max(area.Left, area.Right - Width);
+    }
+
+    /// <summary>The Simple / Advanced pair is drawn, not a control, so Tab
+    /// cannot reach it: Ctrl+M switches views from the keyboard.</summary>
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        if (keyData == (Keys.Control | Keys.M) && _simple != null)
+        {
+            SimpleSet(!_simpleMode, true);
+            return true;
+        }
+        return base.ProcessCmdKey(ref msg, keyData);
     }
 
     private void SimpleFillLists()
@@ -208,8 +265,8 @@ public partial class Form1
             return;
         }
         if (e.Button != MouseButtons.Left) return;
-        int hit = SimpleHit(e.Location);
-        if (hit >= 1 && hit <= 5) { _sPresetIdx = hit - 1; SimpleApplyPreset(_sPresetIdx); SimpleApplyWindow(); _sCustomRes = false; }
+        int hit = SimpleHit(SimpleUnscale(e.Location));
+        if (hit >= 1 && hit <= SimpleCustom) { _sPresetIdx = hit - 1; SimpleApplyPreset(_sPresetIdx); SimpleApplyWindow(); _sCustomRes = false; }
         else if (hit == 10)
         {
             _sDither = !_sDither;
@@ -272,14 +329,15 @@ public partial class Form1
     private void SimplePaint(Graphics g)
     {
         g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.ScaleTransform(_sScale, _sScale);
         using (var title = new Font("Georgia", 25f, FontStyle.Bold))
         using (var head  = new Font("Segoe UI", 12.5f, FontStyle.Bold))
         using (var body  = new Font("Segoe UI", 9.75f))
         using (var item  = new Font("Segoe UI", 11f))
         {
-            SimpleOutlined(g, SimpleTitle, title, Color.FromArgb(214, 70, 56), new RectangleF(SimpleLeft - 2, 22, 680, 50));
-            SimpleOutlined(g, Loc.T("Quality"), item, SimpleDim, new RectangleF(SimpleLeft, 76, 400, 24));
-            SimpleOutlined(g, Loc.T("Options"), item, SimpleDim, new RectangleF(SimpleRight, 76, 240, 24));
+            SimpleOutlined(g, SimpleTitle, title, Color.FromArgb(214, 70, 56), new RectangleF(SimpleLeft - 2, 18, 680, 50));
+            SimpleOutlined(g, Loc.T("Quality"), item, SimpleDim, new RectangleF(SimpleLeft, 70, 400, 24));
+            SimpleOutlined(g, Loc.T("Options"), item, SimpleDim, new RectangleF(SimpleRight, 70, 240, 24));
 
             for (int i = 0; i <= SimpleCustom; i++)
             {
@@ -301,7 +359,7 @@ public partial class Form1
                                    new RectangleF(r.X + 36 + nameW, r.Y + 6, r.Right - (r.X + 36 + nameW), 20));
                 }
                 SimpleOutlined(g, Loc.T(SimplePresetAbout[i]), body, grey ? Color.FromArgb(96, 96, 92) : SimpleDim,
-                               new RectangleF(r.X + 36, r.Y + 25, r.Width - 44, 40));
+                               new RectangleF(r.X + 36, r.Y + 23, r.Width - 44, SimpleRowH - 23));
             }
 
             SimpleMark(g, SimpleDitherRect, false, _sDither);
@@ -324,9 +382,9 @@ public partial class Form1
             if (!string.IsNullOrEmpty(lblUpdateStatus.Text))
                 SimpleOutlined(g, lblUpdateStatus.Text, body,
                                lblUpdateStatus.ForeColor.GetBrightness() < 0.45f ? SimpleDim : lblUpdateStatus.ForeColor,
-                               new RectangleF(SimpleLeft, 646, 350, 20));
+                               new RectangleF(SimpleLeft, SimpleStatusY, 350, 20));
 
-            SimpleOutlined(g, Loc.T("Mode:"), item, SimpleText, new RectangleF(SimpleLeft, 692, 80, 22));
+            SimpleOutlined(g, Loc.T("Mode:"), item, SimpleText, new RectangleF(SimpleLeft, SimpleModeY + 2, 80, 22));
             SimpleMark(g, SimpleModeSimple, true, true);
             SimpleOutlined(g, Loc.T("Simple"), item, SimpleText,
                            new RectangleF(SimpleModeSimple.X + 28, SimpleModeSimple.Y + 1, 90, 22));
@@ -581,19 +639,19 @@ public partial class Form1
 
         if (on)
         {
-            ClientSize = SimpleSize;
+            SimpleFit();
             // The pieces both views share are moved rather than copied, so the
             // disc and language logic and the update flow keep working as is.
-            SimpleBorrow(comboDisc,     new Point(SimpleRight, 332), new Size(240, 25));
-            SimpleBorrow(comboGameLang, new Point(SimpleRight, 394), new Size(240, 25));
-            SimpleBorrow(btnUpdate,     new Point(540, 602), new Size(180, 32));
-            SimpleBorrow(progUpdate,    new Point(400, 648), new Size(320, 16));
+            SimpleBorrow(comboDisc,     SimpleS(new Point(SimpleRight, 332)), SimpleS(new Size(240, 25)));
+            SimpleBorrow(comboGameLang, SimpleS(new Point(SimpleRight, 394)), SimpleS(new Size(240, 25)));
+            SimpleBorrow(btnUpdate,     SimpleS(new Point(540, SimpleButtonsY)), SimpleS(new Size(180, 30)));
+            SimpleBorrow(progUpdate,    SimpleS(new Point(400, SimpleStatusY + 2)), SimpleS(new Size(320, 16)));
             SimpleLoad();
             _simple.Visible = true;
             _simple.BringToFront();
             if (btnLang != null)
             {
-                btnLang.Location = new Point(SimpleSize.Width - 40, SimpleSize.Height - 34);
+                btnLang.Location = SimpleS(new Point(SimpleSize.Width - 40, SimpleSize.Height - 34));
                 btnLang.BringToFront();
             }
             _simple.Start();
