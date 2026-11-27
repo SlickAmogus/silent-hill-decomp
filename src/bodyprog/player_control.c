@@ -300,8 +300,10 @@ s32 g_Player_WallRayHitDist, g_Player_WallRayAngleDelta, g_Player_WallRayGroundH
 static int s_pcShimMoving;
 
 #define PC_STICK_SHIM_DEADZONE 24
-#define PC_STICK_WALK_RADIUS   96
-#define PC_STICK_SPRINT_RADIUS 112
+/* Many pads stop short of the rim (worn Xbox sticks read ~85% straight
+ * ahead), so a sprint radius near 127 left a full push walking. */
+#define PC_STICK_WALK_RADIUS   72
+#define PC_STICK_SPRINT_RADIUS 96
 
 static s32 Pc_StickMoveDeflection(void)
 {
