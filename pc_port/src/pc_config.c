@@ -13,6 +13,7 @@
 #include <stddef.h>
 #include "xa_player.h"
 #include "sh_log.h"
+#include <SDL.h>
 
 static float PcCfg_ClampF(float v, float lo, float hi)
 {
@@ -1922,8 +1923,20 @@ void PcConfig_SimpleOfferShown(void)
     PcConfig_SaveKeyValue("simple_offered", "1");
 }
 
+/* 1 on an Xbox console. Its CPU is what limits the frame there: the draw
+ * calls a frame submits cost it several times what they cost a desktop. */
+static int PcConfig_IsXbox(void)
+{
+#if defined(SH_UWP)
+    extern int Uwp_IsXbox(void);
+    return Uwp_IsXbox();
+#else
+    return 0;
+#endif
+}
+
 /* A player with no settings of their own yet starts in simple mode on
- * Enhanced: Normal. */
+ * Enhanced: Normal, or on Low Spec on an Xbox. */
 static void PcConfig_SimpleNewPlayer(void)
 {
     g_PcConfig.simpleMode = 1;
@@ -1931,13 +1944,22 @@ static void PcConfig_SimpleNewPlayer(void)
     s_simpleOffered       = 1;
     PcConfig_SaveKeyValue("simple_mode", "1");
     PcConfig_SaveKeyValue("simple_offered", "1");
-    PcConfig_SimplePresetApply(PC_SIMPLE_NORMAL);
+    PcConfig_SimplePresetApply(PcConfig_IsXbox() ? PC_SIMPLE_LOW : PC_SIMPLE_NORMAL);
 }
-typedef struct { int native, vsync, fps, filter, msaa, pgxp, flash, shadow, decals, town, preload; float fog; } SimplePreset;
+
+/* hero: -1 = the preset leaves Hero Light alone. */
+typedef struct { int native, vsync, fps, filter, msaa, pgxp, flash, shadow, decals, town, preload, pplight, charaPp, hero; float fog; } SimplePreset;
 
 static void PcConfig_SimplePresetValues(int p, SimplePreset* v)
 {
     const s_PcConfig* d = &s_PcConfigDefaults;
+
+    /* Per-pixel lighting from Normal up; add-on characters per vertex below
+     * Normal, so they match the stock cast; Hero Light only matters to
+     * characters lit per pixel, and is set where the presets say so. */
+    v->pplight = (p >= PC_SIMPLE_NORMAL);
+    v->charaPp = (p >= PC_SIMPLE_NORMAL);
+    v->hero    = (p >= PC_SIMPLE_HIGH) ? 2 : -1;
 
     /* The whole map loaded up front: every preset where there is the memory
      * for it; on a phone or in a browser only from Normal up. */
@@ -1964,7 +1986,50 @@ static void PcConfig_SimplePresetValues(int p, SimplePreset* v)
         v->native = 0;           v->vsync  = 1;           v->fps    = 0;
         v->filter = q[p].filter; v->msaa   = q[p].msaa;   v->pgxp   = 1;
         v->flash  = q[p].flash;  v->shadow = q[p].shadow; v->decals = 1;
+        /* PGXP splits the world into about half as many draw calls again,
+         * which took an Xbox One from 30 fps to 20: Low Spec goes without. */
+        if (p == PC_SIMPLE_LOW)
+            v->pgxp = 0;
     }
+}
+
+/* What a preset sets the render scale to: Low Spec renders a 1080p display at
+ * 0.7, everything else at the full size. -1 = the display is not known yet
+ * (video is not up), and the caller leaves the scale for later. */
+static float PcConfig_SimplePresetScale(int p)
+{
+    SDL_DisplayMode dm;
+
+    if (p != PC_SIMPLE_LOW)
+        return 1.0f;
+    if (!SDL_WasInit(SDL_INIT_VIDEO) || SDL_GetDesktopDisplayMode(0, &dm) != 0 || dm.h <= 0)
+        return -1.0f;
+    return dm.h == 1080 ? 0.7f : 1.0f;
+}
+
+static int s_presetScalePending = -1; /* the preset whose scale waits for the display */
+
+static void PcConfig_SimpleSetScale(float scale)
+{
+    extern float g_cfg_renderScale;
+    char         buf[16];
+
+    g_PcConfig.renderScale = scale;
+    g_cfg_renderScale      = scale;
+    snprintf(buf, sizeof(buf), "%.2f", scale);
+    PcConfig_SaveKeyValue("render_scale", buf);
+}
+
+void PcConfig_SimpleAfterVideo(void)
+{
+    float scale;
+
+    if (s_presetScalePending < 0)
+        return;
+    scale = PcConfig_SimplePresetScale(s_presetScalePending);
+    s_presetScalePending = -1;
+    if (scale > 0.0f)
+        PcConfig_SimpleSetScale(scale);
 }
 
 int PcConfig_SimplePresetDetect(void)
@@ -1985,7 +2050,9 @@ int PcConfig_SimplePresetDetect(void)
             g_PcConfig.flashlightMode != v.flash || g_PcConfig.shadowMapSize != v.shadow ||
             g_PcConfig.bulletDecals != v.decals || (g_PcConfig.preloadChunks != 0) != v.preload ||
             g_PcConfig.fogStrength > v.fog + 0.005f || g_PcConfig.fogStrength < v.fog - 0.005f ||
-            (v.town && (!g_PcConfig.worldVisibility || !g_PcConfig.wholeMapExteriors)))
+            (v.town && (!g_PcConfig.worldVisibility || !g_PcConfig.wholeMapExteriors)) ||
+            (g_PcConfig.perPixelLighting != 0) != v.pplight || (g_PcConfig.charaPerPixelLight != 0) != v.charaPp ||
+            (v.hero >= 0 && g_PcConfig.heroLight != v.hero))
         {
             continue;
         }
@@ -2004,15 +2071,30 @@ void PcConfig_SimplePresetApply(int p)
 {
     const s_PcConfig* d = &s_PcConfigDefaults;
     SimplePreset      v;
-    const char*       keys[24];
-    const char*       vals[24];
-    char              buf[24][16];
+    const char*       keys[28];
+    const char*       vals[28];
+    char              buf[28][16];
     int               n = 0;
+    float             scale;
 
     if (p < 0 || p >= PC_SIMPLE_COUNT)
         return;
     PcConfig_SimplePresetValues(p, &v);
     const int wasOriginal = (PcConfig_SimplePresetDetect() == PC_SIMPLE_ORIGINAL);
+
+    g_PcConfig.perPixelLighting   = v.pplight;
+    g_PcConfig.charaPerPixelLight = v.charaPp;
+    if (v.hero >= 0)
+        g_PcConfig.heroLight = v.hero;
+
+    /* The render scale stays the player's to change after; picking a preset
+     * sets it, as picking one sets the resolution. */
+    scale = PC_SIMPLE_KEEPS_SIZE ? 0.0f : PcConfig_SimplePresetScale(p);
+    s_presetScalePending = -1;
+    if (scale > 0.0f)
+        PcConfig_SimpleSetScale(scale);
+    else if (scale < 0.0f)
+        s_presetScalePending = p;
 
     if (!PC_SIMPLE_KEEPS_SIZE)
         g_PcConfig.nativeResolution = v.native;
@@ -2068,6 +2150,10 @@ void PcConfig_SimplePresetApply(int p)
     PRESET_KEY("disable_culling",      g_PcConfig.disableCulling);
     PRESET_KEY("preload_chunks",       g_PcConfig.preloadChunks);
     PRESET_KEY("whole_map_exteriors",  g_PcConfig.wholeMapExteriors);
+    PRESET_KEY("per_pixel_lighting",   g_PcConfig.perPixelLighting);
+    PRESET_KEY("chara_per_pixel_light", g_PcConfig.charaPerPixelLight);
+    if (v.hero >= 0)
+        PRESET_KEY("hero_light",       g_PcConfig.heroLight);
     if (v.town)
         PRESET_KEY("world_visibility", 1);
     if (p != PC_SIMPLE_ORIGINAL || PC_SIMPLE_KEEPS_SIZE)
