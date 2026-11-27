@@ -1180,17 +1180,15 @@ int main(int argc, char* argv[])
     SDL_SetHint(SDL_HINT_JOYSTICK_HIDAPI_PS4_RUMBLE, "1");
     SDL_SetHint(SDL_HINT_JOYSTICK_HIDAPI_PS5_RUMBLE, "1");
 
-#if defined(SH_UWP)
-    /* The texture pool array (hires_override.c), on an Xbox for now: its CPU
-     * is what a draw call per pool texture costs. Read when the shaders are
-     * built, so before PsyX_Initialise. */
+    /* The texture pool array (hires_override.c): without it every pool row is a
+     * texture of its own and ends the draw call, which costs most where a draw
+     * is dear (ANGLE, WebGL, phone drivers). Read when the shaders are built,
+     * so before PsyX_Initialise. */
     {
         extern int g_PsxPoolArray;
-        extern int Uwp_IsXbox(void);
-        g_PsxPoolArray = Uwp_IsXbox() && g_PcConfig.residentTextures;
-        SH_DBG("[POOLARRAY] %s", g_PsxPoolArray ? "wanted (Xbox)" : "off");
+        g_PsxPoolArray = g_PcConfig.residentTextures ? 1 : 0;
+        SH_DBG("[POOLARRAY] %s", g_PsxPoolArray ? "wanted" : "off (resident_textures = 0)");
     }
-#endif
 
     /* Initialize PsyCross (creates SDL2 window + OpenGL context) */
     SH_LOG("Initializing PsyCross (SDL2 + OpenGL)...");
