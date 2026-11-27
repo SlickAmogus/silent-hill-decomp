@@ -797,6 +797,7 @@ static void PcOpt_PresetStep(int dir)
     g_PsyX_FogStrength   = g_PcConfig.fogStrength;
     Pc_FlashlightModeApply(g_PcConfig.flashlightMode, 0);
     PsyX_ApplyVsync(g_PcConfig.vsync);
+    Pc_PpLit_Apply();
     PcOpt_NativeApply();
 }
 

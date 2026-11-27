@@ -1178,6 +1178,8 @@ int main(int argc, char* argv[])
      * on for itself (dbg_overlay.c). */
     SDL_StopTextInput();
 
+    PcConfig_SimpleAfterVideo();
+
     /* Needs the GL context, so it runs here rather than beside the system-RAM
      * clamp above. Same rule as that one: only ever lowers. */
     HiresOverride_ClampBudgetToVram();
