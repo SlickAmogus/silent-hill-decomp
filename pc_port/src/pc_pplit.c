@@ -55,6 +55,12 @@ void Pc_PpLit_Light(const MATRIX* mat)
 
     if (!g_PsyX_PpLitActive)
         return;
+    /* A fading character is drawn with the light dimmed for it alone
+     * (func_8003DA9C). The frame has one light: taking the dimmed one would
+     * dim everybody, so the frame keeps the light it has and the shader
+     * darkens that character by its fade. */
+    if (g_PsyX_CharaFade > 0.0f && g_PsyX_CharaFade <= 1.5f)
+        return;
     memset(&l, 0, sizeof(l));
     l.mode = g_WorldEnvWork.field_0;
     if (l.mode != 0)
