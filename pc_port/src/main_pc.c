@@ -1194,6 +1194,8 @@ int main(int argc, char* argv[])
      * on for itself (dbg_overlay.c). */
     SDL_StopTextInput();
 
+    PcConfig_SimpleAfterVideo();
+
 #ifdef SH_UWP
     /* The launcher's page, for a build that cannot have the launcher. Here
      * because it needs the window, and everything it sets (the preset, the

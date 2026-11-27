@@ -19,6 +19,7 @@
 
 #include <string>
 
+#include <winrt/Windows.System.Profile.h>
 #include <winrt/Windows.UI.ViewManagement.h>
 
 #include <SDL2/SDL.h>
@@ -114,6 +115,26 @@ static void Uwp_UseWholeScreen(void)
     catch (...)
     {
     }
+}
+
+/* 1 on an Xbox console (any model), 0 on a Windows PC. */
+extern "C" int Uwp_IsXbox(void)
+{
+    static int s_xbox = -1;
+
+    if (s_xbox < 0)
+    {
+        try
+        {
+            using namespace winrt::Windows::System::Profile;
+            s_xbox = AnalyticsInfo::VersionInfo().DeviceFamily() == L"Windows.Xbox" ? 1 : 0;
+        }
+        catch (...)
+        {
+            s_xbox = 0;
+        }
+    }
+    return s_xbox;
 }
 
 extern "C" int Uwp_EnterDataDir(void)

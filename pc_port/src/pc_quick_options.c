@@ -84,7 +84,7 @@ extern void        PcOpt_QuickViewReset(int mode);
 #define QO_X_QUICK_WEAPONS 1000
 #define QO_GARBAGE  48
 #define QO_MAX_ROWS 17
-#define QO_PAGES    10
+#define QO_PAGES    11
 /* Every page lays out on the same row pitch -- the pitch QO_ROW_SLOTS rows
  * would get in the full-height panel -- and the panel shrinks to its rows.
  * Deriving the pitch from each page's own row count made the text a different
@@ -120,23 +120,31 @@ typedef struct
 #define QO_NAV_ROW   { ROW_PAGE,  NULL, 0, "Previous / Next" }
 #define QO_CLOSE_ROW { ROW_CLOSE, NULL, 0, "Close" }
 
+/* Graphics is two pages: with PGXP added, one page held more rows than the
+ * panel has slots (QO_ROW_SLOTS). The first holds what costs frame time. */
 static const QoRowDef s_pageGfx1[] = {
     { ROW_EXTRA, NULL, QO_X_CFGMODE,        "Config Mode" },
     { ROW_OPT,   "fullscreen",           0, NULL },  /* Window_Mode */
+    { ROW_OPT,   "render_scale",         0, NULL },
     { ROW_OPT,   "texture_filter",       0, NULL },  /* Texture_Filter */
     /* Was the "Dither" step of Texture_Filter before the two rows split. */
     { ROW_OPT,   "dithering",            0, NULL },  /* Dithering */
+    { ROW_OPT,   "use_pgxp",             0, NULL },  /* PGXP */
     { ROW_OPT,   "msaa",                 0, NULL },  /* Antialiasing (restart) */
-    { ROW_OPT,   "render_scale",         0, NULL },
-    { ROW_OPT,   "post_process",         0, NULL },
-    { ROW_OPT,   "tonemap",              0, NULL },
-    { ROW_OPT,   "fog_strength",         0, NULL },
-    { ROW_EXTRA, NULL, QO_X_WORLDVIS,       "World Visibility" },  /* fog below 1.0 only: qo_gfx1_page */
-    { ROW_OPT,   "bullet_decals",        0, NULL },
-    { ROW_EXTRA, NULL, QO_X_FACEANIM,       "Character Face Animation (WIP)" },
     /* Frame cap, beside Weather_Rate: both decide how fast the world ticks. */
     { ROW_OPT,   "fps_cap",              0, NULL },  /* FPS_Limit */
     { ROW_OPT,   "weather_sim_hz",       0, NULL },  /* Weather_Rate: 30 or 60 Hz */
+    QO_NAV_ROW,
+    QO_CLOSE_ROW,
+};
+
+static const QoRowDef s_pageGfx1b[] = {
+    { ROW_OPT,   "post_process",         0, NULL },
+    { ROW_OPT,   "tonemap",              0, NULL },
+    { ROW_OPT,   "fog_strength",         0, NULL },
+    { ROW_EXTRA, NULL, QO_X_WORLDVIS,       "World Visibility" },  /* fog below 1.0 only: qo_gfx1b_page */
+    { ROW_OPT,   "bullet_decals",        0, NULL },
+    { ROW_EXTRA, NULL, QO_X_FACEANIM,       "Character Face Animation (WIP)" },
     QO_NAV_ROW,
     QO_CLOSE_ROW,
 };
@@ -398,9 +406,9 @@ static const QoRowDef* qo_cheat_page(int cpage, int actions, int* count)
 
 /* World Visibility only exists below fog 1.0, where the fog plane no longer
  * ends the view, so the page drops the row otherwise. */
-static const QoRowDef* qo_gfx1_page(int* count)
+static const QoRowDef* qo_gfx1b_page(int* count)
 {
-    static QoRowDef s_noWv[sizeof(s_pageGfx1) / sizeof(s_pageGfx1[0])];
+    static QoRowDef s_noWv[sizeof(s_pageGfx1b) / sizeof(s_pageGfx1b[0])];
     static int      s_noWvCount = 0, s_lastShow = -1;
     int             show = g_PcConfig.fogStrength < 1.0f;
     int             i;
@@ -412,20 +420,20 @@ static const QoRowDef* qo_gfx1_page(int* count)
     }
     if (show)
     {
-        *count = (int)(sizeof(s_pageGfx1) / sizeof(s_pageGfx1[0]));
-        return s_pageGfx1;
+        *count = (int)(sizeof(s_pageGfx1b) / sizeof(s_pageGfx1b[0]));
+        return s_pageGfx1b;
     }
     if (s_noWvCount == 0)
     {
-        for (i = 0; i < (int)(sizeof(s_pageGfx1) / sizeof(s_pageGfx1[0])); i++)
-            if (!(s_pageGfx1[i].kind == ROW_EXTRA && s_pageGfx1[i].extra == QO_X_WORLDVIS))
-                s_noWv[s_noWvCount++] = s_pageGfx1[i];
+        for (i = 0; i < (int)(sizeof(s_pageGfx1b) / sizeof(s_pageGfx1b[0])); i++)
+            if (!(s_pageGfx1b[i].kind == ROW_EXTRA && s_pageGfx1b[i].extra == QO_X_WORLDVIS))
+                s_noWv[s_noWvCount++] = s_pageGfx1b[i];
     }
     *count = s_noWvCount;
     return s_noWv;
 }
 
-enum { QO_PG_GFX1 = 0, QO_PG_GFX2, QO_PG_HUD, QO_PG_AUDIO, QO_PG_VIEW,
+enum { QO_PG_GFX1 = 0, QO_PG_GFX1B, QO_PG_GFX2, QO_PG_HUD, QO_PG_AUDIO, QO_PG_VIEW,
        QO_PG_CHEATS1, QO_PG_CHEATS2, QO_PG_DEBUG1, QO_PG_DEBUG2, QO_PG_CONTROLS };
 
 #define QO_TABLE(t) (*count = (int)(sizeof(t) / sizeof((t)[0])), (t))
@@ -435,7 +443,7 @@ static int qo_page_step(int page, int dir)
 {
     do
         page = (page + dir + QO_PAGES) % QO_PAGES;
-    while (g_PcConfig.simpleMode && page == QO_PG_GFX2);
+    while (g_PcConfig.simpleMode && (page == QO_PG_GFX1B || page == QO_PG_GFX2));
     return page;
 }
 
@@ -445,6 +453,8 @@ static const QoRowDef* qo_page_rows(int page, int* count)
         return QO_TABLE(s_pageGfxSimple);
     switch (page)
     {
+        case QO_PG_GFX1:     return QO_TABLE(s_pageGfx1);
+        case QO_PG_GFX1B:    return qo_gfx1b_page(count);
         case QO_PG_GFX2:     return QO_TABLE(s_pageGfx2);
         case QO_PG_HUD:      return QO_TABLE(s_pageHud);
         case QO_PG_AUDIO:    return QO_TABLE(s_pageAudio);
@@ -454,14 +464,14 @@ static const QoRowDef* qo_page_rows(int page, int* count)
         case QO_PG_DEBUG1:   return qo_cheat_page(PC_CHEATS_PAGE_DEBUG,  0, count);
         case QO_PG_DEBUG2:   return qo_cheat_page(PC_CHEATS_PAGE_DEBUG,  1, count);
         case QO_PG_CONTROLS: return QO_TABLE(s_pageControls);
-        default:             return qo_gfx1_page(count);
+        default:             return QO_TABLE(s_pageGfx1);
     }
 }
 
 /* The title, and the Previous / Next row's destinations. No slashes in these:
  * the row already separates its two destinations with one. */
 static const char* const s_pageNames[QO_PAGES] = {
-    "Graphics", "Lighting & Effects", "HUD", "Audio", "View",
+    "Graphics", "Graphics 2", "Lighting & Effects", "HUD", "Audio", "View",
     "Cheats", "Cheat Actions", "Debug", "Debug Actions", "Controls" };
 
 /* ------------------------------------------------------------------ */

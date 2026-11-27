@@ -676,6 +676,9 @@ int  PcConfig_SimplePresetDetect(void);
 /* Set the graphics settings to a preset and save them. Window mode and size
  * are not part of a preset. */
 void PcConfig_SimplePresetApply(int preset);
+/* A preset applied before the window existed (a new player's) sets its render
+ * scale here, once the display's size is known. Call after PsyX_Initialise. */
+void PcConfig_SimpleAfterVideo(void);
 /* Builds with no launcher (phones, the browser): 1 while a player whose config
  * is from before the presets has yet to be told about them, once ever. */
 extern int g_PcSimpleOfferPending;
