@@ -365,6 +365,13 @@ public partial class Form1
             }
             v["flashlight_mode"] = flash[id]; v["shadow_resolution"] = shadow[id];
         }
+        // Low Spec goes without PGXP: it adds about half as many draw calls again.
+        if (id == 1) v["use_pgxp"] = "0";
+        // Per-pixel lighting from Normal up; add-on characters per vertex below
+        // Normal, to match the stock cast; Hero Light (medium) from High up.
+        v["per_pixel_lighting"]    = id >= 2 ? "1" : "0";
+        v["chara_per_pixel_light"] = id >= 2 ? "1" : "0";
+        if (id >= 3) v["hero_light"] = "2";
         return v;
     }
 
@@ -376,6 +383,7 @@ public partial class Form1
         { "texture_filter", "0" }, { "msaa", "0" }, { "use_pgxp", "0" }, { "flashlight_mode", "0" },
         { "shadow_resolution", "1024" }, { "bullet_decals", "0" }, { "widescreen_mode", "1" }, { "menu_pillarbox", "1" },
         { "fog_strength", "1.10" }, { "whole_map_exteriors", "2" }, { "world_visibility", "1" },
+        { "per_pixel_lighting", "0" }, { "chara_per_pixel_light", "1" }, { "hero_light", "2" },
     };
 
     private static double SimpleNumber(string s)
@@ -416,6 +424,9 @@ public partial class Form1
     private void SimpleApplyPreset(int id)
     {
         foreach (var kv in SimplePresetValues(id)) config.Set(kv.Key, kv.Value);
+        // Not part of the preset's match: the scale stays the player's to change.
+        // Low Spec renders a 1080p screen at 0.7.
+        config.Set("render_scale", id == 1 && Screen.PrimaryScreen.Bounds.Height == 1080 ? "0.70" : "1.00");
         string fm = config.Get("flashlight_mode", "0").Trim();
         config.Set("per_pixel_flashlight", fm != "0" ? "1" : "0");
         config.Set("flashlight_shadows", (fm == "1" || fm == "3") ? "1" : "0");
