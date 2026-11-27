@@ -218,6 +218,10 @@ typedef struct {
                             * since denser fog hides it anyway. Requires preload_chunks and
                             * resident_textures. (config key: whole_map_exteriors) */
     int usePgxp;         /* 1 = enable PGXP precision/perspective-correct textures (work-in-progress) */
+    /* 1 = with PGXP on, snow flakes take its sub-pixel placement (thin tilted
+     * slivers, as an emulator with PGXP shows them); 0 = they keep the look
+     * they have with PGXP off. (config key: pgxp_snow) */
+    int pgxpSnow;
     int itemDepthProbe;  /* DIAGNOSTIC, default 0: one-shot [ITEMDEPTH] dump per item-screen entry
                           * (pickup take-screen / inventory carousel / puzzle). Logs, per item
                           * primitive, its submission index, GTE SZ, IR0, OT bucket, whether

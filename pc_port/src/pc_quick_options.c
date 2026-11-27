@@ -76,7 +76,7 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_DREAMSTR, QO_X_DREAMBLUR, QO_X_DPADMOVE, QO_X_CROSSHAIRSTYLE,
        QO_X_LINEGAP, QO_X_CHARALIGHT, QO_X_PPLIGHT, QO_X_HEROLIGHT, QO_X_HEROLIGHTFL, QO_X_FACEANIM,
        QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD, QO_X_WORLDVIS, QO_X_FLASHAIM,
-       QO_X_PRESET, QO_X_SDITHER, QO_X_CFGMODE, QO_X_RES, QO_X_BUTTONSPRINT };
+       QO_X_PRESET, QO_X_SDITHER, QO_X_CFGMODE, QO_X_RES, QO_X_BUTTONSPRINT, QO_X_PGXPSNOW };
 extern const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz);
 extern void        PcOpt_QuickExtraAdjust(int which, int dir);
 extern void        PcOpt_QuickViewReset(int mode);
@@ -132,15 +132,16 @@ static const QoRowDef s_pageGfx1[] = {
     /* Was the "Dither" step of Texture_Filter before the two rows split. */
     { ROW_OPT,   "dithering",            0, NULL },  /* Dithering */
     { ROW_OPT,   "use_pgxp",             0, NULL },  /* PGXP */
+    { ROW_EXTRA, NULL, QO_X_PGXPSNOW,       "PGXP Affects Snow" },  /* PGXP on only: qo_gfx1_page */
     { ROW_OPT,   "msaa",                 0, NULL },  /* Antialiasing (restart) */
-    /* Frame cap, beside Weather_Rate: both decide how fast the world ticks. */
     { ROW_OPT,   "fps_cap",              0, NULL },  /* FPS_Limit */
-    { ROW_OPT,   "weather_sim_hz",       0, NULL },  /* Weather_Rate: 30 or 60 Hz */
     QO_NAV_ROW,
     QO_CLOSE_ROW,
 };
 
 static const QoRowDef s_pageGfx1b[] = {
+    /* From the first page, which the PGXP snow row filled. */
+    { ROW_OPT,   "weather_sim_hz",       0, NULL },  /* Weather_Rate: 30 or 60 Hz */
     { ROW_OPT,   "post_process",         0, NULL },
     { ROW_OPT,   "tonemap",              0, NULL },
     { ROW_OPT,   "fog_strength",         0, NULL },
@@ -436,6 +437,35 @@ static const QoRowDef* qo_gfx1b_page(int* count)
     return s_noWv;
 }
 
+/* PGXP Affects Snow means nothing with PGXP off, so the page drops the row then. */
+static const QoRowDef* qo_gfx1_page(int* count)
+{
+    extern int      g_PsxUsePgxp;
+    static QoRowDef s_noSnow[sizeof(s_pageGfx1) / sizeof(s_pageGfx1[0])];
+    static int      s_noSnowCount = 0, s_lastShow = -1;
+    int             show = g_PsxUsePgxp != 0;
+    int             i;
+
+    if (show != s_lastShow)
+    {
+        s_lastShow      = show;
+        s_viewRowsDirty = 1;
+    }
+    if (show)
+    {
+        *count = (int)(sizeof(s_pageGfx1) / sizeof(s_pageGfx1[0]));
+        return s_pageGfx1;
+    }
+    if (s_noSnowCount == 0)
+    {
+        for (i = 0; i < (int)(sizeof(s_pageGfx1) / sizeof(s_pageGfx1[0])); i++)
+            if (!(s_pageGfx1[i].kind == ROW_EXTRA && s_pageGfx1[i].extra == QO_X_PGXPSNOW))
+                s_noSnow[s_noSnowCount++] = s_pageGfx1[i];
+    }
+    *count = s_noSnowCount;
+    return s_noSnow;
+}
+
 enum { QO_PG_GFX1 = 0, QO_PG_GFX1B, QO_PG_GFX2, QO_PG_HUD, QO_PG_AUDIO, QO_PG_VIEW,
        QO_PG_CHEATS1, QO_PG_CHEATS2, QO_PG_DEBUG1, QO_PG_DEBUG2, QO_PG_CONTROLS };
 
@@ -456,7 +486,7 @@ static const QoRowDef* qo_page_rows(int page, int* count)
         return QO_TABLE(s_pageGfxSimple);
     switch (page)
     {
-        case QO_PG_GFX1:     return QO_TABLE(s_pageGfx1);
+        case QO_PG_GFX1:     return qo_gfx1_page(count);
         case QO_PG_GFX1B:    return qo_gfx1b_page(count);
         case QO_PG_GFX2:     return QO_TABLE(s_pageGfx2);
         case QO_PG_HUD:      return QO_TABLE(s_pageHud);
