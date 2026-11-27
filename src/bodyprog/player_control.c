@@ -292,12 +292,25 @@ s32 g_Player_WallRayHitDist, g_Player_WallRayAngleDelta, g_Player_WallRayGroundH
  * |leftY| for a straight push, so keyboard/d-pad synthesis (full-scale axes)
  * is untouched. Direction thresholds stay on the raw axes -- only magnitudes
  * are substituted. */
+/* 1 while the PC movement shim (2D control, TPS/OTS/FPS) drives Harry. It
+ * moves him at one walk speed whatever the stick's tilt, so the analog
+ * animation rate below must not follow the tilt either: a light push played
+ * the walk cycle at half rate over full-speed travel, a slow walk that no
+ * push could avoid. The stick then chooses walk or sprint, nothing between. */
+static int s_pcShimMoving;
+
+/* Stick radius, of 127, at which the shim sprints (altcam_button_sprint off).
+ * Near the rim, so the whole rest of the throw is a normal walk. */
+#define PC_STICK_SPRINT_RADIUS 112
+
 static s32 Pc_StickMoveDeflection(void)
 {
     s32 sx  = g_Controller0->sticks_20.sticks_0.leftX;
     s32 sy  = g_Controller0->sticks_20.sticks_0.leftY;
     s32 mag = SquareRoot0((sx * sx) + (sy * sy));
 
+    if (s_pcShimMoving)
+        return 127;
     return (mag > 127) ? 127 : mag;
 }
 #endif
@@ -2010,6 +2023,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                 (g_PcConfig.movementOriginal && !g_DebugThirdPersonCam &&
                  !(g_PcConfig.control2d && !g_PcFpsCam && !g_SysWork.playerCombat.isAiming)))
             {
+                s_pcShimMoving = 0;
                 /* 2D screen-relative control (classic camera, not aiming) takes the
                  * shim path below so it can drive Harry from the camera basis. While
                  * aiming, or with 2D off, the native lower-body machine runs (vanilla
@@ -2066,6 +2080,8 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                  * Was previously hardcoded Q12_ANGLE(2.0f) which made 30fps
                  * feel half as responsive as 60fps. */
                 q3_12 turnSpeed = TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12_ANGLE(4.0f));
+
+                s_pcShimMoving = 1;
 
                 /* 2D screen-relative control: input maps to camera-relative
                  * directions and Harry turns to face the move direction. Active
@@ -2349,7 +2365,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                          * magnitude stops mattering. Applies to 2D control under
                          * ANY camera, classic included. */
                         int stickSprint = !g_PcConfig.altButtonSprint &&
-                                          (lx * lx + ly * ly) >= (96 * 96);
+                                          (lx * lx + ly * ly) >= (PC_STICK_SPRINT_RADIUS * PC_STICK_SPRINT_RADIUS);
                         g_Player_IsRunning = cfgRun || stickSprint;
                     }
                     /* Travel along the MOVE vector (stick relative to the camera), NOT
@@ -2457,7 +2473,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                                 /* altcam_button_sprint: only the bound run control
                                  * sprints; a full stick push stays a walk. */
                                 int stickSprint = !g_PcConfig.altButtonSprint &&
-                                                  (lx * lx + ly * ly) >= (96 * 96);
+                                                  (lx * lx + ly * ly) >= (PC_STICK_SPRINT_RADIUS * PC_STICK_SPRINT_RADIUS);
                                 g_Player_IsRunning = cfgRun || stickSprint;
                             }
                             else
