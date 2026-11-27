@@ -437,6 +437,14 @@ static const struct { const char* key; size_t off; } s_GlobalBinds[] = {
 #else
 #define PC_SIMPLE_IN_GAME_ONLY 0
 #endif
+/* The largest flashlight shadow map. A browser or a phone cannot carry the
+ * desktop's 8192: in a browser on an RTX 5060 the Ultra preset's 8192 map ran
+ * the game at half a frame a second (2026-11-27). */
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__) || defined(SH_IOS)
+#define PC_SHADOW_MAP_MAX 2048
+#else
+#define PC_SHADOW_MAP_MAX 8192
+#endif
 /* A phone's screen is its resolution: a preset leaves the render size alone. */
 #if defined(__ANDROID__) || defined(SH_IOS)
 #define PC_SIMPLE_KEEPS_SIZE 1
@@ -1528,7 +1536,7 @@ else if (strcmp(key, "enable_plugins") == 0)
         else if (strcmp(key, "shadow_resolution") == 0)
         {
             int v = atoi(value);
-            g_PcConfig.shadowMapSize = (v < 256) ? 256 : ((v > 8192) ? 8192 : v);
+            g_PcConfig.shadowMapSize = (v < 256) ? 256 : ((v > PC_SHADOW_MAP_MAX) ? PC_SHADOW_MAP_MAX : v);
         }
         else if (strcmp(key, "fps_display") == 0)
         {
@@ -2000,6 +2008,8 @@ static void PcConfig_SimplePresetValues(int p, SimplePreset* v)
         v->native = 0;           v->vsync  = 1;           v->fps    = 0;
         v->filter = q[p].filter; v->msaa   = q[p].msaa;   v->pgxp   = 1;
         v->flash  = q[p].flash;  v->shadow = q[p].shadow; v->decals = 1;
+        if (v->shadow > PC_SHADOW_MAP_MAX)
+            v->shadow = PC_SHADOW_MAP_MAX;
         /* PGXP splits the world into about half as many draw calls again,
          * which took an Xbox One from 30 fps to 20: Low Spec goes without. */
         if (p == PC_SIMPLE_LOW)
