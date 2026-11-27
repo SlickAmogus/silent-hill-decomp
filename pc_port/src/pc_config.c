@@ -69,6 +69,7 @@ s_PcConfig g_PcConfig = {
     .worldVisibility = 1,
     .wholeMapExteriors = 2, /* auto: whole town drawn while fog_strength < 1.0, the only time it can be seen */
     .usePgxp        = 0, /* 0=affine textures (PSX look), 1=PGXP perspective correct (WIP) */
+    .pgxpSnow       = 1,
     .itemDepthProbe = 0, /* 1=one-shot [ITEMDEPTH] depth dump per item-screen entry (diagnostic) */
     .charaPrimProbe = 0, /* 0=off, else e_CharaId to trace: one-shot [CHARAPRIM] per-model submit/reject dump */
     .psxPolySizeCull = 1, /* 1=PSX GPU parity: cull triangles with screen bbox >1023x511 (hardware never drew them) */
@@ -835,6 +836,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "use_pgxp") == 0)
         {
             g_PcConfig.usePgxp = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "pgxp_snow") == 0)
+        {
+            g_PcConfig.pgxpSnow = (atoi(value) != 0);
         }
         else if (strcmp(key, "item_depth_probe") == 0)
         {

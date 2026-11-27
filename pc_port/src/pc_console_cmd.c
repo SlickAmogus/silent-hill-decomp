@@ -2370,6 +2370,15 @@ void Pc_ConsoleExec(const char* line)
         g_PcConfig.usePgxp = g_PsxUsePgxp ? 1 : 0;
         PcConfig_SaveKeyValue("use_pgxp", g_PsxUsePgxp ? "1" : "0");
         cprintf("PGXP %s (perspective-correct, WIP)", g_PsxUsePgxp ? "ON" : "OFF");
+    } else if (strcmp(cmd, "PGXPSNOW") == 0) {
+        extern int g_PsyX_PgxpSnow, g_PsxUsePgxp;
+        if (arg[0] == '1') g_PcConfig.pgxpSnow = 1;
+        else if (arg[0] == '0') g_PcConfig.pgxpSnow = 0;
+        else g_PcConfig.pgxpSnow = !g_PcConfig.pgxpSnow; /* bare "pgxpsnow" toggles */
+        g_PsyX_PgxpSnow = g_PcConfig.pgxpSnow;
+        PcConfig_SaveKeyValue("pgxp_snow", g_PcConfig.pgxpSnow ? "1" : "0");
+        cprintf("PGXP affects snow: %s%s", g_PcConfig.pgxpSnow ? "ON" : "OFF",
+                g_PsxUsePgxp ? "" : " (no effect while PGXP is off)");
     } else if (strcmp(cmd, "PGXPDBG") == 0) {
         /* Diagnostic: switch off one PGXP subsystem at a time with PGXP still on. */
         extern int g_PsxPgxpDbg;
