@@ -95,7 +95,7 @@ static MCat s_cats[M_MAX_CATS];
 static int  s_catCount;
 
 /* Dialogs. */
-enum { D_NONE, D_REPLACE, D_JOJO, D_RESTART, D_INFO, D_QOL };
+enum { D_NONE, D_REPLACE, D_JOJO, D_RESTART, D_INFO, D_QOL, D_UPD };
 static int       s_dialog;
 static NmConfirm s_confirm;
 static int       s_pendingIdx;   /* D_REPLACE: catalog index or -(cat+1) */
@@ -777,6 +777,17 @@ void Cdm_Open(int page, const char* stock, const char* current, int stockCharaId
                 }
         }
     }
+    else if (page == CDM_UPDATES)
+    {
+        char n[16];
+
+        m_set_page(P_DOWN);
+        snprintf(n, sizeof(n), "%d", Cd_UpdatesOffered());
+        m_fill4(s_dialogText, (int)sizeof(s_dialogText),
+                Ct_Tr("{a} of your downloaded characters have updates. Update them now?"), n, NULL, NULL, NULL);
+        s_dialog = D_UPD;
+        Pc_ConfirmDialog_Open3("Additional Characters", s_dialogText, "Don't ask again");
+    }
     else
     {
         s_jojoAsked = 0;
@@ -885,6 +896,31 @@ static int m_dialog_update(const NmInput* in)
                 m_install(s_pendingIdx, 1);
             else
                 m_toggle_category(-s_pendingIdx - 1, 1);
+        }
+        return 1;
+    }
+    if (s_dialog == D_UPD)
+    {
+        int r = Pc_ConfirmDialog_Update(in->left, in->right, in->confirm, in->cancel || in->mouseRight);
+
+        if (r == PC_CONFIRM_NONE)
+            return 1;
+        SD_Call(r == PC_CONFIRM_YES ? Sfx_MenuConfirm : Sfx_MenuCancel);
+        s_dialog = D_NONE;
+        /* Yes stays on the download page, where the updates download the
+         * way any download does; No or never goes back where the player was. */
+        if (r == PC_CONFIRM_YES)
+        {
+            Cd_QueueUpdates();
+            s_changed = 1;
+        }
+        else
+        {
+            if (r == PC_CONFIRM_THIRD)
+                Cd_SetUpdateNoAsk();
+            else
+                Cd_DeclineUpdates();
+            s_closing = 1;
         }
         return 1;
     }
@@ -1449,8 +1485,9 @@ static void m_dialog_draw(void)
 {
     int cx = (s_fl + s_fr) / 2;
 
-    /* The two offers are the shared message box, drawn by its own hook. */
-    if (s_dialog == D_NONE || s_dialog == D_JOJO || s_dialog == D_QOL || s_dialog == D_REPLACE || s_dialog == D_RESTART)
+    /* The offers are the shared message box, drawn by its own hook. */
+    if (s_dialog == D_NONE || s_dialog == D_JOJO || s_dialog == D_QOL || s_dialog == D_UPD || s_dialog == D_REPLACE ||
+        s_dialog == D_RESTART)
         return;
     m_small(s_fl + 16, 104, StringColorId_White, s_dialogText, M_W - 32);
     if (s_dialog == D_RESTART || s_dialog == D_INFO)

@@ -30,6 +30,16 @@ float Pc_Lip_Level(const char** speaker, int* female);
 #define PC_LIP_LINES 727
 extern const char* const g_PcLipSpeaker[PC_LIP_LINES];
 
+/* Mouth shape at the current play position, from the line's track
+ * (pc_lipsync_shapes.c, Rhubarb Lip Sync's A-H and X = 0..8), or -1 when no
+ * voice is playing, the line has no track, or a voice mod replaced it (its
+ * timing is not the disc's). */
+#define PC_LIP_SHAPES 9
+int Pc_Lip_Shape(void);
+extern const uint16_t g_PcLipShapeFirst[PC_LIP_LINES + 1];
+extern const uint16_t g_PcLipShapeAt[];
+extern const uint8_t g_PcLipShapeId[];
+
 #ifdef __cplusplus
 }
 #endif

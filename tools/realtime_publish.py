@@ -65,13 +65,13 @@ WIN_ZIP_PREFIX = "SHPC_rt-"
 # Never carried: the official changelog belongs to the scripted stream and
 # config.cfg comes from source. Nor the launcher: carrying it shipped the
 # official release's launcher, weeks old, in every zip, so CI stages its own
-# and a stage without one is refused (main). It goes into the zip for direct
-# downloads but stays out of the manifest: the launcher is the updater and only
-# replaces itself from a scripted release (UpdateChecker.CheckAsync drops it).
+# and a stage without one is refused (main). It is in the manifest with its
+# version (launcher_version.txt in the stage), and a launcher replaces itself
+# only with a strictly newer one, so rolling back a build never rolls it back.
 # gamedata/decal.png moved to gamedata/image/; the last official release still
 # lists the old path, and carrying it shipped the texture twice.
 CARRY_EXCLUDE = {"CHANGELOG.md", "config.cfg", "gamedata/decal.png", LAUNCHER_NAME}
-ZIP_ONLY = {LAUNCHER_NAME}
+LAUNCHER_VERSION_FILE = "launcher_version.txt"
 
 RELEASE_NOTES = """Automatic builds of every push, for players who want changes as soon as they land instead of waiting for a release. This page always has just the newest build of each platform; older ones are under [Realtime history]({history_url}).
 
@@ -122,6 +122,13 @@ def sha256_of(path):
 
 def http_get(url):
     req = urllib.request.Request(url, headers={"User-Agent": "realtime-publish"})
+    # The API gives an unsigned caller 60 requests an hour per address, and a
+    # shared runner's address is often spent already (HTTP 403 "rate limit
+    # exceeded"): sign API calls with the job's token. Unredirected, so it never
+    # follows a release download to the CDN, which refuses it.
+    token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    if token and url.startswith("https://api.github.com/"):
+        req.add_unredirected_header("Authorization", "Bearer " + token)
     with urllib.request.urlopen(req, timeout=300) as r:
         return r.read()
 
@@ -313,10 +320,12 @@ def main():
         for name in names:
             full = os.path.join(root, name)
             files[os.path.relpath(full, a.stage).replace(os.sep, "/")] = full
-    for required in ("SilentHillPC.exe", LAUNCHER_NAME):
+    for required in ("SilentHillPC.exe", LAUNCHER_NAME, LAUNCHER_VERSION_FILE):
         if required not in files:
             raise RuntimeError(f"{required} missing from {a.stage}")
     files.pop(CHANGELOG_NAME, None)
+    with open(files.pop(LAUNCHER_VERSION_FILE), encoding="utf-8") as f:
+        launcher_version = f.read().strip()
 
     carry_source, official_commit, carried = carry_files(a.nightly, set(files), os.path.join(work, "carry"))
     files.update(carried)
@@ -351,7 +360,8 @@ def main():
         "mode": "zip",
         "zip_name": zip_name,
         "zip_url": base_url + zip_name,
-        "files": [{"path": p, "sha256": sha256_of(files[p])} for p in sorted(files) if p not in ZIP_ONLY],
+        "launcher_version": launcher_version,
+        "files": [{"path": p, "sha256": sha256_of(files[p])} for p in sorted(files)],
     }
     index["builds"] = ([build] + index["builds"])[:a.keep]
     index["carry_source"] = carry_source

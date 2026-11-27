@@ -96,12 +96,13 @@ public class ControlsForm : Form
         { "key_cross", "C" }, { "key_circle", "V" }, { "key_triangle", "Z" }, { "key_square", "X" },
         { "key_l1", "A" }, { "key_r1", "D" }, { "key_l2", "Right Shift" }, { "key_r2", "Left Shift" },
         { "key_l3", "NONE" }, { "key_r3", "NONE" }, { "key_start", "Return" }, { "key_select", "Space" },
+        { "key_start_2", "Escape" },
         { "key_quicksave", "F6" }, { "key_quickload", "F8" },
         { "key_quick_options", "F10" }, { "pad_quick_options", "NONE" },
         { "key_change_cam", "F9" }, { "pad_change_cam", "rightstick" },
         { "key_swap_shoulder", "Mouse3" }, { "key_console", "`" },
         { "key_gfx_cycle", "\\" }, { "key_gfx_prev", "[" }, { "key_gfx_next", "]" },
-        { "key_exit_game", "Escape" },
+        { "key_exit_game", "NONE" },
         { "key_reload", "R" }, { "key_reload_2", "NONE" },
         { "key_cycle_weapons", "NONE" }, { "key_quick_heal", "NONE" },
         { "pad_reload", "rightshoulder" }, { "pad_cycle_weapons", "NONE" }, { "pad_quick_heal", "NONE" },
@@ -123,7 +124,7 @@ public class ControlsForm : Form
         { "key_cross", "Mouse1" }, { "key_circle", "F" }, { "key_triangle", "Tab" }, { "key_square", "Left Shift" },
         { "key_l1", "A" }, { "key_r1", "D" }, { "key_l2", "NONE" }, { "key_r2", "Mouse2" },
         { "key_start", "Return" }, { "key_select", "Space" },
-        { "key_cross_2", "E" },
+        { "key_cross_2", "E" }, { "key_start_2", "Escape" },
         { "pad_cross", "righttrigger" }, { "pad_circle", "b" }, { "pad_triangle", "y" }, { "pad_square", "leftshoulder" },
         { "pad_l1", "NONE" }, { "pad_r1", "NONE" }, { "pad_l2", "NONE" }, { "pad_r2", "lefttrigger" },
         { "pad_start", "start" }, { "pad_select", "back" },
@@ -451,7 +452,7 @@ public class ControlsForm : Form
         tips.SetToolTip(inputs["key_gfx_next"], Loc.T("Raises the selected effect's intensity (hold to repeat)."));
 
         // Exit Game — quits at the title/main menu, warm-reboots to the title
-        // otherwise. Default Esc; unbind with Del/Backspace/Esc like any other bind.
+        // otherwise. Default Esc; unbind with Del/Backspace like any other bind.
         int exitGameY = gfxCycleY + rowH * 3;
         AddKeyRow("Exit Game", "key_exit_game", colKbX, exitGameY, labelW, inputW, false);
         tips.SetToolTip(inputs["key_exit_game"], Loc.T("Quits to desktop at the title/main menu; restarts to the title during play. Unbind to disable."));
@@ -965,8 +966,9 @@ public class ControlsForm : Form
 
         TextBox tb = (TextBox)sender;
 
-        // Esc / Backspace / Del clears the binding rather than binding that key.
-        if (e.KeyCode == Keys.Escape || e.KeyCode == Keys.Back || e.KeyCode == Keys.Delete)
+        // Backspace / Del clears the binding rather than binding that key.
+        // Escape is bound like any other: it is the default second Pause key.
+        if (e.KeyCode == Keys.Back || e.KeyCode == Keys.Delete)
         {
             tb.Text = "NONE";
             tb.Tag = "NONE";

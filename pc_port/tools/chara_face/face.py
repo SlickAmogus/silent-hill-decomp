@@ -1,14 +1,19 @@
 """Face pass for npc2glb: blink and jawOpen for a PSX head whose eyes and mouth
 are painted on. Works in the head bone's frame (OBJ axis convention: +y up,
-+z out of the face). Each eye gets a lid strip (cheek-coloured) flat on its
-top edge at rest, drawn down over the eye by `blink`; the mouth gets a dark
-lens flat on the mouth line, opened by `jawOpen`, which also drops the chin.
++z out of the face). Each eye gets a lid (cheek-coloured, darkening to the
+eye's own lash line at its edge) folded flat on its top edge at rest and drawn
+down over the eye by `blink`; the mouth gets a dark lens flat on the mouth
+line, opened by `jawOpen`, which also drops the chin. Every row of a lid or
+lens lies on the face where it lands, so it follows the face's curve.
 params: eyes [[cx, cy, hw, hh], ...], mouth [mx, my, mw], open (units)."""
 import numpy as np
 
 LID_COLS = 7
 MOUTH_COLS = 8
-OUT = 0.35   # how far in front of the face the added strips float
+OUT = 0.15   # how far in front of the face a lid floats
+MOUTH_OUT = 0.7    # the mouth lens: nearer, the lips showed through it (wider open since)
+LID_ROWS = 6
+MOUTH_ROWS = 3
 
 
 def build(prims, fp, imgcache, tex_for, T, RR):
@@ -67,37 +72,42 @@ def build(prims, fp, imgcache, tex_for, T, RR):
         if 'D' not in pr:
             pr['D'] = {'blink': np.zeros((len(pr['P']), 3)), 'jawOpen': np.zeros((len(pr['P']), 3))}
 
-    def add_strip(xs, top, bot_rest, bot_open, uvsrc, key, uv_rows=None):
-        """A two-row strip: top row fixed, bottom row at bot_rest, keyed to bot_open.
-        uv_rows: per-column UVs for the top and bottom rows, else uvsrc's one UV."""
+    def add_strip(xs, top, bot_open, uvsrc, key, uv_rows=None, nrows=2, out=OUT):
+        """A strip of nrows rows folded flat on its top row at rest and keyed open
+        to bot_open. Open, row s lies s of the way down, on the face surface there
+        (one flat quad per column read as a disc stuck on the face at an angle).
+        uv_rows: per-row, per-column UVs, else uvsrc's one UV."""
+        n = len(xs)
+        fr = np.linspace(0.0, 1.0, nrows)
+        ys_open = [top + f * (bot_open - top) for f in fr]
         hits_t = [ray(x, y) for x, y in zip(xs, top)]
-        hits_b = [ray(x, y) for x, y in zip(xs, bot_open)]
-        if any(h is None for h in hits_t + hits_b):
+        hits_o = [[ray(x, y) for x, y in zip(xs, yo)] for yo in ys_open]
+        if any(h is None for h in hits_t) or any(h is None for row in hits_o for h in row):
             print('  strip off the head surface, skipped (%s)' % key)
             return
         pi = uvsrc[0]
         pr = prims[pi]
         ensure_targets(pr)
         base = len(pr['P'])
-        Lt = np.array([[x, y, h[0] + OUT] for x, y, h in zip(xs, top, hits_t)])
-        Lb_rest = np.array([[x, y, h[0] + OUT] for x, y, h in zip(xs, bot_rest, hits_t)])
-        Lb_open = np.array([[x, y, h[0] + OUT] for x, y, h in zip(xs, bot_open, hits_b)])
-        Nt = np.array([h[3] for h in hits_t]); Nb = np.array([h[3] for h in hits_b])
-        newP = l2w(np.vstack([Lt, Lb_rest]))
-        newN = l2w_dir(np.vstack([Nt, Nb]))
-        uvs = np.vstack(uv_rows) if uv_rows is not None else np.array([uvsrc[1]] * (2 * len(xs)))
+        Lt = np.array([[x, y, h[0] + out] for x, y, h in zip(xs, top, hits_t)])
+        Lrest = np.vstack([Lt] * nrows)
+        Lopen = np.vstack([np.array([[x, y, h[0] + out] for x, y, h in zip(xs, yo, ho)]) for yo, ho in zip(ys_open, hits_o)])
+        Nopen = np.vstack([np.array([h[3] for h in ho]) for ho in hits_o])
+        newP = l2w(Lrest)
+        newN = l2w_dir(Nopen)
+        uvs = np.vstack(uv_rows) if uv_rows is not None else np.array([uvsrc[1]] * (nrows * n))
         pr['P'] = np.vstack([pr['P'], newP]); pr['N'] = np.vstack([pr['N'], newN]); pr['UV'] = np.vstack([pr['UV'], uvs])
-        pr['L'] = np.vstack([pr['L'], np.vstack([Lt, Lb_rest])])
-        pr['J'] += [2] * (2 * len(xs))
-        delta = np.zeros((2 * len(xs), 3))
-        delta[len(xs):] = l2w_dir(Lb_open - Lb_rest)
+        pr['L'] = np.vstack([pr['L'], Lrest])
+        pr['J'] += [2] * (nrows * n)
+        delta = l2w_dir(Lopen - Lrest)
         for k in pr['D']:
             pr['D'][k] = np.vstack([pr['D'][k], delta if k == key else np.zeros_like(delta)])
-        n = len(xs)
-        for i in range(n - 1):
-            t0, t1, b0, b1 = base + i, base + i + 1, base + n + i, base + n + i + 1
-            # Counter-clockwise seen from in front of the face.
-            pr['I'] += [t0, b0, b1, t0, b1, t1]
+        for r in range(nrows - 1):
+            for i in range(n - 1):
+                t0, t1 = base + r * n + i, base + r * n + i + 1
+                b0, b1 = base + (r + 1) * n + i, base + (r + 1) * n + i + 1
+                # Counter-clockwise seen from in front of the face.
+                pr['I'] += [t0, b0, b1, t0, b1, t1]
 
     def uv_at(x, y, darkest=False):
         h = ray(x, y)
@@ -119,26 +129,41 @@ def build(prims, fp, imgcache, tex_for, T, RR):
         return (pi, uv)
 
     keys = []
-    for cx, cy, hw, hh in fp.get('eyes', []):
-        xs = np.linspace(cx - hw * 1.15, cx + hw * 1.15, LID_COLS)
-        t = (xs - (cx - hw * 1.15)) / (2.3 * hw)
+    vis = None
+    if fp.get('visemes'):
+        import importlib.util, os
+        sp = importlib.util.spec_from_file_location('visemes', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'visemes.py'))
+        vis = importlib.util.module_from_spec(sp); sp.loader.exec_module(vis)
+        # Painted blink frames on patches that lie on the face, not lid strips.
+        keys += vis.build_eyes(prims, fp, imgcache, tris, ray, l2w, l2w_dir, ensure_targets)
+    for cx, cy, hw, hh in ([] if vis else fp.get('eyes', [])):
+        xs = np.linspace(cx - hw * 1.45, cx + hw * 1.45, LID_COLS)
+        t = (xs - (cx - hw * 1.45)) / (2.9 * hw)
         f = np.sqrt(np.clip(1 - (2 * t - 1) ** 2, 0, 1))
         top = cy + hh * (0.35 + 0.75 * f)
-        bot = cy - hh * (0.35 + 0.85 * f)
+        # reaching well under the painted eye: shorter, a sliver of it showed (Cybil's)
+        bot = cy - hh * (0.5 + 1.0 * f)
         src = uv_at(cx, cy - hh * 2.2)
         if src is None:
             print('  no cheek under the eye at', cx, cy); continue
-        # The lid takes the band of skin just under the eye, so it shades like
-        # the face round it without the painted eye inside. Above the eye is
-        # brow on most of these faces.
+        # The lid takes the skin just above the eye, row for row going up from
+        # its top edge: the socket shading the painted eye sits in, so the shut
+        # lid matches what is round it (cheek skin from under the eye made a
+        # pale oval on these darker sockets). Its edge takes the darkest texel
+        # at the eye's top, the painted lash line, so a shut eye shows lashes.
         rows = []
-        for ys in (bot - hh * 0.7, bot - hh * 1.7):
+        for f in np.linspace(0.0, 1.0, LID_ROWS - 1):
             row = []
-            for x, y in zip(xs, ys):
+            for x, y in zip(xs, top + hh * (0.25 + 0.55 * (1 - f))):
                 h = uv_at(x, y)
                 row.append(h[1] if h is not None and h[0] == src[0] else src[1])
             rows.append(np.array(row))
-        add_strip(xs, top, top, bot, src, 'blink', rows)
+        lash = []
+        for x, y in zip(xs, top - hh * 0.25):
+            h = uv_at(x, y, darkest=True)
+            lash.append(h[1] if h is not None and h[0] == src[0] else rows[-1][len(lash)])
+        rows.append(np.array(lash))
+        add_strip(xs, top, bot, src, 'blink', rows, LID_ROWS)
         keys.append('blink')
     if fp.get('mouth'):
         mx, my, mw = fp['mouth']
@@ -148,9 +173,11 @@ def build(prims, fp, imgcache, tex_for, T, RR):
         f = np.sin(np.pi * t)
         top = np.full_like(xs, my + 0.25)
         src = uv_at(mx, my, darkest=True)
-        if src is not None:
-            add_strip(xs, top, top, my + 0.25 - A * f, src, 'jawOpen')
-            keys.append('jawOpen')
+        # With painted mouth shapes (visemes.py) the shapes are the mouth; the
+        # jaw key only drops the chin.
+        if src is not None and not fp.get('visemes'):
+            add_strip(xs, top, my + 0.25 - A * f, src, 'jawOpen', None, MOUTH_ROWS, MOUTH_OUT)
+        keys.append('jawOpen')
         # The chin drops with it: head verts below the mouth line, in front.
         zc = np.median(np.concatenate([pr['L'][[j for j in range(len(pr['L'])) if pr['J'][j] == 2], 2]
                                        for pr in prims if 2 in pr['J']]))
@@ -173,7 +200,20 @@ def build(prims, fp, imgcache, tex_for, T, RR):
                     d = moved.get(tuple(np.round(pr['P'][j], 3)))
                     if d is not None:
                         pr['D']['jawOpen'][j] = d
+    if vis and fp.get('mouth'):
+
+        def jaw_delta(x, y):
+            wy = np.clip((my - y) / 1.5, 0, 1); wy = wy * wy * (3 - 2 * wy)
+            wx = np.clip(1 - (abs(x - mx) / (mw * 1.9)) ** 2, 0, 1)
+            wf = np.clip(1 - (my - y - 6) / 10, 0, 1)
+            return l2w_dir(np.array([[0, -A * 0.8 * wy * wx * wf, 0]]))[0]
+        keys += vis.build(prims, fp, imgcache, tris, ray, l2w, l2w_dir, jaw_delta, ensure_targets)
+    order = ['blink', 'lidhalf', 'jawOpen'] + sorted(k for k in set(keys) if k.startswith('mouth_'))
+    keys = [k for k in order if k in set(keys)]
     for pr in prims:
         ensure_targets(pr)
-        del pr['L']
-    return sorted(set(keys), key=['blink', 'jawOpen'].index)
+        for k in keys:
+            if k not in pr['D']:
+                pr['D'][k] = np.zeros((len(pr['P']), 3))
+        pr.pop('L', None)
+    return keys

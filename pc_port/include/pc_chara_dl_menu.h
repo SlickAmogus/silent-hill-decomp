@@ -12,7 +12,9 @@ extern "C" {
  * (Downloadable / Locally installed), the two category lists, and the model
  * picker that Character Select opens on a character's model field. */
 
-enum { CDM_HUB, CDM_PICKER };
+/* CDM_UPDATES: the download page, asking first whether to update the
+ * downloaded characters the catalog has newer versions of. */
+enum { CDM_HUB, CDM_PICKER, CDM_UPDATES };
 
 /* picker: `stock` is the stock model name the list picks a model for (HERO,
  * SIBYL...), `current` the chosen file base or NULL for the stock model. */

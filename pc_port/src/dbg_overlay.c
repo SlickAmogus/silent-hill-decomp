@@ -481,6 +481,40 @@ static void push_console(const char* line)
  * window). The menu mouse-cursor system gates itself off on this so clicks
  * in the console never leak hover/click injections into whatever menu is
  * underneath. */
+/* Escape is the second Pause key by default, and it is also how every overlay
+ * is backed out of or closed. A press that an overlay was open for belongs to
+ * the overlay: without this the same press went on to pause the game (or, in
+ * the pause menu, to unpause it) under the screen it had just closed. True
+ * from that press until a frame after the key is up, since the keyboard's pad
+ * bits trail the key array by a frame. */
+int Pc_EscapeOwnedByOverlay(void)
+{
+    extern int g_PcQuickOptionsActive;
+    extern int Pc_BindPanel_IsOpen(void);
+    extern int Pc_ControlsScreen_IsOpen(void);
+    extern int Pc_AchScreen_IsOpen(void);
+    extern int Pc_TitleAchievementsActive(void);
+    extern int Pc_CharaSelect_IsOpen(void);
+    static int   s_owned = 0;
+    const Uint8* ks      = SDL_GetKeyboardState(NULL);
+    const int    held    = ks != NULL && ks[SDL_SCANCODE_ESCAPE];
+
+    if (held)
+    {
+        if (g_PcConsoleInputActive || g_PcQuickOptionsActive || Pc_BindPanel_IsOpen() ||
+            Pc_ControlsScreen_IsOpen() || Pc_AchScreen_IsOpen() || Pc_TitleAchievementsActive() ||
+            Pc_CharaSelect_IsOpen())
+        {
+            s_owned = 2;
+        }
+    }
+    else if (s_owned > 0)
+    {
+        s_owned--;
+    }
+    return s_owned > 0;
+}
+
 int Pc_ConsoleIsOpen(void)
 {
     return s_console_open;
@@ -1950,6 +1984,14 @@ void DbgOverlay_Update(void)
             extern void Pc_QuickOptions_Toggle(void);
             Pc_QuickOptions_Toggle();
         }
+        /* Once the player has control for the first time after the presets
+         * arrived (set only where there is no launcher to ask it). */
+        if (g_PcSimpleOfferPending && !g_PcConsoleInputActive &&
+            g_GameWork.gameState == GameState_InGame && g_SysWork.sysState == SysState_Gameplay &&
+            !(g_SysWork.sysFlags & SysFlag_DemoActive)) {
+            extern void Pc_QuickOptions_OfferSimple(void);
+            Pc_QuickOptions_OfferSimple();
+        }
         s_prevQuick = curQuick;
     }
 
@@ -2007,7 +2049,7 @@ void DbgOverlay_Update(void)
         s_prev_f4 = cur_f4;
     }
 
-    /* Exit Game bind (default Escape) is NOT a debug control — always handled,
+    /* Exit Game bind (unbound by default) is NOT a debug control — always handled,
      * in every state. At the title / main menu it quits the game; otherwise
      * (gameplay or cutscene) it warm-reboots to the title (consumed by
      * MainLoop_ShouldWarmReset, which ignores it on the menu / during boot).
@@ -2193,6 +2235,7 @@ void DbgOverlay_Render(void)
      * under the Yes/No box, which it opens for its reset. */
     { extern void Pc_BindPanel_Draw(void); Pc_BindPanel_Draw(); }
 
+    { extern void Pc_QolMods_Draw(void); Pc_QolMods_Draw(); }
     { extern void Pc_ConfirmDialog_Draw(void); Pc_ConfirmDialog_Draw(); }
 
     /* Character Select's turning model, composited into the native screen's

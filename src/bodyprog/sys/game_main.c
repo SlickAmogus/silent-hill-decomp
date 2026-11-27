@@ -2323,6 +2323,16 @@ void MainLoop(void) // 0x80032EE0
             }
         }
 
+        {
+            extern int Pc_EscapeOwnedByOverlay(void);
+            if (Pc_EscapeOwnedByOverlay()) {
+                g_Controller0->heldBtnFlags      &= ~ControllerFlag_Start;
+                g_Controller0->clickedBtnFlags   &= ~ControllerFlag_Start;
+                g_Controller0->releasedBtnFlags  &= ~ControllerFlag_Start;
+                g_Controller0->pulsedBtnFlags    &= ~ControllerFlag_Start;
+                g_Controller0->pulsedGuiBtnFlags &= ~ControllerFlag_Start;
+            }
+        }
         /* Ahead of the quick menu, which reads this frame's pad edges: the Enter
          * that submitted a console command reached it there as a Start click,
          * and after `charmenu` that click opened the models of the row under the
@@ -2391,6 +2401,33 @@ void MainLoop(void) // 0x80032EE0
                     (pcQoClicked & (cc->cancel | cc->option)) != 0,
                     (pcQoClicked & ControllerFlag_R1) != 0,
                     (pcQoClicked & ControllerFlag_L1) != 0);
+                s_pcQoHeldStash      = g_Controller0->heldBtnFlags;
+                s_pcQoHeldStashValid = 1;
+                g_Controller0->heldBtnFlags      = 0;
+                g_Controller0->clickedBtnFlags   = 0;
+                g_Controller0->releasedBtnFlags  = 0;
+                g_Controller0->pulsedBtnFlags    = 0;
+                g_Controller0->pulsedGuiBtnFlags = 0;
+            }
+        }
+        {
+            /* Essential QoL Mods (pc_qol_mods.c), opened from PC Options. While
+             * it is up it owns the pad, like the quick options above. */
+            extern int Pc_QolMods_Frame(int, int, int, int, int, int, int);
+            extern unsigned int Pc_MouseCursor_BoundPadBits(void);
+            const s_ControllerConfig* cc = &g_GameWorkPtr->config.controllerConfig;
+            const u32 pcQmClicked = g_Controller0->clickedBtnFlags & ~Pc_MouseCursor_BoundPadBits();
+            if (Pc_QolMods_Frame(
+                    g_GameWork.gameState == GameState_MainMenu && !(g_SysWork.sysFlags & SysFlag_DemoActive),
+                    (pcQmClicked & (ControllerFlag_LStickUp    | ControllerFlag_DpadUp))    != 0,
+                    (pcQmClicked & (ControllerFlag_LStickDown  | ControllerFlag_DpadDown))  != 0,
+                    (pcQmClicked & (ControllerFlag_LStickLeft  | ControllerFlag_DpadLeft))  != 0,
+                    (pcQmClicked & (ControllerFlag_LStickRight | ControllerFlag_DpadRight)) != 0,
+                    (pcQmClicked & (cc->enter | cc->action)) != 0,
+                    (pcQmClicked & cc->cancel) != 0)) {
+                /* The next pad update derives its press edges from heldBtnFlags,
+                 * so zeroing it alone made a held key a fresh press every frame.
+                 * Same stash as the quick menu. */
                 s_pcQoHeldStash      = g_Controller0->heldBtnFlags;
                 s_pcQoHeldStashValid = 1;
                 g_Controller0->heldBtnFlags      = 0;
@@ -3811,10 +3848,14 @@ void MainLoop(void) // 0x80032EE0
         /* Suppress dither on 2D-only states (logos, menus, map screen,
          * inventory, options, save/load). Dither makes flat-shaded UI
          * art look chewed-up at high resolution. Keep it for 3D gameplay
-         * + cutscenes (InGame state covers both). Read by PsyCross via
+         * + cutscenes (InGame state covers both), and for the loading
+         * screens (Harry running, the area pictures), which the console
+         * dithers like gameplay. Read by PsyCross via
          * extern int g_PsxDitherSuppressed in PsyX_render.cpp. */
         extern int g_PsxDitherSuppressed;
-        g_PsxDitherSuppressed = (g_GameWork.gameState == GameState_InGame) ? 0 : 1;
+        g_PsxDitherSuppressed = (g_GameWork.gameState == GameState_InGame ||
+                                 g_GameWork.gameState == GameState_MainLoadScreen ||
+                                 g_GameWork.gameState == GameState_LoadMapScreen) ? 0 : 1;
 
         /* Set by the game (game_sys_states.c) while a state freezes the world and presents
          * the captured FOGGY gameplay frame behind a message: the literal PAUSED screen

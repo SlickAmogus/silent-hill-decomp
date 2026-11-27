@@ -81,6 +81,14 @@ int            Cd_LegacyPending(void);
 void           Cd_UpdateLegacy(void);
 int            Cd_LegacyNoAsk(void);
 void           Cd_SetLegacyNoAsk(void);
+/* Downloaded characters the catalog has a newer version of, less those the
+ * player already said No to at that same version: a newer one asks again. */
+int            Cd_UpdatesOffered(void);
+void           Cd_DeclineUpdates(void);
+void           Cd_QueueUpdates(void);
+/* "Don't ask again" on that offer. */
+int            Cd_UpdateNoAsk(void);
+void           Cd_SetUpdateNoAsk(void);
 int            Cd_CatalogState(void);
 int            Cd_CatalogCount(void);
 /* Bumped when a new list takes over: catalog indices held from before are

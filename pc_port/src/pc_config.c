@@ -33,7 +33,7 @@ s_PcConfig g_PcConfig = {
     .fpsCap         = 30,
     .weatherSimHz      = 60,   /* per-frame weather sim; 30 = the console's cadence */
     .cutsceneLineGapMs = 300,
-    .darkHarry         = 1,   /* on by default for now */
+    .darkHarry         = 0,
     .darkHarryAfkSec   = 300, /* five minutes */
     .darkHarryDistance = 14,
     .darkHarryX        = 0,   /* unset: see dark_harry_x */
@@ -217,7 +217,7 @@ s_PcConfig g_PcConfig = {
         .keyUp = "Up", .keyDown = "Down", .keyLeft = "Left", .keyRight = "Right",
         .keyCross = "C", .keyCircle = "V", .keyTriangle = "Z", .keySquare = "X",
         .keyL1 = "A", .keyR1 = "D", .keyL2 = "Right Shift", .keyR2 = "Left Shift",
-        .keyL3 = "NONE", .keyR3 = "NONE", .keyStart = "Return", .keySelect = "Space",
+        .keyL3 = "NONE", .keyR3 = "NONE", .keyStart = "Return", .keySelect = "Space", .keyStart2 = "Escape",
         .padCross = "a", .padCircle = "b", .padTriangle = "y", .padSquare = "x",
         .padL1 = "leftshoulder", .padR1 = "rightshoulder",
         .padL2 = "lefttrigger", .padR2 = "righttrigger",
@@ -238,7 +238,7 @@ s_PcConfig g_PcConfig = {
         .keyUp = "W", .keyDown = "S", .keyLeft = "Left", .keyRight = "Right",
         .keyCross = "Mouse1", .keyCircle = "F", .keyTriangle = "Tab", .keySquare = "Left Shift",
         .keyL1 = "A", .keyR1 = "D", .keyL2 = "NONE", .keyR2 = "Mouse2",
-        .keyL3 = "NONE", .keyR3 = "NONE", .keyStart = "Return", .keySelect = "Space",
+        .keyL3 = "NONE", .keyR3 = "NONE", .keyStart = "Return", .keySelect = "Space", .keyStart2 = "Escape",
         .keyCross2 = "E",
         .padCross = "righttrigger", .padCircle = "b", .padTriangle = "y", .padSquare = "leftshoulder",
         .padL1 = "NONE", .padR1 = "NONE",
@@ -263,7 +263,7 @@ s_PcConfig g_PcConfig = {
     .keyGfxCycle = "\\",
     .keyGfxPrev  = "[",
     .keyGfxNext  = "]",
-    .keyExitGame = "Escape",
+    .keyExitGame = "NONE",
 
     .languageCode   = "auto", /* resolved per disc in Pc_LangInit */
     .language       = 0, /* 0=en 1=de 2=fr 3=es 4=it — PAL-disc text language; USA: menu translations on fan-patched discs */
@@ -385,6 +385,24 @@ static const struct { const char* key; size_t off; } s_GlobalBinds[] = {
     { "key_gfx_next",      offsetof(s_PcConfig, keyGfxNext)      },
     { "key_exit_game",     offsetof(s_PcConfig, keyExitGame)     },
 };
+
+/* No launcher on these: the game itself starts new players on a preset and
+ * tells existing ones the presets exist. */
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__) || defined(SH_IOS)
+#define PC_SIMPLE_IN_GAME_ONLY 1
+#else
+#define PC_SIMPLE_IN_GAME_ONLY 0
+#endif
+/* A phone's screen is its resolution: a preset leaves the render size alone. */
+#if defined(__ANDROID__) || defined(SH_IOS)
+#define PC_SIMPLE_KEEPS_SIZE 1
+#else
+#define PC_SIMPLE_KEEPS_SIZE 0
+#endif
+
+static int s_sawSimpleMode;  /* the config names simple_mode */
+static int s_simpleOffered;  /* simple_offered: the presets offer has been shown */
+static void PcConfig_SimpleNewPlayer(void);
 
 /* Remembered at load time so PcConfig_SaveMapName writes the same file. */
 static char s_configPath[512] = "config.cfg";
@@ -508,6 +526,10 @@ void PcConfig_Load(const char* path)
     FILE* f = fopen(path, "r");
     if (!f)
     {
+        /* The very first start: nothing to save into yet (the saves find no
+         * file and do nothing), so the next start applies it again for good. */
+        if (PC_SIMPLE_IN_GAME_ONLY)
+            PcConfig_SimpleNewPlayer();
         fprintf(stderr, "[CONFIG] %s not found, using defaults (%dx%d, fullscreen=%d, map=%s)\n",
                 path, g_PcConfig.windowWidth, g_PcConfig.windowHeight,
                 g_PcConfig.fullscreen, g_PcConfig.mapName);
@@ -1438,6 +1460,15 @@ else if (strcmp(key, "enable_plugins") == 0)
             if (v > 4.0f) v = 4.0f;
             g_PcConfig.controllerSensitivity = v;
         }
+        else if (strcmp(key, "simple_mode") == 0)
+        {
+            g_PcConfig.simpleMode = (atoi(value) != 0);
+            s_sawSimpleMode       = 1;
+        }
+        else if (strcmp(key, "simple_offered") == 0)
+        {
+            s_simpleOffered = (atoi(value) != 0);
+        }
         else if (strcmp(key, "unlimited_enemies") == 0)
         {
             g_PcConfig.unlimitedEnemies = (atoi(value) != 0);
@@ -1697,14 +1728,211 @@ else if (strcmp(key, "enable_plugins") == 0)
             }
         }
 
+        /* v7: Escape leaves Exit Game (a warm reset in play) and becomes the
+         * second Pause key; Dark Harry is off unless asked for. A config that
+         * moved or unbound Exit Game was set by its player and keeps both its
+         * exit bind and its pause keys. */
+        if (g_PcConfig.configVersion < 7)
+        {
+            if (strcmp(g_PcConfig.keyExitGame, "Escape") == 0 || strcmp(g_PcConfig.keyExitGame, "escape") == 0)
+            {
+                ControlScheme* schemes[2] = { &g_PcConfig.classic, &g_PcConfig.altcam };
+                int            s;
+
+                snprintf(g_PcConfig.keyExitGame, sizeof(g_PcConfig.keyExitGame), "NONE");
+                PcConfig_SaveKeyValue("key_exit_game", "NONE");
+                for (s = 0; s < 2; s++)
+                {
+                    char* slot = schemes[s]->keyStart2;
+                    if (slot[0] != '\0' && strcmp(slot, "NONE") != 0)
+                        continue;
+                    snprintf(slot, 24, "Escape");
+                    PcConfig_SaveKeyValue(s ? "key_start_2_altcam" : "key_start_2", "Escape");
+                }
+            }
+            if (g_PcConfig.darkHarry == 1)
+            {
+                g_PcConfig.darkHarry = 0;
+                PcConfig_SaveKeyValue("dark_harry", "0");
+            }
+        }
+
+        /* v8 (builds with no launcher): a config that has never been through
+         * this block is a new player's; they start on a preset. */
+        if (PC_SIMPLE_IN_GAME_ONLY && g_PcConfig.configVersion == 0)
+            PcConfig_SimpleNewPlayer();
+
         g_PcConfig.configVersion = PC_CONFIG_VERSION;
         snprintf(vbuf, sizeof(vbuf), "%d", g_PcConfig.configVersion);
         PcConfig_SaveKeyValue("config_version", vbuf);
     }
 
+    /* Asked on every start until it has been shown once, so quitting before
+     * reaching the game does not lose it. A config that names the mode has
+     * already been set by its player. */
+    if (PC_SIMPLE_IN_GAME_ONLY && !s_sawSimpleMode && !s_simpleOffered)
+        g_PcSimpleOfferPending = 1;
+
     fprintf(stderr, "[CONFIG] Resolution: %dx%d, Fullscreen: %d, DisableCulling: %d, Map: %s\n",
             g_PcConfig.windowWidth, g_PcConfig.windowHeight,
             g_PcConfig.fullscreen, g_PcConfig.disableCulling, g_PcConfig.mapName);
+}
+
+/* ---- quality presets (simple mode) ----
+ * The launcher has the same table (Form1.Simple.cs): keep the two alike. */
+
+int g_PcSimpleOfferPending = 0;
+
+void PcConfig_SimpleOfferShown(void)
+{
+    g_PcSimpleOfferPending = 0;
+    s_simpleOffered        = 1;
+    PcConfig_SaveKeyValue("simple_offered", "1");
+}
+
+/* A player with no settings of their own yet starts in simple mode on
+ * Enhanced: Normal. */
+static void PcConfig_SimpleNewPlayer(void)
+{
+    g_PcConfig.simpleMode = 1;
+    s_sawSimpleMode       = 1;
+    s_simpleOffered       = 1;
+    PcConfig_SaveKeyValue("simple_mode", "1");
+    PcConfig_SaveKeyValue("simple_offered", "1");
+    PcConfig_SimplePresetApply(PC_SIMPLE_NORMAL);
+}
+typedef struct { int native, vsync, fps, filter, msaa, pgxp, flash, shadow, decals, town, preload; float fog; } SimplePreset;
+
+static void PcConfig_SimplePresetValues(int p, SimplePreset* v)
+{
+    const s_PcConfig* d = &s_PcConfigDefaults;
+
+    /* The whole map loaded up front: every preset where there is the memory
+     * for it; on a phone or in a browser only from Normal up. */
+    v->preload = PC_SIMPLE_IN_GAME_ONLY ? (p >= PC_SIMPLE_NORMAL) : 1;
+    /* Ultra alone thins the fog and draws the whole town through it. */
+    v->town = (p == PC_SIMPLE_ULTRA);
+    v->fog  = v->town ? 0.95f : d->fogStrength;
+
+    if (p == PC_SIMPLE_ORIGINAL)
+    {
+        v->native = 1;                 v->vsync  = d->vsync;         v->fps    = d->fpsCap;
+        v->filter = d->textureFilter;  v->msaa   = 0;                v->pgxp   = d->usePgxp;
+        v->flash  = 0;                 v->shadow = d->shadowMapSize; v->decals = d->bulletDecals;
+    }
+    else
+    {
+        static const struct { int filter, msaa, flash, shadow; } q[PC_SIMPLE_COUNT] = {
+            { 0, 0, 0, 1024 },
+            { 1, 0, 0, 512  },   /* Low Spec: bilinear, classic flashlight */
+            { 4, 2, 1, 2048 },   /* Normal: 4x anisotropic, classic + shadows */
+            { 5, 4, 3, 4096 },   /* High: 8x anisotropic, modern + shadows */
+            { 6, 8, 3, 8192 },   /* Ultra: 16x anisotropic */
+        };
+        v->native = 0;           v->vsync  = 1;           v->fps    = 0;
+        v->filter = q[p].filter; v->msaa   = q[p].msaa;   v->pgxp   = 1;
+        v->flash  = q[p].flash;  v->shadow = q[p].shadow; v->decals = 1;
+    }
+}
+
+int PcConfig_SimplePresetDetect(void)
+{
+    int p;
+
+    /* The post effect, the tone map, the render scale and culling are the
+     * player's to set under any preset. */
+    for (p = 0; p < PC_SIMPLE_COUNT; p++)
+    {
+        SimplePreset v;
+        PcConfig_SimplePresetValues(p, &v);
+        /* The render size is the Resolution row's: a preset sets it when it
+         * is picked, and the player may change it without leaving the preset. */
+        if (g_PcConfig.vsync != v.vsync ||
+            g_PcConfig.fpsCap != v.fps || g_PcConfig.textureFilter != v.filter ||
+            g_PcConfig.msaaSamples != v.msaa || g_PcConfig.usePgxp != v.pgxp ||
+            g_PcConfig.flashlightMode != v.flash || g_PcConfig.shadowMapSize != v.shadow ||
+            g_PcConfig.bulletDecals != v.decals || (g_PcConfig.preloadChunks != 0) != v.preload ||
+            g_PcConfig.fogStrength > v.fog + 0.005f || g_PcConfig.fogStrength < v.fog - 0.005f ||
+            (v.town && (!g_PcConfig.worldVisibility || !g_PcConfig.wholeMapExteriors)))
+        {
+            continue;
+        }
+        /* Menus Only pillarboxing is part of the enhanced presets alone. */
+        if (p != PC_SIMPLE_ORIGINAL && (g_PcConfig.widescreenMode != 1 || g_PcConfig.menuPillarbox != 1))
+            continue;
+        return p;
+    }
+    return PC_SIMPLE_CUSTOM;
+}
+
+void PcConfig_SimplePresetApply(int p)
+{
+    const s_PcConfig* d = &s_PcConfigDefaults;
+    SimplePreset      v;
+    const char*       keys[24];
+    const char*       vals[24];
+    char              buf[24][16];
+    int               n = 0;
+
+    if (p < 0 || p >= PC_SIMPLE_COUNT)
+        return;
+    PcConfig_SimplePresetValues(p, &v);
+
+    if (!PC_SIMPLE_KEEPS_SIZE)
+        g_PcConfig.nativeResolution = v.native;
+    g_PcConfig.vsync              = v.vsync;
+    g_PcConfig.fpsCap             = v.fps;
+    g_PcConfig.textureFilter      = v.filter;
+    g_PcConfig.msaaSamples        = v.msaa;
+    g_PcConfig.usePgxp            = v.pgxp;
+    g_PcConfig.flashlightMode     = v.flash;
+    g_PcConfig.perPixelFlashlight = (v.flash != 0);
+    g_PcConfig.flashlightShadows  = (v.flash == 1 || v.flash == 3);
+    g_PcConfig.shadowMapSize      = v.shadow;
+    g_PcConfig.bulletDecals       = v.decals;
+    /* A preset never turns culling on; it leaves nothing culled by view angle. */
+    g_PcConfig.disableCulling     = 1;
+    g_PcConfig.preloadChunks      = v.preload;
+    g_PcConfig.fogStrength        = v.fog;
+    g_PcConfig.wholeMapExteriors  = v.town ? 1 : d->wholeMapExteriors;
+    if (v.town)
+        g_PcConfig.worldVisibility = 1;
+    if (p != PC_SIMPLE_ORIGINAL)
+    {
+        g_PcConfig.widescreenMode = 1;
+        g_PcConfig.menuPillarbox  = 1;
+    }
+
+#define PRESET_KEY(k, value) \
+    do { snprintf(buf[n], sizeof(buf[n]), "%d", (int)(value)); keys[n] = (k); vals[n] = buf[n]; n++; } while (0)
+    if (!PC_SIMPLE_KEEPS_SIZE)
+        PRESET_KEY("native_resolution", g_PcConfig.nativeResolution);
+    PRESET_KEY("vsync",                g_PcConfig.vsync);
+    PRESET_KEY("fps_cap",              g_PcConfig.fpsCap);
+    PRESET_KEY("texture_filter",       g_PcConfig.textureFilter);
+    PRESET_KEY("msaa",                 g_PcConfig.msaaSamples);
+    PRESET_KEY("use_pgxp",             g_PcConfig.usePgxp);
+    PRESET_KEY("flashlight_mode",      g_PcConfig.flashlightMode);
+    PRESET_KEY("per_pixel_flashlight", g_PcConfig.perPixelFlashlight);
+    PRESET_KEY("flashlight_shadows",   g_PcConfig.flashlightShadows);
+    PRESET_KEY("shadow_resolution",    g_PcConfig.shadowMapSize);
+    PRESET_KEY("bullet_decals",        g_PcConfig.bulletDecals);
+    PRESET_KEY("disable_culling",      g_PcConfig.disableCulling);
+    PRESET_KEY("preload_chunks",       g_PcConfig.preloadChunks);
+    PRESET_KEY("whole_map_exteriors",  g_PcConfig.wholeMapExteriors);
+    if (v.town)
+        PRESET_KEY("world_visibility", 1);
+    if (p != PC_SIMPLE_ORIGINAL)
+    {
+        PRESET_KEY("widescreen_mode", 1);
+        PRESET_KEY("menu_pillarbox",  1);
+    }
+#undef PRESET_KEY
+    snprintf(buf[n], sizeof(buf[n]), "%.2f", g_PcConfig.fogStrength);
+    keys[n] = "fog_strength";
+    vals[n] = buf[n];
+    n++;
+    PcConfig_SaveKeyValues(keys, vals, n);
 }
 
 /* Rewrite (or append) a single `key = value` line in the loaded config file,

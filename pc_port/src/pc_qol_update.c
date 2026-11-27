@@ -1840,4 +1840,469 @@ int Pc_QolUpdate_TitleFrame(int left, int right, int confirm, int cancel)
     }
 }
 
+/* ------------------------------------------------------------------ */
+/* Installing and removing from the in-game list (pc_qol_mods.c)       */
+/* ------------------------------------------------------------------ */
+
+/* The in-game Essential QoL Mods list leaves the folders as the launcher's
+ * Mod Manager would, so a mod put in or taken out here reads the same there:
+ * a load mod is a folder in the mods/ library, listed in modmanager.json and
+ * copied under gamedata/load with a line per file in deployed.txt; a texture
+ * pack is its zip in gamedata/texturemods. */
+
+#define QU_TEX_DIR "gamedata/texturemods"
+
+/* The Mod Manager's LibraryZipFolder: the zip's name without its extension. */
+static void qu_lib_folder(const char* file, char* out, size_t outSz)
+{
+    size_t n;
+
+    snprintf(out, outSz, "%s", file);
+    n = strlen(out);
+    if (n > 4 && qu_iends(out, ".zip"))
+        out[n - 4] = '\0';
+    n = strlen(out);
+    while (n > 0 && (out[n - 1] == ' ' || out[n - 1] == '.'))
+        out[--n] = '\0';
+    if (n == 0)
+        snprintf(out, outSz, "mod");
+}
+
+/* Where an installed copy of this catalog mod is: 1 a library folder, 2 a
+ * texture pack (path may end in .disabled), 0 not installed. `name` gets the
+ * name modmanager.json knows it by. */
+static int qu_lib_find(const char* id, const char* file, char* path, size_t pathSz, char* name, size_t nameSz)
+{
+    static QuInst inst[QU_MAX_MODS * 4];
+    char*  json = qu_read_all(QU_STATE_FILE, 8LL * 1024 * 1024, NULL);
+    int    n = json ? qu_parse_installed(json, inst, (int)(sizeof(inst) / sizeof(inst[0]))) : 0;
+    int    i;
+    char   folder[128];
+
+    free(json);
+    for (i = 0; i < n; i++)
+    {
+        if (!qu_ieq(inst[i].essentialId, id))
+            continue;
+        snprintf(name, nameSz, "%s", inst[i].name);
+        snprintf(path, pathSz, "mods/%s", inst[i].name);
+        if (qu_is_dir(path))
+            return 1;
+        snprintf(path, pathSz, QU_TEX_DIR "/%s", inst[i].name);
+        if (PcFile_Stat(path, NULL, NULL))
+            return 2;
+        snprintf(path, pathSz, QU_TEX_DIR "/%s.disabled", inst[i].name);
+        if (PcFile_Stat(path, NULL, NULL))
+            return 2;
+    }
+    /* Not recorded (put there by hand, or the record is gone): by its name. */
+    qu_lib_folder(file, folder, sizeof(folder));
+    snprintf(name, nameSz, "%s", folder);
+    snprintf(path, pathSz, "mods/%s", folder);
+    if (qu_is_dir(path))
+        return 1;
+    snprintf(name, nameSz, "%s", file);
+    snprintf(path, pathSz, QU_TEX_DIR "/%s", file);
+    if (PcFile_Stat(path, NULL, NULL))
+        return 2;
+    snprintf(path, pathSz, QU_TEX_DIR "/%s.disabled", file);
+    if (PcFile_Stat(path, NULL, NULL))
+        return 2;
+    return 0;
+}
+
+int Pc_QolLib_IsInstalled(const char* id, const char* file)
+{
+    char path[QU_PATH], name[160];
+    return qu_lib_find(id, file, path, sizeof(path), name, sizeof(name)) != 0;
+}
+
+static void qu_json_escape(const char* s, char* out, size_t outSz)
+{
+    size_t n = 0;
+
+    for (; s && *s && n + 7 < outSz; s++)
+    {
+        unsigned char c = (unsigned char)*s;
+        if (c == '"' || c == '\\')
+        {
+            out[n++] = '\\';
+            out[n++] = (char)c;
+        }
+        else if (c == '\n') { out[n++] = '\\'; out[n++] = 'n'; }
+        else if (c < 0x20)  { out[n++] = ' '; }
+        else                out[n++] = (char)c;
+    }
+    out[n] = '\0';
+}
+
+/* modmanager.json without the entry called `name`, and with `entry` (a JSON
+ * object, or NULL) put first in its Mods list. The file is the launcher's
+ * compact DataContract output; entries hold no nested objects. */
+static int qu_state_edit(const char* name, const char* entry)
+{
+    size_t      len = 0, cap, at = 0;
+    char*       json = qu_read_all(QU_STATE_FILE, 8LL * 1024 * 1024, &len);
+    char*       out;
+    const char* arr;
+    const char* p;
+    const char* copyFrom;
+    char        want[200];
+    int         ok;
+
+    if (json == NULL)
+    {
+        if (entry == NULL)
+            return 1;
+        cap = strlen(entry) + 64;
+        if ((out = (char*)malloc(cap)) == NULL)
+            return 0;
+        snprintf(out, cap, "{\"DllWarningAck\":false,\"Mods\":[%s]}", entry);
+        qu_mkdir("mods");
+        ok = qu_write_all(QU_STATE_FILE, out, strlen(out));
+        free(out);
+        return ok;
+    }
+    arr = strstr(json, "\"Mods\":[");
+    if (arr == NULL)
+    {
+        free(json);
+        return 0;
+    }
+    arr += strlen("\"Mods\":[");
+    cap = len + (entry ? strlen(entry) : 0) + 16;
+    if ((out = (char*)malloc(cap)) == NULL)
+    {
+        free(json);
+        return 0;
+    }
+    memcpy(out, json, (size_t)(arr - json));
+    at = (size_t)(arr - json);
+    snprintf(want, sizeof(want), "\"Name\":\"%s\"", name);
+
+    /* Each object of the list, kept unless it is the one being replaced. */
+    p        = arr;
+    copyFrom = NULL;
+    {
+        int first = 1;
+        if (entry)
+        {
+            memcpy(out + at, entry, strlen(entry));
+            at += strlen(entry);
+            first = 0;
+        }
+        while (*p && *p != ']')
+        {
+            const char* s;
+            const char* e;
+            int         inStr = 0, depth = 0, mine;
+
+            while (*p == ',' || *p == ' ' || *p == '\r' || *p == '\n' || *p == '\t')
+                p++;
+            if (*p != '{')
+                break;
+            s = p;
+            for (e = p; *e; e++)
+            {
+                if (inStr)
+                {
+                    if (*e == '\\' && e[1]) e++;
+                    else if (*e == '"') inStr = 0;
+                }
+                else if (*e == '"') inStr = 1;
+                else if (*e == '{') depth++;
+                else if (*e == '}' && --depth == 0) { e++; break; }
+            }
+            {
+                size_t objLen = (size_t)(e - s);
+                char*  obj = (char*)malloc(objLen + 1);
+                mine = 0;
+                if (obj)
+                {
+                    memcpy(obj, s, objLen);
+                    obj[objLen] = '\0';
+                    mine = strstr(obj, want) != NULL;
+                    free(obj);
+                }
+                if (!mine)
+                {
+                    if (!first)
+                        out[at++] = ',';
+                    memcpy(out + at, s, objLen);
+                    at += objLen;
+                    first = 0;
+                }
+            }
+            p = e;
+        }
+        (void)copyFrom;
+    }
+    /* The rest of the file from the list's closing bracket on. */
+    p = strchr(p, ']');
+    if (p == NULL)
+    {
+        free(out);
+        free(json);
+        return 0;
+    }
+    memcpy(out + at, p, strlen(p));
+    at += strlen(p);
+    ok = qu_write_all(QU_STATE_FILE, out, at);
+    free(out);
+    free(json);
+    return ok;
+}
+
+/* Take a library mod's files back out of gamedata/load: the ones deployed.txt
+ * says the Mod Manager created and that still are the library copy. A file
+ * over a backup is its to put back, at its next Apply. */
+static void qu_lib_undeploy(const char* libDir, const char* name)
+{
+    QuList     files = { NULL, 0, 0 };
+    QuManifest man;
+    char       load[QU_PATH], slug[64], tag[80];
+    int        i;
+
+    tag[0] = '\0';
+    if (!qu_load_dir(libDir, load, sizeof(load)) || !qu_collect(load, "", &files, 0) || !qu_man_load(&man))
+    {
+        qu_list_free(&files);
+        return;
+    }
+    qu_slug(name, slug, sizeof(slug));
+    qu_find_tag(&man, slug, &files, tag, sizeof(tag));
+    for (i = 0; i < files.n; i++)
+    {
+        char       rel[QU_PATH], mrel[QU_PATH], lib[QU_PATH], dst[QU_PATH];
+        QuManLine* l;
+
+        if (!qu_deploy_rel(files.v[i], tag, rel, sizeof(rel)))
+            continue;
+        qu_manifest_rel(rel, mrel, sizeof(mrel));
+        snprintf(lib, sizeof(lib), "%s/%s", load, files.v[i]);
+        snprintf(dst, sizeof(dst), "gamedata/load/%s", rel);
+        l = qu_man_find(&man, mrel);
+        if (l == NULL || l->op != 'F' || !qu_same_file(lib, dst))
+            continue;
+        remove(dst);
+        l->drop   = 1;
+        man.dirty = 1;
+    }
+    if (man.dirty)
+        qu_man_save(&man);
+    qu_man_free(&man);
+    qu_list_free(&files);
+}
+
+int Pc_QolLib_Remove(const char* id, const char* file)
+{
+    char path[QU_PATH], name[160];
+    int  kind = qu_lib_find(id, file, path, sizeof(path), name, sizeof(name));
+
+    if (kind == 1)
+    {
+        qu_lib_undeploy(path, name);
+        qu_rmtree(path);
+    }
+    else if (kind == 2)
+    {
+        char other[QU_PATH];
+        remove(path);
+        /* Whichever of the pair is left: the pack switched off, or on. */
+        if (qu_iends(path, ".disabled"))
+            snprintf(other, sizeof(other), "%.*s", (int)(strlen(path) - 9), path);
+        else
+            snprintf(other, sizeof(other), "%s.disabled", path);
+        remove(other);
+        /* And its unpacked copy, switched on or off. */
+        {
+            char base[QU_PATH], ext[QU_PATH];
+
+            snprintf(base, sizeof(base), "%s", qu_iends(path, ".disabled") ? other : path);
+            snprintf(ext, sizeof(ext), "%s.extracted", base);
+            qu_rmtree(ext);
+            snprintf(ext, sizeof(ext), "%s.extracted.disabled", base);
+            qu_rmtree(ext);
+        }
+    }
+    else
+        return 1;
+    qu_state_edit(name, NULL);
+    return 1;
+}
+
+/* A zip with texupload- / texpage- images is a texture pack, read in place. */
+static int qu_zip_is_texture(const char* zipPath)
+{
+    mz_zip_archive zip;
+    mz_uint        i, n;
+    int            tex = 0;
+
+    memset(&zip, 0, sizeof(zip));
+    if (!mz_zip_reader_init_file(&zip, zipPath, 0))
+        return -1;
+    n = mz_zip_reader_get_num_files(&zip);
+    for (i = 0; i < n && !tex; i++)
+    {
+        char        fn[512];
+        const char* base;
+
+        mz_zip_reader_get_filename(&zip, i, fn, sizeof(fn));
+        base = strrchr(fn, '/');
+        base = base ? base + 1 : fn;
+        tex  = qu_iprefix(base, "texupload-") || qu_iprefix(base, "texpage-");
+    }
+    mz_zip_reader_end(&zip);
+    return tex;
+}
+
+/* The list's downloads: the catalog and the zips of this release, or the test
+ * folder standing in for it (see the top of the file). */
+int Pc_QolHttpDownload(const char* url, const char* path, volatile long long* got)
+{
+    const char* file = strrchr(url, '/');
+
+    remove(path);
+    if (qu_is_dir(QU_TEST_DIR))
+    {
+        char from[QU_PATH];
+
+        snprintf(from, sizeof(from), QU_TEST_DIR "/%s", file ? file + 1 : url);
+        return PcFile_CopyKeepTime(from, path) ? 200 : 404;
+    }
+    if (strncmp(url, QU_RELEASE_BASE, strlen(QU_RELEASE_BASE)) != 0)
+        return 0;
+    return Pc_RaHttpDownloadFile(url, path, got);
+}
+
+/* zipPath is the downloaded catalog zip; it is consumed either way. */
+int Pc_QolLib_Install(const char* zipPath, const char* id, const char* file, const char* name, const char* author,
+                      const char* desc, const char* sha, char* err, size_t errSz)
+{
+    char       folder[128], libDir[QU_PATH], newDir[QU_PATH], load[QU_PATH], slug[64], tag[80];
+    char       eName[400], eAuthor[400], eDesc[1400], eFolder[300], entry[2600];
+    QuList     files = { NULL, 0, 0 };
+    QuManifest man;
+    int        tex = qu_zip_is_texture(zipPath), i, ok = 0, haveMan;
+
+    err[0] = '\0';
+    if (tex < 0)
+    {
+        snprintf(err, errSz, "not a valid zip");
+        remove(zipPath);
+        return 0;
+    }
+    Pc_QolLib_Remove(id, file); /* a copy already there is replaced whole */
+    qu_json_escape(name, eName, sizeof(eName));
+    qu_json_escape(author, eAuthor, sizeof(eAuthor));
+    qu_json_escape(desc, eDesc, sizeof(eDesc));
+
+    if (tex)
+    {
+        char dest[QU_PATH];
+
+        qu_mkdir("gamedata");
+        qu_mkdir(QU_TEX_DIR);
+        snprintf(dest, sizeof(dest), QU_TEX_DIR "/%s", file);
+        if (!PcFile_CopyKeepTime(zipPath, dest))
+        {
+            snprintf(err, errSz, "could not copy it into texturemods");
+            remove(zipPath);
+            return 0;
+        }
+        remove(zipPath);
+        /* The Mod Manager reads a compressed pack from "<zip>.extracted" beside
+         * it, and counts the pack as switched on by that folder being there. */
+        {
+            char ext[QU_PATH], off[QU_PATH], xerr[120];
+
+            snprintf(ext, sizeof(ext), "%s.extracted", dest);
+            snprintf(off, sizeof(off), "%s.extracted.disabled", dest);
+            qu_rmtree(ext);
+            qu_rmtree(off);
+            if (!qu_extract(dest, ext, xerr, sizeof(xerr)))
+                qu_rmtree(ext); /* the game still reads the zip in place */
+        }
+        qu_json_escape(file, eFolder, sizeof(eFolder));
+        snprintf(entry, sizeof(entry),
+                 "{\"Author\":\"%s\",\"Description\":\"%s\",\"DisplayName\":\"%s\",\"Enabled\":true,"
+                 "\"EssentialId\":\"%s\",\"EssentialSha\":\"%s\",\"Name\":\"%s\"}",
+                 eAuthor, eDesc, eName, id, sha ? sha : "", eFolder);
+        qu_state_edit(file, entry);
+        return 1;
+    }
+
+    qu_lib_folder(file, folder, sizeof(folder));
+    snprintf(libDir, sizeof(libDir), "mods/%s", folder);
+    snprintf(newDir, sizeof(newDir), QU_WORK_DIR "/%s.new", folder);
+    qu_mkdir("mods");
+    qu_mkdir(QU_WORK_DIR);
+    qu_rmtree(newDir);
+    if (!qu_extract(zipPath, newDir, err, errSz))
+        goto done;
+    if (!qu_load_dir(newDir, load, sizeof(load)))
+    {
+        snprintf(err, errSz, "there is nothing in it for gamedata/load");
+        goto done;
+    }
+    if (!qu_updatable(newDir))
+    {
+        /* DLLs and videos go where only the launcher's rules put them. */
+        snprintf(err, errSz, "this one has to be installed from the launcher's Mod Manager");
+        goto done;
+    }
+    qu_rmtree(libDir);
+    if (!PcFile_MoveReplace(newDir, libDir) && !qu_copy_tree(newDir, libDir))
+    {
+        snprintf(err, errSz, "could not write mods/%s", folder);
+        goto done;
+    }
+
+    /* Deployed as the Mod Manager's Apply would: each file copied with the
+     * library copy's time and listed as one it created. A file already there
+     * is another mod's or the player's, and is left for its Apply to settle.
+     * The text files' place in its list is not known here; its next Apply
+     * renames them to the place it gives the mod. */
+    haveMan = qu_man_load(&man);
+    if (!haveMan)
+        memset(&man, 0, sizeof(man));
+    qu_slug(folder, slug, sizeof(slug));
+    snprintf(tag, sizeof(tag), "000_%s", slug);
+    if (qu_load_dir(libDir, load, sizeof(load)) && qu_collect(load, "", &files, 0))
+    {
+        for (i = 0; i < files.n; i++)
+        {
+            char rel[QU_PATH], mrel[QU_PATH], lib[QU_PATH], dst[QU_PATH];
+
+            if (!qu_deploy_rel(files.v[i], tag, rel, sizeof(rel)))
+                continue;
+            qu_manifest_rel(rel, mrel, sizeof(mrel));
+            snprintf(lib, sizeof(lib), "%s/%s", load, files.v[i]);
+            snprintf(dst, sizeof(dst), "gamedata/load/%s", rel);
+            if (qu_man_find(&man, mrel) != NULL || PcFile_Stat(dst, NULL, NULL))
+                continue;
+            qu_mkdirs_for(dst);
+            if (PcFile_CopyKeepTime(lib, dst))
+                qu_man_set(&man, NULL, 'F', mrel, dst);
+        }
+    }
+    if (man.dirty)
+        qu_man_save(&man);
+    qu_man_free(&man);
+    qu_list_free(&files);
+
+    qu_json_escape(folder, eFolder, sizeof(eFolder));
+    snprintf(entry, sizeof(entry),
+             "{\"Author\":\"%s\",\"Description\":\"%s\",\"DisplayName\":\"%s\",\"Enabled\":true,"
+             "\"EssentialId\":\"%s\",\"EssentialSha\":\"%s\",\"Name\":\"%s\"}",
+             eAuthor, eDesc, eName, id, sha ? sha : "", eFolder);
+    qu_state_edit(folder, entry);
+    ok = 1;
+
+done:
+    remove(zipPath);
+    qu_rmtree(newDir);
+    return ok;
+}
+
 #endif

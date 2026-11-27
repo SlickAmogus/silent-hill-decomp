@@ -13,6 +13,7 @@
 9 = HERO  # MAP0_S01.21: I came here for a vacation. I just got here...
 10 = SIBYL  # MAP0_S01.40: The phones are all dead, and the radio, too.
 11 = SIBYL  # MAP0_S01.51: Take this. And hope you don't have to use it.
+12 = SIBYL  # MAP0_S01.43: Hold it! Where do you think you're going?  (played by a direct SD_Call, not paired by gen_xa_subtitles.py)
 13 = HERO  # MAP0_S00.21: Cheryl? Is that Cheryl!?
 14 = SIBYL  # MAP0_S01.53: before you pull the trigger, know who you're shooting.
 15 = SIBYL  # MAP0_S01.39: I'm a police officer from Brahms, the next town over.
