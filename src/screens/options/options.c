@@ -1188,7 +1188,7 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_LINEGAP, QO_X_CHARALIGHT, QO_X_PPLIGHT, QO_X_HEROLIGHT, QO_X_HEROLIGHTFL, QO_X_FACEANIM,
        QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD,
        QO_X_GYROAIM, QO_X_GYROSENS, QO_X_GYROMOVE, QO_X_FLASHAIM, QO_X_WORLDVIS,
-       QO_X_PRESET, QO_X_SDITHER, QO_X_CFGMODE, QO_X_BUTTONSPRINT };
+       QO_X_PRESET, QO_X_SDITHER, QO_X_CFGMODE, QO_X_BUTTONSPRINT, QO_X_PGXPSNOW };
 
 /* display_aspect = crt puts the picture on (4:3 x trim), so one framebuffer
  * pixel lands on screen this many times wider than tall at trim 1.0. It is the
@@ -1321,6 +1321,8 @@ const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz)
         return g_PcConfig.worldVisibility ? Pc_LangQuick("Full") : Pc_LangQuickMenu("Off");
     case QO_X_CROSSHAIRMELEE:
         return Pc_LangQuickMenu(g_PcConfig.crosshairHideMelee ? "On" : "Off");
+    case QO_X_PGXPSNOW:
+        return Pc_LangQuickMenu(g_PcConfig.pgxpSnow ? "On" : "Off");
     case QO_X_GYROAIM: {
         static const char* const lbl[3] = { "Off", "While Aiming", "Always" };
         int i = (g_PcConfig.gyroAim >= 0 && g_PcConfig.gyroAim < 3) ? g_PcConfig.gyroAim : 0;
@@ -1898,6 +1900,15 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
         PcConfig_SaveKeyValue("altcam_button_sprint", g_PcConfig.altButtonSprint ? "1" : "0");
         Sd_PlaySfx(Sfx_MenuMove, 0, 64);
         break;
+    /* The snow reads it as each flake is drawn, so it applies live. */
+    case QO_X_PGXPSNOW: {
+        extern int g_PsyX_PgxpSnow;
+        g_PcConfig.pgxpSnow = !g_PcConfig.pgxpSnow;
+        g_PsyX_PgxpSnow     = g_PcConfig.pgxpSnow;
+        PcConfig_SaveKeyValue("pgxp_snow", g_PcConfig.pgxpSnow ? "1" : "0");
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        break;
+    }
     /* Pc_CrosshairDraw reads it each frame, so it applies live. */
     case QO_X_CROSSHAIRMELEE:
         g_PcConfig.crosshairHideMelee = !g_PcConfig.crosshairHideMelee;
