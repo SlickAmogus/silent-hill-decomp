@@ -465,6 +465,7 @@ typedef struct
  * is built from the chest at load, so every model gets it. */
 enum { PC_SKIN_MORPH_BLINK, PC_SKIN_MORPH_MOUTH, PC_SKIN_MORPH_GRIP_L, PC_SKIN_MORPH_GRIP_R, PC_SKIN_MORPH_BREATH,
        PC_SKIN_MORPH_LIDHALF, /* lidhalf: a painted half-shut eye frame, shown on the way into and out of a blink */
+       PC_SKIN_MORPH_WIND, /* wind: marks loose cloth and where it is tied; never applied as a key (Skin_WindDeltas) */
        PC_SKIN_MORPH_SHAPE, /* mouth_A .. mouth_H, mouth_X: painted mouth shapes, PC_LIP_SHAPES of them */
        PC_SKIN_MORPH_COUNT = PC_SKIN_MORPH_SHAPE + PC_LIP_SHAPES };
 
@@ -524,6 +525,8 @@ typedef struct
     PcSkinMorph morph[PC_SKIN_MORPH_COUNT];
     float       blinkClock, blinkNext;
     float       breathPhase, breathPeriod;
+    float     (*windD)[3]; /* this frame's delta for each vertex of the wind key */
+    float       windT, windLen;
     float       mouth;
     float       shapeW[PC_LIP_SHAPES];
     float       grip[2];
@@ -1286,6 +1289,8 @@ static int Skin_MorphKind(const char* name, int haveBothBlink)
         return PC_SKIN_MORPH_MOUTH;
     if (strcmp(l, "lidhalf") == 0)
         return PC_SKIN_MORPH_LIDHALF;
+    if (strcmp(l, "wind") == 0)
+        return PC_SKIN_MORPH_WIND;
     if (strncmp(l, "mouth_", 6) == 0 && l[7] == '\0' && ((l[6] >= 'a' && l[6] <= 'h') || l[6] == 'x'))
         return PC_SKIN_MORPH_SHAPE + (l[6] == 'x' ? PC_LIP_SHAPES - 1 : l[6] - 'a');
     return -1;
@@ -1346,7 +1351,7 @@ static void Skin_LoadMorphs(PcSkinChara* ch, const cgltf_mesh* mesh, const cgltf
         }
         free(all);
         SH_DBG("[SKIN] shape key \"%s\" drives %s", mesh->target_names[t],
-               kind == PC_SKIN_MORPH_BLINK ? "blinking" : "the mouth");
+               kind == PC_SKIN_MORPH_BLINK ? "blinking" : kind == PC_SKIN_MORPH_WIND ? "cloth in the wind" : "the mouth");
     }
 }
 
@@ -2844,6 +2849,7 @@ static void Skin_Release(PcSkinChara* ch)
         free(ch->morph[k].v);
         free(ch->morph[k].d);
     }
+    free(ch->windD);
     free(ch->verts);
     free(ch->color);
     free(ch->pos);
@@ -3856,6 +3862,75 @@ static void Skin_GripWeights(PcSkinChara* ch, float* w)
     }
 }
 
+/* Loose cloth in the wind (a bandana's tails, modelled streaming straight out
+ * because the game they came from blew them about with physics this engine
+ * has none of).
+ *
+ * A model opts in with a shape key named "wind" that moves each vertex of the
+ * cloth to the point where it is tied. That one key says which vertices are
+ * cloth, how far along it each one is and which way it trails, so nothing
+ * else is needed in the file and nothing runs for a model without it. The key
+ * itself is never shown: each frame it is replaced by a travelling wave across
+ * and up-and-down the cloth, growing toward the free end, on top of a droop
+ * that lets the end hang rather than stand out level. */
+static void Skin_WindDeltas(PcSkinChara* ch, float dt)
+{
+    const PcSkinMorph* m = &ch->morph[PC_SKIN_MORPH_WIND];
+    float t, gust;
+    int i;
+
+    if (m->count == 0)
+        return;
+    if (ch->windD == NULL)
+    {
+        ch->windD = (float(*)[3])calloc((size_t)m->count, sizeof(float[3]));
+        if (ch->windD == NULL)
+            return;
+        ch->windLen = 1.0f;
+        for (i = 0; i < m->count; i++)
+        {
+            float s = sqrtf(m->d[i][0] * m->d[i][0] + m->d[i][1] * m->d[i][1] + m->d[i][2] * m->d[i][2]);
+            if (s > ch->windLen)
+                ch->windLen = s;
+        }
+    }
+    ch->windT += dt;
+    t = ch->windT;
+    gust = 0.75f + 0.25f * sinf(t * 0.9f) * sinf(t * 0.37f + 1.0f);
+    for (i = 0; i < m->count; i++)
+    {
+        /* From the knot out to this vertex; game space, +y down. */
+        float r[3] = { -m->d[i][0], -m->d[i][1], -m->d[i][2] };
+        float s = sqrtf(r[0] * r[0] + r[1] * r[1] + r[2] * r[2]);
+        float a[3], side[3], vert[3], u, n, ph, amp, sw, sv, droop, pull;
+
+        if (s < 1e-3f)
+        {
+            ch->windD[i][0] = ch->windD[i][1] = ch->windD[i][2] = 0.0f;
+            continue;
+        }
+        a[0] = r[0] / s; a[1] = r[1] / s; a[2] = r[2] / s;
+        u = s / ch->windLen;
+        /* across = along x up (up is -y) */
+        side[0] = a[2]; side[1] = 0.0f; side[2] = -a[0];
+        n = sqrtf(side[0] * side[0] + side[2] * side[2]);
+        if (n < 0.05f) { side[0] = 1.0f; side[2] = 0.0f; n = 1.0f; }
+        side[0] /= n; side[2] /= n;
+        vert[0] = side[1] * a[2] - side[2] * a[1];
+        vert[1] = side[2] * a[0] - side[0] * a[2];
+        vert[2] = side[0] * a[1] - side[1] * a[0];
+        ph    = 6.2832f * 1.25f * u;
+        amp   = s * 0.20f * (0.35f + 0.65f * u) * gust;
+        sw    = sinf(7.3f * t - ph + a[0] * 2.0f);
+        sv    = sinf(9.7f * t - ph * 1.4f + 1.7f + a[2] * 2.0f);
+        droop = s * 0.30f * u;
+        pull  = s * 0.06f * u;
+        ch->windD[i][0] = side[0] * amp * sw + vert[0] * 0.55f * amp * sv - a[0] * pull;
+        ch->windD[i][1] = side[1] * amp * sw + vert[1] * 0.55f * amp * sv - a[1] * pull + droop;
+        ch->windD[i][2] = side[2] * amp * sw + vert[2] * 0.55f * amp * sv - a[2] * pull;
+    }
+}
+
 /* Shape keys move the bind pose, so each delta goes through the same
  * retarget and bone blend as the vertex it moves. */
 static void Skin_ApplyMorphs(PcSkinChara* ch, float h, float ofx, float ofy, float offX, float offY)
@@ -3876,11 +3951,14 @@ static void Skin_ApplyMorphs(PcSkinChara* ch, float h, float ofx, float ofy, flo
     w[PC_SKIN_MORPH_MOUTH] = ch->morph[PC_SKIN_MORPH_MOUTH].count ? Skin_MouthWeight(ch) : 0.0f;
     Skin_GripWeights(ch, &w[PC_SKIN_MORPH_GRIP_L]);
     w[PC_SKIN_MORPH_BREATH] = ch->morph[PC_SKIN_MORPH_BREATH].count ? Skin_BreathWeight(ch) : 0.0f;
+    Skin_WindDeltas(ch, g_DeltaTime / 4096.0f);
+    w[PC_SKIN_MORPH_WIND] = (ch->morph[PC_SKIN_MORPH_WIND].count && ch->windD != NULL) ? 1.0f : 0.0f;
     for (k = 0; k < PC_LIP_SHAPES; k++)
         w[PC_SKIN_MORPH_SHAPE + k] = ch->morph[PC_SKIN_MORPH_SHAPE + k].count ? ch->shapeW[k] : 0.0f;
     for (k = 0; k < PC_SKIN_MORPH_COUNT; k++)
     {
         const PcSkinMorph* m = &ch->morph[k];
+        const float (*md)[3] = (k == PC_SKIN_MORPH_WIND) ? (const float (*)[3])ch->windD : (const float (*)[3])m->d;
         if (w[k] <= 0.0f)
             continue;
         for (i = 0; i < m->count; i++)
@@ -3898,7 +3976,7 @@ static void Skin_ApplyMorphs(PcSkinChara* ch, float h, float ofx, float ofy, flo
                 float l[3], o[3], sc;
                 if (!ch->have[b])
                     continue;
-                M3_MulV(ch->rt[b], m->d[i], l);
+                M3_MulV(ch->rt[b], md[i], l);
                 sc = (ch->kk[b] - 1.0f) * (l[0] * ch->ax[b][0] + l[1] * ch->ax[b][1] + l[2] * ch->ax[b][2]);
                 l[0] += sc * ch->ax[b][0]; l[1] += sc * ch->ax[b][1]; l[2] += sc * ch->ax[b][2];
                 M3_MulV(ch->rv[b], l, o);
