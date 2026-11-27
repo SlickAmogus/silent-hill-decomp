@@ -43,6 +43,7 @@ extern void        PsyX_PumpEvents(void);
 extern void        PsyX_ApplyWindowState(int width, int height, int fullscreen);
 extern int         Sh_LogSetEnabled(int on);
 extern int         Uwp_FindDiscDir(char* out, int outSize);
+extern int         Uwp_IsXbox(void);
 
 /* The page is laid out on a canvas of this size (the launcher's client area,
  * less its Mode row), scaled to fit the screen and centred. */
@@ -78,7 +79,7 @@ static const char* const kPresetNames[PC_SIMPLE_COUNT + 1] = {
 };
 static const char* const kPresetAbout[PC_SIMPLE_COUNT + 1] = {
     "The game as it was on the PlayStation: its own resolution, 30 fps and the original lighting.",
-    "Smooth textures, no PGXP or extra effects; 1080p renders at 0.7 scale. For older graphics and Xbox One.",
+    "Smooth textures, no PGXP or extra effects, at a lower resolution. For older graphics and Xbox One.",
     "No FPS limit, sharper textures, per-pixel lighting and flashlight shadows.",
     "Per-pixel lighting with Hero Light, and the modern flashlight with detailed shadows.",
     "The highest shadow detail and the whole town in view through thinner fog. For powerful graphics cards.",
@@ -814,8 +815,9 @@ static void ss_pick_preset(int p)
 
     PcConfig_SimplePresetApply(p);
     /* As the launcher's click does: the render size goes back to the
-     * screen's. A window is its own size and has none to reset. */
-    if (g_PcConfig.fullscreen != 0 && SDL_GetDesktopDisplayMode(0, &dm) == 0 && dm.w > 0 && dm.h > 0)
+     * screen's. A window is its own size and has none to reset, and on an
+     * Xbox the preset has just chosen one. */
+    if (!Uwp_IsXbox() && g_PcConfig.fullscreen != 0 && SDL_GetDesktopDisplayMode(0, &dm) == 0 && dm.w > 0 && dm.h > 0)
     {
         g_PcConfig.windowWidth  = dm.w;
         g_PcConfig.windowHeight = dm.h;

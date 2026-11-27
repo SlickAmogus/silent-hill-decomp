@@ -1876,11 +1876,27 @@ static float PcConfig_SimplePresetScale(int p)
 {
     SDL_DisplayMode dm;
 
-    if (p != PC_SIMPLE_LOW)
+    /* An Xbox gets its frame time back from a smaller resolution instead
+     * (PcConfig_SimplePresetXboxSize), at the full scale. */
+    if (p != PC_SIMPLE_LOW || PcConfig_IsXbox())
         return 1.0f;
     if (!SDL_WasInit(SDL_INIT_VIDEO) || SDL_GetDesktopDisplayMode(0, &dm) != 0 || dm.h <= 0)
         return -1.0f;
     return dm.h == 1080 ? 0.7f : 1.0f;
+}
+
+/* The render size a preset gives an Xbox: 480p (widescreen) for Low Spec,
+ * 720p for Normal, 1080p above. The One draws a frame's every pixel many times
+ * over (PGXP keeps the polygons the PSX would drop for size), so the size is
+ * what decides the frame rate there. 0 = the preset leaves the size alone. */
+static void PcConfig_SimplePresetXboxSize(int p, int* w, int* h)
+{
+    *w = *h = 0;
+    if (!PcConfig_IsXbox() || p == PC_SIMPLE_ORIGINAL)
+        return;
+    if (p == PC_SIMPLE_LOW)         { *w = 854;  *h = 480;  }
+    else if (p == PC_SIMPLE_NORMAL) { *w = 1280; *h = 720;  }
+    else                            { *w = 1920; *h = 1080; }
 }
 
 static int s_presetScalePending = -1; /* the preset whose scale waits for the display */
@@ -1967,6 +1983,20 @@ void PcConfig_SimplePresetApply(int p)
         PcConfig_SimpleSetScale(scale);
     else if (scale < 0.0f)
         s_presetScalePending = p;
+    {
+        int xw, xh;
+        PcConfig_SimplePresetXboxSize(p, &xw, &xh);
+        if (xw > 0)
+        {
+            char sz[16];
+            g_PcConfig.windowWidth  = xw;
+            g_PcConfig.windowHeight = xh;
+            snprintf(sz, sizeof(sz), "%d", xw);
+            PcConfig_SaveKeyValue("width", sz);
+            snprintf(sz, sizeof(sz), "%d", xh);
+            PcConfig_SaveKeyValue("height", sz);
+        }
+    }
 
     if (!PC_SIMPLE_KEEPS_SIZE)
         g_PcConfig.nativeResolution = v.native;
