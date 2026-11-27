@@ -76,7 +76,7 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_DREAMSTR, QO_X_DREAMBLUR, QO_X_DPADMOVE, QO_X_CROSSHAIRSTYLE,
        QO_X_LINEGAP, QO_X_CHARALIGHT, QO_X_PPLIGHT, QO_X_HEROLIGHT, QO_X_HEROLIGHTFL, QO_X_FACEANIM,
        QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD, QO_X_WORLDVIS, QO_X_FLASHAIM,
-       QO_X_PRESET, QO_X_SDITHER, QO_X_CFGMODE, QO_X_RES };
+       QO_X_PRESET, QO_X_SDITHER, QO_X_CFGMODE, QO_X_RES, QO_X_BUTTONSPRINT };
 extern const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz);
 extern void        PcOpt_QuickExtraAdjust(int which, int dir);
 extern void        PcOpt_QuickViewReset(int mode);
@@ -125,6 +125,8 @@ typedef struct
 static const QoRowDef s_pageGfx1[] = {
     { ROW_EXTRA, NULL, QO_X_CFGMODE,        "Config Mode" },
     { ROW_OPT,   "fullscreen",           0, NULL },  /* Window_Mode */
+    /* Simple mode had the only Resolution row; advanced had none at all. */
+    { ROW_EXTRA, NULL, QO_X_RES,            "Resolution" },
     { ROW_OPT,   "render_scale",         0, NULL },
     { ROW_OPT,   "texture_filter",       0, NULL },  /* Texture_Filter */
     /* Was the "Dither" step of Texture_Filter before the two rows split. */
@@ -221,6 +223,7 @@ static const QoRowDef s_pageControls[] = {
     { ROW_EXTRA, NULL, QO_X_QUICK_WEAPONS, "Quick Weapon Switching" },
     { ROW_EXTRA, NULL, QO_X_DPADMOVE,        "Disable D-pad for Movement" },
     { ROW_EXTRA, NULL, QO_X_AUTORELOAD,      "Auto Reload" },
+    { ROW_EXTRA, NULL, QO_X_BUTTONSPRINT,    "Always use button based sprinting" },
     { ROW_ACTION, NULL, QO_A_KEYBINDS,       "Edit Keybinds" },
     QO_NAV_ROW,
     QO_CLOSE_ROW,

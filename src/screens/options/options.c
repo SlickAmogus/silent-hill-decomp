@@ -788,7 +788,7 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_DREAMSTR, QO_X_DREAMBLUR, QO_X_DPADMOVE, QO_X_CROSSHAIRSTYLE,
        QO_X_LINEGAP, QO_X_CHARALIGHT, QO_X_PPLIGHT, QO_X_HEROLIGHT, QO_X_HEROLIGHTFL, QO_X_FACEANIM,
        QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD, QO_X_WORLDVIS, QO_X_FLASHAIM,
-       QO_X_PRESET, QO_X_SDITHER, QO_X_CFGMODE, QO_X_RES };
+       QO_X_PRESET, QO_X_SDITHER, QO_X_CFGMODE, QO_X_RES, QO_X_BUTTONSPRINT };
 
 /* display_aspect = crt puts the picture on (4:3 x trim), so one framebuffer
  * pixel lands on screen this many times wider than tall at trim 1.0. It is the
@@ -895,6 +895,8 @@ const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz)
         return Pc_LangQuickMenu(g_PcConfig.dreamBlur ? "On" : "Off");
     case QO_X_DPADMOVE:
         return Pc_LangQuickMenu(g_PcConfig.disableDpadMovement ? "On" : "Off");
+    case QO_X_BUTTONSPRINT:
+        return Pc_LangQuickMenu(g_PcConfig.altButtonSprint ? "On" : "Off");
     case QO_X_CHARALIGHT:
         return Pc_LangQuick(g_PcConfig.charaPerPixelLight ? "Per Pixel" : "Per Vertex");
     case QO_X_PPLIGHT:
@@ -1444,6 +1446,13 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
         PcConfig_SaveKeyValue("disable_dpad_movement", g_PcConfig.disableDpadMovement ? "1" : "0");
         Sd_PlaySfx(Sfx_MenuMove, 0, 64);
         break;
+    /* player_control.c reads it each frame, so it applies live. Only the
+     * launcher's Controls window had it, which a console does not have. */
+    case QO_X_BUTTONSPRINT:
+        g_PcConfig.altButtonSprint = !g_PcConfig.altButtonSprint;
+        PcConfig_SaveKeyValue("altcam_button_sprint", g_PcConfig.altButtonSprint ? "1" : "0");
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        break;
     /* Pc_CrosshairDraw reads it each frame, so it applies live. */
     case QO_X_CROSSHAIRMELEE:
         g_PcConfig.crosshairHideMelee = !g_PcConfig.crosshairHideMelee;
@@ -1619,7 +1628,7 @@ void Pc_Options_ResetToDefaults(void)
 static int PcOpt_ResList(int* w, int* h, int max)
 {
     static const int win[][2] = {
-        { 640, 480 },   { 800, 600 },   { 1024, 768 },  { 1280, 720 },  { 1280, 960 },  { 1366, 768 },
+        { 640, 480 },   { 854, 480 },   { 800, 600 },   { 1024, 768 },  { 1280, 720 },  { 1280, 960 },  { 1366, 768 },
         { 1440, 1080 }, { 1600, 900 },  { 1600, 1200 }, { 1920, 1080 }, { 1920, 1440 }, { 2560, 1440 },
         { 2880, 2160 }, { 3840, 2160 },
     };
@@ -1633,7 +1642,16 @@ static int PcOpt_ResList(int* w, int* h, int max)
         deskH = dm.h;
     }
 
-    if (g_PcConfig.fullscreen == 0)
+#if defined(SH_UWP)
+    extern int Uwp_IsXbox(void);
+    /* An Xbox reports its one output mode; the game renders at any size under
+     * it (the window is always the whole screen), so it gets the sized list. */
+    const int sizedList = g_PcConfig.fullscreen == 0 || Uwp_IsXbox();
+#else
+    const int sizedList = g_PcConfig.fullscreen == 0;
+#endif
+
+    if (sizedList)
     {
         for (i = 0; i < (int)(sizeof(win) / sizeof(win[0])) && n < max; i++)
         {
