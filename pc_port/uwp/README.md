@@ -11,7 +11,19 @@ ANGLE, SDL2's WinRT backend for the window, input and audio device.
 | Renderer | OpenGL, ANGLE optional | ANGLE Direct3D 11 only |
 | Map overlays | DLLs | linked in (`SH_STATIC_MAPS`) |
 | Working folder | next to the exe | the app's `LocalState` |
-| RetroAchievements, ffmpeg FMV, Discord, launcher | yes | no |
+| RetroAchievements, ffmpeg FMV, Discord | yes | no |
+| Launcher | WinForms app | its simple view, in the game (`src/pc_start_screen.c`) |
+| Mods | launcher's Mod Manager | Essential QoL Mods, from the start screen or PC Options; no DLL mods |
+
+## The start screen
+
+The app opens on the launcher's simple view: quality presets, Dithering,
+Logging, CRT Filter, minimap, disc, game language, Play. It writes the same
+`config.cfg` keys the launcher does and runs before the disc is mounted, so
+nothing on it needs a restart. D-pad or left stick moves, A selects, left and
+right change a list, Menu (Start) plays; keyboard and mouse work too. Without
+a disc image Play is greyed out and the page says where to put one, and looks
+again every two seconds.
 
 ## Where the game looks for the disc image
 

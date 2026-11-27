@@ -1194,6 +1194,16 @@ int main(int argc, char* argv[])
      * on for itself (dbg_overlay.c). */
     SDL_StopTextInput();
 
+#ifdef SH_UWP
+    /* The launcher's page, for a build that cannot have the launcher. Here
+     * because it needs the window, and everything it sets (the preset, the
+     * disc, the language) is read by the boot code below. */
+    {
+        extern void Pc_StartScreen_Run(char* dataDir, int dataDirSize);
+        Pc_StartScreen_Run(g_GameDataPath, sizeof(g_GameDataPath));
+    }
+#endif
+
     /* Needs the GL context, so it runs here rather than beside the system-RAM
      * clamp above. Same rule as that one: only ever lowers. */
     HiresOverride_ClampBudgetToVram();

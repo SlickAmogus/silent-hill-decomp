@@ -393,6 +393,14 @@ static const struct { const char* key; size_t off; } s_GlobalBinds[] = {
 #else
 #define PC_SIMPLE_IN_GAME_ONLY 0
 #endif
+/* UWP has no launcher either, but opens on the launcher's own preset page
+ * (pc_start_screen.c): a new player starts on a preset there too, and nobody
+ * needs telling the presets exist. */
+#if defined(SH_UWP)
+#define PC_SIMPLE_START_SCREEN 1
+#else
+#define PC_SIMPLE_START_SCREEN 0
+#endif
 /* A phone's screen is its resolution: a preset leaves the render size alone. */
 #if defined(__ANDROID__) || defined(SH_IOS)
 #define PC_SIMPLE_KEEPS_SIZE 1
@@ -1759,7 +1767,7 @@ else if (strcmp(key, "enable_plugins") == 0)
 
         /* v8 (builds with no launcher): a config that has never been through
          * this block is a new player's; they start on a preset. */
-        if (PC_SIMPLE_IN_GAME_ONLY && g_PcConfig.configVersion == 0)
+        if ((PC_SIMPLE_IN_GAME_ONLY || PC_SIMPLE_START_SCREEN) && g_PcConfig.configVersion == 0)
             PcConfig_SimpleNewPlayer();
 
         g_PcConfig.configVersion = PC_CONFIG_VERSION;
