@@ -65,6 +65,7 @@ enum
     FOCUS_LANG,
     FOCUS_PLAY,
     FOCUS_MODS,
+    FOCUS_WINDOWED, /* Windows only: an Xbox app is always full screen */
     FOCUS_COUNT
 };
 
@@ -894,6 +895,31 @@ static int ss_activate(int stop, int dir)
             if (dir == 0)
                 Pc_QolMods_OpenList();
             break;
+        case FOCUS_WINDOWED:
+        {
+            SDL_DisplayMode dm;
+            int             haveDm = SDL_GetDesktopDisplayMode(0, &dm) == 0 && dm.w > 0 && dm.h > 0;
+
+            if (dir != 0 || Uwp_IsXbox())
+                break;
+            g_PcConfig.fullscreen = g_PcConfig.fullscreen ? 0 : 2;
+            /* A window the size of the screen would only look full screen. */
+            if (g_PcConfig.fullscreen == 0 && haveDm && g_PcConfig.windowWidth >= dm.w && g_PcConfig.windowHeight >= dm.h)
+            {
+                g_PcConfig.windowWidth  = 1280;
+                g_PcConfig.windowHeight = 720;
+            }
+            else if (g_PcConfig.fullscreen != 0 && haveDm)
+            {
+                g_PcConfig.windowWidth  = dm.w;
+                g_PcConfig.windowHeight = dm.h;
+            }
+            ss_save_int("fullscreen", g_PcConfig.fullscreen);
+            ss_save_int("width", g_PcConfig.windowWidth);
+            ss_save_int("height", g_PcConfig.windowHeight);
+            PsyX_ApplyWindowState(g_PcConfig.windowWidth, g_PcConfig.windowHeight, g_PcConfig.fullscreen);
+            break;
+        }
         default:
             break;
     }
@@ -969,7 +995,7 @@ static void ss_move(int pressed)
 
     if (pressed & IN_UP)
     {
-        if (f == FOCUS_MODS)      f = FOCUS_PLAY;
+        if (f == FOCUS_MODS || f == FOCUS_WINDOWED) f = FOCUS_PLAY;
         else if (f == FOCUS_PLAY) f = s_lastColumn < FOCUS_DITHER ? PC_SIMPLE_COUNT - 1 : FOCUS_LANG;
         else if (f != FOCUS_PRESET0 && f != FOCUS_DITHER) f--;
     }
@@ -977,12 +1003,16 @@ static void ss_move(int pressed)
     {
         if (f == PC_SIMPLE_COUNT - 1 || f == FOCUS_LANG) f = FOCUS_PLAY;
         else if (f == FOCUS_PLAY)                        f = FOCUS_MODS;
-        else if (f != FOCUS_MODS)                        f++;
+        else if (f != FOCUS_MODS && f != FOCUS_WINDOWED) f++;
     }
     if ((pressed & IN_RIGHT) && f < PC_SIMPLE_COUNT)
         f = FOCUS_DITHER + (f > FOCUS_LANG - FOCUS_DITHER ? FOCUS_LANG - FOCUS_DITHER : f);
     else if ((pressed & IN_LEFT) && f >= FOCUS_DITHER && f <= FOCUS_CRT)
         f = f - FOCUS_DITHER;
+    else if ((pressed & IN_RIGHT) && f == FOCUS_MODS && !Uwp_IsXbox())
+        f = FOCUS_WINDOWED;
+    else if ((pressed & IN_LEFT) && f == FOCUS_WINDOWED)
+        f = FOCUS_MODS;
     s_focus = f;
     if (f < FOCUS_PLAY)
         s_lastColumn = f;
@@ -1129,6 +1159,9 @@ static void ss_draw_page(void)
     ss_frame(40, 594, 260, 628, 1, 84, 86, 82, 255);
     ss_text_centred(SS_FONT_BODY, 20, 40, 260, 599, 232, 230, 222, "Essential QoL Mods");
     ss_focus_frame(FOCUS_MODS);
+
+    if (!Uwp_IsXbox())
+        ss_check_row(FOCUS_WINDOWED, 598, "Windowed", g_PcConfig.fullscreen == 0);
 
     ss_text_draw(SS_FONT_BODY, 16.5f, 40, 650, 176, 176, 168,
                  "D-pad: move      A: select      Left / Right: change a list      Menu: play");
