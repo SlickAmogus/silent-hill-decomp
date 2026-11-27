@@ -82,7 +82,7 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_LINEGAP, QO_X_CHARALIGHT, QO_X_PPLIGHT, QO_X_HEROLIGHT, QO_X_HEROLIGHTFL, QO_X_FACEANIM,
        QO_X_CROSSHAIRMELEE, QO_X_AUTORELOAD,
        QO_X_GYROAIM, QO_X_GYROSENS, QO_X_GYROMOVE, QO_X_FLASHAIM, QO_X_WORLDVIS,
-       QO_X_PRESET, QO_X_SDITHER, QO_X_CFGMODE };
+       QO_X_PRESET, QO_X_SDITHER, QO_X_CFGMODE, QO_X_BUTTONSPRINT };
 extern const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz);
 extern void        PcOpt_QuickExtraAdjust(int which, int dir);
 extern void        PcOpt_QuickViewReset(int mode);
@@ -283,6 +283,7 @@ static const QoRowDef s_page5[] = {
     { ROW_OPT,   "aim_assist",             0, NULL },
     { ROW_EXTRA, NULL, QO_X_QUICK_WEAPONS, "Quick Weapon Switching" },
     { ROW_EXTRA, NULL, QO_X_DPADMOVE,        "Disable D-pad for Movement" },
+    { ROW_EXTRA, NULL, QO_X_BUTTONSPRINT,    "Always use button based sprinting" },
     { ROW_EXTRA, NULL, QO_X_AUTORELOAD,      "Auto Reload" },
     { ROW_PAGE,  NULL, 0,                   "Next page  (Graphics)" },
     { ROW_CLOSE, NULL, 0,                   "Close" },
@@ -518,6 +519,7 @@ static const QoRowDef s_pageControls[] = {
      * the touch overlay's own D-pad bits are merged after the controller read,
      * so the Gamepad style still navigates menus with it. */
     { ROW_EXTRA, NULL, QO_X_DPADMOVE,         "Disable D-pad for Movement" },
+    { ROW_EXTRA, NULL, QO_X_BUTTONSPRINT,     "Always use button based sprinting" },
     { ROW_OPT,   "touch_quicksave_buttons", 0, "Quick Save/Load Buttons" },
     /* Asks before it acts; see QO_A_TOTITLE. */
     { ROW_ACTION, NULL, QO_A_TOTITLE,         "Return to Main Menu" },
